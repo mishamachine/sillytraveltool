@@ -9,6 +9,7 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 import { useVisibilityRestore } from './hooks/useVisibilityRestore'
 import { initDeepLinks } from './native/deepLinks'
 import { gaPageView } from './lib/ga'
+import { applyTheme, onSystemThemeChange } from './lib/theme'
 import './styles/global.css'
 
 // Lazy-load heavy screens — reduces initial bundle
@@ -67,7 +68,7 @@ function AppLoading() {
 
 export default function App() {
   const { user, loading, init, passwordRecovery, inviteNonce } = useAuthStore()
-  const { activeTab, showTripForm, darkMode } = useUIStore()
+  const { activeTab, showTripForm, themePref } = useUIStore()
   const { activeTrip } = useTripsStore()
   const { fetchPendingInvites } = useCollabStore()
   useVisibilityRestore()
@@ -109,16 +110,12 @@ export default function App() {
     try { localStorage.setItem('install_banner_dismissed', '1') } catch {}
   }
 
+  // Theme: explicit choice or the OS setting (src/lib/theme.js)
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
-  }, [darkMode])
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('stt_theme')
-      if (saved === 'dark') useUIStore.getState().setDarkMode(true)
-    } catch {}
-  }, [])
+    applyTheme(themePref)
+    if (themePref !== 'system') return
+    return onSystemThemeChange(dark => { useUIStore.getState().setDarkMode(dark); applyTheme('system') })
+  }, [themePref])
 
   // Invite token handler
   useEffect(() => {

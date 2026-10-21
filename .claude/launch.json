@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stt-dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite --port 5173 --strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "stt-preview",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite preview --port 4173 --strictPort"],
+      "port": 4173
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import ShareNudge from '../../components/shared/ShareNudge'
 import Goose from '../../components/goose/Goose'
 import { BADGES, BADGE_TIER_COLORS } from '../../lib/tokens'
+import { Icon } from '../../ui'
 
 const PROFILE_TABS = [
   { id: 'docs', label: 'Docs', emoji: '📄' },
@@ -656,7 +657,7 @@ function StatsTab({ stats, badges }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  {badge.icon}
+                  <Icon name={badge.icon} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: BADGE_TIER_COLORS[badge.tier] }}>
@@ -691,7 +692,7 @@ function StatsTab({ stats, badges }) {
                 gap: 10,
                 opacity: 0.6,
               }}>
-                <span style={{ fontSize: 22, width: 32, textAlign: 'center', flexShrink: 0 }}>{badge.icon}</span>
+                <span style={{ fontSize: 22, width: 32, textAlign: 'center', flexShrink: 0 }}><Icon name={badge.icon} /></span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 13, color: 'var(--text-sec)' }}>

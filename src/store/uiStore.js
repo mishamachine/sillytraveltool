@@ -1,9 +1,12 @@
 import { create } from 'zustand'
+import { getSavedTheme, saveTheme, resolveDark } from '../lib/theme'
 
 // Read persisted tab from sessionStorage
 function getSavedTab() {
   try { return sessionStorage.getItem('stt_active_tab') || 'trips' } catch { return 'trips' }
 }
+
+const initialTheme = getSavedTheme()
 
 export const useUIStore = create((set) => ({
   activeTab: getSavedTab(),
@@ -12,7 +15,10 @@ export const useUIStore = create((set) => ({
   activeToolboxTab: 'currency',
   activeProfileTab: 'docs',
   showTripForm: false, showBookingForm: false, showActivityForm: false,
-  editingItem: null, sheetContent: null, darkMode: false,
+  editingItem: null, sheetContent: null,
+  // themePref: 'system' | 'light' | 'dark'; darkMode is the resolved value
+  themePref: initialTheme,
+  darkMode: resolveDark(initialTheme),
 
   setTab: (tab) => {
     try { sessionStorage.setItem('stt_active_tab', tab) } catch {}
@@ -31,11 +37,15 @@ export const useUIStore = create((set) => ({
   closeActivityForm: () => set({ showActivityForm: false, editingItem: null }),
   openSheet: (content) => set({ sheetContent: content }),
   closeSheet: () => set({ sheetContent: null }),
+
+  setThemePref: (pref) => {
+    saveTheme(pref)
+    set({ themePref: pref, darkMode: resolveDark(pref) })
+  },
   toggleDarkMode: () => set(s => {
-    const next = !s.darkMode
-    try { localStorage.setItem('stt_theme', next ? 'dark' : 'light') } catch {}
-    return { darkMode: next }
+    const pref = s.darkMode ? 'light' : 'dark'
+    saveTheme(pref)
+    return { themePref: pref, darkMode: !s.darkMode }
   }),
   setDarkMode: (val) => set({ darkMode: val }),
 }))
-

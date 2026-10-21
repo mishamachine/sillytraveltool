@@ -4,6 +4,7 @@
   "version": "0.19.0",
   "type": "module",
   "scripts": {
+    "tokens": "node scripts/build-tokens.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
