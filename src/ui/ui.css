@@ -103,7 +103,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-btn--ghost:hover:not(:disabled) { background: var(--surface-sunken); }
 .c-btn--outline { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line-strong); }
 .c-btn--danger { background: var(--danger-fill); color: var(--on-danger); }
-.c-card--inverse .c-btn--secondary { background: var(--surface-card); color: var(--ink); box-shadow: none; }
+.c-card.c-card--inverse .c-btn--secondary { background: var(--surface-card); color: var(--ink); box-shadow: none; }
 
 .c-iconbtn {
   position: relative;
@@ -473,3 +473,10 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 /* ---------- focus ---------- */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .c-field__input:focus-visible { outline: none; }
+
+/* ---------- dark-theme adjustments ---------- */
+/* The "dark" button inverts in dark mode so it still stands out from the page. */
+:root[data-theme="dark"] .c-btn--dark { background: var(--ink); color: var(--surface-page); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .c-btn--dark { background: var(--ink); color: var(--surface-page); }
+}

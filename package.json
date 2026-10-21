@@ -11,7 +11,8 @@
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives",
     "build:native": "vite build --mode native && npx cap sync android",
     "android": "npm run build:native && npx cap run android",
-    "android:open": "npm run build:native && npx cap open android"
+    "android:open": "npm run build:native && npx cap open android",
+    "check:clay": "node scripts/check-clay.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
