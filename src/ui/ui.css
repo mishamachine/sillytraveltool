@@ -485,3 +485,5 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .c-chip--action.is-selected { background: var(--accent-fill); color: var(--on-accent); }
 }
+/* Fields inside a card sit on the page colour so they stay visible (both themes). */
+.c-card .c-field__box { background: var(--surface-page); }

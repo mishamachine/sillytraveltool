@@ -1,0 +1,38 @@
+/* Profile tab: identity, score, badges, documents, settings, delete account */
+.profile-id { display: flex; align-items: center; gap: 14px; }
+.profile-id__name { font-size: 26px; }
+
+.profile-score-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+
+.profile-badges { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.profile-badge {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0;
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: center; color: var(--ink);
+}
+.profile-badge__tile {
+  width: 64px; height: 64px; border-radius: 22px; display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-card), var(--shadow-lip);
+}
+.profile-badge__tile--locked { color: var(--ink-muted); box-shadow: inset 0 0 0 2px var(--line-strong); background: transparent; }
+.profile-badge__name { font-size: 12px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.profile-badge-progress { margin-top: 6px; }
+
+.profile-docnum { padding: var(--space-2) 0; }
+.profile-docnum__value { letter-spacing: 0.08em; }
+.profile-detail {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4);
+  min-height: 52px; padding: var(--space-3) 0;
+}
+.profile-detail + .profile-detail, .profile-docnum + .profile-detail { border-top: 1px solid var(--line); }
+.profile-detail__value { text-align: right; overflow-wrap: anywhere; min-width: 0; }
+
+.profile-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.profile-address { overflow-wrap: anywhere; font-family: var(--font-display); }
+.profile-about { padding: var(--space-4) 0 var(--space-2); }
+
+.profile-erase { list-style: none; margin: 0; }
+.profile-erase .c-row { min-height: 48px; }
+.profile-erase__item { font-weight: 500; }
+.profile-export { align-self: flex-start; color: var(--accent); }
+.profile-delete-input { letter-spacing: 0.08em; }
+.profile-delete-actions { margin-top: auto; padding-top: var(--space-4); }

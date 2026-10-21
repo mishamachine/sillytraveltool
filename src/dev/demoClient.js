@@ -130,7 +130,7 @@ export function createDemoClient() {
     __demo: true,
     from: (table) => new Query(table),
     rpc: async (fn, args) => {
-      if (fn === 'reveal_document_number') return { data: db.revealed[args?.doc_id] || 'X1234567', error: null }
+      if (fn === 'reveal_document_number') return { data: db.revealed[args?.p_doc_id] || 'X1234567', error: null }
       return { data: null, error: null }
     },
     functions: { invoke },
