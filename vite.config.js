@@ -118,7 +118,7 @@ export default defineConfig(({ mode }) => {
           }
         ],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/]
+        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal)(\/|$)/]
       }
     })
   ].filter(Boolean),

@@ -1,5 +1,5 @@
 {
-  "name": "STT Brand — Warm Minimal Clay · Dark (proposed, awaiting owner sign-off)",
+  "name": "STT Brand — Warm Minimal Clay · Dark (signed off 2026-10-21)",
   "version": 1,
   "note": "Derived from brand-tokens.json; see docs/brand/DARK_MODE.md for rationale and contrast ratios. Tokens listed under `extensions` are new semantic aliases needed because one light token plays two roles that split in dark (e.g. `accent` is both a text colour and a button fill).",
   "color": {

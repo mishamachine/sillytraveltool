@@ -1,0 +1,27 @@
+/* Terms + Privacy: static pages outside the app bundle. Values copied from src/styles/tokens.css. */
+:root { --page: #F4EEE6; --card: #FFFDF9; --ink: #2A2520; --ink-2: #5A5247; --muted: #6B6355; --line: #EFE7DC; --accent: #B24A17; --soft: #F6E9DF; }
+@media (prefers-color-scheme: dark) {
+  :root { --page: #1C1814; --card: #28221C; --ink: #F4EEE6; --ink-2: #D6CBBD; --muted: #B3A796; --line: #3A332B; --accent: #F0895A; --soft: #3D2619; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 400 16px/1.6 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+main { max-width: 720px; margin: 0 auto; padding: 24px 20px 64px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font: 700 18px/1 'Space Grotesk', system-ui, sans-serif; letter-spacing: -0.02em; }
+.brand img { width: 32px; height: 32px; }
+.back { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 14px; background: var(--card); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; }
+h1 { font: 700 34px/1.1 'Space Grotesk', system-ui, sans-serif; letter-spacing: -0.02em; margin: 0 0 8px; }
+h2 { font: 700 21px/1.25 'Space Grotesk', system-ui, sans-serif; margin: 36px 0 8px; }
+h3 { font: 600 17px/1.3 'DM Sans', system-ui, sans-serif; margin: 20px 0 4px; }
+p, li { color: var(--ink-2); }
+strong { color: var(--ink); }
+a { color: var(--accent); font-weight: 600; }
+.meta { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+.card { background: var(--card); border-radius: 22px; padding: 16px 20px; margin: 16px 0; }
+.summary { background: var(--soft); }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--ink); font-weight: 600; }
+td { color: var(--ink-2); }
+footer { margin-top: 48px; color: var(--muted); font-size: 14px; }
+@media (max-width: 520px) { h1 { font-size: 30px; } table { font-size: 14px; } }

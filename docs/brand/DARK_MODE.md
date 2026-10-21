@@ -1,11 +1,11 @@
-# Dark mode — Clay (proposed, for owner sign-off)
+# Dark mode — Clay (signed off 2026-10-21)
 
 Dark mode was never designed, so this palette is **derived** from the signed-off light tokens using BRAND.md's
 principles. Values live in `docs/brand/dark-tokens.json`; `npm run tokens` writes them into
 `src/styles/tokens.css`, and `node scripts/build-tokens.mjs --report` re-prints the contrast table below.
 `brand-tokens.json` (the signed-off light set) is unchanged.
 
-**Status: awaiting owner sign-off.** Every value below can be changed in one file and regenerated.
+**Status: signed off by the owner on 2026-10-21.** Every value below can still be changed in one file and regenerated.
 
 ## Principles applied
 

@@ -1,5 +1,18 @@
 # STT Handoff — 2026-10-21
 
+## Update — Clay rebuild done (2026-10-21, evening)
+- Clay redesign is on `main`; see `docs/CLAY_REPORT.md`. Dark palette **signed off** (`docs/brand/DARK_MODE.md`).
+- Owner decisions:
+  - **Past trips are read-only** (recap + read-only plan). Approved.
+  - **Account deletion is UI only for now.** The Delete account screen sends a pre-filled email request to
+    hello@sillytraveltool.com. **Phase 2 MUST ship real in-app deletion** (Edge Function that erases the auth user,
+    trips they own, bookings, documents, loyalty cards, badges, stats, inbox token, analytics rows) before App Store /
+    Play submission (Apple 5.1.1(v); Google Play account-deletion policy, and the Data safety form needs a deletion URL).
+  - **Bookings are always shown in the local time of the place they happen** (departure in the origin's zone, arrival in
+    the destination's zone, hotel/restaurant/tickets in the venue's zone), never the phone's zone.
+  - Terms and Privacy pages: static pages at /terms and /privacy (owner fills in legal-entity details).
+- Google Maps key: owner has it; it goes into Supabase Edge Function secrets (`GOOGLE_MAPS_SERVER_KEY`), never the client.
+
 ## Update — source prepared for Claude Code (2026-10-21, late)
 - This folder = `stt-v0_18_3.zip` + `stt-v0183-patch.zip` merged. The patch was missing from the zip; the live DB already has its `passenger_name` column, so the patch is the newer code. `npm ci && npm run build` passes.
 - Patch SQL kept at `supabase-add-passenger-name.sql` (already applied on live).
@@ -75,7 +88,7 @@
 
 ## App Store readiness (Capacitor)
 - Privacy Policy and Terms pages.
-- In-app account deletion (Apple guideline 5.1.1(v)).
+- In-app account deletion (Apple guideline 5.1.1(v)). **Still open: UI only; deletion is by email request until Phase 2.**
 - AI disclosure and a way to report AI content.
 - Sign in with Apple alongside Google (guideline 4.8).
 - Deep links for OAuth and magic link.

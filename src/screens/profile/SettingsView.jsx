@@ -148,8 +148,8 @@ export default function SettingsView({ onBack, onDelete }) {
 
       <Section title="Privacy and about">
         <Card variant="group">
-          <ExternalRow href="https://sillytraveltool.com/privacy" title="Privacy Policy" />
-          <ExternalRow href="https://sillytraveltool.com/terms" title="Terms of Service" />
+          <ExternalRow href="https://sillytraveltool.com/privacy/" title="Privacy Policy" />
+          <ExternalRow href="https://sillytraveltool.com/terms/" title="Terms of Service" />
           <ListRow title="Delete account" meta="Erase your trips, documents and score" danger chevron onClick={onDelete} />
         </Card>
       </Section>
