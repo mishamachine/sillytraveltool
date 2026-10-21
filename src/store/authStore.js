@@ -31,6 +31,15 @@ export const useAuthStore = create((set, get) => ({
   user: null, profile: null, session: null, loading: true,
   profileReady: false,
   stats: null, badges: [],
+  // Set by a password-reset link (web: PASSWORD_RECOVERY event, native: deep link).
+  // Keeps AuthScreen's "set new password" step up even though the link signs the user in.
+  passwordRecovery: false,
+  authError: null,   // deep-link sign-in failure, shown by AuthScreen
+  inviteNonce: 0,    // bumped when an invite deep link arrives while already signed in
+
+  setPasswordRecovery: (passwordRecovery) => set({ passwordRecovery }),
+  setAuthError: (authError) => set({ authError }),
+  bumpInvite: () => set(state => ({ inviteNonce: state.inviteNonce + 1 })),
 
   fetchStats: async () => {
     const { user } = get()
@@ -51,6 +60,7 @@ export const useAuthStore = create((set, get) => ({
     set({ loading: false })
     supabase.auth.onAuthStateChange(async (event, session) => {
       set({ session, user: session?.user ?? null })
+      if (event === 'PASSWORD_RECOVERY') set({ passwordRecovery: true })
       if (session?.user) {
         const shouldCheckBadges = event === 'SIGNED_IN'
         await get().ensureProfile(session.user, session.access_token, shouldCheckBadges)

@@ -7,6 +7,7 @@ import BottomNav from './components/layout/BottomNav'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 
 import { useVisibilityRestore } from './hooks/useVisibilityRestore'
+import { initDeepLinks } from './native/deepLinks'
 import './styles/global.css'
 
 // Lazy-load heavy screens — reduces initial bundle
@@ -64,7 +65,7 @@ function AppLoading() {
 }
 
 export default function App() {
-  const { user, loading, init } = useAuthStore()
+  const { user, loading, init, passwordRecovery, inviteNonce } = useAuthStore()
   const { activeTab, showTripForm, darkMode } = useUIStore()
   const { activeTrip } = useTripsStore()
   const { fetchPendingInvites } = useCollabStore()
@@ -74,7 +75,7 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(false)
   const [inviteToast, setInviteToast] = useState(null)
 
-  useEffect(() => { init() }, [])
+  useEffect(() => { init(); initDeepLinks() }, [])
 
   useEffect(() => {
     if (user) fetchPendingInvites()
@@ -159,10 +160,10 @@ export default function App() {
       } catch (e) { console.error('accept invite error', e) }
     }
     acceptInvite()
-  }, [user])
+  }, [user, inviteNonce])
 
   if (loading) return <AppLoading />
-  if (!user) return <AuthScreen />
+  if (!user || passwordRecovery) return <AuthScreen />
 
   const ActiveScreen = SCREENS[activeTab] || TripsScreen
 

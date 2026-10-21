@@ -1,6 +1,9 @@
 // STT AuthScreen v4 — maximum splash energy
 import { useState, useEffect } from 'react'
+import { Browser } from '@capacitor/browser'
 import { supabase } from '../lib/supabase'
+import { authRedirect, isNative } from '../lib/authRedirect'
+import { useAuthStore } from '../store/authStore'
 
 function SplashGoose({ size = 120, animate = false }) {
   return (
@@ -48,32 +51,38 @@ export default function AuthScreen() {
   const [error, setError] = useState(null)
   const [sent, setSent] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [resetMode, setResetMode] = useState(false) // true when user arrives via recovery link
+  // true when the user arrives via a password-reset link (set in authStore)
+  const resetMode = useAuthStore(s => s.passwordRecovery)
+  const setPasswordRecovery = useAuthStore(s => s.setPasswordRecovery)
+  const authError = useAuthStore(s => s.authError)
+  const setAuthError = useAuthStore(s => s.setAuthError)
 
   useEffect(() => { setTimeout(() => setMounted(true), 60) }, [])
 
-  // Detect PASSWORD_RECOVERY event — user clicked the reset link in their email
+  // Sign-in failures from a deep link (expired magic link, etc.)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setResetMode(true)
-    })
-    return () => subscription.unsubscribe()
-  }, [])
+    if (!authError) return
+    setError(authError)
+    setAuthError(null)
+  }, [authError])
 
   const handleEmailAuth = async (e) => {
     e.preventDefault()
     setLoading(true); setError(null)
     try {
       if (mode === 'magic') {
-        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: authRedirect() } })
         if (error) throw error
         setSent(true)
       } else if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
+        const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: authRedirect() } })
         if (error) throw error
         setSent(true)
       } else if (mode === 'forgot') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          // Native PKCE links carry no recovery event, so flag it in the URL
+          redirectTo: isNative ? authRedirect({ type: 'recovery' }) : authRedirect(),
+        })
         if (error) throw error
         setSent(true)
       } else {
@@ -91,7 +100,7 @@ export default function AuthScreen() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) throw error
-      setResetMode(false)
+      setPasswordRecovery(false)
       setMode('login')
     } catch (err) { setError(err.message) }
     finally { setLoading(false) }
@@ -99,8 +108,15 @@ export default function AuthScreen() {
 
   const handleGoogle = async () => {
     setLoading(true)
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
+    setError(null)
+    // Native: Google blocks sign-in inside WebViews, so open it in a Custom Tab;
+    // it returns via the app scheme and src/native/deepLinks.js finishes sign-in.
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: authRedirect(), skipBrowserRedirect: isNative },
+    })
     if (error) setError(error.message)
+    else if (isNative && data?.url) await Browser.open({ url: data.url })
     setLoading(false)
   }
 
@@ -136,6 +152,10 @@ export default function AuthScreen() {
         />
         <button type="submit" className="btn btn-primary btn-full" disabled={loading} style={{ fontSize: 15, padding: '13px' }}>
           {loading ? 'Updating...' : 'Update password →'}
+        </button>
+        <button type="button" onClick={() => setPasswordRecovery(false)} disabled={loading}
+          style={{ background: 'none', border: 'none', color: 'rgba(245,240,232,0.6)', fontSize: 13, padding: 8, cursor: 'pointer' }}>
+          Skip for now
         </button>
       </form>
       <style>{`@keyframes splashFloat { 0%,100%{transform:translateY(0) rotate(-1deg);}50%{transform:translateY(-14px) rotate(1deg);}}`}</style>
