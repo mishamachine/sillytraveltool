@@ -1,7 +1,7 @@
-# Local-time backfill for existing bookings (dry run, needs your OK)
+# Local-time backfill for existing bookings (applied 21 Oct 2026 with the owner's OK)
 
 New bookings are saved with the time zone of each place (see `docs/LOCAL_TIME.md`). Bookings saved before that have
-no zone, so the app keeps showing them the old way until this backfill runs. **Nothing below has been applied.**
+no zone, so the app keeps showing them the old way until this backfill runs. **Applied on live on 21 Oct 2026; old values are in `public._backup_local_time_20261021` (18 rows) for rollback.**
 `docs/local-time-backfill.sql` applies it, backing up the old values first, once you OK it.
 
 ## What is on live (21 Oct 2026)

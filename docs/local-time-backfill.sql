@@ -1,4 +1,4 @@
--- Local-time backfill for bookings saved before time zones existed. DRY RUN: review docs/LOCAL_TIME_BACKFILL.md first.
+-- Local-time backfill for bookings saved before time zones existed. Applied on live 21 Oct 2026 with the owner's OK.
 -- Rollback: the old values are kept in public._backup_local_time_20261021 (created below).
 begin;
 create table if not exists public._backup_local_time_20261021 as

@@ -34,8 +34,8 @@ the destination, so nothing shifts when you plan from home or your phone changes
 - A zone name ("Spain Time") appears next to a time whenever the place's clock differs from the phone's; the booking
   detail sheet always names it.
 - "Today" for a trip is `tripToday(trip)` / `todayAtTrip(trip)`, the destination's date.
-- Rows saved before zones existed (no `departure_tz`) keep the old behaviour until the backfill runs
-  (`docs/LOCAL_TIME_BACKFILL.md`).
+- Rows saved before zones existed (no `departure_tz`) were fixed by the backfill on 21 Oct 2026
+  (`docs/LOCAL_TIME_BACKFILL.md`); the device-zone fallback remains for any row without zones.
 
 ## Verified
 

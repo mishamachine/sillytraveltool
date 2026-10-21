@@ -76,7 +76,7 @@ Both passes ran on the finished build. Fixed in `Clay review fixes`:
    (hello@sillytraveltool.com). Real deletion (Edge Function) is Phase 2 and required by Apple 5.1.1(v) / Google Play.
 4. **Terms and Privacy pages**: done in `public/terms`, `public/privacy`; legal name, address and governing law still to fill in.
 5. **Booking time zones**: fixed. Every booking shows the local time where it happens (`docs/LOCAL_TIME.md`). Older
-   flight rows get fixed by `docs/local-time-backfill.sql` once the owner OKs `docs/LOCAL_TIME_BACKFILL.md`.
+   flight rows were fixed on live by `docs/local-time-backfill.sql` (21 Oct 2026, owner OK).
 
 ## Known issues
 
