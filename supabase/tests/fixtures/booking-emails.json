@@ -1,0 +1,103 @@
+{
+  "_about": "Ingestion test fixtures: one realistic trip (SFO → London → Paris → Lisbon → SFO, April 2027) covering every booking type. Confirmation numbers and names are fictional. 'expect' lists the fields the parser must extract; checked by scripts/test-email-ingest.mjs.",
+  "emails": [
+    {
+      "id": "01-flight-united-sfo-lhr",
+      "subject": "Your United eTicket itinerary and receipt for confirmation K7QW2M",
+      "from": "United Airlines <unitedairlines@united.com>",
+      "text": "Thanks for choosing United.\n\nConfirmation number: K7QW2M\nIssue date: October 21, 2026\n\nTraveler: ALEX TRAVELER\neTicket number: 0162398844120\nSeats: 23C\n\nFLIGHT INFORMATION\nSat, Apr 10, 2027\nUA 901  San Francisco, CA (SFO) 4:25 PM  →  London, GB (LHR) 10:45 AM (Sun, Apr 11, 2027)\nEconomy (K)  Aircraft: Boeing 777-300ER\n\nFARE SUMMARY\nAirfare: 742.00 USD\nTaxes and fees: 167.40 USD\nTotal: 909.40 USD\n\nManage your reservation at united.com/manageres\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "flight", "confirmation_number": "K7QW2M", "flight_number": "UA 901", "departure_airport": "SFO", "arrival_airport": "LHR", "departure_date": "2027-04-10", "passenger_name": "ALEX TRAVELER", "seat_number": "23C", "price": 909.4, "currency": "USD" }
+    },
+    {
+      "id": "02-hotel-hoxton-london",
+      "subject": "Your booking is confirmed at The Hoxton, Shoreditch",
+      "from": "Booking.com <noreply@booking.com>",
+      "text": "Alex, your booking in London is confirmed.\n\nThe Hoxton, Shoreditch\n81 Great Eastern Street, London EC2A 3HU, United Kingdom\n\nBooking number: 4471.902.385\nPIN code: 6614\n\nCheck-in: Sunday, 11 April 2027 (from 15:00)\nCheck-out: Wednesday, 14 April 2027 (until 12:00)\n3 nights, 1 room\n\nRoom: Cosy Double Room — 2 adults\nTotal price: £ 687.00 (GBP)\nYou'll pay at the property.\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "hotel", "confirmation_number": "4471.902.385", "hotel_name": "The Hoxton, Shoreditch", "check_in_date": "2027-04-11", "check_out_date": "2027-04-14", "price": 687, "currency": "GBP" }
+    },
+    {
+      "id": "03-museum-british-museum",
+      "subject": "Your tickets: Exhibition — Silk Roads, British Museum",
+      "from": "British Museum <tickets@britishmuseum.org>",
+      "text": "Thank you for booking with the British Museum.\n\nOrder reference: BM-20391847\n\nExhibition: Silk Roads\nDate: Monday 12 April 2027\nEntry time: 11:00\nTickets: 2 x Adult (£22.00 each)\nOrder total: £44.00\n\nVenue: The British Museum, Great Russell Street, London WC1B 3DG\nPlease show this email or your mobile ticket on arrival.\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "activity", "confirmation_number": "BM-20391847", "venue_name": "British Museum", "activity_date": "2027-04-12", "activity_time": "11:00", "ticket_quantity": 2, "price": 44, "currency": "GBP" }
+    },
+    {
+      "id": "04-restaurant-opentable-dishoom",
+      "subject": "Your reservation at Dishoom Shoreditch is confirmed",
+      "from": "OpenTable <member_services@opentable.com>",
+      "text": "You're all set, Alex!\n\nDishoom Shoreditch\n7 Boundary Street, London E2 7JE\n\nMonday, April 12, 2027 at 7:30 PM\nParty of 2\n\nConfirmation #: 182930475\nSpecial request: Window table if possible\n\nNeed to make a change? Modify or cancel at opentable.com.\nThe restaurant holds tables for 15 minutes.\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "restaurant", "confirmation_number": "182930475", "venue_name": "Dishoom Shoreditch", "activity_date": "2027-04-12", "activity_time": "19:30", "party_size": 2 }
+    },
+    {
+      "id": "05-train-eurostar-london-paris",
+      "subject": "Eurostar booking confirmation — PNR QHT8XL",
+      "from": "Eurostar <noreply@eurostar.com>",
+      "text": "Bonjour Alex,\n\nYour Eurostar journey is booked.\n\nBooking reference (PNR): QHT8XL\n\nOutbound — Wednesday 14 April 2027\nTrain 9014\nLondon St Pancras International 08:01  →  Paris Gare du Nord 11:20\nStandard Premier, Coach 7, Seats 52 and 53\nPassengers: Alex Traveler, Sam Traveler\n\nTotal paid: €284.00\n\nCheck-in closes 30 minutes before departure.\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "transport", "transport_mode": "train", "confirmation_number": "QHT8XL", "flight_number": "9014", "departure_airport": "London St Pancras", "arrival_airport": "Paris Gare du Nord", "departure_date": "2027-04-14", "price": 284, "currency": "EUR" }
+    },
+    {
+      "id": "06-hotel-airbnb-paris",
+      "subject": "Reservation confirmed for Bright loft in Le Marais",
+      "from": "Airbnb <automated@airbnb.com>",
+      "text": "Pack your bags! You're going to Paris.\n\nBright loft in Le Marais\nHosted by Camille\n12 Rue de Saintonge, 75003 Paris, France\n\nCheck-in: Wed, Apr 14, 2027 — 4:00 PM\nCheckout: Sat, Apr 17, 2027 — 11:00 AM\nGuests: 2 adults\n\nConfirmation code: HMXK2P9QRT\nTotal (EUR): €612.45\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "hotel", "confirmation_number": "HMXK2P9QRT", "check_in_date": "2027-04-14", "check_out_date": "2027-04-17", "price": 612.45, "currency": "EUR" }
+    },
+    {
+      "id": "07-museum-louvre",
+      "subject": "Your e-tickets — Musée du Louvre",
+      "from": "Musée du Louvre <billetterie@louvre.fr>",
+      "text": "Thank you for your order.\n\nOrder number: LV-7720193\n\nMusée du Louvre — Timed entry\nThursday 15 April 2027, time slot 09:30\nEntrance: Pyramid\n2 x Full price ticket — €22.00\nTotal: €44.00\n\nMusée du Louvre, Rue de Rivoli, 75001 Paris\nPresent your e-ticket at the entrance. Arrive at your time slot.\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "activity", "confirmation_number": "LV-7720193", "venue_name": "Musée du Louvre", "activity_date": "2027-04-15", "activity_time": "09:30", "ticket_quantity": 2, "price": 44, "currency": "EUR" }
+    },
+    {
+      "id": "08-restaurant-thefork-septime",
+      "subject": "Booking confirmed: Septime, Friday 16 April",
+      "from": "TheFork <no-reply@thefork.com>",
+      "text": "Your table is booked!\n\nSeptime\n80 Rue de Charonne, 75011 Paris\n\nFriday 16 April 2027, 19:45\n2 people\nBooking ID: TF-55821904\n\nTasting menu only. Please let the restaurant know about any allergies.\nCancellation is free up to 48 hours before your booking.\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "restaurant", "confirmation_number": "TF-55821904", "venue_name": "Septime", "activity_date": "2027-04-16", "activity_time": "19:45", "party_size": 2 }
+    },
+    {
+      "id": "09-flight-tap-paris-lisbon",
+      "subject": "TAP Air Portugal — Booking confirmation ZR4N7P",
+      "from": "TAP Air Portugal <noreply@flytap.com>",
+      "text": "Booking confirmation\n\nBooking code: ZR4N7P\n\nPassengers\n1. MR ALEX TRAVELER — ticket 047 2419938201\n2. MR SAM TRAVELER — ticket 047 2419938202\n\nFlight\nTP 433  Saturday, 17 April 2027\nParis Charles de Gaulle (CDG) T1 13:05  →  Lisbon (LIS) T1 14:45\nClass: Economy (Classic)\nBaggage: 1 x 23kg per passenger\n\nTotal price: EUR 318.60\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "flight", "confirmation_number": "ZR4N7P", "flight_number": "TP 433", "departure_airport": "CDG", "arrival_airport": "LIS", "departure_date": "2027-04-17", "price": 318.6, "currency": "EUR" }
+    },
+    {
+      "id": "10-hotel-expedia-lisbon",
+      "subject": "Expedia travel confirmation — Memmo Alfama — Apr 17, 2027",
+      "from": "Expedia <travel@expedia.com>",
+      "text": "Your reservation is booked. No need to call us to reconfirm.\n\nItinerary # 72649180133\n\nMemmo Alfama Hotel\nTravessa Merceeiras 27, Lisbon, 1100-348, Portugal\n\nCheck-in: Sat, Apr 17, 2027 (3:00pm)\nCheck-out: Tue, Apr 20, 2027 (12:00pm)\n1 Room: Deluxe Room, River View — 2 adults\nReserved for Alex Traveler\n\nTotal: €741.00 EUR (taxes included)\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "hotel", "confirmation_number": "72649180133", "hotel_name": "Memmo Alfama", "check_in_date": "2027-04-17", "check_out_date": "2027-04-20", "price": 741, "currency": "EUR" }
+    },
+    {
+      "id": "11-restaurant-sevenrooms-belcanto",
+      "subject": "Reservation Confirmation — Belcanto",
+      "from": "Belcanto via SevenRooms <reservations@sevenrooms.com>",
+      "text": "Dear Alex,\n\nWe are delighted to confirm your reservation.\n\nBelcanto\nLargo de São Carlos 10, 1200-410 Lisboa\n\nDate: Sunday, April 18, 2027\nTime: 8:30 PM\nGuests: 4\nReservation number: 7RX-339104\n\nThe tasting menu lasts approximately three hours. A credit card guarantee of €100 per guest applies to cancellations within 48 hours.\n\nWe look forward to welcoming you.\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "restaurant", "confirmation_number": "7RX-339104", "venue_name": "Belcanto", "activity_date": "2027-04-18", "activity_time": "20:30", "party_size": 4 }
+    },
+    {
+      "id": "12-activity-getyourguide-fado",
+      "subject": "Your GetYourGuide booking: Lisbon Fado Show with Dinner",
+      "from": "GetYourGuide <noreply@getyourguide.com>",
+      "text": "Booking confirmed.\n\nLisbon: Live Fado Show in Alfama\nMonday, April 19, 2027 · 9:00 PM\nParticipants: 2 x Adult\nMeeting point: Clube de Fado, Rua São João da Praça 94, Lisbon\n\nBooking reference: GYG-K93LX2HQ\nPrice: €78.00\n\nShow your mobile voucher to the host.\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "activity", "confirmation_number": "GYG-K93LX2HQ", "activity_date": "2027-04-19", "activity_time": "21:00", "ticket_quantity": 2, "price": 78, "currency": "EUR" }
+    },
+    {
+      "id": "13-car-hertz-lisbon",
+      "subject": "Your Hertz reservation H8812047563 is confirmed",
+      "from": "Hertz <reservations@emails.hertz.com>",
+      "text": "Thank you for your reservation.\n\nConfirmation number: H8812047563\n\nPick-up: Sunday, April 18, 2027 at 09:00\nLisbon Humberto Delgado Airport (LIS), Alameda das Comunidades Portuguesas\nReturn: Monday, April 19, 2027 at 18:00, same location\n\nVehicle: Group B — Peugeot 208 or similar, manual\nEstimated total: EUR 96.30\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "transport", "transport_mode": "car", "confirmation_number": "H8812047563", "departure_date": "2027-04-18", "price": 96.3, "currency": "EUR" }
+    },
+    {
+      "id": "14-flight-delta-multileg-home",
+      "subject": "Delta Air Lines — Your trip confirmation GV5T2K",
+      "from": "Delta Air Lines <DeltaAirLines@t.delta.com>",
+      "text": "Thanks for flying with us.\n\nConfirmation #: GV5T2K\nPassenger: ALEX TRAVELER  Seat: 31A / 18F\n\nTue, 20 APR 2027\nDL 263  LISBON (LIS) 11:15AM  →  NEW YORK-KENNEDY (JFK) 2:05PM  Main Cabin (V)\nDL 416  NEW YORK-KENNEDY (JFK) 5:30PM  →  SAN FRANCISCO (SFO) 9:02PM  Main Cabin (V)\n\nTotal: $812.20 USD\n\n(STT ingestion test fixture — not a real booking)",
+      "expect": { "type": "flight", "confirmation_number": "GV5T2K", "legs": 2, "departure_airport": "LIS", "arrival_airport": "SFO", "departure_date": "2027-04-20", "currency": "USD" }
+    }
+  ]
+}
