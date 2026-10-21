@@ -188,9 +188,12 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
             No trips yet. Start one, or forward a booking and Goose will build it for you.
           </EmptyState>
           {address && (
-            <Banner variant="card" icon="mail" title="Already booked something?"
-              action={<Button size="sm" variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>}>
-              <span className="trips-address"><InboxAddress address={address} /></span>
+            <Banner variant="card" icon="mail" title="Already booked something?">
+              <Stack gap={2} align="start">
+                <span>Forward it to your Goose inbox:</span>
+                <span className="trips-address"><InboxAddress address={address} /></span>
+                <Button size="sm" variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copy}>{copied ? 'Copied' : 'Copy address'}</Button>
+              </Stack>
             </Banner>
           )}
           <Button variant="ghost" icon="clipboard" onClick={onImport}>Paste a confirmation instead</Button>

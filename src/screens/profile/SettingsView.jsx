@@ -102,8 +102,8 @@ export default function SettingsView({ onBack, onDelete }) {
         <Card variant="raised">
           <Text variant="body" tone="secondary">Forward any booking confirmation to this address and it lands in the right trip.</Text>
           {bookingEmail ? (
-            <Stack row gap={3}>
-              <Text variant="body" weight={600} tone="accent" className="grow profile-address"><InboxAddress address={bookingEmail} /></Text>
+            <Stack gap={3} align="start">
+              <Text variant="body" weight={600} tone="accent" className="profile-address"><InboxAddress address={bookingEmail} /></Text>
               <Button size="sm" icon={copied ? 'check' : 'copy'} onClick={handleCopy} aria-label={copied ? 'Inbox address copied' : 'Copy inbox address'}>
                 {copied ? 'Copied' : 'Copy'}
               </Button>

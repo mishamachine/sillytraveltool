@@ -96,7 +96,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-btn--primary { background: var(--accent-fill); color: var(--on-accent); box-shadow: var(--shadow-accent); }
 .c-btn--primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
 .c-btn--secondary { background: var(--surface-card); color: var(--ink); box-shadow: var(--shadow-card), var(--shadow-lip); }
-.c-card .c-btn--secondary, .c-sheet .c-card .c-btn--secondary { background: var(--surface-page); box-shadow: var(--shadow-lip); }
+.c-card .c-btn--secondary, .c-banner--card .c-btn--secondary, .c-sheet .c-card .c-btn--secondary { background: var(--surface-page); box-shadow: var(--shadow-lip); }
 .c-btn--dark { background: var(--surface-inverse); color: var(--ink-inverse); box-shadow: var(--shadow-inverse); }
 .c-btn--inverse { background: var(--surface-card); color: var(--ink); }
 .c-btn--ghost { background: transparent; color: var(--ink-secondary); }

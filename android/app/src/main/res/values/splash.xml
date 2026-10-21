@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ system splash: brand page colour (surface-page) behind the launcher icon -->
+    <color name="splash_background">#F4EEE6</color>
+</resources>
