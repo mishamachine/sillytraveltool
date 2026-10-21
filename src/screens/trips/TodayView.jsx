@@ -43,13 +43,15 @@ function NextUp({ item, onOpenTrip }) {
 }
 
 export default function TodayView({ trip, onShowAll }) {
-  const { bookings, activities, fetchTripDetail, setActiveTrip } = useTripsStore()
+  const { bookings, activities, fetchTripDetail, setActiveTrip, activeTrip } = useTripsStore()
   const openExplore = useUIStore(s => s.openExplore)
   const tempUnit = useAuthStore(s => (s.profile?.temp_unit === 'F' ? 'fahrenheit' : 'celsius'))
   const [weather, setWeather] = useState(null)
   const [now, setNow] = useState(() => new Date())
 
-  useEffect(() => { fetchTripDetail(trip.id) }, [trip.id])
+  // The store holds one trip's bookings: only load ours when no other trip is open on top
+  const otherTripOpen = !!activeTrip && activeTrip.id !== trip.id
+  useEffect(() => { if (!otherTripOpen) fetchTripDetail(trip.id) }, [trip.id, otherTripOpen, activeTrip?.id])
   useEffect(() => {
     let alive = true
     tripCoords(trip).then(c => c && fetchTodayWeather(c.lat, c.lon, tempUnit)).then(w => { if (alive && w) setWeather(w) })

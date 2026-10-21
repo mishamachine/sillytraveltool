@@ -115,6 +115,9 @@ export const useTripsStore = create((set, get) => ({
       supabase.from('bookings').select('*').eq('trip_id', tripId).order('departure_time', { ascending: true }),
       supabase.from('trip_activities').select('*').eq('trip_id', tripId).order('date', { ascending: true })
     ])
+    // A slower response for a trip that is no longer the open one must not overwrite it
+    const open = get().activeTrip
+    if (open && open.id !== tripId) { set({ loadingDetail: false }); return }
     set({ bookings: bookings || [], activities: activities || [], loadingDetail: false })
   },
 

@@ -111,7 +111,7 @@ async function invoke(name, opts = {}) {
   else await wait(700)
   const group = FUNCTION_GROUP[name]
   if (FAIL.has(group) || (group && FAIL.has('ai'))) {
-    return { data: null, error: { name: 'FunctionsHttpError', message: 'The guide took too long to write.' } }
+    return { data: null, error: { name: 'FunctionsHttpError', message: 'Demo mode: this request was set to fail.' } }
   }
   const handler = db.functions[name]
   return { data: handler ? handler(body) : { success: true }, error: null }
