@@ -7,8 +7,8 @@ export function tripPhase(trip, today = todayLocalISO()) {
   if (!trip) return 'upcoming'
   if (trip.status === 'cancelled') return 'cancelled'
   if (trip.start_date <= today && today <= trip.end_date) return 'active'
-  if (trip.status === 'active') return 'active'
   if (hasTripEnded(trip)) return 'past'
+  if (trip.status === 'active') return 'active'
   return 'upcoming'
 }
 

@@ -8,6 +8,7 @@ import {
   Screen, ScreenHeader, Card, Chip, Button, Text, Stack, Icon, Banner, Loading, ErrorState, GooseMark, LinkButton,
 } from '../../ui'
 import AiDisclosure from './AiDisclosure'
+import { safeUrl } from '../../lib/safeUrl'
 
 export const MOODS = [
   { id: 'hungry',    label: "I'm hungry",        icon: 'restaurant' },
@@ -167,7 +168,7 @@ export default function HonkView({ initialMood = null, onBack }) {
                 <Text variant="title" as="h2" id="honk-result">{result.name}</Text>
                 <Text variant="caption" tone="muted">{[result.type, result.neighbourhood, result.price_range].filter(Boolean).join(' · ')}</Text>
               </Stack>
-              {result.goose_rating && <Chip tone="accent" icon="star">{result.goose_rating}</Chip>}
+              {result.goose_rating && <Chip icon="star" aria-label={`Goose rating ${result.goose_rating} out of 10`}>{result.goose_rating}</Chip>}
             </Stack>
             {result.why && <Text variant="body" tone="secondary">{result.why}</Text>}
             {result.best_time && (
@@ -175,8 +176,8 @@ export default function HonkView({ initialMood = null, onBack }) {
             )}
             {result.insider_tip && <Banner icon="lightbulb" title="Insider tip">{result.insider_tip}</Banner>}
             <Stack row gap={2}>
-              {result.google_maps_url && (
-                <a className="c-btn c-btn--primary c-btn--md grow" href={result.google_maps_url} target="_blank" rel="noreferrer">Directions</a>
+              {safeUrl(result.google_maps_url) && (
+                <a className="c-btn c-btn--primary c-btn--md grow" href={safeUrl(result.google_maps_url)} target="_blank" rel="noreferrer">Directions</a>
               )}
               <Button className="grow" icon="refresh" onClick={reset}>Another spot</Button>
             </Stack>

@@ -71,7 +71,7 @@ export default defineConfig(({ mode }) => {
           },
           {
             // Exchange rate — cache for 1 hour
-            urlPattern: /^https:\/\/api\.exchangerate-api\.com\/.*/i,
+            urlPattern: /^https:\/\/(api\.exchangerate-api\.com|open\.er-api\.com)\/.*/i,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'exchange-rate-cache',

@@ -28,7 +28,7 @@ export function useWalletTable(table, user) {
     }
     fetchRows()
     return () => { alive = false }
-  }, [table, user])
+  }, [table, user?.id])
 
   const remove = async (id) => {
     try {

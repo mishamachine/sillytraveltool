@@ -8,6 +8,7 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 
 import { useVisibilityRestore } from './hooks/useVisibilityRestore'
 import { initDeepLinks } from './native/deepLinks'
+import { initBackButton } from './native/backButton'
 import { gaPageView } from './lib/ga'
 import { applyTheme, onSystemThemeChange } from './lib/theme'
 import './styles/global.css'
@@ -60,7 +61,7 @@ export default function App() {
   const [inviteToast, setInviteToast] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
-  useEffect(() => { init(); initDeepLinks() }, [])
+  useEffect(() => { init(); initDeepLinks(); initBackButton() }, [])
 
   // GA4 page_view per tab (no-op on native and non-production builds)
   useEffect(() => { if (user?.id) gaPageView(activeTab) }, [activeTab, user?.id])
@@ -79,6 +80,7 @@ export default function App() {
     let done = '1'
     try { done = localStorage.getItem(ONBOARDED_KEY) } catch {}
     if (done && !force) return
+    if (!profileCreatedAt && !force) return // no profile row yet: decide on a later run
     const created = profileCreatedAt ? new Date(profileCreatedAt).getTime() : Date.now()
     if (force || Date.now() - created < 24 * 60 * 60 * 1000) setShowOnboarding(true)
     else markOnboarded()

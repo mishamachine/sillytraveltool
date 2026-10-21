@@ -6,6 +6,12 @@ export function inboxAddress(profile) {
   return profile?.booking_email_token ? `${profile.booking_email_token}@bookings.sillytraveltool.com` : null
 }
 
+/** The address with its only line break before the @, so it never wraps mid-domain. */
+export function InboxAddress({ address }) {
+  const at = address.indexOf('@')
+  return <>{address.slice(0, at)}<wbr />{address.slice(at)}</>
+}
+
 /** Copy the Goose inbox address; returns [copied, copy]. */
 export function useCopyInbox() {
   const profile = useAuthStore(s => s.profile)

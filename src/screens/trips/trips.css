@@ -5,7 +5,7 @@
 .trips-date__day { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--ink); }
 .trips-upcoming { padding: 14px; border-radius: 24px; box-shadow: var(--shadow-card); }
 .trips-people { display: inline-flex; align-items: center; gap: 4px; }
-.trips-address { font-family: var(--font-display); font-weight: 600; color: var(--accent); overflow-wrap: anywhere; }
+.trips-address { font-family: var(--font-display); font-weight: 600; color: var(--accent); overflow-wrap: normal; }
 
 .today-tile { justify-content: center; min-height: 76px; gap: 2px; padding: 14px; }
 .today-temp { line-height: 1; }

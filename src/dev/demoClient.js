@@ -8,12 +8,11 @@
 //   ?demo&signedout=1     no session (auth screen)
 import { buildFixtures, DEMO_USER } from './fixtures'
 
-const params = new URLSearchParams(typeof location !== 'undefined' ? location.search : '')
-const FAIL = new Set((params.get('fail') || '').split(',').filter(Boolean))
-const SLOW = params.has('slow')
-const SIGNED_OUT = params.has('signedout')
-
-const db = buildFixtures({ empty: params.has('empty') })
+// Set up by createDemoClient(); nothing runs at import time, so production bundles drop this file.
+let FAIL = new Set()
+let SLOW = false
+let db = null
+let session = null
 const wait = (ms) => new Promise(r => setTimeout(r, ms))
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2))
 
@@ -96,9 +95,6 @@ class Query {
   then(resolve, reject) { return Promise.resolve().then(() => this.run()).then(resolve, reject) }
 }
 
-const session = SIGNED_OUT ? null : {
-  access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
-}
 
 const FUNCTION_GROUP = {
   'generate-guide': 'guide', 'generate-checklist': 'checklist', 'goosey-discover': 'honk',
@@ -118,6 +114,14 @@ async function invoke(name, opts = {}) {
 }
 
 export function createDemoClient() {
+  const params = new URLSearchParams(location.search)
+  FAIL = new Set((params.get('fail') || '').split(',').filter(Boolean))
+  SLOW = params.has('slow')
+  db = buildFixtures({ empty: params.has('empty') })
+  session = params.has('signedout') ? null : {
+    access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
+  }
+
   // Requests the app makes with plain fetch() to Edge Functions are answered locally too.
   const base = import.meta.env.VITE_SUPABASE_URL
   const realFetch = window.fetch.bind(window)

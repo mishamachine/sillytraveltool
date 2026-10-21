@@ -9,7 +9,7 @@ import {
   Screen, ScreenHeader, Section, Button, IconButton, Card, ListRow, Chip, Text, Overline, Stack, Icon,
   ProgressBar, EmptyState, Skeleton, Banner,
 } from '../../ui'
-import InboxHint, { useCopyInbox } from './InboxHint'
+import InboxHint, { useCopyInbox, InboxAddress } from './InboxHint'
 
 // Fetch climate normals from Open-Meteo (free, no API key)
 // Uses monthly aggregates — tiny payload vs 30yr daily
@@ -113,7 +113,7 @@ function UpcomingCard({ trip, climate, onOpen }) {
           )}
         </Stack>
         <Chip tone={trip.status === 'cancelled' ? 'neutral' : 'info'}>
-          {trip.status === 'cancelled' ? 'Cancelled' : days === 1 ? 'Tomorrow' : plural(days, 'day')}
+          {trip.status === 'cancelled' ? 'Cancelled' : days === 1 ? 'Tomorrow' : `In ${plural(days, 'day')}`}
         </Chip>
       </Stack>
     </Card>
@@ -190,7 +190,7 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
           {address && (
             <Banner variant="card" icon="mail" title="Already booked something?"
               action={<Button size="sm" variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>}>
-              <span className="trips-address">{address}</span>
+              <span className="trips-address"><InboxAddress address={address} /></span>
             </Banner>
           )}
           <Button variant="ghost" icon="clipboard" onClick={onImport}>Paste a confirmation instead</Button>

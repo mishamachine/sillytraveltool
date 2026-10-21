@@ -11,7 +11,7 @@ const TILES = [
   { key: 'car', label: 'Car', type: 'transport', mode: 'car' },
   { key: 'bus', label: 'Bus or ferry', type: 'transport', mode: 'bus' },
   { key: 'note', label: 'Plan or note', plan: true, icon: 'pin', tone: 'accent' },
-  { key: 'other', label: 'Other', type: 'other' },
+  { key: 'other', label: 'Other', type: 'other', icon: 'more', tone: 'neutral' },
 ]
 
 /** "Add to this trip": forward the email, paste it, or add by hand (A-AddBooking). */

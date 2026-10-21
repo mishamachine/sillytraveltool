@@ -9,6 +9,7 @@ import TipTool from './TipTool'
 import SosTool from './SosTool'
 import TranslateTool from './components/TranslateTool'
 import './toolbox.css'
+import { useBackHandler } from '../../lib/backStack'
 
 const TOOLS = {
   currency: { title: 'Currency', Component: CurrencyTool },
@@ -76,6 +77,7 @@ export default function ToolboxScreen() {
   const { activeToolboxTab, setToolboxTab } = useUIStore()
   const [inTool, setInTool] = useState(false) // hub first; a tile opens its tool
   const [header, setHeader] = useState(null)   // tools may set a richer title (SOS · Spain)
+  useBackHandler(inTool, () => setInTool(false))
   const tool = TOOLS[activeToolboxTab] || TOOLS.currency
   const ActiveTool = tool.Component
 

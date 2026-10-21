@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore, useUIStore } from '../../store'
+import { InboxAddress } from '../trips/InboxHint'
 import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Text, Stack, Logo, LinkButton, Icon,
 } from '../../ui'
@@ -102,7 +103,7 @@ export default function SettingsView({ onBack, onDelete }) {
           <Text variant="body" tone="secondary">Forward any booking confirmation to this address and it lands in the right trip.</Text>
           {bookingEmail ? (
             <Stack row gap={3}>
-              <Text variant="body" weight={600} tone="accent" className="grow profile-address">{bookingEmail}</Text>
+              <Text variant="body" weight={600} tone="accent" className="grow profile-address"><InboxAddress address={bookingEmail} /></Text>
               <Button size="sm" icon={copied ? 'check' : 'copy'} onClick={handleCopy} aria-label={copied ? 'Inbox address copied' : 'Copy inbox address'}>
                 {copied ? 'Copied' : 'Copy'}
               </Button>

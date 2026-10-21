@@ -6,6 +6,7 @@ import TripHeader from './detail/TripHeader'
 import PlanTab from './detail/PlanTab'
 import WeatherTab from './detail/WeatherTab'
 import PackTab from './detail/PackTab'
+import { useBackHandler } from '../../lib/backStack'
 import './detail/detail.css'
 
 // Store tab ids stay 'itinerary' / 'weather' / 'checklist'; labels follow the Clay design.
@@ -19,6 +20,8 @@ const PANELS = { itinerary: PlanTab, weather: WeatherTab, checklist: PackTab }
 export default function TripDetailScreen() {
   const { activeTrip: trip, subscribeToTrip } = useTripsStore()
   const { activeTripTab, setTripTab } = useUIStore()
+  // Back (Android) closes the trip; sheets opened on top register after this and close first
+  useBackHandler(!!trip, () => useTripsStore.getState().setActiveTrip(null))
 
   // Real-time subscription to this trip's bookings and activities
   useEffect(() => {

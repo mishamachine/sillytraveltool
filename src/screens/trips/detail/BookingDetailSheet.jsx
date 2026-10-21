@@ -5,6 +5,7 @@ import { bookingKind, mapsUrl, plural } from '../../../lib/trips'
 import { Sheet, Card, Button, IconTile, Text, Stack, category } from '../../../ui'
 import ConfirmDialog from '../../../components/shared/ConfirmDialog'
 import { ACTIVITY_CATEGORIES } from './planKinds'
+import { safeUrl } from '../../../lib/safeUrl'
 
 const day = d => format(parseLocalDate(d), 'EEE, MMM d')
 const clock = iso => format(new Date(iso), 'EEE, MMM d · HH:mm')
@@ -80,7 +81,7 @@ export default function BookingDetailSheet({ item, isActivity, canDelete, onDele
         </Card>
 
         <Stack gap={2}>
-          {item.booking_url && <a className="c-btn c-btn--primary c-btn--md c-btn--block" href={item.booking_url} target="_blank" rel="noreferrer">Open booking</a>}
+          {safeUrl(item.booking_url) && <a className="c-btn c-btn--primary c-btn--md c-btn--block" href={safeUrl(item.booking_url)} target="_blank" rel="noreferrer">Open booking</a>}
           {place && <a className="c-btn c-btn--secondary c-btn--md c-btn--block" href={mapsUrl(place)} target="_blank" rel="noreferrer">Directions</a>}
           {item.confirmation_number && <Button block icon={copied ? 'check' : 'copy'} onClick={copyRef}>{copied ? 'Copied' : 'Copy confirmation number'}</Button>}
           {isActivity && onToggle && (

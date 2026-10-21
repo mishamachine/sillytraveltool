@@ -27,7 +27,7 @@
 .profile-detail__value { text-align: right; overflow-wrap: anywhere; min-width: 0; }
 
 .profile-form { display: flex; flex-direction: column; gap: var(--space-4); }
-.profile-address { overflow-wrap: anywhere; font-family: var(--font-display); }
+.profile-address { overflow-wrap: normal; font-family: var(--font-display); }
 .profile-about { padding: var(--space-4) 0 var(--space-2); }
 
 .profile-erase { list-style: none; margin: 0; }

@@ -42,8 +42,10 @@ const tel = (num) => `tel:${String(num).replace(/\s/g, '')}`
 /** The main number, big, plus the rest as rows. */
 function Numbers({ nums }) {
   const allSame = nums.police === nums.ambulance && nums.ambulance === nums.fire
-  const hero = allSame
-    ? { num: nums.police, label: 'All emergencies', icon: 'sos' }
+  // 112 (EU and many others) reaches every service, whichever row it sits in
+  const general = allSame ? nums.police : [nums.ambulance, nums.police, nums.fire].find(n => String(n) === '112')
+  const hero = general
+    ? { num: general, label: 'All emergencies', icon: 'sos' }
     : { num: nums.ambulance, label: 'Ambulance · medical emergency', icon: 'medical' }
   const rows = [
     !allSame && { label: 'Police', num: nums.police, icon: 'police' },
@@ -85,7 +87,7 @@ function EmergencyCard({ onClose, countryName, nums, profile }) {
     <div className="sos-card" role="dialog" aria-modal="true" aria-labelledby="sos-card-title" tabIndex={-1} ref={ref}>
       <Stack row justify="between">
         <Text variant="h2" as="h2" id="sos-card-title" className="sos-card__ink">Emergency card</Text>
-        <IconButton icon="close" label="Close emergency card" variant="ghost" className="sos-card__ink" onClick={onClose} />
+        <IconButton icon="close" label="Close emergency card" onClick={onClose} />
       </Stack>
       <Text variant="body-lg" className="sos-card__muted">{countryName} · Show this screen to anyone helping you</Text>
       {[['Police', nums.police], ['Ambulance', nums.ambulance], ['Fire', nums.fire]].map(([label, num]) => (

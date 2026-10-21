@@ -18,7 +18,7 @@
 
 import { useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuthStore, useTripsStore } from '../store'
+import { useTripsStore } from '../store'
 
 export function useVisibilityRestore() {
   const debounceRef = useRef(null)

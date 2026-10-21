@@ -69,7 +69,7 @@ export default function WeatherTab({ trip }) {
         if (daysUntilTrip <= 16) {
           // Live forecast covering the trip window (up to 16 days out)
           const forecastDays = Math.min(16, Math.max(7, daysBetween(today, trip.end_date) + 1))
-          const res = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&${current}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tempUnit}&wind_speed_unit=mph&timezone=auto&forecast_days=${forecastDays}`)
+          const res = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&${current}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tempUnit}&wind_speed_unit=${tempUnit === 'fahrenheit' ? 'mph' : 'kmh'}&timezone=auto&forecast_days=${forecastDays}`)
           const d = await res.json()
           const from = trip.start_date > today ? trip.start_date : today
           const days = daily(d.daily).filter(x => x.date >= from && x.date <= trip.end_date)
@@ -101,7 +101,7 @@ export default function WeatherTab({ trip }) {
     }
     run()
     return () => { alive = false }
-  }, [trip, unit, attempt])
+  }, [trip.id, trip.destination_city, trip.destination_lat, trip.destination_lng, trip.start_date, trip.end_date, unit, attempt])
 
   if (loading) return <Card variant="raised" aria-busy="true" aria-label="Loading weather"><Skeleton lines={4} /></Card>
   if (error) return <ErrorState title="Goose lost the forecast" onRetry={() => setAttempt(a => a + 1)}>{error}</ErrorState>
@@ -130,7 +130,7 @@ export default function WeatherTab({ trip }) {
                 <Text variant="body" tone="muted">{w.label}{todayRow ? ` · H ${todayRow.high}° L ${todayRow.low}°` : ''}</Text>
               </Stack>
             </Stack>
-            <Text variant="caption" tone="muted">Wind {data.now.wind} mph · Humidity {data.now.humidity}%</Text>
+            <Text variant="caption" tone="muted">Wind {data.now.wind} {unit === 'F' ? 'mph' : 'km/h'} · Humidity {data.now.humidity}%</Text>
             {packingTip(todayRow || tipDay, unit) && <p className="weather-tip t-body">{packingTip(todayRow || tipDay, unit)}</p>}
           </Card>
         )

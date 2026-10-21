@@ -39,22 +39,20 @@ export default function DeleteAccountView({ docCount, cardCount, onBack }) {
         ))}
       </Card>
 
-      <Button variant="ghost" icon="download" disabled className="profile-export">Download my data first (coming soon)</Button>
-
       <Field label="Type DELETE to confirm" value={confirmText} onChange={e => setConfirmText(e.target.value)}
         autoComplete="off" autoCapitalize="characters" spellCheck={false} inputClassName="profile-delete-input" />
 
       <Stack gap={2} className="profile-delete-actions">
-        <Button variant="danger" size="lg" block disabled={!ready} onClick={() => setNotice(true)}>Delete account permanently</Button>
+        <Button variant="danger" size="lg" block disabled={!ready} onClick={() => setNotice(true)}>Request account deletion</Button>
         <Button variant="ghost" block onClick={onBack}>Keep my account</Button>
       </Stack>
 
-      <Dialog open={notice} onClose={() => setNotice(false)} title="Deletion arrives in the next release"
+      <Dialog open={notice} onClose={() => setNotice(false)} title="Send your deletion request"
         actions={<>
-          <a className="c-btn c-btn--secondary c-btn--md" href="mailto:hello@sillytraveltool.com?subject=Delete%20my%20account">Email us</a>
-          <Button variant="primary" onClick={() => setNotice(false)}>OK</Button>
+          <Button onClick={() => setNotice(false)}>Not now</Button>
+          <a className="c-btn c-btn--danger c-btn--md" href="mailto:hello@sillytraveltool.com?subject=Delete%20my%20account" onClick={() => setNotice(false)}>Email request</a>
         </>}>
-        Nothing has been deleted. Until in-app deletion ships, email hello@sillytraveltool.com from your account address and we'll erase everything for you.
+        In-app deletion is on its way. For now, send the request from your account email and we erase everything within 30 days. Nothing has been deleted yet.
       </Dialog>
     </Screen>
   )

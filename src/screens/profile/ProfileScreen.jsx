@@ -7,6 +7,7 @@ import LoyaltyView from './LoyaltyView'
 import BadgesView from './BadgesView'
 import SettingsView from './SettingsView'
 import DeleteAccountView from './DeleteAccountView'
+import { useBackHandler } from '../../lib/backStack'
 import './profile.css'
 
 // Profile tab: home → documents · loyalty · badges · settings → delete account
@@ -20,6 +21,7 @@ export default function ProfileScreen() {
   useEffect(() => { if (user) fetchStats() }, [user?.id])
 
   const back = () => setView('home')
+  useBackHandler(view !== 'home', back)
   switch (view) {
     case 'docs': return <DocumentsView wallet={docs} onBack={back} />
     case 'loyalty': return <LoyaltyView wallet={cards} onBack={back} />

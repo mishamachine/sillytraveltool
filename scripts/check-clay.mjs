@@ -9,7 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = join(root, 'src')
 
 // Files allowed to hold raw colour values: generated tokens and the token helper.
-const COLOUR_OK = new Set(['src/styles/tokens.css', 'src/lib/tokens.js', 'src/lib/countryColors.js'])
+const COLOUR_OK = new Set(['src/styles/tokens.css', 'src/lib/tokens.js'])
 // Dev-only files are exempt from the inline-style rule.
 const isDev = p => p.startsWith('src/dev/')
 

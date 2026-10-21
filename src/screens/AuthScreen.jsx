@@ -117,7 +117,7 @@ export default function AuthScreen() {
       </div>
       <form className="auth-actions" onSubmit={handleResetPassword}>
         {errorBanner}
-        <Field label="New password" type="password" placeholder="At least 8 characters" value={newPassword}
+        <Field label="New password" type="password" hint="At least 8 characters" placeholder="Choose a password" value={newPassword}
           onChange={e => setNewPassword(e.target.value)} required minLength={8} autoComplete="new-password" />
         <Button type="submit" variant="primary" size="lg" block loading={loading}>{loading ? 'Updating' : 'Update password'}</Button>
         <Button variant="ghost" block disabled={loading} onClick={() => setPasswordRecovery(false)}>Not now</Button>
@@ -161,7 +161,7 @@ export default function AuthScreen() {
         </Button>
         <Button variant="outline" size="lg" block icon="mail" onClick={() => { setStep('email'); setError(null) }}>Continue with email</Button>
         <Text variant="caption" tone="muted" align="center">
-          By continuing you agree to our Terms and Privacy Policy. Goose uses AI to read bookings and write guides.
+          By continuing you agree to our <LinkButton href="https://sillytraveltool.com/terms" target="_blank" rel="noreferrer">Terms</LinkButton> and <LinkButton href="https://sillytraveltool.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</LinkButton>. Goose uses AI to read bookings and write guides.
         </Text>
       </div>
     </Screen>
@@ -189,7 +189,7 @@ export default function AuthScreen() {
         <Field label="Email" type="email" inputMode="email" placeholder="you@example.com" value={email}
           onChange={e => setEmail(e.target.value)} required autoComplete="email" />
         {(mode === 'login' || mode === 'signup') && (
-          <Field label="Password" type="password" placeholder={mode === 'signup' ? 'At least 8 characters' : 'Your password'}
+          <Field label="Password" type="password" hint={mode === 'signup' ? 'At least 8 characters' : undefined} placeholder={mode === 'signup' ? 'Choose a password' : 'Your password'}
             value={password} onChange={e => setPassword(e.target.value)} required minLength={mode === 'signup' ? 8 : undefined}
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
         )}

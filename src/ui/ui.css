@@ -130,7 +130,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
   color: var(--accent); font: inherit; font-weight: 600; text-decoration: none;
 }
 .c-link:hover { color: var(--accent-hover); text-decoration: underline; }
-.t-micro .c-link, .t-caption .c-link { min-height: 0; padding: 0; }
+.t-micro .c-link, .t-caption .c-link { min-height: 0; padding: 12px 2px; margin: -12px -2px; }
 .c-card--inverse .c-link { color: var(--accent-on-inverse); }
 
 /* ---------- cards ---------- */
@@ -310,7 +310,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
   height: var(--touch-min); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm);
   font-size: 14px; cursor: pointer; background: var(--surface-card); color: var(--ink); box-shadow: var(--shadow-card);
 }
-.c-chip--action.is-selected { background: var(--surface-inverse); color: var(--ink-inverse); box-shadow: none; }
+.c-chip--action.is-selected { background: var(--surface-card); color: var(--accent); box-shadow: var(--shadow-card), inset 0 0 0 2px var(--accent); }
 .c-chip-row { flex-shrink: 0; display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: none; padding: 4px 2px 10px; margin: -4px -2px -10px; }
 .c-chip-row::-webkit-scrollbar { display: none; }
 
@@ -443,6 +443,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-goose-tile--xl { width: 148px; height: 148px; border-radius: 48px; box-shadow: var(--shadow-raised); }
 .c-card .c-goose-tile { box-shadow: none; background: var(--goose-tile); }
 :root[data-theme="dark"] .c-card .c-goose-tile { box-shadow: var(--shadow-lip); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .c-card .c-goose-tile { box-shadow: var(--shadow-lip); } }
 
 .c-tag { display: block; flex-shrink: 0; overflow: visible; }
 .c-tag .tag-string { stroke: var(--ink); fill: none; }
@@ -452,7 +453,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 
 .c-logo { display: inline-flex; align-items: center; gap: 10px; }
 .c-logo--lg { gap: var(--space-4); }
-.c-wordmark { display: inline-flex; flex-direction: column; font-family: var(--font-display); font-weight: 700; letter-spacing: -0.03em; line-height: 0.92; text-transform: lowercase; }
+.c-wordmark { display: inline-flex; flex-direction: column; align-items: flex-start; text-align: left; font-family: var(--font-display); font-weight: 700; letter-spacing: -0.03em; line-height: 0.92; text-transform: lowercase; }
 .c-wordmark__silly { color: var(--accent); }
 .c-wordmark__rest { color: var(--ink); }
 .c-wordmark--sm { font-size: 15px; }
@@ -479,11 +480,6 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 :root[data-theme="dark"] .c-btn--dark { background: var(--ink); color: var(--surface-page); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .c-btn--dark { background: var(--ink); color: var(--surface-page); }
-}
-/* Selected chips use the accent fill in dark mode (inverse is too close to the card there). */
-:root[data-theme="dark"] .c-chip--action.is-selected { background: var(--accent-fill); color: var(--on-accent); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .c-chip--action.is-selected { background: var(--accent-fill); color: var(--on-accent); }
 }
 /* Fields inside a card sit on the page colour so they stay visible (both themes). */
 .c-card .c-field__box { background: var(--surface-page); }

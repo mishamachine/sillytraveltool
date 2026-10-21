@@ -92,7 +92,7 @@ export default function CurrencyTool() {
       if (latestBase.current !== base) return // a newer request superseded this one
       if (data.result === 'success') {
         setRates(data.rates)
-        setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+        setLastUpdated(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))
         track('currency_converted', { from: base }, 'toolbox')
         // Stat increment — fire and forget; never block the result on it
         if (user?.id) {

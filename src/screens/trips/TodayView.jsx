@@ -1,21 +1,25 @@
 import { useEffect, useState } from 'react'
-import { format } from 'date-fns'
+import { format, addDays } from 'date-fns'
 import { useTripsStore, useUIStore, useAuthStore } from '../../store'
 import { todayLocalISO } from '../../lib/dates'
 import {
   tripDay, sortByStart, bookingStart, bookingDay, bookingKind, bookingMeta, hasClockTime, timeLabel, relativeIn, mapsUrl,
 } from '../../lib/trips'
+import BookingDetailSheet from './detail/BookingDetailSheet'
 import { tripCoords, fetchTodayWeather, weatherInfo, weatherHint } from '../../lib/weather'
 import {
   Screen, ScreenHeader, Section, Card, Button, IconButton, IconTile, ListRow, Text, Overline, Stack, Icon, GooseMark, category,
 } from '../../ui'
+import { safeUrl } from '../../lib/safeUrl'
 
 function placeOf(b) {
   return b.venue_address || b.hotel_address || b.venue_name || b.hotel_name || b.location_address || b.location_name ||
-    (b.type === 'flight' ? `${b.departure_airport} airport` : b.departure_airport) || null
+    (b.departure_airport ? (b.type === 'flight' ? `${b.departure_airport} airport` : b.departure_airport) : null)
 }
 
-function NextUp({ item, onOpenTrip }) {
+const SHOW_LABEL = { flight: 'Show boarding info', activity: 'Show tickets', restaurant: 'Show reservation', hotel: 'Show booking', transport: 'Show tickets' }
+
+function NextUp({ item, onShow }) {
   const start = bookingStart(item)
   const cat = category(bookingKind(item))
   const place = placeOf(item)
@@ -33,9 +37,9 @@ function NextUp({ item, onOpenTrip }) {
         </Stack>
       </Stack>
       <Stack row gap={2}>
-        {item.booking_url
-          ? <a className="c-btn c-btn--primary c-btn--md grow" href={item.booking_url} target="_blank" rel="noreferrer">Open booking</a>
-          : <Button variant="primary" className="grow" onClick={onOpenTrip}>Show details</Button>}
+        {safeUrl(item.booking_url)
+          ? <a className="c-btn c-btn--primary c-btn--md grow" href={safeUrl(item.booking_url)} target="_blank" rel="noreferrer">Open booking</a>
+          : <Button variant="primary" className="grow" onClick={onShow}>{item._activity ? 'Show plan' : SHOW_LABEL[item.type] || 'Show booking'}</Button>}
         {place && <a className="c-btn c-btn--secondary c-btn--md grow" href={mapsUrl(place)} target="_blank" rel="noreferrer">Directions</a>}
       </Stack>
     </Card>
@@ -48,10 +52,11 @@ export default function TodayView({ trip, onShowAll }) {
   const tempUnit = useAuthStore(s => (s.profile?.temp_unit === 'F' ? 'fahrenheit' : 'celsius'))
   const [weather, setWeather] = useState(null)
   const [now, setNow] = useState(() => new Date())
+  const [detail, setDetail] = useState(null)
 
   // The store holds one trip's bookings: only load ours when no other trip is open on top
-  const otherTripOpen = !!activeTrip && activeTrip.id !== trip.id
-  useEffect(() => { if (!otherTripOpen) fetchTripDetail(trip.id) }, [trip.id, otherTripOpen, activeTrip?.id])
+  const overlayOpen = !!activeTrip
+  useEffect(() => { if (!overlayOpen) fetchTripDetail(trip.id) }, [trip.id, overlayOpen])
   useEffect(() => {
     let alive = true
     tripCoords(trip).then(c => c && fetchTodayWeather(c.lat, c.lon, tempUnit)).then(w => { if (alive && w) setWeather(w) })
@@ -61,7 +66,7 @@ export default function TodayView({ trip, onShowAll }) {
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t) }, [])
 
   const today = todayLocalISO()
-  const tomorrow = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd')
+  const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd')
   const items = sortByStart([
     ...bookings.filter(b => b.trip_id === trip.id),
     ...activities.filter(a => a.trip_id === trip.id && !a.is_completed).map(a => ({ ...a, _activity: true })),
@@ -89,7 +94,7 @@ export default function TodayView({ trip, onShowAll }) {
         )}
       />
 
-      {next ? <NextUp item={next} onOpenTrip={openPlan} /> : (
+      {next ? <NextUp item={next} onShow={() => setDetail(next)} /> : (
         <Card variant="raised">
           <Overline tone="accent">Today</Overline>
           <Text variant="title">Nothing else booked today</Text>
@@ -132,7 +137,7 @@ export default function TodayView({ trip, onShowAll }) {
           <Card variant="group">
             {laterToday.map(b => (
               <ListRow key={b.id} onClick={openPlan}
-                leading={<span className="today-time t-caption tone-muted tabular">{hasClockTime(b) ? timeLabel(bookingStart(b)) : 'Today'}</span>}
+                leading={<span className="today-time t-caption tone-muted tabular">{hasClockTime(b) ? timeLabel(bookingStart(b)) : 'All day'}</span>}
                 title={b.title}
                 trailing={b._activity ? 'Plan' : category(bookingKind(b)).label} />
             ))}
@@ -141,6 +146,7 @@ export default function TodayView({ trip, onShowAll }) {
       )}
 
       <Button variant="ghost" icon="calendar" onClick={openPlan}>Full trip plan</Button>
+      {detail && <BookingDetailSheet item={detail} isActivity={!!detail._activity} canDelete={false} onClose={() => setDetail(null)} />}
     </Screen>
   )
 }

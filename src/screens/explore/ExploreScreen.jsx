@@ -19,6 +19,7 @@ const SUB_LABEL = {
 }
 
 // One-line teaser for an overview tile, from whatever is already loaded
+import { useBackHandler } from '../../lib/backStack'
 function teaser(id, data, sections) {
   if (id === 'know') return data?.city_stats?.goose_facts?.[0]?.fact || data?.history_text?.split('. ')[0]
   if (id === 'eat') return (data?.eat_cheap?.[0] || data?.eat_mid?.[0])?.name && `Start with ${(data.eat_cheap?.[0] || data.eat_mid[0]).name}`
@@ -57,15 +58,21 @@ export default function ExploreScreen() {
   const mode = useUIStore(s => s.exploreMode)
   const setMode = useUIStore(s => s.setExploreMode)
   const [honkMood, setHonkMood] = useState(null)
+  const closeHonk = () => { setHonkMood(null); setMode('guide') }
+  useBackHandler(mode === 'honk', closeHonk)
+
+  // HONK renders on its own, so opening it from Today doesn't also load a city guide
+  if (mode === 'honk') return <HonkView initialMood={honkMood} onBack={closeHonk} />
+  return <GuideHome setHonkMood={setHonkMood} setMode={setMode} />
+}
+
+function GuideHome({ setHonkMood, setMode }) {
   const [open, setOpen] = useState(false)
   const [addToTripItem, setAddToTripItem] = useState(null)
-  const g = useCityGuide(open && mode !== 'honk')
+  const g = useCityGuide(open)
   const { destination } = g
   const loadingSections = useGuideStore(s => s.loadingSections)
-
-  if (mode === 'honk') {
-    return <HonkView initialMood={honkMood} onBack={() => { setHonkMood(null); setMode('guide') }} />
-  }
+  useBackHandler(open, () => setOpen(false))
 
   const openSection = (id) => { g.setGuideTab(id); setOpen(true) }
   const handleAddToTrip = (item, itemType) => setAddToTripItem({ item, itemType })
@@ -179,7 +186,7 @@ export default function ExploreScreen() {
               </Card>
             </div>
           )}
-          {g.sections.overview && <AiDisclosure city={destination.city} />}
+          {Object.keys(g.sections).length > 0 && <AiDisclosure city={destination.city} />}
         </Section>
       )}
     </Screen>

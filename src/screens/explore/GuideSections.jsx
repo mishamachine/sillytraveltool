@@ -3,6 +3,7 @@ import {
   Card, Text, Stack, Icon, IconTile, IconButton, Button, LinkButton, Chip, SegmentedControl, EmptyState, ListRow, Overline, Banner,
 } from '../../ui'
 import { mapsUrl } from '../../lib/trips'
+import { safeUrl } from '../../lib/safeUrl'
 
 // Guide section metadata (overview tiles, detail chips)
 export const GUIDE_SECTIONS = [
@@ -17,8 +18,7 @@ function ScoreChip({ score }) {
   if (!score) return null
   const s = parseFloat(score)
   if (isNaN(s)) return null
-  const tone = s >= 9 ? 'success' : s >= 7.5 ? 'accent' : 'neutral'
-  return <Chip tone={tone} icon="star" aria-label={`Goose score ${s.toFixed(1)} out of 10`}>{s.toFixed(1)}</Chip>
+  return <Chip icon="star" aria-label={`Goose rating ${s.toFixed(1)} out of 10`}>{s.toFixed(1)}</Chip>
 }
 
 /** Restaurant or attraction: collapsed summary, expands to description, tip and links. */
@@ -53,8 +53,8 @@ function PlaceCard({ item, kind, onAddToTrip }) {
           <Stack row gap={2} wrap>
             <Button variant="primary" size="sm" icon="plus" onClick={() => onAddToTrip(item, kind)}>Add to trip</Button>
             {item.google_maps_query && <LinkButton href={mapsUrl(item.google_maps_query)} target="_blank" rel="noreferrer" icon="map">Maps</LinkButton>}
-            {item.official_url && <LinkButton href={item.official_url} target="_blank" rel="noreferrer" icon="external">Official site</LinkButton>}
-            {item.wikipedia_url && <LinkButton href={item.wikipedia_url} target="_blank" rel="noreferrer" icon="book">Wikipedia</LinkButton>}
+            {safeUrl(item.official_url) && <LinkButton href={safeUrl(item.official_url)} target="_blank" rel="noreferrer" icon="external">Official site</LinkButton>}
+            {safeUrl(item.wikipedia_url) && <LinkButton href={safeUrl(item.wikipedia_url)} target="_blank" rel="noreferrer" icon="book">Wikipedia</LinkButton>}
           </Stack>
         </Stack>
       )}
@@ -107,8 +107,8 @@ export function KnowSection({ data, destination }) {
           {expanded ? 'Show less' : 'Read more'}
         </LinkButton>
         <Stack row gap={4} wrap>
-          {data.wikipedia_url && <LinkButton href={data.wikipedia_url} target="_blank" rel="noreferrer" icon="book">Wikipedia</LinkButton>}
-          {data.britannica_url && <LinkButton href={data.britannica_url} target="_blank" rel="noreferrer" icon="globe">Britannica</LinkButton>}
+          {safeUrl(data.wikipedia_url) && <LinkButton href={safeUrl(data.wikipedia_url)} target="_blank" rel="noreferrer" icon="book">Wikipedia</LinkButton>}
+          {safeUrl(data.britannica_url) && <LinkButton href={safeUrl(data.britannica_url)} target="_blank" rel="noreferrer" icon="globe">Britannica</LinkButton>}
         </Stack>
       </Card>
 
@@ -228,7 +228,7 @@ export function MoveSection({ data }) {
       {options.map((opt, i) => (
         <Card key={i}>
           <ListRow as="div" icon={transportIcon(opt.type)} tone="accent" title={opt.type} meta={opt.app_name ? `App: ${opt.app_name}` : undefined}
-            trailing={opt.official_url ? <LinkButton href={opt.official_url} target="_blank" rel="noreferrer" icon="external" aria-label={`${opt.type} official site`}>Official</LinkButton> : undefined} />
+            trailing={safeUrl(opt.official_url) ? <LinkButton href={safeUrl(opt.official_url)} target="_blank" rel="noreferrer" icon="external" aria-label={`${opt.type} official site`}>Official</LinkButton> : undefined} />
           {opt.description && <Text variant="body" tone="secondary">{opt.description}</Text>}
           {opt.tip && <Banner icon="lightbulb">{opt.tip}</Banner>}
         </Card>

@@ -241,11 +241,12 @@ export const useTripsStore = create((set, get) => ({
   silentRefreshDetail: async (tripId) => {
     try {
       const [bookingsRes, activitiesRes] = await Promise.all([
-        supabase.from('bookings').select('*').eq('trip_id', tripId).order('start_date', { ascending: true }),
+        supabase.from('bookings').select('*').eq('trip_id', tripId).order('departure_time', { ascending: true }),
         supabase.from('trip_activities').select('*').eq('trip_id', tripId).order('date', { ascending: true }),
       ])
       if (bookingsRes.error) throw bookingsRes.error
       if (activitiesRes.error) throw activitiesRes.error
+      if (get().activeTrip?.id !== tripId) return // another trip was opened meanwhile
       set({ bookings: bookingsRes.data || [], activities: activitiesRes.data || [] })
     } catch (err) {
       console.warn('[tripsStore] silentRefreshDetail error:', err.message)
