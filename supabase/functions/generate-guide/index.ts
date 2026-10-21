@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { geminiFetch, cap } from '../_shared/gemini.ts'
+import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -149,10 +149,29 @@ Deno.serve(async (req) => {
     const raw = await req.json()
     const city = cap(raw.city, 80), country = cap(raw.country, 80), section = cap(raw.section || 'overview', 40)
     const exclude_names = (Array.isArray(raw.exclude_names) ? raw.exclude_names : []).slice(0, 40).map((n: unknown) => cap(n, 80))
+    // Cache key as computed by the client (guideStore): lowercase, spaces → dashes
+    const destinationKey = cap(raw.destination_key, 160).toLowerCase()
     if (!city || !country) return new Response(JSON.stringify({ error: 'city and country required' }), { status: 400, headers: CORS })
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
+
+    // Shared cache is server-written only (clients have read access)
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const isLoadMore = exclude_names.length > 0
+    let cachedRow: any = null
+    if (destinationKey) {
+      const { data } = await admin.from('guide_cache_sections').select('data, expires_at')
+        .eq('destination_key', destinationKey).eq('section', section).maybeSingle()
+      cachedRow = data
+      if (!isLoadMore && data?.data && new Date(data.expires_at) > new Date()) {
+        return new Response(JSON.stringify(data.data), { headers: { ...CORS, 'Content-Type': 'application/json' } })
+      }
+    }
+
+    if (!(await checkAiQuota(user.id))) {
+      return new Response(JSON.stringify({ error: QUOTA_MESSAGE }), { status: 429, headers: CORS })
+    }
 
     const prompt = buildPrompt(city, country, section, exclude_names)
 
@@ -175,7 +194,21 @@ Deno.serve(async (req) => {
       else return new Response(JSON.stringify({ error: 'Failed to parse Gemini response' }), { status: 502, headers: CORS })
     }
 
-    return new Response(JSON.stringify({ section, ...result }), { headers: { ...CORS, 'Content-Type': 'application/json' } })
+    const content = { section, ...result }
+    if (destinationKey) {
+      // Load-more appends to the cached section; a fresh load replaces it
+      const toStore = isLoadMore && Array.isArray(cachedRow?.data?.items)
+        ? { ...cachedRow.data, items: [...cachedRow.data.items, ...(Array.isArray(result?.items) ? result.items : [])] }
+        : content
+      const expires = new Date(); expires.setDate(expires.getDate() + 7)
+      const { error: cacheErr } = await admin.from('guide_cache_sections').upsert({
+        destination_key: destinationKey, destination_city: city, destination_country: country,
+        section, data: toStore, generated_at: new Date().toISOString(), expires_at: expires.toISOString(),
+      }, { onConflict: 'destination_key,section' })
+      if (cacheErr) console.error('guide_cache_sections write failed:', cacheErr.message)
+    }
+
+    return new Response(JSON.stringify(content), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS })

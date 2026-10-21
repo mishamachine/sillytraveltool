@@ -72,8 +72,9 @@ async function extractErrorMessage(error) {
  * Generate destination guide content — section-based
  * section: 'overview' | 'eat' | 'see' | 'move' | 'events'
  */
-export async function generateGuideContent(city, country, section = 'overview', excludeNames = []) {
-  return invokeFunction('generate-guide', { city, country, section, exclude_names: excludeNames }, 45000)
+export async function generateGuideContent(city, country, section = 'overview', excludeNames = [], destinationKey = null) {
+  // destination_key lets the function read/write the shared guide cache server-side
+  return invokeFunction('generate-guide', { city, country, section, exclude_names: excludeNames, destination_key: destinationKey }, 45000)
 }
 
 /**

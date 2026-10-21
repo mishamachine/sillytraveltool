@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { geminiFetch } from '../_shared/gemini.ts'
+import { geminiFetch, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +24,10 @@ Deno.serve(async (req) => {
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
+
+    if (!(await checkAiQuota(user.id))) {
+      return new Response(JSON.stringify({ error: QUOTA_MESSAGE }), { status: 429, headers: CORS })
+    }
 
     const prompt = `Extract ALL booking legs from this travel confirmation email.
 
@@ -64,7 +68,9 @@ Return ONLY valid JSON with no markdown, exactly this shape:
       "destination_city": null,
       "passenger_name": null,
       "seat_number": null,
-      "ticket_quantity": null
+      "ticket_quantity": null,
+      "party_size": null,
+      "transport_mode": null
     }
   ],
   "ultimate_destination": {
@@ -84,7 +90,17 @@ Rules:
 - For hotels/activities, bookings array has 1 item; ultimate_destination = hotel city
 - passenger_name: full name of the traveller if present in the email (e.g. "JOHN SMITH")
 - seat_number: assigned seat for flights (e.g. "14A"). null if not assigned.
-- ticket_quantity: number of tickets for activities/events. null for flights/hotels.`
+- ticket_quantity: number of tickets for activities/events. null for flights/hotels.
+- type must be one of: flight, hotel, activity, transport, restaurant, other
+- restaurant = a dining reservation (OpenTable, Resy, Tock, SevenRooms, TheFork, direct booking):
+  venue_name = restaurant, venue_address, activity_date (YYYY-MM-DD), activity_time (HH:MM, 24h), party_size = number of guests,
+  title like "Dinner at <restaurant>"
+- transport = train, bus, ferry, coach or car rental: transport_mode = train|bus|ferry|coach|car,
+  airline = operator (e.g. Amtrak, Eurostar, Trenitalia, FlixBus), flight_number = train/service number,
+  departure_airport / arrival_airport = station or port names, departure_time / arrival_time as for flights
+- activity = museum, attraction, tour, concert, show or sports ticket: venue_name, venue_address, activity_date,
+  activity_time, ticket_quantity
+- party_size: guests on a restaurant reservation, otherwise null. transport_mode: null unless type is transport.`
 
     // 20s cap prevents the EarlyDrop wall-clock kill; geminiFetch returns 504 on timeout
     const gemRes = await geminiFetch(GEMINI_API_KEY, {

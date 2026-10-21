@@ -143,22 +143,8 @@ export const useGuideStore = create((set, get) => ({
     set({ lastSectionFromCache: false })
     try {
       const { generateGuideContent } = await import('../lib/gemini.js')
-      const content = await generateGuideContent(city, country, section)
-
-      // Write to cache (non-critical, don't await blocking)
-      const expires = new Date()
-      expires.setDate(expires.getDate() + 7)
-      supabase.from('guide_cache_sections').upsert(
-        {
-          destination_key: currentKey,
-          destination_city: city,
-          destination_country: country,
-          section,
-          data: content,
-          expires_at: expires.toISOString(),
-        },
-        { onConflict: 'destination_key,section' }
-      ).then(() => {}).catch(() => {})
+      // The Edge Function writes the shared cache (clients can only read it)
+      const content = await generateGuideContent(city, country, section, [], currentKey)
 
       _finish(content)
     } catch (e) {
@@ -191,23 +177,10 @@ export const useGuideStore = create((set, get) => ({
 
     try {
       const { generateGuideContent } = await import('../lib/gemini.js')
-      const content = await generateGuideContent(city, country, section, excludeNames)
+      // The Edge Function appends these items to the cached section server-side
+      const content = await generateGuideContent(city, country, section, excludeNames, key)
       const merged = [...existing, ...(content?.items || [])]
       const updatedSection = { ...sections[section], items: merged }
-
-      const expires = new Date()
-      expires.setDate(expires.getDate() + 7)
-      supabase.from('guide_cache_sections').upsert(
-        {
-          destination_key: key,
-          destination_city: city,
-          destination_country: country,
-          section,
-          data: { ...updatedSection },
-          expires_at: expires.toISOString(),
-        },
-        { onConflict: 'destination_key,section' }
-      ).then(() => {}).catch(() => {})
 
       set(s => {
         if (s.currentDestination?.key !== destinationKeyAtCallTime) return {}

@@ -169,7 +169,7 @@ function DocsTab({ user }) {
             </button>
             {isExpanded && (
               <div style={{ padding: '10px 14px 12px', borderTop: '1px solid var(--border-light)' }}>
-                {doc.document_number && <DocDetail label="Number" value={doc.document_number} />}
+                {doc.document_number_last4 && <DocNumber doc={doc} />}
                 {doc.issuing_country && <DocDetail label="Issued by" value={doc.issuing_country} />}
                 {doc.issue_date && <DocDetail label="Issue date" value={doc.issue_date} />}
                 {doc.expiry_date && <DocDetail label="Expiry" value={doc.expiry_date} valueColor={color} />}
@@ -197,6 +197,31 @@ function DocsTab({ user }) {
           }}
         />
       )}
+    </div>
+  )
+}
+
+// Document numbers are encrypted at rest; only the last 4 digits come back
+// with the row. The full number is fetched on demand (owner-only RPC).
+function DocNumber({ doc }) {
+  const [full, setFull] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const toggle = async () => {
+    if (full) { setFull(null); return }
+    setBusy(true)
+    const { data, error } = await supabase.rpc('reveal_document_number', { p_doc_id: doc.id })
+    setBusy(false)
+    if (!error && data) setFull(data)
+  }
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8 }}>
+      <span style={{ fontSize: 12, color: 'var(--text-tert)', fontFamily: 'var(--font-heading)', fontWeight: 600, flexShrink: 0 }}>Number</span>
+      <span style={{ fontSize: 12, color: 'var(--text-sec)', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+        {full || `•••• ${doc.document_number_last4}`}
+        <button onClick={toggle} disabled={busy} style={{ marginLeft: 8, fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          {busy ? '…' : full ? 'Hide' : 'Reveal'}
+        </button>
+      </span>
     </div>
   )
 }
@@ -282,7 +307,7 @@ function DocForm({ doc, userId, onClose, onSaved }) {
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Document Number</label>
-            <input className="form-input" value={form.document_number} onChange={e => set('document_number', e.target.value)} placeholder="123456789" style={{ fontFamily: 'var(--font-mono)' }} />
+            <input className="form-input" value={form.document_number} onChange={e => set('document_number', e.target.value)} placeholder={doc?.document_number_last4 ? `Saved, ends in ${doc.document_number_last4} (leave blank to keep)` : '123456789'} style={{ fontFamily: 'var(--font-mono)' }} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Issuing Country</label>

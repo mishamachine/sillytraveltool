@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { geminiFetch, cap } from '../_shared/gemini.ts'
+import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +24,16 @@ Deno.serve(async (req) => {
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
+
+    // Shared cache is server-written only (clients have read access)
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const { data: cached } = await admin.from('phrase_cache').select('*')
+      .eq('language_code', languageCode).gt('expires_at', new Date().toISOString()).maybeSingle()
+    if (cached) return new Response(JSON.stringify(cached), { headers: { ...CORS, 'Content-Type': 'application/json' } })
+
+    if (!(await checkAiQuota(user.id))) {
+      return new Response(JSON.stringify({ error: QUOTA_MESSAGE }), { status: 429, headers: CORS })
+    }
 
     const prompt = `Generate travel phrases in ${languageName} (${languageCode}).
 
@@ -63,6 +73,16 @@ Make romanizations phonetically accurate for English speakers.`
       if (m) result = JSON.parse(m[0])
       else return new Response(JSON.stringify({ error: 'Failed to parse Gemini response' }), { status: 502, headers: CORS })
     }
+
+    const CATEGORIES = ['greetings', 'food', 'transport', 'hotel', 'shopping', 'health', 'social', 'goose_specials']
+    const expires = new Date(); expires.setDate(expires.getDate() + 30)
+    const row: Record<string, unknown> = {
+      language_code: languageCode, language_name: languageName,
+      generated_at: new Date().toISOString(), expires_at: expires.toISOString(),
+    }
+    for (const c of CATEGORIES) row[c] = Array.isArray(result?.[c]) ? result[c] : []
+    const { error: cacheErr } = await admin.from('phrase_cache').upsert(row, { onConflict: 'language_code' })
+    if (cacheErr) console.error('phrase_cache write failed:', cacheErr.message)
 
     return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
+import { reverseGeocodeCountry } from '../../../lib/geo'
 import { useTripsStore } from '../../../store'
 import Goose from '../../../components/goose/Goose'
 
@@ -86,12 +87,8 @@ export default function TranslateTool() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`,
-            { headers: { 'Accept-Language': 'en' } }
-          )
-          const data = await res.json()
-          const cc = data.address?.country_code?.toUpperCase()
+          // Timed lookup (BigDataCloud, Nominatim fallback) — see lib/geo.js
+          const { countryCode: cc } = await reverseGeocodeCountry(pos.coords.latitude, pos.coords.longitude)
           if (cc && COUNTRY_TO_LANGUAGE[cc]) setGeoLang(COUNTRY_TO_LANGUAGE[cc])
         } catch {}
       },
@@ -146,23 +143,7 @@ export default function TranslateTool() {
       const phraseData = {}
       PHRASE_CATEGORIES.forEach(cat => { phraseData[cat.id] = generated[cat.id] || [] })
 
-      const expires = new Date()
-      expires.setDate(expires.getDate() + 30)
-      const row = {
-        language_code: lang.code,
-        language_name: lang.name,
-        greetings: phraseData.greetings,
-        food: phraseData.food,
-        transport: phraseData.transport,
-        hotel: phraseData.hotel,
-        shopping: phraseData.shopping,
-        health: phraseData.health,
-        social: phraseData.social,
-        goose_specials: phraseData.goose_specials,
-        generated_at: new Date().toISOString(),
-        expires_at: expires.toISOString(),
-      }
-      try { await supabase.from('phrase_cache').upsert(row) } catch {}
+      // generate-phrases writes the shared phrase_cache server-side
       try {
         const expiresLocal = new Date()
         expiresLocal.setDate(expiresLocal.getDate() + 30)

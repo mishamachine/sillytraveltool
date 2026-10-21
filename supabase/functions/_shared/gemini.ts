@@ -55,3 +55,32 @@ export async function geminiFetch(
 export function cap(value: unknown, max: number): string {
   return String(value ?? '').trim().slice(0, max)
 }
+
+// Daily per-user AI quota (public.consume_ai_quota, service role only).
+// Returns false once the user is over the limit. Fails open: a quota-check
+// outage must not take the AI features down with it.
+export const AI_DAILY_LIMIT = Number(Deno.env.get('AI_DAILY_LIMIT') || 100)
+
+export async function checkAiQuota(userId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/consume_ai_quota`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ p_user_id: userId, p_limit: AI_DAILY_LIMIT }),
+    })
+    if (!res.ok) {
+      console.error('consume_ai_quota failed:', res.status, await res.text())
+      return true
+    }
+    return (await res.json()) !== false
+  } catch (e) {
+    console.error('consume_ai_quota error:', e)
+    return true
+  }
+}
+
+export const QUOTA_MESSAGE = 'You have reached today\'s AI limit. It resets at midnight UTC.'

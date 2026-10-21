@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { geminiFetch, cap } from '../_shared/gemini.ts'
+import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +25,10 @@ Deno.serve(async (req) => {
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
+
+    if (!(await checkAiQuota(user.id))) {
+      return new Response(JSON.stringify({ error: QUOTA_MESSAGE }), { status: 429, headers: CORS })
+    }
 
     const filterText = filters.length ? ` Filters: ${filters.join(', ')}.` : ''
     const prompt = `You are The Goose, a cheeky but trustworthy travel companion who knows every city's hidden gems.

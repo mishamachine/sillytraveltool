@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { geminiFetch } from '../_shared/gemini.ts'
+import { geminiFetch, checkAiQuota } from '../_shared/gemini.ts'
 
 // ============================================================
 // receive-booking-email
@@ -221,6 +221,11 @@ Deno.serve(async (req) => {
 
     const userId = profile.id
 
+    if (!(await checkAiQuota(userId))) {
+      console.warn(`AI quota exceeded for user ${userId} — inbound email not parsed`)
+      return err('Daily AI limit reached', 429)
+    }
+
     // ── 4. Fetch user's trips for matching ────────────────────
     const { data: trips } = await supabase
       .from('trips')
@@ -243,7 +248,7 @@ ${emailContext}
 
 Return this JSON structure (use null for any field not found):
 {
-  "type": "flight|hotel|activity|transport|other",
+  "type": "flight|hotel|activity|transport|restaurant|other",
   "title": "short descriptive title e.g. 'Flight to Tokyo' or 'Hilton Tokyo Check-in'",
   "confirmation_number": null,
   "flight_number": null,
@@ -269,7 +274,9 @@ Return this JSON structure (use null for any field not found):
   "destination_city": null,
   "passenger_name": null,
   "seat_number": null,
-  "ticket_quantity": null
+  "ticket_quantity": null,
+  "party_size": null,
+  "transport_mode": null
 }
 
 Rules:
@@ -281,6 +288,16 @@ Rules:
 - passenger_name: full name of the traveller if present (e.g. "JOHN SMITH"). null if absent.
 - seat_number: assigned flight seat (e.g. "14A"). null if not assigned.
 - ticket_quantity: number of tickets for activities/events. null for flights/hotels.
+- type must be one of: flight, hotel, activity, transport, restaurant, other
+- restaurant = a dining reservation (OpenTable, Resy, Tock, SevenRooms, TheFork, direct booking):
+  venue_name = restaurant, venue_address, activity_date (YYYY-MM-DD), activity_time (HH:MM, 24h), party_size = number of guests,
+  title like "Dinner at <restaurant>"
+- transport = train, bus, ferry, coach or car rental: transport_mode = train|bus|ferry|coach|car,
+  airline = operator (e.g. Amtrak, Eurostar, Trenitalia, FlixBus), flight_number = train/service number,
+  departure_airport / arrival_airport = station or port names, departure_time / arrival_time as for flights
+- activity = museum, attraction, tour, concert, show or sports ticket: venue_name, venue_address, activity_date,
+  activity_time, ticket_quantity
+- party_size: guests on a restaurant reservation, otherwise null. transport_mode: null unless type is transport.
 - Return raw JSON only — no markdown, no explanation`
 
     const gemRes = await geminiFetch(GEMINI_API_KEY, {
@@ -342,9 +359,24 @@ Rules:
     }
 
     // ── 7. Sanitize booking fields ────────────────────────────
+    // Only real bookings columns — a field Gemini invents must not break the insert
+    const BOOKING_COLUMNS = new Set([
+      'type', 'title', 'confirmation_number', 'flight_number', 'airline', 'departure_airport',
+      'arrival_airport', 'departure_time', 'arrival_time', 'flight_class', 'hotel_name', 'hotel_address',
+      'check_in_date', 'check_out_date', 'room_type', 'activity_date', 'activity_time', 'venue_name',
+      'venue_address', 'price', 'currency', 'booking_url', 'notes', 'passenger_name', 'seat_number',
+      'ticket_quantity', 'party_size', 'transport_mode',
+    ])
+    const BOOKING_TYPES = ['flight', 'hotel', 'activity', 'transport', 'restaurant', 'other']
+    if (!BOOKING_TYPES.includes(parsed.type)) parsed.type = 'other'
+    for (const k of ['ticket_quantity', 'party_size']) {
+      const n = parseInt(String(parsed[k] ?? ''), 10)
+      parsed[k] = Number.isFinite(n) && n > 0 && n <= 50 ? n : null
+    }
+
     const sanitized: Record<string, any> = {}
     for (const [k, v] of Object.entries(parsed)) {
-      if (k === 'destination_city') continue  // internal only — not a bookings column
+      if (!BOOKING_COLUMNS.has(k)) continue  // destination_city etc. are matching hints only
       if (v === '' || v === undefined || v === null) {
         sanitized[k] = null
       } else if ((k === 'departure_time' || k === 'arrival_time') && typeof v === 'string') {
