@@ -1,38 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
 @import './tokens.css';
 @import '../ui/ui.css';
-@import './legacy.css';
 
 /* Layout constants that are not brand tokens */
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --transition: 150ms ease;
-
-  /* Pre-Clay variable names, aliased to the brand tokens (remove with legacy.css) */
-  --bg: var(--surface-page);
-  --surface: var(--surface-card);
-  --surface-alt: var(--surface-sunken);
-  --border: var(--line);
-  --border-light: var(--line);
-  --text: var(--ink);
-  --text-sec: var(--ink-secondary);
-  --text-tert: var(--ink-muted);
-  --text-inv: var(--on-accent);
-  --primary: var(--accent);
-  --primary-light: var(--accent-soft);
-  --primary-dark: var(--accent-hover);
-  --warning: var(--weather-sun);
-  --error: var(--danger);
-  --font-heading: var(--font-display);
-  --font-mono: var(--font-display);
-  --space-xs: var(--space-1); --space-sm: var(--space-2); --space-md: var(--space-3); --space-lg: var(--space-4);
-  --space-xl: var(--space-5); --space-2xl: var(--space-6); --space-3xl: var(--space-8); --space-4xl: var(--space-10);
-  --radius-full: var(--radius-pill);
-  --shadow-sm: var(--shadow-card); --shadow-md: var(--shadow-card); --shadow-lg: var(--shadow-raised);
-  --shadow-primary: var(--shadow-accent);
-  --nav-bg: var(--surface-card);
-  --transition-slow: 300ms ease;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }

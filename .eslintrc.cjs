@@ -20,11 +20,17 @@ module.exports = {
     // Formatting-only rule, deprecated in ESLint 8.53; style is not enforced by lint here.
     'no-extra-semi': 'off',
     'no-unused-vars': ['warn', { args: 'none', ignoreRestSiblings: true, varsIgnorePattern: '^_' }],
+    // Clay: styling goes through tokens + src/ui classes, never inline styles
+    'react/forbid-dom-props': ['error', { forbid: ['style'] }],
   },
   overrides: [
     {
       files: ['vite.config.js', 'scripts/**/*.{js,cjs,mjs}'],
       env: { node: true },
+    },
+    {
+      files: ['src/dev/**'],
+      rules: { 'react/forbid-dom-props': 'off' },
     },
   ],
 }

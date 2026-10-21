@@ -36,7 +36,9 @@ for (const file of walk(SRC)) {
     const where = `${rel}:${i + 1}`
     const t = line.trim()
     if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return
-    if (EMOJI.test(isDev(rel) ? line.replace(/[\u2190-\u21FF]/g, '') : line)) problems.push(`${where}  emoji/arrow glyph: ${line.trim().slice(0, 90)}`)
+    // Route notation ("SEA → MAD") is content, not an icon substitute
+    const text = line.replace(/\w \u2192 \w/gu, '')
+    if (EMOJI.test(isDev(rel) ? text.replace(/[\u2190-\u21FF]/g, '') : text)) problems.push(`${where}  emoji/arrow glyph: ${line.trim().slice(0, 90)}`)
     if (!COLOUR_OK.has(rel) && (HEX.test(line.replace(GOOGLE_MARK, '')) || RGB.test(line)) && !/&#|#[0-9a-f]{3,8}-|href=|id=|url\(#/i.test(line)) {
       problems.push(`${where}  raw colour: ${line.trim().slice(0, 90)}`)
     }
