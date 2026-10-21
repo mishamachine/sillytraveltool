@@ -1,0 +1,20 @@
+.city-ac { position: relative; }
+.city-ac__list {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  list-style: none; margin: 0; padding: 6px var(--space-2);
+  background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-raised);
+}
+.city-ac__list li + li { border-top: 1px solid var(--line); }
+.city-ac__list li[aria-selected="true"] .city-ac__opt { background: var(--surface-page); }
+.city-ac__opt {
+  width: 100%; min-height: var(--touch-min); display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: none; text-align: left; cursor: pointer;
+}
+.city-ac__pin { color: var(--accent); }
+.city-ac__text { display: flex; flex-direction: column; }
+.city-ac__city { font-size: 15px; font-weight: 600; color: var(--ink); }
+.city-ac__country { font-size: 13px; color: var(--ink-muted); }
+.city-ac__spinner {
+  width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--accent); animation: c-spin 0.8s linear infinite;
+}

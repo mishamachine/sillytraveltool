@@ -1,12 +1,14 @@
 import { useState } from 'react'
+import { Button } from '../../ui'
 
-export default function ShareNudge() {
+// One contextual nudge to share the app (shown on a trip recap, not on every screen).
+export default function ShareNudge({ label = 'Know a traveller? Share the app' }) {
   const [copied, setCopied] = useState(false)
 
   const handleShare = async () => {
     const shareData = {
       title: 'Silly Travel Tool',
-      text: 'Check out The Goose 🪿 — the AI-powered travel companion with a personality',
+      text: 'Silly Travel Tool keeps every booking in one place, and Goose finds you a good spot nearby.',
       url: 'https://sillytraveltool.com',
     }
     try {
@@ -21,27 +23,8 @@ export default function ShareNudge() {
   }
 
   return (
-    <div style={{ padding: '16px 16px 8px', display: 'flex', justifyContent: 'center' }}>
-      <button
-        onClick={handleShare}
-        style={{
-          background: 'none',
-          border: '1.5px solid var(--primary)',
-          borderRadius: 99,
-          padding: '7px 18px',
-          fontSize: 13,
-          color: 'var(--primary)',
-          fontFamily: 'var(--font-heading)',
-          fontWeight: 600,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          transition: 'all 0.15s',
-        }}
-      >
-        🪿 {copied ? 'Link copied!' : 'Know a traveller? Share the app'}
-      </button>
-    </div>
+    <Button variant="ghost" icon={copied ? 'check' : 'share'} onClick={handleShare} aria-live="polite">
+      {copied ? 'Link copied' : label}
+    </Button>
   )
 }

@@ -464,6 +464,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 @keyframes c-rise { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes c-pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
 @keyframes c-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes c-spin { to { transform: rotate(360deg); } }
 @keyframes c-indeterminate { 0% { left: -40%; } 100% { left: 100%; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

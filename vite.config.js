@@ -122,6 +122,8 @@ export default defineConfig(({ mode }) => {
       }
     })
   ].filter(Boolean),
+  // Several edits land at once during the Clay rebuild; errors still show in the console
+  server: { hmr: { overlay: false } },
   resolve: {
     alias: { '@': '/src' }
   }

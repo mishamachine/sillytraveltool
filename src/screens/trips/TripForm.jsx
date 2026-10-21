@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useTripsStore, useUIStore, useCollabStore } from '../../store'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
+import { Sheet, Field, Button, IconButton, SegmentedControl, Banner, Text, Stack, Card, IconTile, EmptyState } from '../../ui'
 
 export default function TripForm() {
   const { editingItem, closeTripForm } = useUIStore()
   const { createTrip, updateTrip, deleteTrip } = useTripsStore()
   const { inviteCollaborator } = useCollabStore()
 
-  const isEdit = !!editingItem
+  // editingItem with an id = edit; without an id = prefill for a new trip (e.g. "Go back again")
+  const isEdit = !!editingItem?.id
   const [step, setStep] = useState('form') // 'form' | 'invite'
   const [tripType, setTripType] = useState('solo') // 'solo' | 'group'
   const [newTripId, setNewTripId] = useState(null)
@@ -23,9 +25,9 @@ export default function TripForm() {
     destination_city: editingItem?.destination_city || '',
     destination_country: editingItem?.destination_country || '',
     destination_country_code: editingItem?.destination_country_code || '',
-    start_date: editingItem?.start_date || '',
-    end_date: editingItem?.end_date || '',
-    notes: editingItem?.notes || '',
+    start_date: isEdit ? editingItem?.start_date || '' : '',
+    end_date: isEdit ? editingItem?.end_date || '' : '',
+    notes: isEdit ? editingItem?.notes || '' : '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -42,7 +44,8 @@ export default function TripForm() {
     }))
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e?.preventDefault()
     setLoading(true)
     setError(null)
     try {
@@ -88,187 +91,123 @@ export default function TripForm() {
 
   // ── INVITE STEP ─────────────────────────────────────────────
   if (step === 'invite') {
-    const allDone = inviteResults.length > 0
+    const sent = inviteResults.filter(r => r.success).length
+    const failed = inviteResults.filter(r => !r.success)
     return (
-      <>
-        <div className="sheet-overlay" onClick={closeTripForm} />
-        <div className="sheet">
-          <div className="sheet-handle" />
-          <div className="sheet-header">
-            <h2 className="sheet-title">Invite People 👥</h2>
-            <button onClick={closeTripForm} style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--text-sec)', padding: '4px' }}>✕</button>
-          </div>
-          <div style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {allDone ? (
-              <div style={{ textAlign: 'center', padding: '28px 0' }}>
-                <div style={{ fontSize: 48 }}>🎉</div>
-                <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 18, marginTop: 12 }}>
-                  {inviteResults.filter(r => r.success).length} invite{inviteResults.filter(r => r.success).length !== 1 ? 's' : ''} sent!
-                </div>
-                <p style={{ fontSize: 13, color: 'var(--text-tert)', marginTop: 6 }}>They'll get an email from The Goose.</p>
-              </div>
-            ) : (
-              <>
-                <div style={{ background: 'var(--primary-light)', border: '1.5px solid var(--primary)', borderRadius: 12, padding: '12px 14px' }}>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, color: 'var(--primary)', marginBottom: 4 }}>✈️ {form.title}</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-sec)' }}>Who else is coming?</div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {inviteEmails.map((email, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        className="form-input"
-                        type="email"
-                        placeholder="friend@example.com"
-                        value={email}
-                        onChange={e => {
-                          const arr = [...inviteEmails]
-                          arr[i] = e.target.value
-                          setInviteEmails(arr)
-                        }}
-                        style={{ flex: 1 }}
-                      />
-                      {inviteEmails.length > 1 && (
-                        <button onClick={() => setInviteEmails(inviteEmails.filter((_, j) => j !== i))}
-                          style={{ background: 'none', border: '1.5px solid var(--border)', borderRadius: 8, padding: '0 10px', cursor: 'pointer', color: 'var(--text-tert)', fontSize: 16 }}>
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {inviteEmails.length < 6 && (
-                    <button className="btn btn-ghost btn-sm" onClick={() => setInviteEmails([...inviteEmails, ''])} style={{ alignSelf: 'flex-start', fontSize: 12 }}>
-                      + Add another
-                    </button>
+      <Sheet title="Who else is coming?" subtitle={form.title} onClose={closeTripForm}>
+        {inviteResults.length > 0 ? (
+          <EmptyState goose={sent ? 'excited' : 'worried'} title={sent ? `${sent} invite${sent !== 1 ? 's' : ''} sent` : 'Invites not sent'}>
+            {sent ? 'They get an email from Goose with a link to join.' : failed[0]?.error || 'Try again from the trip later.'}
+          </EmptyState>
+        ) : (
+          <>
+            <Stack gap={2}>
+              {inviteEmails.map((email, i) => (
+                <Stack row gap={2} key={i}>
+                  <Field
+                    className="grow"
+                    label={`Email ${i + 1}`}
+                    hideLabel={i > 0}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="friend@example.com"
+                    value={email}
+                    onChange={e => {
+                      const arr = [...inviteEmails]
+                      arr[i] = e.target.value
+                      setInviteEmails(arr)
+                    }}
+                  />
+                  {inviteEmails.length > 1 && (
+                    <IconButton icon="close" variant="ghost" label={`Remove email ${i + 1}`} onClick={() => setInviteEmails(inviteEmails.filter((_, j) => j !== i))} />
                   )}
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 12, fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'var(--text-tert)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Permission</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {[['collaborator', '✏️ Can edit'], ['viewer', '👁 View only']].map(([val, lbl]) => (
-                      <button key={val} onClick={() => setInviteRole(val)} style={{
-                        flex: 1, padding: '10px', borderRadius: 10, border: '1.5px solid',
-                        borderColor: inviteRole === val ? 'var(--primary)' : 'var(--border)',
-                        background: inviteRole === val ? 'var(--primary-light)' : 'var(--surface)',
-                        fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 13,
-                        color: inviteRole === val ? 'var(--primary)' : 'var(--text-sec)', cursor: 'pointer',
-                      }}>{lbl}</button>
-                    ))}
-                  </div>
-                </div>
-
-                <button className="btn btn-primary btn-full" onClick={handleSendInvites} disabled={inviteSending || !inviteEmails.some(e => e.trim() && e.includes('@'))}>
-                  {inviteSending ? 'Sending invites...' : 'Send Invites 🪿'}
-                </button>
-                <button className="btn btn-ghost btn-full" onClick={closeTripForm} style={{ fontSize: 13 }}>
-                  Skip for now
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </>
+                </Stack>
+              ))}
+              {inviteEmails.length < 6 && (
+                <Button variant="ghost" size="sm" icon="plus" onClick={() => setInviteEmails([...inviteEmails, ''])}>Add another</Button>
+              )}
+            </Stack>
+            <Stack gap={2}>
+              <Text variant="label" as="p" id="invite-role">Permission</Text>
+              <SegmentedControl role="radiogroup" label="Permission" value={inviteRole} onChange={setInviteRole}
+                options={[{ value: 'collaborator', label: 'Can edit' }, { value: 'viewer', label: 'View only' }]} />
+            </Stack>
+            <Stack gap={2}>
+              <Button variant="primary" size="lg" block icon="mail" onClick={handleSendInvites} loading={inviteSending}
+                disabled={!inviteEmails.some(e => e.trim() && e.includes('@'))}>
+                {inviteSending ? 'Sending invites' : 'Send invites'}
+              </Button>
+              <Button variant="ghost" block onClick={closeTripForm}>Not now</Button>
+            </Stack>
+          </>
+        )}
+      </Sheet>
     )
   }
 
   // ── MAIN FORM ────────────────────────────────────────────────
   return (
     <>
-      <div className="sheet-overlay" onClick={closeTripForm} />
-      <div className="sheet">
-        <div className="sheet-handle" />
-        <div className="sheet-header">
-          <h2 className="sheet-title">{isEdit ? 'Edit Trip' : 'New Trip'}</h2>
-          <button onClick={closeTripForm} style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--text-sec)', padding: '4px' }}>✕</button>
-        </div>
+      <Sheet title={isEdit ? 'Edit trip' : 'New trip'} onClose={closeTripForm}>
+        <form className="trip-form" onSubmit={handleSubmit}>
+          {error && <Banner tone="danger" icon="alert-circle" title="Couldn't save the trip" role="alert">{error}</Banner>}
 
-        <div style={{ padding: '0 16px 24px', display: 'flex', flexDirection: 'column', gap: '0' }}>
-          {error && (
-            <div style={{ background: '#FFF0EE', border: '1.5px solid var(--error)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: '16px', fontSize: '14px', color: 'var(--error)' }}>
-              {error}
-            </div>
-          )}
-
-          {/* Destination autocomplete */}
-          <div className="form-group">
-            <label className="form-label">Destination</label>
+          <Stack gap={1}>
             <CityAutocomplete
+              label="Destination"
               value={form.destination_city}
               onChange={(val) => update('destination_city', val)}
               onSelect={handleCitySelect}
             />
             {form.destination_country && (
-              <div style={{ fontSize: '12px', color: 'var(--text-tert)', marginTop: '4px', paddingLeft: '2px' }}>
-                📍 {form.destination_country}
-              </div>
+              <Text variant="micro" tone="muted" as="p">{form.destination_country}</Text>
             )}
+          </Stack>
+
+          <Field label="Trip name" placeholder="Tokyo in spring" value={form.title} onChange={e => update('title', e.target.value)} />
+
+          <div className="grid-2">
+            <Field label="Depart" type="date" value={form.start_date} onChange={e => update('start_date', e.target.value)} />
+            <Field label="Return" type="date" value={form.end_date} min={form.start_date} onChange={e => update('end_date', e.target.value)} />
           </div>
 
-          {/* Trip name */}
-          <div className="form-group">
-            <label className="form-label">Trip Name</label>
-            <input className="form-input" placeholder="e.g. Tokyo Spring" value={form.title} onChange={e => update('title', e.target.value)} />
-          </div>
-
-          {/* Dates */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <div className="form-group">
-              <label className="form-label">Depart</label>
-              <input type="date" className="form-input" value={form.start_date} onChange={e => update('start_date', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Return</label>
-              <input type="date" className="form-input" value={form.end_date} min={form.start_date} onChange={e => update('end_date', e.target.value)} />
-            </div>
-          </div>
-
-          {/* Solo vs Group — only on new trip */}
           {!isEdit && (
-            <div className="form-group">
-              <label className="form-label">Trip Type</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Stack gap={2}>
+              <Text variant="label" as="p">Who's going</Text>
+              <div className="grid-2" role="radiogroup" aria-label="Who's going">
                 {[
-                  ['solo', '🧳', 'Just me', 'Plan and track solo'],
-                  ['group', '👥', 'Group trip', 'Invite & collaborate'],
+                  ['solo', 'profile', 'Just me', 'Plan and track solo'],
+                  ['group', 'users', 'Group trip', 'Invite and plan together'],
                 ].map(([val, icon, title, sub]) => (
-                  <button key={val} onClick={() => setTripType(val)} style={{
-                    padding: '12px 10px', borderRadius: 12, border: '2px solid',
-                    borderColor: tripType === val ? 'var(--primary)' : 'var(--border)',
-                    background: tripType === val ? 'var(--primary-light)' : 'var(--surface)',
-                    textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s',
-                  }}>
-                    <div style={{ fontSize: 24, marginBottom: 4 }}>{icon}</div>
-                    <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, color: tripType === val ? 'var(--primary)' : 'var(--text)' }}>{title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-tert)', marginTop: 2 }}>{sub}</div>
-                  </button>
+                  <Card key={val} variant="tile" role="radio" aria-checked={tripType === val} onClick={() => setTripType(val)}
+                    className={`trip-form__type${tripType === val ? ' is-selected' : ''}`}>
+                    <IconTile icon={icon} tone={tripType === val ? 'accent' : 'neutral'} />
+                    <Text variant="body" weight={600} as="span">{title}</Text>
+                    <Text variant="micro" tone="muted" as="span">{sub}</Text>
+                  </Card>
                 ))}
               </div>
-            </div>
+            </Stack>
           )}
 
-          {/* Notes */}
-          <div className="form-group">
-            <label className="form-label">Notes (optional)</label>
-            <textarea className="form-input" placeholder="Anything to remember..." value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} style={{ resize: 'none' }} />
-          </div>
+          <Field label="Notes (optional)" as="textarea" rows={3} placeholder="Anything to remember" value={form.notes} onChange={e => update('notes', e.target.value)} />
 
-          <button className="btn btn-primary btn-full" onClick={handleSubmit} disabled={loading || !isValid} style={{ marginTop: '8px' }}>
-            {loading ? 'Saving...' : isEdit ? 'Save Changes' : tripType === 'group' ? 'Create & Invite People →' : 'Add Trip'}
-          </button>
-
-          {isEdit && (
-            <button className="btn btn-danger btn-full" style={{ marginTop: '10px' }} onClick={() => setShowDeleteConfirm(true)}>
-              Delete Trip
-            </button>
-          )}
-        </div>
-      </div>
+          <Stack gap={2}>
+            <Button type="submit" variant="primary" size="lg" block loading={loading} disabled={!isValid}>
+              {loading ? 'Saving' : isEdit ? 'Save changes' : tripType === 'group' ? 'Create and invite' : 'Add trip'}
+            </Button>
+            {isEdit && (
+              <Button variant="ghost" block icon="trash" className="trip-form__delete" onClick={() => setShowDeleteConfirm(true)}>Delete trip</Button>
+            )}
+          </Stack>
+        </form>
+      </Sheet>
       {showDeleteConfirm && (
         <ConfirmDialog
-          message={`Delete "${form.title || 'this trip'}"? This cannot be undone.`}
-          confirmLabel="Delete Trip"
+          message={`Delete "${form.title || 'this trip'}"?`}
+          detail="Its bookings, notes and packing list go too. This can't be undone."
+          confirmLabel="Delete trip"
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
         />

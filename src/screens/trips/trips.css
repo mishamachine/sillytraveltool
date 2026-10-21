@@ -1,0 +1,24 @@
+/* Trips tab: list, Today, recap, trip form */
+.trips-live-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--accent-on-inverse); flex-shrink: 0; }
+.trips-date { flex-direction: column; gap: 2px; line-height: 1; }
+.trips-date__month { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.trips-date__day { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--ink); }
+.trips-upcoming { padding: 14px; border-radius: 24px; box-shadow: var(--shadow-card); }
+.trips-people { display: inline-flex; align-items: center; gap: 4px; }
+.trips-address { font-family: var(--font-display); font-weight: 600; color: var(--accent); overflow-wrap: anywhere; }
+
+.today-tile { justify-content: center; min-height: 76px; gap: 2px; padding: 14px; }
+.today-temp { line-height: 1; }
+.today-sun { color: var(--weather-sun); }
+.today-honk { padding: 18px; }
+.today-time { width: 48px; flex-shrink: 0; }
+
+.recap-stat { align-items: center; text-align: center; gap: 2px; padding: var(--space-4) var(--space-2); }
+.recap-tile { gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-lg); }
+.recap-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--space-3); }
+.recap-badge { align-items: center; gap: var(--space-2); }
+
+.trip-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.trip-form__type { align-items: flex-start; text-align: left; box-shadow: var(--shadow-card); }
+.trip-form__type.is-selected { box-shadow: var(--shadow-card), inset 0 0 0 2px var(--accent); }
+.trip-form__delete { color: var(--danger); }
