@@ -1,0 +1,106 @@
+{
+  "name": "STT Brand — Warm Minimal Clay",
+  "version": 1,
+  "color": {
+    "themes": [{"id": "light", "name": "Light"}],
+    "tokens": [
+      {"name": "surface-page", "value": "#F4EEE6", "usage": "App and page background. Warm off-white; never pure white."},
+      {"name": "surface-card", "value": "#FFFDF9", "usage": "Cards, list groups, bottom nav, inputs. Sits on surface-page with shadow-card."},
+      {"name": "surface-sunken", "value": "#E9E0D4", "usage": "Segmented-control track, progress-bar track, map placeholders."},
+      {"name": "surface-inverse", "value": "#2A2520", "usage": "Hero cards (HONK, next-up, score), dark buttons. Text on it uses ink-inverse or ink-inverse-muted."},
+      {"name": "line", "value": "#EFE7DC", "usage": "1px hairline dividers between rows inside a card."},
+      {"name": "line-strong", "value": "#D6C8B8", "usage": "Dashed borders on hint rows and empty slots, inactive step dots, outline buttons. Decorative, not for text."},
+      {"name": "ink", "value": "#2A2520", "usage": "Primary text and icons on surface-page and surface-card. Also the Goose's outline."},
+      {"name": "ink-secondary", "value": "#5A5247", "usage": "Body copy that supports a headline; inactive tab labels. 7:1 on surface-card."},
+      {"name": "ink-muted", "value": "#6B6355", "usage": "Meta text, captions, timestamps, overlines. Lowest text colour allowed: 5.0:1 on surface-page."},
+      {"name": "ink-inverse", "value": "#FFFDF9", "usage": "Text on surface-inverse, accent and danger fills."},
+      {"name": "ink-inverse-muted", "value": "#D9CFC2", "usage": "Secondary text on surface-inverse."},
+      {"name": "accent", "value": "#B24A17", "usage": "Primary buttons, active nav and tab, links, overlines like NEXT UP. Passes 4.5:1 for small text on surface-card and surface-page; use it for all terracotta text."},
+      {"name": "accent-hover", "value": "#8E3A12", "usage": "Hover and pressed state for accent links and buttons."},
+      {"name": "accent-soft", "value": "#F6E9DF", "usage": "Icon-tile and tip-banner fills behind accent icons."},
+      {"name": "accent-on-inverse", "value": "#F28B5B", "usage": "Terracotta text or dots on surface-inverse (6.2:1)."},
+      {"name": "brand-terracotta", "value": "#C4561E", "usage": "The original brand terracotta. Decorative only: Goose blush, illustration, text 24px and up. Fails 4.5:1 for small text, so never use for body copy or labels."},
+      {"name": "danger", "value": "#A3261B", "usage": "SOS, emergency numbers, destructive actions (delete account), error icons."},
+      {"name": "danger-soft", "value": "#F8E4E1", "usage": "Fill behind danger icons."},
+      {"name": "success", "value": "#2D6E4A", "usage": "Checks, Completed chips, activity and ticket bookings."},
+      {"name": "success-soft", "value": "#E7F2EC", "usage": "Fill behind success icons and chips."},
+      {"name": "info", "value": "#3E5C8A", "usage": "Flights, translate, trusted-traveler docs, upcoming-trip date chip."},
+      {"name": "info-soft", "value": "#E6EEF8", "usage": "Fill behind info icons."},
+      {"name": "stay", "value": "#5E4B9A", "usage": "Hotel and stay bookings only."},
+      {"name": "stay-soft", "value": "#EFEAF8", "usage": "Fill behind stay icons."},
+      {"name": "weather-sun", "value": "#D4910A", "usage": "Sun icon stroke. Icon only, never text."},
+      {"name": "goose-feather", "value": "#F0EBE3", "usage": "Goose body and head fill."},
+      {"name": "goose-wing", "value": "#E8E3DB", "usage": "Goose wings."},
+      {"name": "goose-beak", "value": "#E8A820", "usage": "Goose upper beak."},
+      {"name": "goose-beak-shade", "value": "#D4910A", "usage": "Goose lower beak."}
+    ]
+  },
+  "type": {
+    "fonts": [],
+    "families": {
+      "display": "\"Space Grotesk\", system-ui, sans-serif",
+      "body": "\"DM Sans\", system-ui, sans-serif"
+    },
+    "groups": [
+      {"name": "Display", "family": "display", "styles": [
+        {"name": "display", "fontSize": "44px", "lineHeight": 1.0, "fontWeight": 700, "letterSpacing": "-0.03em", "sample": "Silly Travel Tool", "usage": "Wordmark and splash only."},
+        {"name": "h1", "fontSize": "30px", "lineHeight": 1.1, "fontWeight": 700, "letterSpacing": "-0.02em", "sample": "Madrid · Granada · Sevilla", "usage": "Screen title, one per screen."},
+        {"name": "h2", "fontSize": "24px", "lineHeight": 1.2, "fontWeight": 700, "letterSpacing": "-0.01em", "sample": "Add to this trip", "usage": "Sheet and empty-state titles."},
+        {"name": "title", "fontSize": "19px", "lineHeight": 1.25, "fontWeight": 600, "sample": "Alhambra · Nasrid Palaces", "usage": "Hero card titles."},
+        {"name": "card-title", "fontSize": "17px", "lineHeight": 1.3, "fontWeight": 600, "sample": "SEA → MAD", "usage": "Booking and card titles."},
+        {"name": "stat", "fontSize": "28px", "lineHeight": 1.0, "fontWeight": 700, "sample": "1,240", "usage": "Numbers: scores, temperatures, amounts."}
+      ]},
+      {"name": "Text", "family": "body", "styles": [
+        {"name": "body-lg", "fontSize": "16px", "lineHeight": 1.5, "fontWeight": 400, "sample": "Forward any booking confirmation here.", "usage": "Onboarding and empty-state copy; inputs (16px stops iOS zoom)."},
+        {"name": "body", "fontSize": "15px", "lineHeight": 1.45, "fontWeight": 400, "sample": "Cold after sunset. Bring a layer.", "usage": "Default body and list rows (500 for row titles, 600 for emphasis)."},
+        {"name": "label", "fontSize": "14px", "lineHeight": 1.4, "fontWeight": 600, "sample": "Show tickets", "usage": "Buttons, chips, tabs."},
+        {"name": "caption", "fontSize": "13px", "lineHeight": 1.4, "fontWeight": 400, "sample": "2 tickets · Conf. ABC123", "usage": "Meta lines under titles, in ink-muted."},
+        {"name": "overline", "fontSize": "12px", "lineHeight": 1.3, "fontWeight": 600, "letterSpacing": "0.06em", "sample": "NEXT UP · IN 1H 20M", "usage": "Section and card overlines, always UPPERCASE, in ink-muted or accent."},
+        {"name": "micro", "fontSize": "12px", "lineHeight": 1.3, "fontWeight": 500, "sample": "Updated 09:00", "usage": "Nav labels, timestamps, AI disclaimers. Smallest size allowed."}
+      ]}
+    ]
+  },
+  "spacing": {
+    "tokens": [
+      {"name": "space-1", "value": "4px", "usage": "Gap between title and its meta line; segmented-track padding."},
+      {"name": "space-2", "value": "8px", "usage": "Gap between chips and paired buttons."},
+      {"name": "space-3", "value": "12px", "usage": "Gap between stacked cards; icon-to-text gap in rows."},
+      {"name": "space-4", "value": "16px", "usage": "Card padding (compact); gap between screen sections."},
+      {"name": "space-5", "value": "20px", "usage": "Screen side gutter on phones; hero card padding."},
+      {"name": "space-6", "value": "24px", "usage": "Onboarding side gutter; gap above primary actions."},
+      {"name": "space-8", "value": "32px", "usage": "Bottom padding above the home indicator on full-bleed screens."},
+      {"name": "space-10", "value": "40px", "usage": "Marketing and logo clear space."}
+    ]
+  },
+  "radius": {
+    "tokens": [
+      {"name": "radius-sm", "value": "12px", "usage": "Chips, small icon buttons, step badges."},
+      {"name": "radius-md", "value": "16px", "usage": "Buttons, inputs, header icon buttons, booking icon tiles."},
+      {"name": "radius-lg", "value": "22px", "usage": "List-group cards, small tiles."},
+      {"name": "radius-xl", "value": "28px", "usage": "Hero cards; bottom-nav top corners."},
+      {"name": "radius-2xl", "value": "36px", "usage": "Bottom sheets (top corners); logo tile."},
+      {"name": "radius-pill", "value": "999px", "usage": "Progress bars and status dots."}
+    ]
+  },
+  "shadow": {
+    "note": "Clay depth: soft warm drop shadow plus a faint inset bottom edge so surfaces read as pressed clay. Shadows are tinted brown, never grey.",
+    "tokens": [
+      {"name": "shadow-card", "value": "0 8px 22px rgba(120,80,50,0.10)", "usage": "Default card and list group."},
+      {"name": "shadow-raised", "value": "0 10px 30px rgba(120,80,50,0.12), inset 0 -4px 0 rgba(120,80,50,0.05)", "usage": "The one hero card per screen; tool tiles."},
+      {"name": "shadow-inverse", "value": "0 12px 28px rgba(42,37,32,0.24)", "usage": "surface-inverse hero cards."},
+      {"name": "shadow-accent", "value": "0 6px 14px rgba(178,74,23,0.28), inset 0 -3px 0 rgba(0,0,0,0.12)", "usage": "Primary accent buttons and the FAB."},
+      {"name": "shadow-nav", "value": "0 -6px 20px rgba(120,80,50,0.08)", "usage": "Bottom navigation bar."},
+      {"name": "shadow-field", "value": "inset 0 2px 4px rgba(120,80,50,0.08)", "usage": "Search and text inputs (sunken)."}
+    ]
+  },
+  "size": {
+    "note": "Fixed sizes for the phone layout (390 x 844 reference frame).",
+    "tokens": [
+      {"name": "touch-min", "value": "44px", "usage": "Minimum tap target for any control."},
+      {"name": "button-height", "value": "48px", "usage": "Standard button; 52–54px for the single primary action on a screen."},
+      {"name": "nav-height", "value": "84px", "usage": "Bottom navigation including home-indicator padding."},
+      {"name": "icon-md", "value": "24px", "usage": "Nav and tile icons; 1.8px stroke."},
+      {"name": "icon-sm", "value": "20px", "usage": "Inline row icons; 1.8–2px stroke."}
+    ]
+  }
+}

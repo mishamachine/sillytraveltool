@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline — Silly Travel Tool</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #FAF7F2;
+      color: #2A2520;
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .container {
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .goose-svg {
+      animation: snooze 3s ease-in-out infinite;
+    }
+    @keyframes snooze {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #2A2520;
+    }
+    p {
+      font-size: 15px;
+      color: #6B6355;
+      line-height: 1.6;
+    }
+    .pill {
+      padding: 8px 20px;
+      background: #C4561E;
+      color: #fff;
+      border-radius: 9999px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 4px;
+    }
+    .zzz {
+      position: absolute;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      color: #C4561E;
+      animation: float 2s ease-in-out infinite;
+    }
+    .zzz-1 { font-size: 18px; animation-delay: 0s; top: 20px; right: 15px; }
+    .zzz-2 { font-size: 14px; animation-delay: 0.6s; top: 5px; right: 35px; }
+    .zzz-3 { font-size: 10px; animation-delay: 1.2s; top: -5px; right: 20px; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); opacity: 0.4; }
+      50% { transform: translateY(-10px); opacity: 1; }
+    }
+    .goose-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="goose-wrapper">
+      <!-- Sleeping Goose SVG (simplified variant) -->
+      <svg class="goose-svg" width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Body -->
+        <ellipse cx="50" cy="65" rx="28" ry="22" fill="#F0EBE3" stroke="#2A2520" stroke-width="3.5"/>
+        <!-- Head tucked in -->
+        <circle cx="68" cy="52" r="18" fill="#F0EBE3" stroke="#2A2520" stroke-width="3.5"/>
+        <!-- Closed eye (sleeping) -->
+        <path d="M63 50 Q66 47 70 50" stroke="#2A2520" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Beak -->
+        <path d="M78 52 Q86 50 85 55 Q86 60 78 58Z" fill="#E8A820" stroke="#2A2520" stroke-width="2.5" stroke-linejoin="round"/>
+        <!-- Wing fold -->
+        <path d="M30 60 Q40 55 50 58 Q60 61 68 65" stroke="#D4C5B2" stroke-width="2" stroke-linecap="round"/>
+        <!-- Feet -->
+        <ellipse cx="40" cy="84" rx="8" ry="4" fill="#E8A820" stroke="#2A2520" stroke-width="2"/>
+        <ellipse cx="58" cy="84" rx="8" ry="4" fill="#E8A820" stroke="#2A2520" stroke-width="2"/>
+        <!-- Travel hat (sleeping, tilted) -->
+        <path d="M62 36 Q70 28 78 32 Q76 38 68 38Z" fill="#C4561E" stroke="#2A2520" stroke-width="2.5"/>
+        <path d="M60 38 Q70 35 80 38" stroke="#2A2520" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <span class="zzz zzz-1">z</span>
+      <span class="zzz zzz-2">z</span>
+      <span class="zzz zzz-3">z</span>
+    </div>
+
+    <h1>The Goose is offline 😴</h1>
+    <p>
+      Looks like you've lost your connection. The Goose needs wifi to honk properly.
+      <br/><br/>
+      Your trips and documents are still cached locally.
+    </p>
+    <button class="pill" onclick="window.location.reload()">Try Again</button>
+  </div>
+</body>
+</html>
