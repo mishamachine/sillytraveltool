@@ -17,17 +17,15 @@ import { GooseMark, Logo, ProgressBar } from './ui'
 // Lazy-load heavy screens — reduces initial bundle
 const TripsScreen = lazy(() => import('./screens/trips/TripsScreen'))
 const TripDetailScreen = lazy(() => import('./screens/trips/TripDetailScreen'))
-const GuideScreen = lazy(() => import('./screens/guide/GuideScreen'))
-const GooseyScreen = lazy(() => import('./screens/goosey/GooseyScreen'))
+const ExploreScreen = lazy(() => import('./screens/explore/ExploreScreen'))
 const ToolboxScreen = lazy(() => import('./screens/toolbox/ToolboxScreen'))
 const ProfileScreen = lazy(() => import('./screens/profile/ProfileScreen'))
 const TripForm = lazy(() => import('./screens/trips/TripForm'))
 
 const SCREENS = {
   trips: TripsScreen,
-  guide: GuideScreen,
-  goosey: GooseyScreen,
-  toolbox: ToolboxScreen,
+  explore: ExploreScreen,
+  tools: ToolboxScreen,
   profile: ProfileScreen,
 }
 

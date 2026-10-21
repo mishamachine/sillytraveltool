@@ -1,0 +1,3 @@
+.explore-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface-page); }
+.explore-shell__switch { flex-shrink: 0; padding: calc(var(--safe-top) + var(--space-4)) var(--space-5) var(--space-2); }
+.explore-shell__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
