@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
+import { track } from '../lib/analytics'
 
 // Call Edge Function to check and award badges server-side
 async function checkAndAwardBadges(userId, accessToken) {
@@ -61,6 +62,10 @@ export const useAuthStore = create((set, get) => ({
     supabase.auth.onAuthStateChange(async (event, session) => {
       set({ session, user: session?.user ?? null })
       if (event === 'PASSWORD_RECOVERY') set({ passwordRecovery: true })
+      if (event === 'SIGNED_IN' && session?.user) {
+        const provider = session.user.app_metadata?.provider
+        track('sign_in', provider ? { provider } : {})
+      }
       if (session?.user) {
         const shouldCheckBadges = event === 'SIGNED_IN'
         await get().ensureProfile(session.user, session.access_token, shouldCheckBadges)
@@ -124,6 +129,8 @@ export const useAuthStore = create((set, get) => ({
   },
 
   signOut: async () => {
+    // Must be written while the session is still valid (insert-own RLS); capped so sign-out never hangs.
+    await Promise.race([track('sign_out'), new Promise(r => setTimeout(r, 1500))])
     await supabase.auth.signOut()
     set({ user: null, profile: null, session: null })
   }

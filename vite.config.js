@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version),
     'import.meta.env.VITE_NATIVE': JSON.stringify(isNative),
   },
+  // Production + native builds: strip console.log/info/debug (marked pure, so the
+  // minifier drops unused calls). console.warn/console.error stay for diagnostics.
+  esbuild: mode === 'production' || isNative
+    ? { pure: ['console.log', 'console.info', 'console.debug'] }
+    : {},
   plugins: [
     react(),
     // Native: drop viewport-fit=cover so Capacitor's SystemBars pads the WebView

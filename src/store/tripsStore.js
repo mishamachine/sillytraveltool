@@ -4,6 +4,7 @@ import { useAuthStore } from './authStore'
 import { checkAndAwardBadges } from './authStore'
 import { parseLocalDate } from '../lib/dates'
 import { pgQuote } from '../lib/postgrest'
+import { track } from '../lib/analytics'
 
 export const useTripsStore = create((set, get) => ({
   trips: [], activeTrip: null, loading: false, error: null,
@@ -133,6 +134,7 @@ export const useTripsStore = create((set, get) => ({
       throw new Error(error.message || 'Could not create trip — check your connection and try again')
     }
     set(state => ({ trips: [...state.trips, { ...data, trip_collaborators: [] }] }))
+    track('trip_created', { country: sanitized.destination_country_code })
     // trips_created and other trip stats are recomputed server-side by DB triggers
     try {
       await checkAndAwardBadges(user.id, useAuthStore.getState().session?.access_token)
@@ -165,6 +167,7 @@ export const useTripsStore = create((set, get) => ({
     const { error } = await supabase.from('trips').delete().eq('id', id)
     if (error) throw error
     set(state => ({ trips: state.trips.filter(t => t.id !== id), activeTrip: state.activeTrip?.id === id ? null : state.activeTrip }))
+    track('trip_deleted')
   },
 
   // BOOKINGS
@@ -173,6 +176,7 @@ export const useTripsStore = create((set, get) => ({
     const { data, error } = await supabase.from('bookings')
       .insert({ ...bookingData, trip_id: tripId, created_by: user.id }).select().single()
     if (error) throw error
+    track('booking_added', { type: bookingData.type || null, source: bookingData.source === 'email_import' ? 'email_import' : 'manual' })
     set(state => ({ bookings: [...state.bookings, data].sort((a, b) => {
       const da = a.departure_time || (a.check_in_date ? a.check_in_date + 'T12:00:00' : null) || '9999'
       const db = b.departure_time || (b.check_in_date ? b.check_in_date + 'T12:00:00' : null) || '9999'

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { fetchWithTimeout } from '../../lib/http'
 
 /**
  * Shared city autocomplete using Photon API.
@@ -37,7 +38,7 @@ export default function CityAutocomplete({
     if (q.length < 2) { setResults([]); return }
     setLoading(true)
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en&osm_tag=place:city&osm_tag=place:town`,
         { headers: { 'Accept-Language': 'en' } }
       )

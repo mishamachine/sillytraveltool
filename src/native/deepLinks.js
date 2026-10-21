@@ -69,18 +69,19 @@ export async function handleDeepLink(raw) {
   const isRecovery = get('type') === 'recovery'
   if (isRecovery) store.setPasswordRecovery(true)
 
-  let error = null
+  let result
   const code = get('code')
   if (code) {
-    ;({ error } = await supabase.auth.exchangeCodeForSession(code))
+    result = await supabase.auth.exchangeCodeForSession(code)
   } else if (get('access_token') && get('refresh_token')) {
-    ;({ error } = await supabase.auth.setSession({
+    result = await supabase.auth.setSession({
       access_token: get('access_token'),
       refresh_token: get('refresh_token'),
-    }))
+    })
   } else {
     return
   }
+  const { error } = result
 
   if (error) {
     if (isRecovery) store.setPasswordRecovery(false)

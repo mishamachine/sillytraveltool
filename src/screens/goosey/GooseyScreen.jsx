@@ -4,6 +4,8 @@ import { gooseyDiscover } from '../../lib/gemini'
 import ShareNudge from '../../components/shared/ShareNudge'
 import { supabase } from '../../lib/supabase'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
+import { fetchWithTimeout } from '../../lib/http'
+import { track } from '../../lib/analytics'
 
 const MOODS = [
   { id: 'hungry',    label: "I'm hungry",       emoji: '🍜', gooseVariant: 'hungry' },
@@ -30,7 +32,7 @@ function useGeolocation() {
         const { latitude, longitude } = pos.coords
         setState(s => ({ ...s, coords: { latitude, longitude } }))
         try {
-          const res = await fetch(
+          const res = await fetchWithTimeout(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
             { headers: { 'Accept-Language': 'en' } }
           )
@@ -78,12 +80,14 @@ export default function GooseyScreen() {
       const moodLabel = MOODS.find(m => m.id === selectedMood)?.label || selectedMood
       const discovered = await gooseyDiscover({ city: effectiveCity, country: effectiveCountry, mood: moodLabel })
       setResult(discovered)
+      track('honk_used', { mood: selectedMood, gps: !!geo.city }, 'goosey')
       // Stat trigger: HONK used
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'honks_used', p_amount: 1 })
       } catch {}
     } catch (e) {
+      track('ai_error', { feature: 'honk' }, 'goosey')
       setError(e?.message ? `The Goose hit a snag: ${e.message}` : 'The Goose hit a snag. Please try again.')
       setHonked(false)
     } finally { setLoading(false) }

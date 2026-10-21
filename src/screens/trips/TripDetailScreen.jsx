@@ -4,6 +4,8 @@ import { format } from 'date-fns'
 import { parseLocalDate, todayLocalISO, daysBetween, isTripCompleted, hasTripEnded } from '../../lib/dates'
 import { getFlagEmoji, getCountryColor } from '../../lib/countryColors'
 import { parseBookingEmail } from '../../lib/gemini'
+import { fetchWithTimeout } from '../../lib/http'
+import { track } from '../../lib/analytics'
 import Goose from '../../components/goose/Goose'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 
@@ -21,20 +23,20 @@ function LiveClock({ city, country, lat, lng }) {
       let tzLat = lat, tzLng = lng
       if (!tzLat || !tzLng) {
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent((city || '') + ', ' + (country || ''))}`, { headers: { 'Accept-Language': 'en' } })
+          const res = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent((city || '') + ', ' + (country || ''))}`, { headers: { 'Accept-Language': 'en' } })
           const data = await res.json()
           if (data[0]) { tzLat = data[0].lat; tzLng = data[0].lon }
         } catch { /* fallback to device time */ }
       }
       if (tzLat && tzLng) {
         try {
-          const res = await fetch(`https://timeapi.io/api/timezone/coordinate?latitude=${tzLat}&longitude=${tzLng}`)
+          const res = await fetchWithTimeout(`https://timeapi.io/api/timezone/coordinate?latitude=${tzLat}&longitude=${tzLng}`)
           const data = await res.json()
           if (data.timeZone) { setTimezone(data.timeZone); setLabel(city || 'local') }
         } catch {
           // timeapi.io failed — try worldtimeapi as fallback (no key needed)
           try {
-            const res2 = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${tzLat}&longitude=${tzLng}&timezone=auto&forecast_days=1`)
+            const res2 = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${tzLat}&longitude=${tzLng}&timezone=auto&forecast_days=1`)
             const data2 = await res2.json()
             if (data2.timezone) { setTimezone(data2.timezone); setLabel(city || 'local') }
           } catch { /* give up, show device time */ }
@@ -63,12 +65,20 @@ function LiveClock({ city, country, lat, lng }) {
 // ============================================================
 // BOOKING ICON
 // ============================================================
+const BOOKING_COLORS = { flight: '#4A7FC4', hotel: '#7B61C4', activity: '#2D8B55', transport: '#D4910A', restaurant: '#B24A17', other: '#A09688' }
+
 function BookingIcon({ type }) {
   const icons = { flight: '✈️', hotel: '🏨', activity: '🎯', transport: '🚌', other: '📌' }
-  const colors = { flight: '#4A7FC4', hotel: '#7B61C4', activity: '#2D8B55', transport: '#D4910A', other: '#A09688' }
+  const color = BOOKING_COLORS[type] || '#A09688'
   return (
-    <div style={{ width: 36, height: 36, borderRadius: 8, background: (colors[type] || '#A09688') + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-      {icons[type] || '📌'}
+    <div style={{ width: 36, height: 36, borderRadius: 8, background: color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+      {type === 'restaurant' ? (
+        // Fork and knife, 24px stroke icon (Clay style)
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10" />
+          <path d="M17 21V3c-2 1-3 4-3 7v3h3" />
+        </svg>
+      ) : (icons[type] || '📌')}
     </div>
   )
 }
@@ -191,8 +201,7 @@ function BookingRow({ booking, onDelete, currentUserId }) {
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const canDelete = !currentUserId || !booking.created_by || booking.created_by === currentUserId
-  const typeColor = { flight: '#4A7FC4', hotel: '#7B61C4', activity: '#2D8B55', transport: '#D4910A', other: '#A09688' }
-  const color = typeColor[booking.type] || '#A09688'
+  const color = BOOKING_COLORS[booking.type] || '#A09688'
 
   // For shared trips: a flight is "mine" if no passenger_name stored, or if it matches
   // the current user (by created_by). Other-passenger flights are shown dimmed.
@@ -215,6 +224,8 @@ function BookingRow({ booking, onDelete, currentUserId }) {
     }
     const parts = []
     if (timeStr) parts.push(timeStr)
+    if (booking.type === 'restaurant' && booking.activity_time) parts.push(booking.activity_time)
+    if (booking.party_size) parts.push(`Party of ${booking.party_size}`)
     if (booking.confirmation_number) parts.push(booking.confirmation_number)
     return parts.join(' · ')
   })()
@@ -255,7 +266,7 @@ function BookingRow({ booking, onDelete, currentUserId }) {
       {expanded && (
         <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
           {booking.passenger_name && <Detail label="Passenger" value={booking.passenger_name} />}
-          {booking.flight_number && <Detail label="Flight" value={`${booking.airline || ''} ${booking.flight_number}`.trim()} />}
+          {booking.flight_number && <Detail label={booking.type === 'transport' ? (booking.transport_mode ? booking.transport_mode.charAt(0).toUpperCase() + booking.transport_mode.slice(1) : 'Service') : 'Flight'} value={`${booking.airline || ''} ${booking.flight_number}`.trim()} />}
           {booking.seat_number && <Detail label="Seat" value={booking.seat_number} />}
           {booking.departure_airport && <Detail label="From" value={booking.departure_airport} />}
           {booking.arrival_airport && <Detail label="To" value={booking.arrival_airport} />}
@@ -265,7 +276,8 @@ function BookingRow({ booking, onDelete, currentUserId }) {
           {booking.check_out_date && <Detail label="Check-out" value={format(new Date(booking.check_out_date + 'T00:00:00'), 'MMM d, yyyy')} />}
           {booking.room_type && <Detail label="Room" value={booking.room_type} />}
           {booking.ticket_quantity && <Detail label="Tickets" value={String(booking.ticket_quantity)} />}
-          {booking.venue_name && <Detail label="Venue" value={booking.venue_name} />}
+          {booking.party_size && <Detail label="Party" value={`${booking.party_size} ${booking.party_size === 1 ? 'guest' : 'guests'}`} />}
+          {booking.venue_name && <Detail label={booking.type === 'restaurant' ? 'Restaurant' : 'Venue'} value={booking.venue_name} />}
           {booking.venue_address && <Detail label="Address" value={booking.venue_address} />}
           {booking.activity_date && booking.activity_time && <Detail label="Time" value={`${format(new Date(booking.activity_date + 'T00:00:00'), 'MMM d')} at ${booking.activity_time}`} />}
           {booking.confirmation_number && <Detail label="Ref #" value={booking.confirmation_number} />}
@@ -449,6 +461,7 @@ function BookingSheet({ tripId, onClose, onCreate }) {
           } catch { clean[k] = null }
         }
         else if (k === 'price' && v) clean[k] = parseFloat(v)
+        else if (k === 'party_size' && v) clean[k] = parseInt(v, 10) || null
         else clean[k] = v
       })
       await onCreate(tripId, clean)
@@ -473,8 +486,8 @@ function BookingSheet({ tripId, onClose, onCreate }) {
           {/* Type selector */}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Type</label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {['flight', 'hotel', 'activity', 'transport', 'other'].map(t => (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {['flight', 'hotel', 'restaurant', 'activity', 'transport', 'other'].map(t => (
                 <button key={t} onClick={() => setType(t)} className={`pill-tab ${type === t ? 'active' : ''}`} style={{ fontSize: 12, padding: '5px 12px' }}>
                   {t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
@@ -484,7 +497,7 @@ function BookingSheet({ tripId, onClose, onCreate }) {
 
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Title *</label>
-            <input className="form-input" value={form.title || ''} onChange={e => set('title', e.target.value)} placeholder={type === 'flight' ? 'e.g. AA 123 NYC → LAX' : type === 'hotel' ? 'e.g. The Plaza Hotel' : 'e.g. Central Park Tour'} />
+            <input className="form-input" value={form.title || ''} onChange={e => set('title', e.target.value)} placeholder={type === 'flight' ? 'e.g. AA 123 NYC → LAX' : type === 'hotel' ? 'e.g. The Plaza Hotel' : type === 'restaurant' ? 'e.g. Dinner at Le Bernardin' : type === 'transport' ? 'e.g. Eurostar London → Paris' : 'e.g. Central Park Tour'} />
           </div>
 
           {type === 'flight' && <>
@@ -510,7 +523,39 @@ function BookingSheet({ tripId, onClose, onCreate }) {
             </div>
           </>}
 
-          {(type === 'activity' || type === 'transport' || type === 'other') && <>
+          {type === 'restaurant' && <>
+            <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Restaurant</label><input className="form-input" value={form.venue_name || ''} onChange={e => set('venue_name', e.target.value)} placeholder="Le Bernardin" /></div>
+            <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Address</label><input className="form-input" value={form.venue_address || ''} onChange={e => set('venue_address', e.target.value)} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px', gap: 10 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Date</label><input type="date" className="form-input" value={form.activity_date || ''} onChange={e => set('activity_date', e.target.value)} /></div>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Time</label><input type="time" className="form-input" value={form.activity_time || ''} onChange={e => set('activity_time', e.target.value)} /></div>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Guests</label><input type="number" min="1" max="50" className="form-input" value={form.party_size || ''} onChange={e => set('party_size', e.target.value)} placeholder="2" /></div>
+            </div>
+          </>}
+
+          {type === 'transport' && <>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {['train', 'bus', 'ferry', 'coach', 'car'].map(m => (
+                <button key={m} onClick={() => set('transport_mode', m)} className={`pill-tab ${form.transport_mode === m ? 'active' : ''}`} style={{ fontSize: 12, padding: '4px 10px' }}>
+                  {m.charAt(0).toUpperCase() + m.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Operator</label><input className="form-input" value={form.airline || ''} onChange={e => set('airline', e.target.value)} placeholder="Eurostar" /></div>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Service #</label><input className="form-input" value={form.flight_number || ''} onChange={e => set('flight_number', e.target.value)} placeholder="9014" /></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">From</label><input className="form-input" value={form.departure_airport || ''} onChange={e => set('departure_airport', e.target.value)} placeholder="London St Pancras" /></div>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">To</label><input className="form-input" value={form.arrival_airport || ''} onChange={e => set('arrival_airport', e.target.value)} placeholder="Paris Gare du Nord" /></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Departs</label><input type="datetime-local" className="form-input" value={form.departure_time || ''} onChange={e => set('departure_time', e.target.value)} /></div>
+              <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Arrives</label><input type="datetime-local" className="form-input" value={form.arrival_time || ''} onChange={e => set('arrival_time', e.target.value)} /></div>
+            </div>
+          </>}
+
+          {(type === 'activity' || type === 'other') && <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Date</label><input type="date" className="form-input" value={form.activity_date || ''} onChange={e => set('activity_date', e.target.value)} /></div>
               <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Time</label><input type="time" className="form-input" value={form.activity_time || ''} onChange={e => set('activity_time', e.target.value)} /></div>
@@ -619,7 +664,10 @@ function EmailImportSheet({ tripId, onClose, onCreate }) {
       const bookings = Array.isArray(result.bookings) ? result.bookings : [result]
       setParsedBookings(bookings)
       setUltimateDest(result.ultimate_destination || null)
-    } catch (e) { setError(e?.message || 'Could not parse email. Try again or add manually.') }
+    } catch (e) {
+      track('ai_error', { feature: 'parse_booking' }, 'trip')
+      setError(e?.message || 'Could not parse email. Try again or add manually.')
+    }
     finally { setLoading(false) }
   }
 
@@ -778,7 +826,7 @@ function WeatherTab({ trip }) {
         }
         let lat = trip.destination_lat, lon = trip.destination_lng
         if (!lat || !lon) {
-          const geoRes = await fetch(
+          const geoRes = await fetchWithTimeout(
             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trip.destination_city + ', ' + trip.destination_country)}&limit=1`,
             { headers: { 'Accept-Language': 'en' } }
           )
@@ -796,7 +844,7 @@ function WeatherTab({ trip }) {
         if (daysUntilTrip <= 16) {
           // Live forecast
           const forecastDays = Math.min(16, Math.max(7, daysUntilTrip + 3))
-          const weatherRes = await fetch(
+          const weatherRes = await fetchWithTimeout(
             `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tempUnit}&wind_speed_unit=mph&timezone=auto&forecast_days=${forecastDays}`
           )
           const weatherData = await weatherRes.json()
@@ -821,8 +869,8 @@ function WeatherTab({ trip }) {
           const fmt = (d) => d.toISOString().split('T')[0]
 
           const [climateRes, currentRes] = await Promise.all([
-            fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${fmt(refStart)}&end_date=${fmt(refEnd)}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tempUnit}&timezone=auto`),
-            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&temperature_unit=${tempUnit}&wind_speed_unit=mph&timezone=auto&forecast_days=1`)
+            fetchWithTimeout(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${fmt(refStart)}&end_date=${fmt(refEnd)}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tempUnit}&timezone=auto`),
+            fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&temperature_unit=${tempUnit}&wind_speed_unit=mph&timezone=auto&forecast_days=1`)
           ])
           const [climateData, currentData] = await Promise.all([climateRes.json(), currentRes.json()])
 
@@ -841,7 +889,7 @@ function WeatherTab({ trip }) {
           })))
           setIsHistorical(true)
         }
-      } catch (e) { setError('Weather unavailable') }
+      } catch (e) { setError(e?.name === 'TimeoutError' ? 'Weather is taking too long to load. Check your connection and try again.' : 'Weather unavailable') }
       finally { setLoading(false) }
     }
     fetchWeather()
@@ -1008,12 +1056,12 @@ function ChecklistTab({ trip }) {
       try {
         let lat = trip.destination_lat, lon = trip.destination_lng
         if (!lat || !lon) {
-          const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trip.destination_city + ', ' + trip.destination_country)}&limit=1`, { headers: { 'Accept-Language': 'en' } })
+          const geoRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trip.destination_city + ', ' + trip.destination_country)}&limit=1`, { headers: { 'Accept-Language': 'en' } })
           const geoData = await geoRes.json()
           if (geoData[0]) { lat = geoData[0].lat; lon = geoData[0].lon }
         }
         if (lat && lon) {
-          const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&forecast_days=7`)
+          const wRes = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&forecast_days=7`)
           const wData = await wRes.json()
           if (wData?.daily?.time) {
             const days = wData.daily.time.map((date, i) => ({
@@ -1051,7 +1099,9 @@ function ChecklistTab({ trip }) {
       }))
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(result)) } catch {}
       setSections(result)
+      track('checklist_generated', { sections: result.length, weather: !!weatherContext }, 'trip')
     } catch (e) {
+      track('ai_error', { feature: 'checklist' }, 'trip')
       setGenError(e?.message || 'Could not build your packing list.')
     } finally { setGenerating(false) }
   }

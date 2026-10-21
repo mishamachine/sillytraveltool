@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from './authStore'
 import { useTripsStore } from './tripsStore'
 import { pgQuote } from '../lib/postgrest'
+import { track } from '../lib/analytics'
 
 export const useCollabStore = create((set, get) => ({
   pendingInvites: [],
@@ -65,6 +66,7 @@ export const useCollabStore = create((set, get) => ({
 
       if (error) throw new Error(error.message)
       if (data?.error) throw new Error(data.error)
+      track('invite_sent', { role })
       return { success: true, data }
     } catch (e) {
       return { success: false, error: e.message }

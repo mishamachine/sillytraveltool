@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives",
     "build:native": "vite build --mode native && npx cap sync android",
     "android": "npm run build:native && npx cap run android",
     "android:open": "npm run build:native && npx cap open android"
@@ -19,6 +19,8 @@
     "@capacitor/core": "^8.5.3",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
+    "@sentry/capacitor": "4.4.0",
+    "@sentry/react": "10.69.0",
     "@supabase/supabase-js": "^2.39.0",
     "clsx": "^2.1.0",
     "date-fns": "^3.2.0",

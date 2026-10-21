@@ -3,6 +3,8 @@ import { useTripsStore, useUIStore, useGuideStore, useAuthStore } from '../../st
 import Goose from '../../components/goose/Goose'
 import ShareNudge from '../../components/shared/ShareNudge'
 import { parseLocalDate, hasTripEnded } from '../../lib/dates'
+import { fetchWithTimeout } from '../../lib/http'
+import { track } from '../../lib/analytics'
 
 const GUIDE_TABS = [
   { id: 'know',   emoji: '🧠', label: 'Know'   },
@@ -132,7 +134,7 @@ function CitySearch({ onSelect }) {
     if (q.length < 2) { setResults([]); return }
     setLoading(true)
     try {
-      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en&osm_tag=place:city&osm_tag=place:town`, { headers: { 'Accept-Language': 'en' } })
+      const res = await fetchWithTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en&osm_tag=place:city&osm_tag=place:town`, { headers: { 'Accept-Language': 'en' } })
       const data = await res.json()
       const cities = (data.features || [])
         .filter(f => ['city','town','municipality'].includes(f.properties?.type))
@@ -701,6 +703,20 @@ export default function GuideScreen() {
   const isSectionLoading = neededSections.some(s => !!loadingSections[s])
   // A tab is loaded when ALL its sub-sections are present
   const isSectionLoaded = neededSections.length > 0 && neededSections.every(s => !!sections[s])
+
+  // Analytics: one guide_viewed per destination + tab once its content is on screen
+  const lastViewedRef = useRef(null)
+  useEffect(() => {
+    if (!destination || !isSectionLoaded) return
+    const key = `${destination.city}|${activeGuideTab}`
+    if (lastViewedRef.current === key) return
+    lastViewedRef.current = key
+    track('guide_viewed', { section: activeGuideTab, country: destination.country_code || null }, 'guide')
+  }, [isSectionLoaded, activeGuideTab, destination?.city]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (guideError) track('ai_error', { feature: 'guide', section: activeGuideTab }, 'guide')
+  }, [guideError]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const TAB_CONTENT = {
     know:   <KnowTab data={guideData} />,

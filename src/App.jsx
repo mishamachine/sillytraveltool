@@ -8,6 +8,7 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 
 import { useVisibilityRestore } from './hooks/useVisibilityRestore'
 import { initDeepLinks } from './native/deepLinks'
+import { gaPageView } from './lib/ga'
 import './styles/global.css'
 
 // Lazy-load heavy screens — reduces initial bundle
@@ -76,6 +77,9 @@ export default function App() {
   const [inviteToast, setInviteToast] = useState(null)
 
   useEffect(() => { init(); initDeepLinks() }, [])
+
+  // GA4 page_view per tab (no-op on native and non-production builds)
+  useEffect(() => { if (user?.id) gaPageView(activeTab) }, [activeTab, user?.id])
 
   useEffect(() => {
     if (user) fetchPendingInvites()

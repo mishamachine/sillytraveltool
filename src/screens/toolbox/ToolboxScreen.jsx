@@ -6,6 +6,9 @@ import Goose from '../../components/goose/Goose'
 import TranslateTool from './components/TranslateTool'
 import { findCurrentOrNextTrip } from '../../lib/dates'
 import { currencyForCountry } from '../../lib/currencies'
+import { fetchWithTimeout } from '../../lib/http'
+import { getCurrentPosition, reverseGeocodeCountry } from '../../lib/geo'
+import { track } from '../../lib/analytics'
 
 const TOOLBOX_TABS = [
   { id: 'currency', label: '💱 Currency' },
@@ -100,6 +103,7 @@ function CurrencyTool() {
   const [loading, setLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [error, setError] = useState(null)
+  const [query, setQuery] = useState('')
   const latestBase = useRef(null)
 
   // Popular list: home currency first (when converting from elsewhere), then common pairs for `from`
@@ -119,15 +123,14 @@ function CurrencyTool() {
     latestBase.current = base
     setLoading(true)
     setError(null)
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 10000)
     try {
-      const res = await fetch(`https://open.er-api.com/v6/latest/${base}`, { signal: controller.signal })
+      const res = await fetchWithTimeout(`https://open.er-api.com/v6/latest/${base}`, {}, 8000)
       const data = await res.json()
       if (latestBase.current !== base) return // a newer request superseded this one
       if (data.result === 'success') {
         setRates(data.rates)
         setLastUpdated(new Date().toLocaleTimeString())
+        track('currency_converted', { from: base }, 'toolbox')
         // Stat increment — fire and forget; never block the result on it
         if (user?.id) {
           supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'currency_lookups', p_amount: 1 })
@@ -137,10 +140,9 @@ function CurrencyTool() {
         setRates(null)
         setError('Could not load rates')
       }
-    } catch {
-      if (latestBase.current === base) { setRates(null); setError('No connection') }
+    } catch (e) {
+      if (latestBase.current === base) { setRates(null); setError(e?.name === 'TimeoutError' ? 'Timed out' : 'No connection') }
     } finally {
-      clearTimeout(timer)
       if (latestBase.current === base) setLoading(false)
     }
   }
@@ -148,9 +150,14 @@ function CurrencyTool() {
   const rate = rates?.[to]
   const result = rate ? (parseFloat(amount || 0) * rate).toFixed(2) : null
 
+  // Search by code or name ("eur", "yen", "peso")
+  const q = query.trim().toLowerCase()
+  const matches = (code) => !q || code.toLowerCase().includes(q) || getCurrencyName(code).toLowerCase().includes(q)
+  const popularShown = topFive.filter(matches)
+
   // All currencies except home currency, alphabetically, minus the top 5
   const otherCurrencies = ALL_CURRENCIES
-    .filter(c => c.code !== from && !topFive.includes(c.code))
+    .filter(c => c.code !== from && !topFive.includes(c.code) && matches(c.code))
     .sort((a, b) => a.code.localeCompare(b.code))
 
   const CurrencyRow = ({ code }) => {
@@ -250,26 +257,52 @@ function CurrencyTool() {
 
       {/* Scrollable currency list */}
       <div style={{ flex: 1, overflowY: 'auto', borderTop: '1px solid var(--border)' }}>
-        {/* Top 5 highlighted */}
-        <div style={{
-          padding: '8px 16px 4px',
-          fontSize: '11px', fontFamily: 'var(--font-heading)', fontWeight: 700,
-          color: 'var(--text-tert)', letterSpacing: '0.08em', textTransform: 'uppercase',
-        }}>
-          Popular
+        {/* Search */}
+        <div style={{ padding: '10px 16px 4px', position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 1 }}>
+          <input
+            type="search"
+            className="form-input"
+            placeholder="Search currency (code or name)"
+            aria-label="Search currencies"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            autoComplete="off"
+            style={{ padding: '8px 12px', fontSize: '14px' }}
+          />
         </div>
-        {topFive.map(code => <CurrencyRow key={code} code={code} />)}
+
+        {/* Top 5 highlighted */}
+        {popularShown.length > 0 && (
+          <>
+            <div style={{
+              padding: '8px 16px 4px',
+              fontSize: '11px', fontFamily: 'var(--font-heading)', fontWeight: 700,
+              color: 'var(--text-tert)', letterSpacing: '0.08em', textTransform: 'uppercase',
+            }}>
+              Popular
+            </div>
+            {popularShown.map(code => <CurrencyRow key={code} code={code} />)}
+          </>
+        )}
 
         {/* Divider */}
-        <div style={{
-          padding: '8px 16px 4px', marginTop: '4px',
-          fontSize: '11px', fontFamily: 'var(--font-heading)', fontWeight: 700,
-          color: 'var(--text-tert)', letterSpacing: '0.08em', textTransform: 'uppercase',
-          borderTop: '1px solid var(--border)',
-        }}>
-          All Currencies
-        </div>
+        {otherCurrencies.length > 0 && (
+          <div style={{
+            padding: '8px 16px 4px', marginTop: '4px',
+            fontSize: '11px', fontFamily: 'var(--font-heading)', fontWeight: 700,
+            color: 'var(--text-tert)', letterSpacing: '0.08em', textTransform: 'uppercase',
+            borderTop: popularShown.length > 0 ? '1px solid var(--border)' : 'none',
+          }}>
+            All Currencies
+          </div>
+        )}
         {otherCurrencies.map(c => <CurrencyRow key={c.code} code={c.code} />)}
+
+        {popularShown.length === 0 && otherCurrencies.length === 0 && (
+          <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: '13px', color: 'var(--text-sec)' }}>
+            No currency matches "{query.trim()}"
+          </div>
+        )}
       </div>
     </div>
   )
@@ -424,18 +457,86 @@ const EMERGENCY = {
   DEFAULT: { police: '112', ambulance: '112', fire: '112', tourist: null },
 }
 
+function regionName(code) {
+  if (!code || code === 'DEFAULT') return null
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code } catch { return code }
+}
+
+// Last device-location lookup, reused for 10 minutes so reopening SOS is instant
+let cachedLocation = null // { at, loc: { countryCode, countryName, city } }
+
+// Resolves the device's current country. status: 'locating' | 'found' | 'unavailable'
+function useCurrentCountry() {
+  const fresh = cachedLocation && Date.now() - cachedLocation.at < 10 * 60 * 1000
+  const [state, setState] = useState(fresh ? { status: 'found', loc: cachedLocation.loc } : { status: 'locating', loc: null })
+  useEffect(() => {
+    if (fresh) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { latitude, longitude } = await getCurrentPosition({ timeout: 10000 })
+        const loc = await reverseGeocodeCountry(latitude, longitude, 6000)
+        cachedLocation = { at: Date.now(), loc }
+        if (!cancelled) setState({ status: 'found', loc })
+      } catch {
+        if (!cancelled) setState({ status: 'unavailable', loc: null })
+      }
+    })()
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  return state
+}
+
+function PinIcon({ color }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </svg>
+  )
+}
+
 function SOSTool() {
   const { profile } = useAuthStore()
   const { trips } = useTripsStore()
   const [showCard, setShowCard] = useState(false)
+  const current = useCurrentCountry()
 
-  // Priority: active trip country → next upcoming trip country → passport country → default
+  // Priority: device location → active/next trip country → passport country → default
   const { trip: destinationTrip, isLive: hasLiveTrip } = findCurrentOrNextTrip(trips)
   const activeTrip = hasLiveTrip ? destinationTrip : null
   const nextTrip = hasLiveTrip ? null : destinationTrip
-  const countryCode = destinationTrip?.destination_country_code || profile?.passport_country || 'DEFAULT'
-  const countryName = destinationTrip?.destination_country || profile?.passport_country || 'your destination'
-  const isLive = !!activeTrip
+  const locCountry = current.status === 'found' ? current.loc : null
+  const source = locCountry ? 'location'
+    : activeTrip?.destination_country_code ? 'active_trip'
+    : nextTrip?.destination_country_code ? 'next_trip'
+    : profile?.passport_country ? 'passport'
+    : 'default'
+  const countryCode = locCountry?.countryCode || destinationTrip?.destination_country_code || profile?.passport_country || 'DEFAULT'
+  const countryName = locCountry?.countryName || destinationTrip?.destination_country || regionName(profile?.passport_country) || 'your destination'
+  const isLive = source === 'location' || source === 'active_trip'
+
+  const sourceLabel = {
+    location: `Based on your current location: ${countryName}`,
+    active_trip: `Based on your active trip to ${countryName}`,
+    next_trip: `Based on your next trip to ${countryName}`,
+    passport: `Based on your passport country: ${countryName}`,
+    default: 'General international emergency numbers',
+  }[source]
+
+  // Embassy lookup: the country you're in (by location) wins over the trip destination
+  const embassyDest = locCountry
+    ? { code: locCountry.countryCode, country: locCountry.countryName, city: locCountry.city }
+    : destinationTrip
+      ? { code: destinationTrip.destination_country_code, country: destinationTrip.destination_country, city: destinationTrip.destination_city }
+      : null
+
+  const trackedRef = useRef(false)
+  useEffect(() => {
+    if (trackedRef.current || current.status === 'locating') return
+    trackedRef.current = true
+    track('sos_opened', { source, country: countryCode === 'DEFAULT' ? null : countryCode }, 'toolbox')
+  }, [current.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -451,9 +552,12 @@ function SOSTool() {
 
       {/* Context banner */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: isLive ? '#EDF7F1' : 'var(--surface-alt)', borderRadius: 'var(--radius-md)', border: `1.5px solid ${isLive ? '#2D8B55' : 'var(--border)'}` }}>
-        <span style={{ fontSize: 18 }}>{isLive ? '📍' : nextTrip ? '✈️' : '🏠'}</span>
+        <PinIcon color={isLive ? '#2D8B55' : 'var(--text-sec)'} />
         <span style={{ fontSize: 13, color: isLive ? '#2D8B55' : 'var(--text-sec)', fontFamily: 'var(--font-heading)', fontWeight: 600 }}>
-          {isLive ? `Numbers for ${countryName} — you're there now` : nextTrip ? `Numbers for ${countryName} — your next trip` : `Numbers based on your passport country`}
+          {sourceLabel}
+          {current.status === 'locating' && (
+            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--text-tert)', marginTop: 2 }}>Checking your current location...</span>
+          )}
         </span>
       </div>
 
@@ -465,12 +569,16 @@ function SOSTool() {
         <Goose variant="passport" size={56} />
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Your Embassy</div>
-          {profile?.passport_country && destinationTrip ? (() => {
+          {profile?.passport_country && embassyDest && embassyDest.code === profile.passport_country ? (
+            <p style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.6 }}>
+              {embassyDest.country} is your passport country, so no embassy needed. When you're abroad, your embassy shows up here.
+            </p>
+          ) : profile?.passport_country && embassyDest ? (() => {
             const passportCode = profile.passport_country
-            const destCode = destinationTrip.destination_country_code
+            const destCode = embassyDest.code
             const passportName = PASSPORT_COUNTRY_NAMES[passportCode] || passportCode
-            const destCountry = destinationTrip.destination_country
-            const destCity = destinationTrip.destination_city
+            const destCountry = embassyDest.country
+            const destCity = embassyDest.city
             const embassyKey = `${passportCode}_${destCode}`
             const known = EMBASSY_DATA[embassyKey]
             const mapsQuery = known
@@ -508,7 +616,7 @@ function SOSTool() {
                 </p>
               </>
             )
-          })() : profile?.passport_country && !destinationTrip ? (
+          })() : profile?.passport_country && !embassyDest ? (
             <p style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.6 }}>
               Add an upcoming trip to find your <strong>{PASSPORT_COUNTRY_NAMES[profile.passport_country] || profile.passport_country} embassy</strong> at your destination.
             </p>
@@ -601,6 +709,11 @@ const TOOL_COMPONENTS = { currency: CurrencyTool, tip: TipCalc, sos: SOSTool, tr
 export default function ToolboxScreen() {
   const { activeToolboxTab, setToolboxTab } = useUIStore()
   const ActiveTool = TOOL_COMPONENTS[activeToolboxTab]
+
+  // TranslateTool is owned elsewhere; record usage at the point the tool is opened
+  useEffect(() => {
+    if (activeToolboxTab === 'translate') track('translate_used', { trigger: 'tool_opened' }, 'toolbox')
+  }, [activeToolboxTab])
 
   return (
     <div className="screen" style={{ display: 'flex', flexDirection: 'column' }}>

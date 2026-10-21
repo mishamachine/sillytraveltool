@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import Goose from '../goose/Goose'
+import { captureException } from '../../lib/sentry'
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -13,6 +14,7 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('ErrorBoundary caught:', error, info.componentStack)
+    captureException(error, { contexts: { react: { componentStack: info.componentStack } } })
   }
 
   handleReset = () => {

@@ -6,6 +6,8 @@ import Goose from '../../components/goose/Goose'
 import { getCountryColor, getFlagEmoji } from '../../lib/countryColors'
 import ShareNudge from '../../components/shared/ShareNudge'
 import { parseBookingEmail } from '../../lib/gemini'
+import { fetchWithTimeout } from '../../lib/http'
+import { track } from '../../lib/analytics'
 
 // Fetch climate normals from Open-Meteo (free, no API key)
 // Uses monthly aggregates — tiny payload vs 30yr daily
@@ -28,7 +30,7 @@ async function fetchClimateForecast(lat, lon, startDate, endDate) {
     const refStart = `${Math.min(tripYear - 1, archiveEndYear - 1)}-01-01`
     const refEnd   = `${archiveEndYear}-12-31`
     const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${refStart}&end_date=${refEnd}&monthly=temperature_2m_max,temperature_2m_min&timezone=auto`
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url)
     if (!res.ok) return null
     const data = await res.json()
     const times = data.monthly?.time || []
@@ -54,7 +56,7 @@ async function fetchClimateForecast(lat, lon, startDate, endDate) {
 // Geocode city to lat/lon using Photon
 async function geocodeCity(city, country) {
   try {
-    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(city + ' ' + country)}&limit=1&lang=en`)
+    const res = await fetchWithTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(city + ' ' + country)}&limit=1&lang=en`)
     const data = await res.json()
     const f = data.features?.[0]
     if (!f) return null
@@ -137,7 +139,10 @@ function GlobalEmailImportSheet({ onClose, trips, onBookingCreated }) {
       setMatched(match)
       setSelectedTripId(match?.id || null)
       setStep('preview')
-    } catch (e) { setError(e.message || 'Could not parse email. Try again or add manually.') }
+    } catch (e) {
+      track('ai_error', { feature: 'parse_booking' }, 'trips')
+      setError(e.message || 'Could not parse email. Try again or add manually.')
+    }
     finally { setLoading(false) }
   }
 
@@ -199,7 +204,7 @@ function GlobalEmailImportSheet({ onClose, trips, onBookingCreated }) {
       try {
         const geo = await geocodeCity(city)
         if (geo) {
-          const rev = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${geo.lat}&lon=${geo.lon}&format=json&accept-language=en`)
+          const rev = await fetchWithTimeout(`https://nominatim.openstreetmap.org/reverse?lat=${geo.lat}&lon=${geo.lon}&format=json&accept-language=en`)
           const revData = await rev.json()
           countryName = revData.address?.country || ''
           countryCode = (revData.address?.country_code || '').toUpperCase()
