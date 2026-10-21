@@ -5,6 +5,15 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const ALLOWED_ROLES = ['viewer', 'collaborator']
+const MAX_INVITES_PER_HOUR = 20
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -19,15 +28,34 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
-    const { inviteeEmail, tripId, tripName, inviterName, role = 'viewer' } = await req.json()
-    if (!inviteeEmail || !tripId || !tripName) {
-      return new Response(JSON.stringify({ error: 'inviteeEmail, tripId, tripName required' }), { status: 400, headers: CORS })
+    const body = await req.json()
+    const inviteeEmail = String(body.inviteeEmail ?? '').trim().toLowerCase().slice(0, 254)
+    const tripId = body.tripId
+    const inviterName = String(body.inviterName ?? '').trim().slice(0, 60)
+    const role = ALLOWED_ROLES.includes(body.role) ? body.role : 'viewer'
+    if (!inviteeEmail || !tripId) {
+      return new Response(JSON.stringify({ error: 'inviteeEmail and tripId required' }), { status: 400, headers: CORS })
+    }
+    if (!/^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(inviteeEmail)) {
+      return new Response(JSON.stringify({ error: 'Invalid email address' }), { status: 400, headers: CORS })
     }
 
     // Verify inviter owns or co-owns the trip
-    const { data: trip } = await supabase.from('trips').select('id, owner_id').eq('id', tripId).single()
+    const { data: trip } = await supabase.from('trips').select('id, owner_id, title, destination_city').eq('id', tripId).single()
     if (!trip || trip.owner_id !== user.id) {
       return new Response(JSON.stringify({ error: 'Not authorised for this trip' }), { status: 403, headers: CORS })
+    }
+
+    // Use the stored trip name, never the client-supplied one
+    const tripName = trip.title || trip.destination_city || 'a trip'
+
+    // Rate limit: invites sent by this user in the last hour
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count: recentInvites } = await supabase.from('trip_collaborators')
+      .select('id', { count: 'exact', head: true })
+      .eq('invited_by', user.id).gte('invited_at', since)
+    if ((recentInvites ?? 0) >= MAX_INVITES_PER_HOUR) {
+      return new Response(JSON.stringify({ error: 'Too many invites — try again in an hour' }), { status: 429, headers: CORS })
     }
 
     // Create or update collab record with token
@@ -42,6 +70,7 @@ Deno.serve(async (req) => {
       status: 'pending',
       invite_token: token,
       invite_expires_at: expiresAt,
+      invited_at: new Date().toISOString(),
     }, { onConflict: 'trip_id,invited_email' })
 
     if (collabErr) return new Response(JSON.stringify({ error: collabErr.message }), { status: 500, headers: CORS })
@@ -53,11 +82,13 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get('APP_URL') || 'https://sillytraveltool.com'
     const acceptUrl = `${appUrl}/invite?token=${token}`
     const displayName = inviterName || user.email?.split('@')[0] || 'Someone'
+    const safeName = escapeHtml(displayName)
+    const safeTrip = escapeHtml(tripName)
 
     const emailBody = {
       from: 'The Goose <noreply@bookings.sillytraveltool.com>',
       to: [inviteeEmail],
-      subject: `${displayName} invited you to "${tripName}" 🪿`,
+      subject: `${displayName.replace(/[\r\n]/g, ' ')} invited you to "${tripName.replace(/[\r\n]/g, ' ')}"`,
       html: `
 <!DOCTYPE html>
 <html>
@@ -72,7 +103,7 @@ Deno.serve(async (req) => {
     <div style="padding:32px;">
       <h2 style="margin:0 0 12px;font-size:20px;color:#2A2520;font-family:'Space Grotesk',Arial,sans-serif;">You've been invited! ✈️</h2>
       <p style="margin:0 0 20px;color:#6B6355;font-size:15px;line-height:1.6;">
-        <strong style="color:#2A2520;">${displayName}</strong> has invited you to collaborate on their trip to <strong style="color:#C4561E;">${tripName}</strong>.
+        <strong style="color:#2A2520;">${safeName}</strong> has invited you to collaborate on their trip to <strong style="color:#B24A17;">${safeTrip}</strong>.
       </p>
       <p style="margin:0 0 28px;color:#6B6355;font-size:14px;line-height:1.6;">
         You'll be joining as a <strong>${role}</strong>. Click below to accept the invite and view the trip.

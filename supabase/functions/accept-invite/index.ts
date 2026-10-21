@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     // 4. Look up the pending invite
     const { data: collab, error: lookupErr } = await adminClient
       .from('trip_collaborators')
-      .select('id, trip_id, trips(title, destination_city)')
+      .select('id, trip_id, invited_email, trips(title, destination_city)')
       .eq('invite_token', token)
       .eq('status', 'pending')
       .gt('invite_expires_at', new Date().toISOString())
@@ -59,6 +59,14 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Invite not found, already used, or expired' }),
         { status: 404, headers: CORS }
+      )
+    }
+
+    // Invites are bound to the address they were sent to
+    if ((collab.invited_email || '').toLowerCase() !== (user.email || '').toLowerCase()) {
+      return new Response(
+        JSON.stringify({ error: 'This invite was sent to a different email address' }),
+        { status: 403, headers: CORS }
       )
     }
 
