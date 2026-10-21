@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTripsStore, useUIStore, useCollabStore } from '../../store'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
+import { lookupZone } from '../../lib/zoneLookup'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import { Sheet, Field, Button, IconButton, SegmentedControl, Banner, Text, Stack, Card, IconTile, EmptyState } from '../../ui'
 
@@ -25,6 +26,7 @@ export default function TripForm() {
     destination_city: editingItem?.destination_city || '',
     destination_country: editingItem?.destination_country || '',
     destination_country_code: editingItem?.destination_country_code || '',
+    destination_tz: editingItem?.destination_tz || null,
     start_date: isEdit ? editingItem?.start_date || '' : '',
     end_date: isEdit ? editingItem?.end_date || '' : '',
     notes: isEdit ? editingItem?.notes || '' : '',
@@ -40,8 +42,13 @@ export default function TripForm() {
       destination_city: result.city,
       destination_country: result.country,
       destination_country_code: result.country_code,
+      destination_tz: null,
       title: f.title || result.city,
     }))
+    // The destination's time zone drives Today, day counts and booking times
+    lookupZone({ query: `${result.city}, ${result.country}` }).then(tz => {
+      if (tz) setForm(f => (f.destination_city === result.city ? { ...f, destination_tz: tz } : f))
+    })
   }
 
   const handleSubmit = async (e) => {

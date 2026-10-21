@@ -74,9 +74,9 @@ Both passes ran on the finished build. Fixed in `Clay review fixes`:
    behaviour change from before.
 3. **Account deletion** is UI only: after typing DELETE the user is asked to send a pre-filled email
    (hello@sillytraveltool.com). Real deletion (Edge Function) is Phase 2 and required by Apple 5.1.1(v) / Google Play.
-4. **Terms and Privacy pages** are linked (`/terms`, `/privacy`) but don't exist on the site yet.
-5. **Booking time zones** (pre-existing): times are stored in the device's zone at entry; a phone that changes time zone
-   shows shifted times. Fixing it means storing an IANA zone per booking.
+4. **Terms and Privacy pages**: done in `public/terms`, `public/privacy`; legal name, address and governing law still to fill in.
+5. **Booking time zones**: fixed. Every booking shows the local time where it happens (`docs/LOCAL_TIME.md`). Older
+   flight rows get fixed by `docs/local-time-backfill.sql` once the owner OKs `docs/LOCAL_TIME_BACKFILL.md`.
 
 ## Known issues
 

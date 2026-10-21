@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { useAuthStore, useTripsStore } from '../../../store'
 import { parseLocalDate } from '../../../lib/dates'
-import { sortByStart, bookingStart, bookingDay, bookingKind, bookingMeta, hasClockTime, timeLabel } from '../../../lib/trips'
+import { sortByStart, bookingDay, bookingKind, bookingMeta, hasClockTime, bookingTime, bookingArrival, bookingZone, zoneHint } from '../../../lib/trips'
 import { Card, ListRow, IconButton, Button, Section, Text, Stack, Icon, EmptyState, Skeleton, IconTile, category } from '../../../ui'
 import ImportSheet from '../ImportSheet'
 import InboxHint from '../InboxHint'
@@ -15,24 +15,26 @@ import BookingDetailSheet from './BookingDetailSheet'
 // Flights and trains stand on their own card; everything else sits in a list group
 const STANDALONE = new Set(['flight', 'train', 'bus', 'ferry'])
 
-function trailingFor(item) {
+// Times are local to the place (departure airport, venue); a zone name appears when it differs from the phone.
+function trailingFor(item, tz) {
   if (item._kind === 'activity') {
     return item.time ? <span className="c-row__trailing tabular">{item.time.slice(0, 5)}</span> : null
   }
   if (!hasClockTime(item)) return null
-  const start = timeLabel(bookingStart(item))
-  if (!item.arrival_time) return <span className="c-row__trailing tabular">{start}</span>
-  const arr = new Date(item.arrival_time)
-  const plusDays = Math.round((parseLocalDate(format(arr, 'yyyy-MM-dd')) - parseLocalDate(format(bookingStart(item), 'yyyy-MM-dd'))) / 86400000)
+  const start = bookingTime(item, tz)
+  const hint = zoneHint(bookingZone(item, tz))
+  const arr = bookingArrival(item)
+  if (!arr && !hint) return <span className="c-row__trailing tabular">{start}</span>
   return (
     <span className="detail-times">
       <span className="t-body w-600 tabular">{start}</span>
-      <span className="t-micro tone-muted tabular">arr. {timeLabel(arr)}{plusDays > 0 ? ` +${plusDays}` : ''}</span>
+      {arr && <span className="t-micro tone-muted tabular">arr. {arr.time}{arr.plusDays > 0 ? ` +${arr.plusDays}` : ''}</span>}
+      {hint && <span className="t-micro tone-muted">{hint}</span>}
     </span>
   )
 }
 
-function ItemRow({ item, currentUserId, readOnly, onOpen, onToggle }) {
+function ItemRow({ item, tz, currentUserId, readOnly, onOpen, onToggle }) {
   if (item._kind === 'activity') {
     const cat = ACTIVITY_CATEGORIES[item.category] || ACTIVITY_CATEGORIES.note
     return (
@@ -46,7 +48,7 @@ function ItemRow({ item, currentUserId, readOnly, onOpen, onToggle }) {
         <ListRow className="grow" icon={cat.icon} tone={cat.tone} title={item.title}
           titleClassName={item.is_completed ? 'detail-done' : undefined}
           meta={[cat.label, item.location_name].filter(Boolean).join(' · ')}
-          trailing={trailingFor(item)} onClick={() => onOpen(item)} />
+          trailing={trailingFor(item, tz)} onClick={() => onOpen(item)} />
       </div>
     )
   }
@@ -56,7 +58,7 @@ function ItemRow({ item, currentUserId, readOnly, onOpen, onToggle }) {
   const meta = [otherPassenger ? (item.passenger_name || 'Other passenger') : null, bookingMeta(item)].filter(Boolean).join(' · ')
   return (
     <ListRow className={otherPassenger ? 'detail-other' : undefined} icon={cat.icon} tone={cat.tone} title={item.title}
-      meta={meta || undefined} trailing={trailingFor(item)} onClick={() => onOpen(item)} />
+      meta={meta || undefined} trailing={trailingFor(item, tz)} onClick={() => onOpen(item)} />
   )
 }
 
@@ -70,7 +72,7 @@ function StandaloneCard({ item, ...rest }) {
           <Text variant="card-title" as="span">{item.title}</Text>
           {bookingMeta(item) && <Text variant="caption" tone="muted" as="span">{bookingMeta(item)}</Text>}
         </Stack>
-        {trailingFor(item)}
+        {trailingFor(item, rest.tz)}
       </Stack>
     </Card>
   )
@@ -95,22 +97,23 @@ export default function PlanTab({ trip, readOnly }) {
   const currentUserId = user?.id
   const [sheet, setSheet] = useState(null) // 'add' | 'paste' | 'plan' | { type, mode } | { detail }
 
+  const tz = trip.destination_tz
   const items = sortByStart([
     // Store rows can briefly belong to another trip (the Today view loads its own trip)
     ...bookings.filter(b => b.trip_id === trip.id).map(b => ({ ...b, _kind: 'booking' })),
     ...activities.filter(a => a.trip_id === trip.id).map(a => ({ ...a, _kind: 'activity' })),
-  ])
+  ], tz)
   const byDay = {}
   const unscheduled = []
   items.forEach(item => {
-    const d = bookingDay(item)
+    const d = bookingDay(item, tz)
     if (!d) unscheduled.push(item)
     else (byDay[d] = byDay[d] || []).push(item)
   })
 
   const canDelete = (item) => !readOnly && (!currentUserId || !item.created_by || item.created_by === currentUserId)
   const rowProps = {
-    currentUserId, readOnly,
+    tz, currentUserId, readOnly,
     onOpen: (item) => setSheet({ detail: item }),
     onToggle: (item, v) => toggleActivity(item.id, v),
   }
@@ -159,11 +162,11 @@ export default function PlanTab({ trip, readOnly }) {
       {sheet === 'paste' && <ImportSheet trip={trip} onClose={() => setSheet(null)} onBookingCreated={() => fetchTrips()} />}
       {sheet === 'plan' && <ActivityFormSheet tripId={trip.id} onClose={() => setSheet(null)} onCreate={createActivity} />}
       {sheet?.type && (
-        <BookingFormSheet tripId={trip.id} type={sheet.type} initial={sheet.mode ? { transport_mode: sheet.mode } : {}}
+        <BookingFormSheet tripId={trip.id} trip={trip} type={sheet.type} initial={sheet.mode ? { transport_mode: sheet.mode } : {}}
           onClose={() => setSheet(null)} onCreate={createBooking} />
       )}
       {detail && (
-        <BookingDetailSheet item={detail} isActivity={detail._kind === 'activity'} canDelete={canDelete(detail)}
+        <BookingDetailSheet item={detail} tripTz={tz} isActivity={detail._kind === 'activity'} canDelete={canDelete(detail)}
           onToggle={!readOnly && detail._kind === 'activity' ? (v) => toggleActivity(detail.id, v) : undefined}
           onDelete={() => (detail._kind === 'activity' ? deleteActivity(detail.id) : deleteBooking(detail.id))}
           onClose={() => setSheet(null)} />

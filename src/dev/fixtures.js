@@ -1,6 +1,7 @@
 // Demo-mode fixtures (see src/dev/demoClient.js). Dates are relative to today so the
 // Today view, countdowns and recaps always have something to show.
 import { DEMO_FUNCTIONS } from './fixtureFunctions'
+import { wallToInstant, partsIn } from '../lib/localTime'
 
 export const DEMO_USER = {
   id: '00000000-0000-4000-8000-00000000d3e0',
@@ -10,52 +11,47 @@ export const DEMO_USER = {
 }
 
 const pad = n => String(n).padStart(2, '0')
-function day(offset) {
-  const d = new Date()
-  d.setDate(d.getDate() + offset)
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+// Zones of the demo places. Dates and times are built as local wall-clock values at each place,
+// exactly like real confirmations, so the demo shows local-time behaviour with the phone anywhere.
+const MAD = 'Europe/Madrid', SEA = 'America/Los_Angeles', TYO = 'Asia/Tokyo', LIS = 'Europe/Lisbon', NYC = 'America/New_York'
+function day(offset, tz = MAD) {
+  const d = new Date(`${partsIn(Date.now(), tz).date}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + offset)
+  return d.toISOString().slice(0, 10)
 }
-function at(offset, hh, mm = 0) {
-  const d = new Date()
-  d.setDate(d.getDate() + offset)
-  d.setHours(hh, mm, 0, 0)
-  return d.toISOString()
+// Day offsets count from today in Madrid (the trip in progress); the wall time is read in `tz`.
+function at(offset, hh, mm = 0, tz = MAD) {
+  return wallToInstant(`${day(offset)}T${pad(hh)}:${pad(mm)}`, tz).toISOString()
 }
-function inMinutes(min) {
-  const d = new Date(Date.now() + min * 60000)
-  d.setSeconds(0, 0)
-  return d
-}
-const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}:00`
 
 export function buildFixtures({ empty = false } = {}) {
   const U = DEMO_USER.id
-  const next = inMinutes(80)
+  const next = partsIn(Date.now() + 80 * 60000, MAD) // Alhambra entry, 1h 20m from now in Granada
 
   const trips = empty ? [] : [
-    { id: 'trip-spain', owner_id: U, title: 'Madrid · Granada · Sevilla', destination_city: 'Granada', destination_country: 'Spain', destination_country_code: 'ES', destination_lat: 37.1773, destination_lng: -3.5986, start_date: day(-3), end_date: day(6), status: 'planning', notes: null },
-    { id: 'trip-japan', owner_id: U, title: 'Tokyo & Kyoto', destination_city: 'Tokyo', destination_country: 'Japan', destination_country_code: 'JP', start_date: day(24), end_date: day(32), status: 'planning' },
-    { id: 'trip-lisbon', owner_id: U, title: 'Lisbon', destination_city: 'Lisbon', destination_country: 'Portugal', destination_country_code: 'PT', start_date: '2026-03-06', end_date: '2026-03-12', status: 'completed' },
-    { id: 'trip-nyc', owner_id: U, title: 'New York', destination_city: 'New York', destination_country: 'United States', destination_country_code: 'US', start_date: '2026-01-16', end_date: '2026-01-20', status: 'completed' },
+    { id: 'trip-spain', owner_id: U, title: 'Madrid · Granada · Sevilla', destination_city: 'Granada', destination_country: 'Spain', destination_country_code: 'ES', destination_lat: 37.1773, destination_lng: -3.5986, start_date: day(-3), end_date: day(6), status: 'planning', notes: null, destination_tz: MAD },
+    { id: 'trip-japan', owner_id: U, title: 'Tokyo & Kyoto', destination_city: 'Tokyo', destination_country: 'Japan', destination_country_code: 'JP', start_date: day(24, TYO), end_date: day(32, TYO), status: 'planning', destination_tz: TYO },
+    { id: 'trip-lisbon', owner_id: U, title: 'Lisbon', destination_city: 'Lisbon', destination_country: 'Portugal', destination_country_code: 'PT', start_date: '2026-03-06', end_date: '2026-03-12', status: 'completed', destination_tz: LIS },
+    { id: 'trip-nyc', owner_id: U, title: 'New York', destination_city: 'New York', destination_country: 'United States', destination_country_code: 'US', start_date: '2026-01-16', end_date: '2026-01-20', status: 'completed', destination_tz: NYC },
   ]
 
   const b = (o) => ({ created_by: U, source: 'manual', currency: 'EUR', ...o })
   const bookings = empty ? [] : [
-    b({ id: 'b1', trip_id: 'trip-spain', type: 'flight', title: 'SEA → MAD', airline: 'Iberia', flight_number: 'IB 6852', departure_airport: 'SEA', arrival_airport: 'MAD', departure_time: at(-4, 13, 5), arrival_time: at(-3, 8, 40), seat_number: '14A', confirmation_number: 'K7Q2LM', source: 'email_import' }),
+    b({ id: 'b1', trip_id: 'trip-spain', type: 'flight', title: 'SEA → MAD', airline: 'Iberia', flight_number: 'IB 6852', departure_airport: 'SEA', arrival_airport: 'MAD', departure_time: at(-4, 13, 5, SEA), arrival_time: at(-3, 8, 40), departure_tz: SEA, arrival_tz: MAD, seat_number: '14A', confirmation_number: 'K7Q2LM', source: 'email_import' }),
     b({ id: 'b2', trip_id: 'trip-spain', type: 'hotel', title: 'Hotel check-in · Madrid', hotel_name: 'Hotel Urban Letras', hotel_address: 'Calle del Prado 15, Madrid', check_in_date: day(-3), check_out_date: day(0), confirmation_number: '58213377', price: 642, source: 'email_import' }),
     b({ id: 'b3', trip_id: 'trip-spain', type: 'activity', title: 'Museo del Prado', venue_name: 'Museo del Prado', venue_address: 'Calle de Ruiz de Alarcón 23, Madrid', activity_date: day(-2), activity_time: '17:00:00', ticket_quantity: 2, confirmation_number: 'PRD-2231' }),
-    b({ id: 'b4', trip_id: 'trip-spain', type: 'transport', transport_mode: 'train', title: 'Madrid → Granada', provider: 'Renfe AVE', departure_airport: 'Madrid Atocha', arrival_airport: 'Granada', departure_time: at(0, 7, 5), arrival_time: at(0, 10, 25), seat_number: 'Coach 4 · 12C', confirmation_number: 'RNF8812' }),
-    b({ id: 'b5', trip_id: 'trip-spain', type: 'activity', title: 'Alhambra · Nasrid Palaces', venue_name: 'Alhambra', venue_address: 'Calle Real de la Alhambra, Granada', activity_date: day(0), activity_time: hhmm(next), ticket_quantity: 2, confirmation_number: 'ALH-90412' }),
+    b({ id: 'b4', trip_id: 'trip-spain', type: 'transport', transport_mode: 'train', title: 'Madrid → Granada', provider: 'Renfe AVE', departure_airport: 'Madrid Atocha', arrival_airport: 'Granada', departure_time: at(0, 7, 5), arrival_time: at(0, 10, 25), departure_tz: MAD, arrival_tz: MAD, seat_number: 'Coach 4 · 12C', confirmation_number: 'RNF8812' }),
+    b({ id: 'b5', trip_id: 'trip-spain', type: 'activity', title: 'Alhambra · Nasrid Palaces', venue_name: 'Alhambra', venue_address: 'Calle Real de la Alhambra, Granada', activity_date: day(0), activity_time: `${next.time}:00`, ticket_quantity: 2, confirmation_number: 'ALH-90412' }),
     b({ id: 'b6', trip_id: 'trip-spain', type: 'restaurant', title: 'Dinner · Carmen de San Miguel', venue_name: 'Carmen de San Miguel', venue_address: 'Plaza de Torres Bermejas 3, Granada', activity_date: day(0), activity_time: '20:30:00', party_size: 2, confirmation_number: 'OT-55120', notes: 'Terrace table requested' }),
     b({ id: 'b7', trip_id: 'trip-spain', type: 'hotel', title: 'Hotel check-in · Granada', hotel_name: 'Casa Morisca', hotel_address: 'Cuesta de la Victoria 9, Granada', check_in_date: day(0), check_out_date: day(1), confirmation_number: 'CM-3310' }),
-    b({ id: 'b8', trip_id: 'trip-spain', type: 'transport', transport_mode: 'train', title: 'Granada → Sevilla', provider: 'Renfe', departure_airport: 'Granada', arrival_airport: 'Sevilla Santa Justa', departure_time: at(1, 9, 12), arrival_time: at(1, 11, 41), seat_number: 'Coach 2 · 7A', confirmation_number: 'RNF9920' }),
+    b({ id: 'b8', trip_id: 'trip-spain', type: 'transport', transport_mode: 'train', title: 'Granada → Sevilla', provider: 'Renfe', departure_airport: 'Granada', arrival_airport: 'Sevilla Santa Justa', departure_time: at(1, 9, 12), arrival_time: at(1, 11, 41), departure_tz: MAD, arrival_tz: MAD, seat_number: 'Coach 2 · 7A', confirmation_number: 'RNF9920' }),
     b({ id: 'b9', trip_id: 'trip-spain', type: 'hotel', title: 'Hotel check-in · Sevilla', hotel_name: 'Hotel Amadeus', hotel_address: 'Calle Farnesio 6, Sevilla', check_in_date: day(1), check_out_date: day(6) }),
-    b({ id: 'b10', trip_id: 'trip-spain', type: 'flight', title: 'SVQ → SEA', airline: 'Iberia', flight_number: 'IB 3121', departure_airport: 'SVQ', arrival_airport: 'SEA', departure_time: at(6, 11, 50), arrival_time: at(6, 19, 30), seat_number: '22C', confirmation_number: 'K7Q2LM' }),
-    b({ id: 'b11', trip_id: 'trip-japan', type: 'flight', title: 'SEA → HND', airline: 'ANA', flight_number: 'NH 117', departure_airport: 'SEA', arrival_airport: 'HND', departure_time: at(24, 13, 0), arrival_time: at(25, 16, 25), currency: 'USD' }),
+    b({ id: 'b10', trip_id: 'trip-spain', type: 'flight', title: 'SVQ → SEA', airline: 'Iberia', flight_number: 'IB 3121', departure_airport: 'SVQ', arrival_airport: 'SEA', departure_time: at(6, 11, 50), arrival_time: at(6, 13, 30, SEA), departure_tz: MAD, arrival_tz: SEA, seat_number: '22C', confirmation_number: 'K7Q2LM' }),
+    b({ id: 'b11', trip_id: 'trip-japan', type: 'flight', title: 'SEA → HND', airline: 'ANA', flight_number: 'NH 117', departure_airport: 'SEA', arrival_airport: 'HND', departure_time: at(24, 13, 0, SEA), arrival_time: at(25, 16, 25, TYO), departure_tz: SEA, arrival_tz: TYO, currency: 'USD' }),
     b({ id: 'b12', trip_id: 'trip-japan', type: 'hotel', title: 'Hotel check-in · Tokyo', hotel_name: 'Hotel Gracery Shinjuku', check_in_date: day(25), check_out_date: day(29), currency: 'JPY' }),
-    b({ id: 'b13', trip_id: 'trip-japan', type: 'transport', transport_mode: 'train', title: 'Tokyo → Kyoto', provider: 'JR Shinkansen', departure_time: at(29, 9, 0), currency: 'JPY' }),
+    b({ id: 'b13', trip_id: 'trip-japan', type: 'transport', transport_mode: 'train', title: 'Tokyo → Kyoto', provider: 'JR Shinkansen', departure_time: at(29, 9, 0, TYO), departure_tz: TYO, currency: 'JPY' }),
     b({ id: 'b14', trip_id: 'trip-japan', type: 'hotel', title: 'Hotel check-in · Kyoto', hotel_name: 'Hotel Kanra', check_in_date: day(29), check_out_date: day(32), currency: 'JPY' }),
-    b({ id: 'b15', trip_id: 'trip-japan', type: 'flight', title: 'KIX → SEA', departure_time: at(32, 17, 0), currency: 'USD' }),
+    b({ id: 'b15', trip_id: 'trip-japan', type: 'flight', title: 'KIX → SEA', departure_time: at(32, 17, 0, TYO), departure_tz: TYO, currency: 'USD' }),
     b({ id: 'b16', trip_id: 'trip-lisbon', type: 'flight', title: 'SEA → LIS', departure_time: '2026-03-06T08:10:00Z' }),
     b({ id: 'b17', trip_id: 'trip-lisbon', type: 'hotel', title: 'Hotel check-in · Lisbon', check_in_date: '2026-03-06', check_out_date: '2026-03-12' }),
     b({ id: 'b18', trip_id: 'trip-lisbon', type: 'restaurant', title: 'Dinner · Taberna da Rua das Flores', activity_date: '2026-03-08', activity_time: '20:00:00', party_size: 2 }),
@@ -63,6 +59,11 @@ export function buildFixtures({ empty = false } = {}) {
     b({ id: 'b20', trip_id: 'trip-nyc', type: 'flight', title: 'SEA → JFK', departure_time: '2026-01-16T07:00:00Z' }),
     b({ id: 'b21', trip_id: 'trip-nyc', type: 'hotel', title: 'Hotel check-in · New York', check_in_date: '2026-01-16', check_out_date: '2026-01-20' }),
   ]
+
+  // Hotels, restaurants and tickets carry the venue zone. Past-trip flights stay zone-less on purpose:
+  // that is what rows saved before time zones existed look like.
+  const VENUE_TZ = { 'trip-spain': MAD, 'trip-japan': TYO, 'trip-lisbon': LIS, 'trip-nyc': NYC }
+  bookings.forEach(x => { if (!x.departure_time) x.local_tz = VENUE_TZ[x.trip_id] })
 
   const trip_activities = empty ? [] : [
     { id: 'a1', trip_id: 'trip-spain', created_by: U, title: 'Sunset · Mirador San Nicolás', category: 'sight', date: day(0), time: '19:45:00', is_completed: false, source: 'guide' },

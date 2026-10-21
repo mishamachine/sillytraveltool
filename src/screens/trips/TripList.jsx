@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useTripsStore, useUIStore, useCollabStore } from '../../store'
-import { parseLocalDate, daysBetween, todayLocalISO } from '../../lib/dates'
+import { parseLocalDate, daysBetween } from '../../lib/dates'
 import { fetchWithTimeout } from '../../lib/http'
-import { tripPhase, tripDay, nightsOf, formatRange, plural, sortByStart, bookingStart, timeLabel, hasClockTime } from '../../lib/trips'
+import { tripPhase, tripDay, nightsOf, formatRange, plural, sortByStart, bookingStart, bookingTime, hasClockTime, tripToday } from '../../lib/trips'
 import { tripCoords } from '../../lib/weather'
 import {
   Screen, ScreenHeader, Section, Button, IconButton, Card, ListRow, Chip, Text, Overline, Stack, Icon,
@@ -62,7 +62,8 @@ function travelersOf(trip) {
 function OnTheRoadCard({ trip, onOpen }) {
   const { n, total } = tripDay(trip)
   const now = new Date()
-  const soon = sortByStart(trip.bookings || []).filter(b => bookingStart(b) > now)
+  const tz = trip.destination_tz
+  const soon = sortByStart(trip.bookings || [], tz).filter(b => bookingStart(b, tz) > now)
   const next = soon.find(hasClockTime) || soon[0]
   return (
     <Card variant="inverse" onClick={onOpen} aria-label={`${trip.title}, on the road, day ${n} of ${total}. Open today`}>
@@ -78,7 +79,7 @@ function OnTheRoadCard({ trip, onOpen }) {
         <Text variant="body" tone="inverse-muted">{trip.title} · {formatRange(trip.start_date, trip.end_date)}</Text>
       </Stack>
       <ProgressBar value={n / total} inverse label={`Day ${n} of ${total}`} />
-      {next && <Text variant="caption" tone="inverse-muted">Next: {next.title}{hasClockTime(next) ? ` at ${timeLabel(bookingStart(next))}` : ''}</Text>}
+      {next && <Text variant="caption" tone="inverse-muted">Next: {next.title}{hasClockTime(next) ? ` at ${bookingTime(next, tz)}` : ''}</Text>}
     </Card>
   )
 }
@@ -94,7 +95,7 @@ function DateTile({ iso, tone = 'info' }) {
 }
 
 function UpcomingCard({ trip, climate, onOpen }) {
-  const days = daysBetween(todayLocalISO(), trip.start_date)
+  const days = daysBetween(tripToday(trip), trip.start_date)
   const count = trip.bookings?.length || 0
   const meta = [formatRange(trip.start_date, trip.end_date), plural(nightsOf(trip), 'night'), count ? plural(count, 'booking') : null,
     climate ? `${climate.avgLow}–${climate.avgHigh}°` : null].filter(Boolean).join(' · ')
@@ -152,7 +153,7 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
 
   const byStart = [...trips].sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
   const active = byStart.filter(t => tripPhase(t) === 'active')
-  const upcoming = byStart.filter(t => ['upcoming', 'cancelled'].includes(tripPhase(t)) && !(tripPhase(t) === 'cancelled' && t.end_date < todayLocalISO()))
+  const upcoming = byStart.filter(t => ['upcoming', 'cancelled'].includes(tripPhase(t)) && !(tripPhase(t) === 'cancelled' && t.end_date < tripToday(t)))
   const past = byStart.filter(t => tripPhase(t) === 'past').reverse()
   const empty = !loading && trips.length === 0
 

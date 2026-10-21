@@ -1,4 +1,5 @@
 // Shared plan helpers for the trip detail sheets.
+import { wallToInstant } from '../../../lib/localTime'
 
 // trip_activities.category → icon tile
 export const ACTIVITY_CATEGORIES = {
@@ -10,16 +11,17 @@ export const ACTIVITY_CATEGORIES = {
   custom: { icon: 'star', tone: 'accent', label: 'Custom' },
 }
 
-// Sanitize before insert: empty strings → null, datetime-local → ISO, price → float, guests → int
+// Sanitize before insert: empty strings → null, datetime-local → ISO, price → float, guests → int.
+// datetime-local values are the local time at the place: departure_time is read in departure_tz,
+// arrival_time in arrival_tz (never the phone's zone).
 export function sanitizeBookingForm(form, type) {
   const clean = {}
+  const zoneFor = { departure_time: form.departure_tz, arrival_time: form.arrival_tz }
   Object.entries({ ...form, type }).forEach(([k, v]) => {
     if (v === '' || v === undefined) clean[k] = null
     else if ((k === 'departure_time' || k === 'arrival_time') && v && !v.includes('Z') && !v.includes('+')) {
-      try {
-        const d = new Date(v)
-        clean[k] = isNaN(d.getTime()) ? null : d.toISOString()
-      } catch { clean[k] = null }
+      const d = wallToInstant(v, zoneFor[k])
+      clean[k] = d && !isNaN(d.getTime()) ? d.toISOString() : null
     }
     else if (k === 'price' && v) clean[k] = parseFloat(v)
     else if (k === 'party_size' && v) clean[k] = parseInt(v, 10) || null

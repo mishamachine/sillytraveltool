@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
+import { attachZones, resolveZone } from '../_shared/timezones.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -86,7 +87,10 @@ Rules:
 - ultimate_destination.city = city name of the FINAL destination (not a connection)
 - destination_city on each booking = arrival city for that specific leg
 - Shared fields like confirmation_number, price, airline appear on each leg
-- Dates in ISO 8601. Times with timezone if available.
+- departure_time and arrival_time: the LOCAL time exactly as printed on the confirmation, as YYYY-MM-DDTHH:MM with NO time zone or offset. The departure time is local to the departure airport/station, the arrival time local to the arrival airport/station. Never convert between time zones. Date only (YYYY-MM-DD) if no time is printed.
+- activity_time: local time exactly as printed, HH:MM 24h.
+- departure_airport / arrival_airport for flights: the 3-letter IATA code when shown (e.g. MAD), otherwise the airport name
+- Dates as YYYY-MM-DD.
 - For hotels/activities, bookings array has 1 item; ultimate_destination = hotel city
 - passenger_name: full name of the traveller if present in the email (e.g. "JOHN SMITH")
 - seat_number: assigned seat for flights (e.g. "14A"). null if not assigned.
@@ -149,6 +153,16 @@ Rules:
     // Ensure bookings is always an array
     if (!Array.isArray(result.bookings)) {
       result.bookings = [result.bookings]
+    }
+
+    // Local time: attach each place's zone and turn printed local times into instants
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const destCity = result.ultimate_destination?.city || null
+    const destTz = destCity ? await resolveZone(admin, { query: destCity }) : null
+    result.ultimate_destination = { ...(result.ultimate_destination || {}), tz: destTz }
+    for (const b of result.bookings) {
+      const legTz = b.destination_city && b.destination_city !== destCity ? await resolveZone(admin, { query: b.destination_city }) : destTz
+      await attachZones(admin, b, { fallbackTz: legTz || destTz, city: b.destination_city || destCity || '' })
     }
 
     return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } })

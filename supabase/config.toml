@@ -40,3 +40,6 @@ verify_jwt = false
 
 [functions.gemini-proxy]
 verify_jwt = false
+
+[functions.resolve-timezone]
+verify_jwt = false

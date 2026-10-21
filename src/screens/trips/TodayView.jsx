@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { format, addDays } from 'date-fns'
 import { useTripsStore, useUIStore, useAuthStore } from '../../store'
-import { todayLocalISO } from '../../lib/dates'
+import { parseLocalDate } from '../../lib/dates'
+import { weekdayIn } from '../../lib/localTime'
 import {
-  tripDay, sortByStart, bookingStart, bookingDay, bookingKind, bookingMeta, hasClockTime, timeLabel, relativeIn, mapsUrl,
+  tripDay, tripToday, sortByStart, bookingStart, bookingDay, bookingTime, bookingZone, zoneHint, bookingKind, bookingMeta,
+  hasClockTime, relativeIn, mapsUrl,
 } from '../../lib/trips'
 import BookingDetailSheet from './detail/BookingDetailSheet'
+import { useTripZone } from './useTripZone'
 import { tripCoords, fetchTodayWeather, weatherInfo, weatherHint } from '../../lib/weather'
 import {
   Screen, ScreenHeader, Section, Card, Button, IconButton, IconTile, ListRow, Text, Overline, Stack, Icon, GooseMark, category,
@@ -19,15 +22,16 @@ function placeOf(b) {
 
 const SHOW_LABEL = { flight: 'Show boarding info', activity: 'Show tickets', restaurant: 'Show reservation', hotel: 'Show booking', transport: 'Show tickets' }
 
-function NextUp({ item, onShow }) {
-  const start = bookingStart(item)
+function NextUp({ item, tz, onShow }) {
+  const start = bookingStart(item, tz)
+  const hint = zoneHint(bookingZone(item, tz))
   const cat = category(bookingKind(item))
   const place = placeOf(item)
   return (
     <Card variant="raised" aria-labelledby="next-up-title">
       <Stack row justify="between">
         <Overline tone="accent">Next up · {relativeIn(start)}</Overline>
-        {hasClockTime(item) && <Text variant="micro" tone="muted">{timeLabel(start)}</Text>}
+        {hasClockTime(item) && <Text variant="micro" tone="muted">{bookingTime(item, tz)}{hint ? ` ${hint}` : ''}</Text>}
       </Stack>
       <Stack row gap={3}>
         <IconTile icon={cat.icon} tone={cat.tone} size="md" />
@@ -65,17 +69,20 @@ export default function TodayView({ trip, onShowAll }) {
   // Keep "in 1h 20m" honest
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t) }, [])
 
-  const today = todayLocalISO()
-  const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd')
+  // Days are the destination's days, not the phone's
+  useTripZone(trip)
+  const tz = trip.destination_tz
+  const today = tripToday(trip)
+  const tomorrow = format(addDays(parseLocalDate(today), 1), 'yyyy-MM-dd')
   const items = sortByStart([
     ...bookings.filter(b => b.trip_id === trip.id),
     ...activities.filter(a => a.trip_id === trip.id && !a.is_completed).map(a => ({ ...a, _activity: true })),
-  ])
+  ], tz)
   // Next up prefers items with a real clock time (a hotel check-in date alone is not "next")
-  const soon = items.filter(b => bookingStart(b) > now && bookingDay(b) <= tomorrow)
+  const soon = items.filter(b => bookingStart(b, tz) > now && bookingDay(b, tz) <= tomorrow)
   const next = soon.find(hasClockTime) || soon[0]
-  const laterToday = items.filter(b => b !== next && bookingDay(b) === today && bookingStart(b) > now)
-  const tomorrowFirst = items.find(b => bookingDay(b) === tomorrow && b !== next)
+  const laterToday = items.filter(b => b !== next && bookingDay(b, tz) === today && bookingStart(b, tz) > now)
+  const tomorrowFirst = items.find(b => bookingDay(b, tz) === tomorrow && b !== next)
   const { n, total } = tripDay(trip)
   const w = weather && weatherInfo(weather.now.code)
   const openPlan = () => setActiveTrip(trip)
@@ -83,7 +90,7 @@ export default function TodayView({ trip, onShowAll }) {
   return (
     <Screen gap={4} labelledBy="today-title">
       <ScreenHeader
-        overline={`Day ${n} of ${total} · ${format(now, 'EEEE')}`}
+        overline={`Day ${n} of ${total} · ${weekdayIn(now, tz)}`}
         title={trip.destination_city}
         titleId="today-title"
         actions={(
@@ -94,7 +101,7 @@ export default function TodayView({ trip, onShowAll }) {
         )}
       />
 
-      {next ? <NextUp item={next} onShow={() => setDetail(next)} /> : (
+      {next ? <NextUp item={next} tz={tz} onShow={() => setDetail(next)} /> : (
         <Card variant="raised">
           <Overline tone="accent">Today</Overline>
           <Text variant="title">Nothing else booked today</Text>
@@ -116,7 +123,7 @@ export default function TodayView({ trip, onShowAll }) {
         <Card variant="plain" className="today-tile" onClick={openPlan} aria-label="Tomorrow, open trip plan">
           <Text variant="micro" tone="muted" as="p">Tomorrow</Text>
           <Text variant="body" weight={600} as="p">
-            {tomorrowFirst ? `${tomorrowFirst.title}${hasClockTime(tomorrowFirst) ? ` · ${timeLabel(bookingStart(tomorrowFirst))}` : ''}` : 'Nothing booked yet'}
+            {tomorrowFirst ? `${tomorrowFirst.title}${hasClockTime(tomorrowFirst) ? ` · ${bookingTime(tomorrowFirst, tz)}` : ''}` : 'Nothing booked yet'}
           </Text>
         </Card>
       </div>
@@ -137,7 +144,7 @@ export default function TodayView({ trip, onShowAll }) {
           <Card variant="group">
             {laterToday.map(b => (
               <ListRow key={b.id} onClick={openPlan}
-                leading={<span className="today-time t-caption tone-muted tabular">{hasClockTime(b) ? timeLabel(bookingStart(b)) : 'All day'}</span>}
+                leading={<span className="today-time t-caption tone-muted tabular">{hasClockTime(b) ? bookingTime(b, tz) : 'All day'}</span>}
                 title={b.title}
                 trailing={b._activity ? 'Plan' : category(bookingKind(b)).label} />
             ))}
@@ -146,7 +153,7 @@ export default function TodayView({ trip, onShowAll }) {
       )}
 
       <Button variant="ghost" icon="calendar" onClick={openPlan}>Full trip plan</Button>
-      {detail && <BookingDetailSheet item={detail} isActivity={!!detail._activity} canDelete={false} onClose={() => setDetail(null)} />}
+      {detail && <BookingDetailSheet item={detail} tripTz={tz} isActivity={!!detail._activity} canDelete={false} onClose={() => setDetail(null)} />}
     </Screen>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useAuthStore } from '../../../store'
-import { parseLocalDate, todayLocalISO, daysBetween } from '../../../lib/dates'
+import { parseLocalDate, todayAtTrip, daysBetween } from '../../../lib/dates'
 import { fetchWithTimeout } from '../../../lib/http'
 import { formatRange, tripPhase } from '../../../lib/trips'
 import { tripCoords, weatherInfo, fetchTripHistory } from '../../../lib/weather'
@@ -49,7 +49,7 @@ export default function WeatherTab({ trip }) {
         if (!coords) throw new Error('City not found')
         const { lat, lon } = coords
         const tempUnit = unit === 'F' ? 'fahrenheit' : 'celsius'
-        const today = todayLocalISO()
+        const today = todayAtTrip(trip)
         const daily = (d, shiftYear) => (d?.time || []).map((date, i) => ({
           date: shiftYear ? date.replace(/^\d{4}/, String(Number(date.slice(0, 4)) + shiftYear)) : date,
           high: Math.round(d.temperature_2m_max[i] ?? 0), low: Math.round(d.temperature_2m_min[i] ?? 0),
@@ -109,7 +109,7 @@ export default function WeatherTab({ trip }) {
     return <EmptyState goose="sleepy" title="No weather to show">There's no forecast or record for these dates yet.</EmptyState>
   }
 
-  const today = todayLocalISO()
+  const today = todayAtTrip(trip)
   const tipDay = data.days[0]
 
   return (

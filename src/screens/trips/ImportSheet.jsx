@@ -6,6 +6,7 @@ import { parseBookingEmail } from '../../lib/gemini'
 import { fetchWithTimeout } from '../../lib/http'
 import { track } from '../../lib/analytics'
 import { formatRange, bookingKind, bookingMeta } from '../../lib/trips'
+import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
 import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, category } from '../../ui'
 
 // Geocode city to lat/lon using Photon
@@ -63,6 +64,16 @@ function matchTrip(trips, ultimateDestination, bookings) {
   return null // Never auto-select; no confident match
 }
 
+// "Wed, Apr 1 · 13:05 · Pacific Time": as printed on the confirmation, in the place's own zone
+function previewWhen(b) {
+  if (b.departure_time && /T/.test(b.departure_time)) {
+    return `${dateTimeIn(b.departure_time, b.departure_tz)}${isValidZone(b.departure_tz) ? ` · ${zoneName(b.departure_tz)}` : ''}`
+  }
+  const d = b.check_in_date || b.activity_date || (b.departure_time || '').slice(0, 10)
+  if (!d) return ''
+  return `${format(parseLocalDate(d), 'EEE, MMM d')}${b.activity_time ? ` · ${b.activity_time.slice(0, 5)}` : ''}`
+}
+
 const sanitizeBooking = (raw) => {
   // Whitelist: only columns that exist in the bookings table
   const BOOKING_COLS = new Set([
@@ -71,6 +82,9 @@ const sanitizeBooking = (raw) => {
     'departure_time','arrival_time','flight_class',
     'hotel_name','hotel_address','check_in_date','check_out_date','room_type',
     'activity_date','activity_time','venue_name','venue_address','is_shared',
+    'passenger_name','seat_number','ticket_quantity','party_size','transport_mode',
+    // Local time: the server attaches each place's zone and returns real instants
+    'departure_tz','arrival_tz','local_tz',
   ])
   const clean = {}
   Object.entries(raw).forEach(([k, v]) => {
@@ -175,6 +189,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
         start_date: format(earliest, 'yyyy-MM-dd'),
         end_date: format(latest, 'yyyy-MM-dd'),
         status: 'planning',
+        destination_tz: ultimateDest?.tz || null,
       })
       await handleSave(newTrip.id)
     } catch (e) { setError(e.message || 'Could not create the trip.') }
@@ -205,11 +220,10 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
           <Card variant="group">
             {parsedBookings.map((b, i) => {
               const cat = category(bookingKind(b))
-              const when = b.departure_time || b.check_in_date || b.activity_date
               return (
                 <ListRow key={i} icon={cat.icon} tone={cat.tone}
                   title={b.title || cat.label}
-                  meta={[when && format(parseLocalDate(when), 'EEE, MMM d · HH:mm').replace(' · 12:00', ''), bookingMeta(b)].filter(Boolean).join(' · ')}
+                  meta={[previewWhen(b), bookingMeta(b)].filter(Boolean).join(' · ')}
                   trailing={n > 1 ? `${i + 1}/${n}` : undefined} />
               )
             })}

@@ -1,19 +1,23 @@
 // Display helpers for trips and bookings (pure functions, no data access).
 import { format } from 'date-fns'
-import { parseLocalDate, todayLocalISO, daysBetween, hasTripEnded } from './dates'
+import { parseLocalDate, daysBetween, todayAtTrip } from './dates'
+import { deviceZone, isValidZone, wallToInstant, dayIn, timeIn, zoneName, differsFromDevice } from './localTime'
 
-/** 'active' | 'upcoming' | 'past' | 'cancelled' by local date. */
-export function tripPhase(trip, today = todayLocalISO()) {
+/** Today's date where the trip is (its destination zone), else on the phone. */
+export const tripToday = todayAtTrip
+
+/** 'active' | 'upcoming' | 'past' | 'cancelled' by the date at the destination. */
+export function tripPhase(trip, today = tripToday(trip)) {
   if (!trip) return 'upcoming'
   if (trip.status === 'cancelled') return 'cancelled'
   if (trip.start_date <= today && today <= trip.end_date) return 'active'
-  if (hasTripEnded(trip)) return 'past'
+  if (trip.end_date && trip.end_date.slice(0, 10) < today) return 'past'
   if (trip.status === 'active') return 'active'
   return 'upcoming'
 }
 
 /** Day number within the trip (1-based) and total days. */
-export function tripDay(trip, today = todayLocalISO()) {
+export function tripDay(trip, today = tripToday(trip)) {
   const total = daysBetween(trip.start_date, trip.end_date) + 1
   const n = Math.min(total, Math.max(1, daysBetween(trip.start_date, today) + 1))
   return { n, total }
@@ -39,16 +43,36 @@ export function plural(n, one, many = `${one}s`) {
 }
 
 // ---- bookings ----
+// Owner rule: every booking is in the local time of the place it happens.
+//   departure_time / arrival_time: real instants, shown in departure_tz / arrival_tz
+//   activity_date + activity_time, check_in_date, trip_activities date + time: wall-clock values
+//   at the venue, read in local_tz (else the trip's destination_tz).
+// Rows saved before zones existed have no departure_tz: they keep showing in the phone's zone,
+// as they did when they were entered, until they are reviewed.
 
 const DEFAULT_CHECKIN = '15:00'
 
-/** Start moment of a booking as a Date (local), or null. */
-export function bookingStart(b) {
+/** Zone a booking's start is shown in. */
+export function bookingZone(b, tripTz) {
+  if (!b) return deviceZone()
+  if (b.departure_time) return isValidZone(b.departure_tz) ? b.departure_tz : deviceZone()
+  if (isValidZone(b.local_tz)) return b.local_tz
+  return isValidZone(tripTz) ? tripTz : deviceZone()
+}
+
+/** Zone a booking's arrival is shown in. */
+export function arrivalZone(b) {
+  return isValidZone(b?.arrival_tz) ? b.arrival_tz : bookingZone(b)
+}
+
+/** Start moment of a booking (a real instant), or null. */
+export function bookingStart(b, tripTz) {
   if (!b) return null
   if (b.departure_time) return new Date(b.departure_time)
-  if (b.activity_date) return new Date(`${b.activity_date}T${(b.activity_time || '12:00').slice(0, 5)}:00`)
-  if (b.check_in_date) return new Date(`${b.check_in_date}T${DEFAULT_CHECKIN}:00`)
-  if (b.date) return new Date(`${b.date}T${(b.time || '12:00').slice(0, 5)}:00`) // trip_activities
+  const zone = bookingZone(b, tripTz)
+  if (b.activity_date) return wallToInstant(`${b.activity_date}T${(b.activity_time || '12:00').slice(0, 5)}`, zone)
+  if (b.check_in_date) return wallToInstant(`${b.check_in_date}T${DEFAULT_CHECKIN}`, zone)
+  if (b.date) return wallToInstant(`${b.date}T${(b.time || '12:00').slice(0, 5)}`, zone) // trip_activities
   return null
 }
 
@@ -57,14 +81,35 @@ export function hasClockTime(b) {
   return !!(b?.departure_time || b?.activity_time || b?.time)
 }
 
-/** Local 'YYYY-MM-DD' of the booking start. */
-export function bookingDay(b) {
-  const d = bookingStart(b)
-  return d ? format(d, 'yyyy-MM-dd') : null
+/** 'YYYY-MM-DD' of the booking start, at the place. */
+export function bookingDay(b, tripTz) {
+  const d = bookingStart(b, tripTz)
+  return d ? dayIn(d, bookingZone(b, tripTz)) : null
 }
 
-export function timeLabel(d) {
-  return d ? format(d, 'HH:mm') : ''
+/** "13:05" — the booking's start, local to the place. */
+export function bookingTime(b, tripTz) {
+  const d = bookingStart(b, tripTz)
+  return d ? timeIn(d, bookingZone(b, tripTz)) : ''
+}
+
+/** Arrival "08:40" local to the arrival place, plus whole days after the departure date there. */
+export function bookingArrival(b) {
+  if (!b?.arrival_time) return null
+  const arr = new Date(b.arrival_time)
+  const depDay = bookingDay(b)
+  const arrDay = dayIn(arr, arrivalZone(b))
+  return { time: timeIn(arr, arrivalZone(b)), plusDays: depDay && arrDay ? Math.max(0, daysBetween(depDay, arrDay)) : 0 }
+}
+
+/** "Spain Time" when the place's clock differs from the phone's, else '' (no label needed). */
+export function zoneHint(tz) {
+  return differsFromDevice(tz) ? zoneName(tz) : ''
+}
+
+/** A Date shown as "13:05" in a zone (phone zone when none is given). */
+export function timeLabel(d, tz) {
+  return d ? timeIn(d, tz) : ''
 }
 
 /** Booking type → category key used by IconTile CATEGORY (transport splits by mode). */
@@ -103,9 +148,9 @@ export function bookingMeta(b) {
   return bits.join(' · ')
 }
 
-/** Sorted, with start dates; items without a start go last. */
-export function sortByStart(items) {
-  return [...items].sort((a, b) => (bookingStart(a)?.getTime() ?? Infinity) - (bookingStart(b)?.getTime() ?? Infinity))
+/** Sorted by real start moment; items without a start go last. */
+export function sortByStart(items, tripTz) {
+  return [...items].sort((a, b) => (bookingStart(a, tripTz)?.getTime() ?? Infinity) - (bookingStart(b, tripTz)?.getTime() ?? Infinity))
 }
 
 /** "in 1h 20m" / "in 3 days" / "now" */

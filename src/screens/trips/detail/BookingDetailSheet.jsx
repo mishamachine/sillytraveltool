@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '../../../lib/dates'
-import { bookingKind, mapsUrl, plural } from '../../../lib/trips'
+import { bookingKind, mapsUrl, plural, bookingZone, arrivalZone } from '../../../lib/trips'
+import { dateTimeIn, zoneName } from '../../../lib/localTime'
 import { Sheet, Card, Button, IconTile, Text, Stack, category } from '../../../ui'
 import ConfirmDialog from '../../../components/shared/ConfirmDialog'
 import { ACTIVITY_CATEGORIES } from './planKinds'
 import { safeUrl } from '../../../lib/safeUrl'
 
 const day = d => format(parseLocalDate(d), 'EEE, MMM d')
-const clock = iso => format(new Date(iso), 'EEE, MMM d · HH:mm')
+// Booking times are shown in the place's own zone, named, so they never shift with the phone
+const clock = (iso, tz) => `${dateTimeIn(iso, tz)} · ${zoneName(tz)}`
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1)
 
 function Detail({ label, value }) {
@@ -21,7 +23,8 @@ function Detail({ label, value }) {
   )
 }
 
-function bookingDetails(b) {
+function bookingDetails(b, tripTz) {
+  const venueZone = bookingZone(b, tripTz)
   const serviceLabel = b.type === 'transport' ? (b.transport_mode ? cap(b.transport_mode) : 'Service') : 'Flight'
   return [
     ['Passenger', b.passenger_name],
@@ -29,8 +32,8 @@ function bookingDetails(b) {
     ['Seat', b.seat_number],
     ['From', b.departure_airport],
     ['To', b.arrival_airport],
-    ['Departs', b.departure_time && clock(b.departure_time)],
-    ['Arrives', b.arrival_time && clock(b.arrival_time)],
+    ['Departs', b.departure_time && clock(b.departure_time, bookingZone(b))],
+    ['Arrives', b.arrival_time && clock(b.arrival_time, arrivalZone(b))],
     ['Hotel', b.hotel_name],
     ['Address', b.hotel_address],
     ['Check-in', b.check_in_date && day(b.check_in_date)],
@@ -40,28 +43,28 @@ function bookingDetails(b) {
     ['Party', b.party_size && plural(b.party_size, 'guest')],
     [b.type === 'restaurant' ? 'Restaurant' : 'Venue', b.venue_name],
     ['Address', b.venue_address],
-    ['When', b.activity_date && `${day(b.activity_date)}${b.activity_time ? ` · ${b.activity_time.slice(0, 5)}` : ''}`],
+    ['When', b.activity_date && `${day(b.activity_date)}${b.activity_time ? ` · ${b.activity_time.slice(0, 5)} · ${zoneName(venueZone)}` : ''}`],
     ['Confirmation', b.confirmation_number],
     ['Price', b.price && `${b.currency || ''} ${b.price}`.trim()],
     ['Notes', b.notes],
   ]
 }
 
-function activityDetails(a) {
+function activityDetails(a, tripTz) {
   return [
-    ['When', a.date && `${day(a.date)}${a.time ? ` · ${a.time.slice(0, 5)}` : ''}`],
+    ['When', a.date && `${day(a.date)}${a.time ? ` · ${a.time.slice(0, 5)}${tripTz ? ` · ${zoneName(tripTz)}` : ''}` : ''}`],
     ['Place', a.location_name || a.location_address],
     ['Notes', a.notes],
   ]
 }
 
 /** Booking or plan details, with directions, copy and delete. */
-export default function BookingDetailSheet({ item, isActivity, canDelete, onDelete, onToggle, onClose }) {
+export default function BookingDetailSheet({ item, tripTz, isActivity, canDelete, onDelete, onToggle, onClose }) {
   const [confirm, setConfirm] = useState(false)
   const [copied, setCopied] = useState(false)
   const cat = isActivity ? (ACTIVITY_CATEGORIES[item.category] || ACTIVITY_CATEGORIES.note) : category(bookingKind(item))
   const place = item.venue_address || item.hotel_address || item.location_address || item.location_name || item.venue_name || item.hotel_name
-  const rows = (isActivity ? activityDetails(item) : bookingDetails(item)).filter(([, v]) => v)
+  const rows = (isActivity ? activityDetails(item, tripTz) : bookingDetails(item, tripTz)).filter(([, v]) => v)
 
   const copyRef = async () => {
     try { await navigator.clipboard.writeText(item.confirmation_number); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch {}

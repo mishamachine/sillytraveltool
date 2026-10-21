@@ -4,6 +4,7 @@
  * `new Date('2026-04-04')` is parsed as UTC midnight, which renders as the previous day
  * in timezones west of UTC. These helpers parse date-only strings as LOCAL dates.
  */
+import { isValidZone, todayIn } from './localTime'
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
 
@@ -38,25 +39,29 @@ export function daysBetween(a, b) {
   return Math.round((ub - ua) / 86400000)
 }
 
-/** A trip is completed when end_date < today (local) and it isn't cancelled. */
+/** Today at the trip's destination (its destination_tz), else on the phone. */
+export function todayAtTrip(trip) {
+  return isValidZone(trip?.destination_tz) ? todayIn(trip.destination_tz) : todayLocalISO()
+}
+
+/** A trip is completed when end_date < today at the destination and it isn't cancelled. */
 export function isTripCompleted(trip) {
   if (!trip?.end_date || trip.status === 'cancelled') return false
-  return trip.end_date.slice(0, 10) < todayLocalISO()
+  return trip.end_date.slice(0, 10) < todayAtTrip(trip)
 }
 
-/** A trip has ended (regardless of status) when end_date < today (local). */
+/** A trip has ended (regardless of status) when end_date < today at the destination. */
 export function hasTripEnded(trip) {
-  return !!trip?.end_date && trip.end_date.slice(0, 10) < todayLocalISO()
+  return !!trip?.end_date && trip.end_date.slice(0, 10) < todayAtTrip(trip)
 }
 
-/** The in-progress trip (by local date), else the next upcoming one. Cancelled trips are skipped. */
+/** The in-progress trip (by the destination's date), else the next upcoming one. Cancelled trips are skipped. */
 export function findCurrentOrNextTrip(trips = []) {
-  const today = todayLocalISO()
   const live = trips.filter(t => t.status !== 'cancelled' && t.start_date && t.end_date)
-  const current = live.find(t => t.start_date <= today && today <= t.end_date)
+  const current = live.find(t => t.start_date <= todayAtTrip(t) && todayAtTrip(t) <= t.end_date)
   if (current) return { trip: current, isLive: true }
   const next = live
-    .filter(t => t.start_date > today)
+    .filter(t => t.start_date > todayAtTrip(t))
     .sort((a, b) => (a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : 0))[0]
   return { trip: next || null, isLive: false }
 }

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { geminiFetch, checkAiQuota } from '../_shared/gemini.ts'
+import { attachZones, resolveZone } from '../_shared/timezones.ts'
 
 // ============================================================
 // receive-booking-email
@@ -229,7 +230,7 @@ Deno.serve(async (req) => {
     // ── 4. Fetch user's trips for matching ────────────────────
     const { data: trips } = await supabase
       .from('trips')
-      .select('id, title, destination_city, destination_country, destination_country_code, start_date, end_date, status')
+      .select('id, title, destination_city, destination_country, destination_country_code, destination_tz, start_date, end_date, status')
       .eq('owner_id', userId)
       .order('start_date', { ascending: true })
 
@@ -280,7 +281,9 @@ Return this JSON structure (use null for any field not found):
 }
 
 Rules:
-- departure_time and arrival_time must be ISO 8601 with timezone if available, date only if no time found
+- departure_time and arrival_time: the LOCAL time exactly as printed on the confirmation, as YYYY-MM-DDTHH:MM with NO time zone or offset. The departure time is local to the departure airport/station, the arrival time local to the arrival airport/station. Never convert between time zones. Date only (YYYY-MM-DD) if no time is printed.
+- activity_time: local time exactly as printed, HH:MM 24h.
+- departure_airport / arrival_airport for flights: the 3-letter IATA code when shown (e.g. MAD), otherwise the airport name
 - check_in_date and check_out_date must be YYYY-MM-DD
 - activity_date must be YYYY-MM-DD
 - price must be a number, not a string
@@ -346,6 +349,7 @@ Rules:
           start_date: startDate,
           end_date: endDate,
           status: 'planning',
+          destination_tz: await resolveZone(supabase, { query: tripCity }),
         })
         .select()
         .single()
@@ -358,6 +362,14 @@ Rules:
       }
     }
 
+    // ── 6b. Local time: attach the place's zone to each time, then convert to instants ──
+    const tripTz = matchedTrip?.destination_tz ||
+      (parsed.destination_city ? await resolveZone(supabase, { query: parsed.destination_city }) : null)
+    if (matchedTrip && !matchedTrip.destination_tz && tripTz) {
+      await supabase.from('trips').update({ destination_tz: tripTz }).eq('id', matchedTrip.id)
+    }
+    await attachZones(supabase, parsed, { fallbackTz: tripTz, city: parsed.destination_city || '' })
+
     // ── 7. Sanitize booking fields ────────────────────────────
     // Only real bookings columns — a field Gemini invents must not break the insert
     const BOOKING_COLUMNS = new Set([
@@ -365,7 +377,7 @@ Rules:
       'arrival_airport', 'departure_time', 'arrival_time', 'flight_class', 'hotel_name', 'hotel_address',
       'check_in_date', 'check_out_date', 'room_type', 'activity_date', 'activity_time', 'venue_name',
       'venue_address', 'price', 'currency', 'booking_url', 'notes', 'passenger_name', 'seat_number',
-      'ticket_quantity', 'party_size', 'transport_mode',
+      'ticket_quantity', 'party_size', 'transport_mode', 'departure_tz', 'arrival_tz', 'local_tz',
     ])
     const BOOKING_TYPES = ['flight', 'hotel', 'activity', 'transport', 'restaurant', 'other']
     if (!BOOKING_TYPES.includes(parsed.type)) parsed.type = 'other'
