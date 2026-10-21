@@ -1,17 +1,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { geminiFetch } from '../_shared/gemini.ts'
 
 // ============================================================
 // receive-booking-email
 // Resend inbound email webhook — receives forwarded booking
 // confirmations, parses them via Gemini, matches to a trip,
-// inserts booking. No auth header — authenticated by token
-// embedded in the recipient address.
+// inserts booking. Authenticated by the Resend (Svix) webhook
+// signature (RESEND_WEBHOOK_SECRET), then mapped to a user by the
+// token embedded in the recipient address. No other fallback.
 //
 // Inbound address scheme:
 //   {8-char-token}@bookings.sillytraveltool.com
-//
-// Resend posts multipart/form-data with fields:
-//   to, from, subject, text, html, attachments, headers, ...
 // ============================================================
 
 const CORS = {
@@ -56,6 +55,31 @@ function htmlToText(html: string): string {
 function extractToken(toHeader: string): string | null {
   const match = toHeader.match(/([a-f0-9]{8})@bookings\.sillytraveltool\.com/i)
   return match ? match[1].toLowerCase() : null
+}
+
+// Verify a Svix-signed webhook (Resend uses Svix). Signed content is
+// "{svix-id}.{svix-timestamp}.{raw body}", HMAC-SHA256 with the base64
+// secret after the "whsec_" prefix; header holds "v1,<sig>" entries.
+async function verifySvix(secret: string, headers: Headers, rawBody: string): Promise<boolean> {
+  const id = headers.get('svix-id')
+  const timestamp = headers.get('svix-timestamp')
+  const sigHeader = headers.get('svix-signature')
+  if (!id || !timestamp || !sigHeader) return false
+  const ts = Number(timestamp)
+  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return false
+
+  const keyBytes = Uint8Array.from(atob(secret.replace(/^whsec_/, '')), c => c.charCodeAt(0))
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${id}.${timestamp}.${rawBody}`))
+  const expected = btoa(String.fromCharCode(...new Uint8Array(mac)))
+
+  return sigHeader.split(' ').some(part => {
+    const [version, sig] = part.split(',')
+    if (version !== 'v1' || !sig || sig.length !== expected.length) return false
+    let diff = 0
+    for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i)
+    return diff === 0
+  })
 }
 
 // Match booking to the most relevant trip
@@ -110,53 +134,43 @@ Deno.serve(async (req) => {
   const SUPABASE_URL       = Deno.env.get('SUPABASE_URL')
   const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
+  const WEBHOOK_SECRET       = Deno.env.get('RESEND_WEBHOOK_SECRET')
+
   if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     return err('Missing environment secrets', 500)
   }
+  // Fail closed: without the signing secret we cannot tell Resend from anyone else.
+  if (!WEBHOOK_SECRET) {
+    console.error('RESEND_WEBHOOK_SECRET is not set — rejecting inbound email')
+    return err('Webhook not configured', 503)
+  }
 
   try {
-    // ── 1. Parse Resend inbound webhook payload ──────────────
-    // Resend email.received Webhook sends JSON:
-    // { type: "email.received", data: { to: [{email}], from, subject, text, html } }
-    // Legacy multipart/form-data path kept as fallback.
-    let toAddress = ''
-    let fromAddress = ''
-    let subject = ''
-    let bodyText = ''
-    let rawBody: any = {}
-
-    const contentType = req.headers.get('content-type') || ''
-
-    if (contentType.includes('multipart/form-data')) {
-      // Legacy Resend Inbound product (multipart)
-      const formData = await req.formData()
-      toAddress   = formData.get('to')      as string || ''
-      fromAddress = formData.get('from')    as string || ''
-      subject     = formData.get('subject') as string || ''
-      bodyText    = formData.get('text')    as string || ''
-      const html  = formData.get('html')    as string || ''
-      if (!bodyText && html) bodyText = htmlToText(html)
-    } else {
-      // Resend email.received Webhook — JSON body
-      // Unwrap { type, data } envelope that Resend wraps all webhook events in
-      rawBody = await req.json().catch(() => ({}) as any)
-      const body = rawBody
-      const payload = body?.data ?? body
-
-      // to can be string or array of { email } objects
-      const toRaw = payload.to ?? payload.To ?? ''
-      if (Array.isArray(toRaw)) {
-        toAddress = toRaw.map((t: any) => (typeof t === 'string' ? t : t?.email || '')).join(', ')
-      } else {
-        toAddress = String(toRaw)
-      }
-
-      fromAddress = payload.from    ?? payload.From    ?? ''
-      subject     = payload.subject ?? payload.Subject ?? ''
-      bodyText    = payload.text    ?? payload.plain   ?? ''
-      const html  = payload.html    ?? ''
-      if (!bodyText && html) bodyText = htmlToText(html)
+    // ── 1. Verify signature, then parse Resend email.received payload ──
+    // JSON shape: { type: "email.received", data: { email_id, to: [{email}] | string, from, subject, text?, html? } }
+    const rawText = await req.text()
+    if (!(await verifySvix(WEBHOOK_SECRET, req.headers, rawText))) {
+      console.warn('receive-booking-email: invalid or missing webhook signature')
+      return err('Invalid signature', 401)
     }
+
+    let rawBody: any = {}
+    try { rawBody = JSON.parse(rawText) } catch { return err('Invalid JSON payload') }
+    const payload = rawBody?.data ?? rawBody
+
+    let toAddress = ''
+    const toRaw = payload.to ?? payload.To ?? ''
+    if (Array.isArray(toRaw)) {
+      toAddress = toRaw.map((t: any) => (typeof t === 'string' ? t : t?.email || '')).join(', ')
+    } else {
+      toAddress = String(toRaw)
+    }
+
+    const fromAddress = String(payload.from ?? payload.From ?? '')
+    const subject     = String(payload.subject ?? payload.Subject ?? '')
+    let bodyText      = payload.text ?? payload.plain ?? ''
+    const html        = payload.html ?? ''
+    if (!bodyText && html) bodyText = htmlToText(html)
 
     if (!toAddress) return err('No recipient address in webhook payload')
     // ── Body fetch via Resend receiving API (body not in webhook payload) ──
@@ -189,39 +203,20 @@ Deno.serve(async (req) => {
     const token = extractToken(toAddress)
     console.log(`🔑 Token extracted: "${token}" from toAddress: "${toAddress}"`)
 
-    // ── 3. Look up user by token OR by from-email (fallback) ──
+    // ── 3. Look up user by token (the only accepted path) ─────
+    if (!token) return err('No booking token in recipient address', 404)
+
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    let profile: any = null
-
-    if (token) {
-      // Primary path: token in recipient address (production)
-      const { data, error: profileErr } = await supabase
-        .from('user_profiles')
-        .select('id, display_name')
-        .eq('booking_email_token', token)
-        .single()
-      if (profileErr || !data) {
-        console.error('Token lookup failed:', token, profileErr?.message)
-        return err('Unknown booking address — token not found', 404)
-      }
-      profile = data
-      console.log(`✅ User found by token: ${profile.id}`)
-    } else {
-      // Fallback path: no token in address (e.g. measira.resend.app dev testing)
-      // Extract bare email from "Name <email>" format
-      const fromEmail = (fromAddress.match(/<([^>]+)>/) || [null, fromAddress])[1].trim().toLowerCase()
-      console.log(`🔍 No token — falling back to from-email lookup: "${fromEmail}"`)
-
-      // Look up user id by email via SQL RPC (service role, queries auth.users directly)
-      const { data: userId, error: rpcErr } = await supabase.rpc('get_user_id_by_email', { p_email: fromEmail })
-      if (rpcErr || !userId) {
-        console.error('From-email RPC lookup failed:', fromEmail, rpcErr?.message)
-        return err('Sender email not associated with any account', 404)
-      }
-      profile = { id: userId, display_name: fromEmail }
-      console.log(`✅ User found by from-email: ${profile.id}`)
+    const { data: profile, error: profileErr } = await supabase
+      .from('user_profiles')
+      .select('id, display_name')
+      .eq('booking_email_token', token)
+      .single()
+    if (profileErr || !profile) {
+      console.error('Token lookup failed:', token, profileErr?.message)
+      return err('Unknown booking address — token not found', 404)
     }
 
     const userId = profile.id
@@ -288,17 +283,10 @@ Rules:
 - ticket_quantity: number of tickets for activities/events. null for flights/hotels.
 - Return raw JSON only — no markdown, no explanation`
 
-    const gemRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
-        }),
-      }
-    )
+    const gemRes = await geminiFetch(GEMINI_API_KEY, {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 2048 },
+    }, { timeoutMs: 20000 })
 
     if (!gemRes.ok) {
       const gemErr = await gemRes.text()
@@ -307,14 +295,14 @@ Rules:
     }
 
     const gemData = await gemRes.json()
-    const rawText = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    const gemText = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
     let parsed: any = null
     try {
-      const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      const cleaned = gemText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
       parsed = JSON.parse(cleaned)
     } catch {
-      console.error('JSON parse failed:', rawText.slice(0, 300))
+      console.error('JSON parse failed:', gemText.slice(0, 300))
       return err('Could not parse Gemini response as JSON', 502)
     }
 
@@ -327,7 +315,8 @@ Rules:
       const startDate = parsed.check_in_date || parsed.activity_date ||
         (parsed.departure_time ? parsed.departure_time.slice(0, 10) : null) ||
         new Date().toISOString().slice(0, 10)
-      const endDate = parsed.check_out_date || startDate
+      const endDate = parsed.check_out_date ||
+        (parsed.arrival_time ? parsed.arrival_time.slice(0, 10) : null) || startDate
 
       const { data: newTrip, error: tripErr } = await supabase
         .from('trips')
@@ -349,8 +338,6 @@ Rules:
       } else if (newTrip) {
         matchedTrip = newTrip
         console.log(`🆕 Created new trip for user ${userId}: ${newTrip.id} → ${tripCity}`)
-        // Increment trips_created stat
-        try { await supabase.rpc('increment_user_stat', { p_user_id: userId, p_field: 'trips_created', p_amount: 1 }) } catch (_) {}
       }
     }
 

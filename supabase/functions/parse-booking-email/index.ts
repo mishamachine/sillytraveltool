@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { geminiFetch } from '../_shared/gemini.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -17,7 +18,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
-    const { emailText } = await req.json()
+    const { emailText: rawEmailText } = await req.json()
+    const emailText = String(rawEmailText ?? '').slice(0, 20000)
     if (!emailText) return new Response(JSON.stringify({ error: 'emailText required' }), { status: 400, headers: CORS })
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
@@ -84,32 +86,13 @@ Rules:
 - seat_number: assigned seat for flights (e.g. "14A"). null if not assigned.
 - ticket_quantity: number of tickets for activities/events. null for flights/hotels.`
 
-    // Abort Gemini if it takes > 20s — prevents EarlyDrop wall-clock kill
-    const gemController = new AbortController()
-    const gemTimer = setTimeout(() => gemController.abort(), 20000)
-
-    let gemRes: Response
-    try {
-      gemRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
-          }),
-          signal: gemController.signal,
-        }
-      )
-    } catch (fetchErr: any) {
-      clearTimeout(gemTimer)
-      if (fetchErr.name === 'AbortError') {
-        return new Response(JSON.stringify({ error: 'Gemini timed out — please try again' }), { status: 504, headers: CORS })
-      }
-      throw fetchErr
-    } finally {
-      clearTimeout(gemTimer)
+    // 20s cap prevents the EarlyDrop wall-clock kill; geminiFetch returns 504 on timeout
+    const gemRes = await geminiFetch(GEMINI_API_KEY, {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 2048 },
+    }, { timeoutMs: 20000 })
+    if (gemRes.status === 504) {
+      return new Response(JSON.stringify({ error: 'Gemini timed out — please try again' }), { status: 504, headers: CORS })
     }
 
     if (!gemRes.ok) {

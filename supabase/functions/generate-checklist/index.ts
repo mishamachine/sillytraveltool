@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { geminiFetch, cap } from '../_shared/gemini.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -17,7 +18,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
-    const { trip, bookings, weatherContext } = await req.json()
+    const { trip, bookings: rawBookings, weatherContext } = await req.json()
+    const bookings = Array.isArray(rawBookings) ? rawBookings.slice(0, 100) : []
     if (!trip) return new Response(JSON.stringify({ error: 'trip required' }), { status: 400, headers: CORS })
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
@@ -30,7 +32,7 @@ Deno.serve(async (req) => {
     const hasHotel = (bookings || []).some((b: any) => b.type === 'hotel')
     const hasActivities = (bookings || []).some((b: any) => b.type === 'activity')
     const month = trip?.start_date ? new Date(trip.start_date).toLocaleString('default', { month: 'long' }) : 'unknown'
-    const destination = [trip?.destination_city, trip?.destination_country].filter(Boolean).join(', ') || 'the destination'
+    const destination = [cap(trip?.destination_city, 80), cap(trip?.destination_country, 80)].filter(Boolean).join(', ') || 'the destination'
     const weatherLine = weatherContext
       ? `Weather during trip: avg high ${weatherContext.avgHigh}°, avg low ${weatherContext.avgLow}°, conditions: ${weatherContext.summary}. Rain expected: ${weatherContext.rainDays} day(s).`
       : ''
@@ -56,11 +58,7 @@ Rules:
 - Every item needs a "note" — why it matters or a quick tip.
 - Do NOT include notes like "essential" or "important" — only genuinely useful context.`
 
-    const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 3000 } })
-    })
+    const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.6, maxOutputTokens: 3000 } })
 
     if (!gemRes.ok) {
       const err = await gemRes.text()

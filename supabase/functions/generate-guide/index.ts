@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { geminiFetch, cap } from '../_shared/gemini.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -145,7 +146,9 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
-    const { city, country, section = 'overview', exclude_names = [] } = await req.json()
+    const raw = await req.json()
+    const city = cap(raw.city, 80), country = cap(raw.country, 80), section = cap(raw.section || 'overview', 40)
+    const exclude_names = (Array.isArray(raw.exclude_names) ? raw.exclude_names : []).slice(0, 40).map((n: unknown) => cap(n, 80))
     if (!city || !country) return new Response(JSON.stringify({ error: 'city and country required' }), { status: 400, headers: CORS })
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
@@ -153,11 +156,7 @@ Deno.serve(async (req) => {
 
     const prompt = buildPrompt(city, country, section, exclude_names)
 
-    const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 3000 } })
-    })
+    const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens: 3000 } })
 
     if (!gemRes.ok) {
       const err = await gemRes.text()

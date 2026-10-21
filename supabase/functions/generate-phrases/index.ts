@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { geminiFetch, cap } from '../_shared/gemini.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -17,7 +18,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
-    const { languageCode, languageName } = await req.json()
+    const raw = await req.json()
+    const languageCode = cap(raw.languageCode, 12), languageName = cap(raw.languageName, 60)
     if (!languageCode || !languageName) return new Response(JSON.stringify({ error: 'languageCode and languageName required' }), { status: 400, headers: CORS })
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
@@ -43,11 +45,7 @@ Each array must have exactly 8 phrase objects: { "english": "", "native": "", "r
 goose_specials should be funny and useful phrases unique to this culture that travelers love.
 Make romanizations phonetically accurate for English speakers.`
 
-    const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 4096 } })
-    })
+    const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.6, maxOutputTokens: 4096 } })
 
     if (!gemRes.ok) {
       const err = await gemRes.text()
