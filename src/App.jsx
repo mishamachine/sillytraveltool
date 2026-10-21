@@ -11,6 +11,8 @@ import { initDeepLinks } from './native/deepLinks'
 import { gaPageView } from './lib/ga'
 import { applyTheme, onSystemThemeChange } from './lib/theme'
 import './styles/global.css'
+import './styles/app.css'
+import { GooseMark, Logo, ProgressBar } from './ui'
 
 // Lazy-load heavy screens — reduces initial bundle
 const TripsScreen = lazy(() => import('./screens/trips/TripsScreen'))
@@ -31,37 +33,17 @@ const SCREENS = {
 
 function ScreenFallback() {
   return (
-    <div style={{
-      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg)',
-    }}>
-      <div style={{ animation: 'bounce 1.4s ease-in-out infinite' }}>
-        <svg width="48" height="48" viewBox="0 0 100 100" fill="none">
-          <circle cx="50" cy="35" r="28" fill="#F0EBE3" stroke="#2A2520" strokeWidth="4"/>
-          <circle cx="39" cy="29" r="8" fill="#fff" stroke="#2A2520" strokeWidth="3"/>
-          <circle cx="37.5" cy="28" r="5" fill="#2A2520"/>
-          <path d="M57 31 Q72 27 76 33 Q72 39 57 37Z" fill="#E8A820" stroke="#2A2520" strokeWidth="3" strokeLinejoin="round"/>
-        </svg>
-      </div>
+    <div className="app-fallback" role="status" aria-label="Loading">
+      <GooseMark expression="reading" size={46} tile tileSize="sm" />
     </div>
   )
 }
 
 function AppLoading() {
   return (
-    <div style={{ minHeight: '100vh', background: '#FAF7F2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ animation: 'bounce 1.4s ease-in-out infinite' }}>
-        <svg width="64" height="64" viewBox="0 0 100 100" fill="none">
-          <ellipse cx="8" cy="76" rx="14" ry="22" fill="#E8E3DB" stroke="#2A2520" strokeWidth="4" transform="rotate(-22 8 76)"/>
-          <ellipse cx="92" cy="76" rx="14" ry="22" fill="#E8E3DB" stroke="#2A2520" strokeWidth="4" transform="rotate(22 92 76)"/>
-          <path d="M33 60 Q29 78 27 100 L73 100 Q71 78 67 60 Q59 67 50 67 Q41 67 33 60Z" fill="#F0EBE3" stroke="#2A2520" strokeWidth="4" strokeLinejoin="round"/>
-          <circle cx="50" cy="35" r="28" fill="#F0EBE3" stroke="#2A2520" strokeWidth="4"/>
-          <circle cx="39" cy="29" r="8" fill="#fff" stroke="#2A2520" strokeWidth="3"/>
-          <circle cx="37.5" cy="28" r="5" fill="#2A2520"/>
-          <circle cx="35.5" cy="26" r="2" fill="#fff"/>
-          <path d="M57 31 Q72 27 76 33 Q72 39 57 37Z" fill="#E8A820" stroke="#2A2520" strokeWidth="3" strokeLinejoin="round"/>
-        </svg>
-      </div>
+    <div className="app-splash" role="status" aria-label="Loading Silly Travel Tool">
+      <Logo size="lg" />
+      <ProgressBar className="app-splash__bar" label="Loading" />
     </div>
   )
 }

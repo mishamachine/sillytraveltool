@@ -1,5 +1,7 @@
 // Theme: 'system' follows prefers-color-scheme; 'light' / 'dark' are explicit choices.
 // tokens.css does the work: no data-theme → media query decides; data-theme forces a theme.
+import { Capacitor } from '@capacitor/core'
+
 const KEY = 'stt_theme'
 const media = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null
 
@@ -31,8 +33,10 @@ export function applyTheme(pref) {
   if (pref === 'system') root.removeAttribute('data-theme')
   else root.setAttribute('data-theme', pref)
   const dark = resolveDark(pref)
+  const page = getComputedStyle(root).getPropertyValue('--surface-page').trim()
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) meta.setAttribute('content', getComputedStyle(root).getPropertyValue('--surface-page').trim() || (dark ? '#1C1814' : '#F4EEE6'))
+  if (meta && page) meta.setAttribute('content', page)
+  syncStatusBar(dark, page)
   return dark
 }
 
@@ -42,4 +46,14 @@ export function onSystemThemeChange(cb) {
   const handler = () => cb(media.matches)
   media.addEventListener?.('change', handler)
   return () => media.removeEventListener?.('change', handler)
+}
+
+// Native: status bar icons and background follow the theme.
+async function syncStatusBar(dark, color) {
+  try {
+    if (!Capacitor.isNativePlatform()) return
+    const { StatusBar, Style } = await import('@capacitor/status-bar')
+    await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light })
+    if (color && Capacitor.getPlatform() === 'android') await StatusBar.setBackgroundColor({ color })
+  } catch { /* status bar is cosmetic */ }
 }

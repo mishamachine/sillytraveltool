@@ -3,18 +3,18 @@
   "appName": "Silly Travel Tool",
   "webDir": "dist",
   "android": {
-    "backgroundColor": "#FAF7F2"
+    "backgroundColor": "#F4EEE6"
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 800,
-      "backgroundColor": "#FAF7F2",
+      "backgroundColor": "#F4EEE6",
       "showSpinner": false
     },
     "StatusBar": {
       "overlaysWebView": false,
       "style": "LIGHT",
-      "backgroundColor": "#FAF7F2"
+      "backgroundColor": "#F4EEE6"
     }
   }
 }
