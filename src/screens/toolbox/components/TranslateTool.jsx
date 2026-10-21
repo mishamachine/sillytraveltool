@@ -2,18 +2,22 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { reverseGeocodeCountry } from '../../../lib/geo'
 import { useTripsStore } from '../../../store'
-import Goose from '../../../components/goose/Goose'
+import {
+  Card, ListRow, Button, IconButton, Chip, Sheet, Text, Stack, Section, Loading, ErrorState, EmptyState, LinkButton, Overline, Icon,
+} from '../../../ui'
 
 const PHRASE_CATEGORIES = [
-  { id: 'greetings', label: 'Greetings', emoji: '👋' },
-  { id: 'food', label: 'Food & Dining', emoji: '🍜' },
-  { id: 'transport', label: 'Transport', emoji: '🚌' },
-  { id: 'hotel', label: 'Hotel & Stay', emoji: '🏨' },
-  { id: 'shopping', label: 'Shopping', emoji: '🛍️' },
-  { id: 'health', label: 'Health & Safety', emoji: '🏥' },
-  { id: 'social', label: 'Social', emoji: '💬' },
-  { id: 'goose_specials', label: 'Goose Specials', emoji: '🪿' },
+  { id: 'greetings', label: 'Greetings', icon: 'chat' },
+  { id: 'food', label: 'Food & dining', icon: 'restaurant' },
+  { id: 'transport', label: 'Transport', icon: 'bus' },
+  { id: 'hotel', label: 'Hotel & stay', icon: 'stay' },
+  { id: 'shopping', label: 'Shopping', icon: 'bag' },
+  { id: 'health', label: 'Health & safety', icon: 'medical' },
+  { id: 'social', label: 'Social', icon: 'users' },
+  { id: 'goose_specials', label: 'Goose specials', icon: 'sparkles' },
 ]
+
+const REPORT_URL = 'mailto:hello@sillytraveltool.com?subject=' + encodeURIComponent('Report an AI phrase')
 
 const COUNTRY_TO_LANGUAGE = {
   JP: { code: 'ja', name: 'Japanese' }, CN: { code: 'zh', name: 'Mandarin Chinese' },
@@ -70,7 +74,8 @@ export default function TranslateTool() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [showLangPicker, setShowLangPicker] = useState(false)
-  const [expandedPhrase, setExpandedPhrase] = useState(null)
+  const [featuredIdx, setFeaturedIdx] = useState(0)
+  const [showBig, setShowBig] = useState(false)
   const [speakingIdx, setSpeakingIdx] = useState(null)
 
   const tripLang = activeTrip?.destination_country_code
@@ -107,7 +112,7 @@ export default function TranslateTool() {
 
   const loadPhrases = async (lang) => {
     if (!lang) return
-    setLoading(true); setError(null); setPhrases(null)
+    setLoading(true); setError(null); setPhrases(null); setFeaturedIdx(0)
     try {
       const { data: cached } = await supabase
         .from('phrase_cache')
@@ -193,148 +198,123 @@ export default function TranslateTool() {
   }, [])
 
   const currentCategoryPhrases = phrases?.[activeCategory] || []
+  const featured = currentCategoryPhrases[featuredIdx] || currentCategoryPhrases[0]
+  const featuredI = currentCategoryPhrases[featuredIdx] ? featuredIdx : 0
+  const canSpeak = typeof window !== 'undefined' && !!window.speechSynthesis
+  const pickLang = (lang) => { loadedLangRef.current = null; setSelectedLang(lang); setShowLangPicker(false) }
 
   return (
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {/* Language selector — full box is tappable */}
-      <button
-        onClick={() => setShowLangPicker(true)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-      >
-        <div style={{ flex: 1, background: 'var(--surface)', border: '1.5px solid var(--primary)', borderRadius: 12, padding: '10px 14px', textAlign: 'left', transition: 'background 0.15s' }}>
-          {currentLang ? (
-            <div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>{currentLang.name}</div>
-              {autoLang && currentLang.code === autoLang.code && (
-                <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 2 }}>✈️ Auto-detected from {activeTrip?.destination_city}</div>
-              )}
-            </div>
-          ) : (
-            <div style={{ color: 'var(--text-tert)', fontSize: 14 }}>Tap to select a language</div>
-          )}
-        </div>
-        <span style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 12, background: 'var(--primary)', color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 13 }}>
-          {currentLang ? 'Change' : 'Select'}
-        </span>
-      </button>
+    <Stack gap={4}>
+      <Stack row gap={2}>
+        <span className="tools-lang tools-lang--static">English</span>
+        <Icon name="arrow-right" size={18} className="tools-lang__arrow" />
+        <button type="button" className="tools-lang" onClick={() => setShowLangPicker(true)}
+          aria-label={currentLang ? `Phrases in ${currentLang.name}. Change language` : 'Choose a language'}>
+          {currentLang ? currentLang.name : 'Choose a language'}
+        </button>
+      </Stack>
+      {currentLang && autoLang && currentLang.code === autoLang.code && activeTrip?.destination_city && (
+        <Text variant="micro" tone="muted">Picked for your trip to {activeTrip.destination_city}</Text>
+      )}
 
       {!currentLang && (
-        <div className="empty-state" style={{ marginTop: 20 }}>
-          <Goose variant="lost" size={100} animated />
-          <div className="empty-state-title" style={{ fontSize: 20, marginTop: 12 }}>Phrase Book</div>
-          <p className="empty-state-text">64 travel phrases across 8 categories. Select a language to get started.</p>
-        </div>
+        <EmptyState goose="happy" title="Pocket phrase book"
+          action={<Button variant="primary" size="lg" block onClick={() => setShowLangPicker(true)}>Choose a language</Button>}>
+          64 travel phrases in 8 topics, saved on your phone once loaded.
+        </EmptyState>
       )}
 
       {currentLang && loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 24, textAlign: 'center' }}>
-          <div style={{ animation: 'bounce 1.5s ease-in-out infinite' }}>
-            <Goose variant="excited" size={88} />
-          </div>
-          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 15, fontWeight: 700 }}>Learning {currentLang.name}...</div>
-          <p style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.5 }}>The Goose is preparing 64 essential phrases.</p>
-        </div>
+        <Loading title={`Goose is learning ${currentLang.name}`}>64 essential phrases, usually under 15 seconds.</Loading>
       )}
 
-      {currentLang && error && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 24, textAlign: 'center' }}>
-          <Goose variant="worried" size={72} />
-          <div style={{ fontSize: 14, color: 'var(--error)' }}>{error}</div>
-          <button className="btn btn-primary" onClick={() => loadPhrases(currentLang)}>Retry</button>
-        </div>
+      {currentLang && error && !loading && (
+        <ErrorState onRetry={() => loadPhrases(currentLang)}>{error}</ErrorState>
       )}
 
       {currentLang && phrases && !loading && (
         <>
-          <div style={{ position: 'relative' }}>
-            <select
-              value={activeCategory}
-              onChange={e => { setActiveCategory(e.target.value); setExpandedPhrase(null) }}
-              style={{ width: '100%', padding: '10px 36px 10px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', outline: 'none' }}
-            >
-              {PHRASE_CATEGORIES.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
-              ))}
-            </select>
-            <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-tert)', fontSize: 12 }}>▼</div>
+          {featured && (
+            <Card variant="inverse" aria-live="polite">
+              <Overline tone="inverse-muted">{currentLang.name}</Overline>
+              <p className="tools-phrase-big" lang={currentLang.code}>{featured.native}</p>
+              {featured.romanized && <Text variant="caption" tone="inverse-muted">{featured.romanized}</Text>}
+              <Text variant="body" tone="inverse-muted">{featured.english}</Text>
+              <Stack row gap={2} wrap>
+                {canSpeak && (
+                  <Button variant="primary" icon={speakingIdx === featuredI ? 'pause' : 'volume'} onClick={() => speak(featured, featuredI)}>
+                    {speakingIdx === featuredI ? 'Stop' : 'Play'}
+                  </Button>
+                )}
+                <Button variant="outline" className="tools-on-inverse" onClick={() => setShowBig(true)}>Show big</Button>
+              </Stack>
+            </Card>
+          )}
+
+          <div className="c-chip-row" role="tablist" aria-label="Phrase topics">
+            {PHRASE_CATEGORIES.map(cat => (
+              <Chip key={cat.id} icon={cat.icon} selected={activeCategory === cat.id} role="tab" aria-selected={activeCategory === cat.id} aria-pressed={undefined}
+                onClick={() => { setActiveCategory(cat.id); setFeaturedIdx(0) }}>
+                {cat.label}
+              </Chip>
+            ))}
           </div>
 
-          <div style={{ fontSize: 11, color: 'var(--text-tert)', fontFamily: 'var(--font-mono)', textAlign: 'right' }}>
-            {currentCategoryPhrases.length} phrases · tap 🔊 to hear
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {currentCategoryPhrases.length === 0 && (
-              <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-tert)', fontSize: 14 }}>No phrases available for this category.</div>
-            )}
-            {currentCategoryPhrases.map((phrase, i) => {
-              const isExpanded = expandedPhrase === i
-              const isSpeaking = speakingIdx === i
-              return (
-                <div key={i} style={{ background: 'var(--surface)', border: `1.5px solid ${isExpanded ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.15s ease' }}>
-                  <button onClick={() => setExpandedPhrase(isExpanded ? null : i)} style={{ width: '100%', padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{phrase.english}</div>
-                    <div style={{ fontSize: 15, color: 'var(--primary)', marginTop: 4, fontWeight: 600 }}>{phrase.native}</div>
-                    {phrase.romanized && <div style={{ fontSize: 12, color: 'var(--text-tert)', marginTop: 2, fontStyle: 'italic' }}>{phrase.romanized}</div>}
-                    {isExpanded && phrase.context && (
-                      <div style={{ fontSize: 12, color: 'var(--text-sec)', marginTop: 8, background: 'var(--surface-alt)', padding: '6px 10px', borderRadius: 8 }}>💡 {phrase.context}</div>
-                    )}
-                  </button>
-                  {window.speechSynthesis && (
-                    <button
-                      onClick={() => speak(phrase, i)}
-                      style={{ width: '100%', padding: '8px 14px', background: isSpeaking ? 'var(--primary-light)' : 'var(--surface-alt)', border: 'none', borderTop: '1px solid var(--border-light)', cursor: 'pointer', fontSize: 13, color: isSpeaking ? 'var(--primary)' : 'var(--text-tert)', fontFamily: 'var(--font-heading)', fontWeight: 600, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', gap: 6 }}
-                    >
-                      {isSpeaking ? '⏸' : '🔊'} {isSpeaking ? 'Stop' : 'Hear pronunciation'}
+          <Section title={`${PHRASE_CATEGORIES.find(c => c.id === activeCategory)?.label} · ${currentCategoryPhrases.length}`}>
+            {currentCategoryPhrases.length === 0 ? (
+              <Text tone="secondary">No phrases in this topic yet.</Text>
+            ) : (
+              <Card variant="group">
+                {currentCategoryPhrases.map((phrase, i) => (
+                  <ListRow key={i} as="div" className={featuredI === i ? 'tools-phrase is-selected' : 'tools-phrase'}
+                    trailing={canSpeak ? (
+                      <IconButton icon={speakingIdx === i ? 'pause' : 'volume'} variant="sunken"
+                        label={speakingIdx === i ? `Stop “${phrase.english}”` : `Hear “${phrase.english}”`}
+                        onClick={(e) => { e.stopPropagation(); speak(phrase, i) }} />
+                    ) : null}>
+                    <button type="button" className="tools-phrase__pick" aria-pressed={featuredI === i} onClick={() => setFeaturedIdx(i)}>
+                      <span className="c-row__title" lang={currentLang.code}>{phrase.native}</span>
+                      <span className="c-row__meta">{[phrase.english, phrase.context].filter(Boolean).join(' · ')}</span>
                     </button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                  </ListRow>
+                ))}
+              </Card>
+            )}
+          </Section>
 
-          <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-tert)', fontFamily: 'var(--font-mono)', marginTop: 4, paddingBottom: 16 }}>
-            Cached offline · tap phrase for usage tip
-          </div>
+          <Text variant="micro" tone="muted" align="center">
+            Suggested by Goose (AI). Check anything important with a local. <LinkButton href={REPORT_URL}>Report a phrase</LinkButton>
+          </Text>
         </>
       )}
 
-      {showLangPicker && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setShowLangPicker(false)}>
-          <div style={{ background: 'var(--bg)', borderRadius: '20px 20px 0 0', padding: '20px 0', width: '100%', maxWidth: 428, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', marginBottom: 12 }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 17, fontWeight: 700, margin: 0 }}>Select Language</h3>
-              <button onClick={() => setShowLangPicker(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text-tert)' }}>×</button>
-            </div>
-            <div style={{ overflowY: 'auto', flex: 1 }}>
-              {autoLang && (
-                <>
-                  <div style={{ padding: '6px 16px', fontSize: 11, color: 'var(--text-tert)', fontFamily: 'var(--font-heading)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Suggested for your trip</div>
-                  <button
-                    onClick={() => { loadedLangRef.current = null; setSelectedLang(autoLang); setShowLangPicker(false) }}
-                    style={{ width: '100%', padding: '14px 16px', background: 'var(--primary-light)', border: 'none', textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                  >
-                    <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'var(--primary)' }}>✈️ {autoLang.name}</span>
-                    {selectedLang?.code === autoLang.code && <span style={{ color: 'var(--primary)' }}>✓</span>}
-                  </button>
-                  <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />
-                </>
-              )}
-              <div style={{ padding: '6px 16px', fontSize: 11, color: 'var(--text-tert)', fontFamily: 'var(--font-heading)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>All Languages</div>
-              {ALL_LANGUAGES.map(lang => (
-                <button
-                  key={lang.code}
-                  onClick={() => { loadedLangRef.current = null; setSelectedLang(lang); setShowLangPicker(false) }}
-                  style={{ width: '100%', padding: '13px 16px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}
-                >
-                  <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: 'var(--text)', fontSize: 15 }}>{lang.name}</span>
-                  {selectedLang?.code === lang.code && <span style={{ color: 'var(--primary)' }}>✓</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+      {showBig && featured && (
+        <Sheet title="Show this" onClose={() => setShowBig(false)}>
+          <p className="tools-phrase-huge" lang={currentLang?.code}>{featured.native}</p>
+          <Text variant="body-lg" tone="secondary">{featured.english}</Text>
+        </Sheet>
       )}
-    </div>
+
+      {showLangPicker && (
+        <Sheet title="Choose a language" onClose={() => setShowLangPicker(false)} size="tall">
+          {autoLang && (
+            <Section title="For your trip">
+              <Card variant="group">
+                <ListRow icon="plane" tone="info" title={autoLang.name} onClick={() => pickLang(autoLang)}
+                  trailing={selectedLang?.code === autoLang.code ? <span className="tone-accent t-label">Selected</span> : undefined} />
+              </Card>
+            </Section>
+          )}
+          <Section title="All languages">
+            <Card variant="group">
+              {ALL_LANGUAGES.map(lang => (
+                <ListRow key={lang.code} title={lang.name} onClick={() => pickLang(lang)} aria-current={selectedLang?.code === lang.code ? 'true' : undefined}
+                  trailing={selectedLang?.code === lang.code ? <span className="tone-accent t-label">Selected</span> : undefined} />
+              ))}
+            </Card>
+          </Section>
+        </Sheet>
+      )}
+    </Stack>
   )
 }

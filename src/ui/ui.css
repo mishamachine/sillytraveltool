@@ -480,3 +480,8 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .c-btn--dark { background: var(--ink); color: var(--surface-page); }
 }
+/* Selected chips use the accent fill in dark mode (inverse is too close to the card there). */
+:root[data-theme="dark"] .c-chip--action.is-selected { background: var(--accent-fill); color: var(--on-accent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .c-chip--action.is-selected { background: var(--accent-fill); color: var(--on-accent); }
+}
