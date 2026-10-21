@@ -59,11 +59,17 @@ async function getJson(url: string, ms = 6000): Promise<any> {
   } catch { return null } finally { clearTimeout(timer) }
 }
 
+// Google answers 200 with a status like REQUEST_DENIED when the key or API is misconfigured; log why (never the key)
+function googleWarn(api: string, d: any) {
+  console.warn(`google ${api} fell back: ${d?.status ?? 'no response'}${d?.error_message ? ` — ${d.error_message}` : ''}`)
+}
+
 async function zoneForCoords(lat: number, lng: number): Promise<{ tz: string, source: string } | null> {
   const key = Deno.env.get('GOOGLE_MAPS_SERVER_KEY')
   if (key) {
     const d = await getJson(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${key}`)
     if (d?.status === 'OK' && isValidZone(d.timeZoneId)) return { tz: d.timeZoneId, source: 'google' }
+    googleWarn('timezone', d)
   }
   const d = await getJson(`https://timeapi.io/api/timezone/coordinate?latitude=${lat}&longitude=${lng}`)
   if (isValidZone(d?.timeZone)) return { tz: d.timeZone, source: 'timeapi' }
@@ -76,6 +82,7 @@ async function coordsForQuery(query: string): Promise<{ lat: number, lng: number
     const d = await getJson(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${key}`)
     const loc = d?.results?.[0]?.geometry?.location
     if (loc) return { lat: loc.lat, lng: loc.lng }
+    googleWarn('geocode', d)
   }
   const d = await getJson(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=1&lang=en`)
   const c = d?.features?.[0]?.geometry?.coordinates
