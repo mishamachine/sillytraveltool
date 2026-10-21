@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './authStore'
 import { useTripsStore } from './tripsStore'
+import { pgQuote } from '../lib/postgrest'
 
 export const useCollabStore = create((set, get) => ({
   pendingInvites: [],
@@ -15,7 +16,7 @@ export const useCollabStore = create((set, get) => ({
       const { data } = await supabase
         .from('trip_collaborators')
         .select(`*, trips(id, title, destination_city, destination_country, destination_country_code, start_date, end_date, owner_id)`)
-        .or(`user_id.eq.${user.id},invited_email.eq.${user.email}`)
+        .or(`user_id.eq.${pgQuote(user.id)},invited_email.eq.${pgQuote(user.email)}`)
         .eq('status', 'pending')
         .neq('role', 'owner')
       set({ pendingInvites: data || [] })

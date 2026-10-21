@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './authStore'
 import { checkAndAwardBadges } from './authStore'
+import { parseLocalDate } from '../lib/dates'
+import { pgQuote } from '../lib/postgrest'
 
 export const useTripsStore = create((set, get) => ({
   trips: [], activeTrip: null, loading: false, error: null,
@@ -40,7 +42,7 @@ export const useTripsStore = create((set, get) => ({
       const { data: collabRows } = await supabase
         .from('trip_collaborators')
         .select('trip_id, role')
-        .or(`user_id.eq.${user.id},invited_email.eq.${user.email}`)
+        .or(`user_id.eq.${pgQuote(user.id)},invited_email.eq.${pgQuote(user.email)}`)
         .eq('status', 'accepted')
         .neq('role', 'owner')
 
@@ -75,7 +77,7 @@ export const useTripsStore = create((set, get) => ({
       }
 
       const allTrips = [...ownedWithCollabs, ...sharedTrips]
-        .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+        .sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
 
       set({ trips: allTrips })
 
@@ -131,8 +133,8 @@ export const useTripsStore = create((set, get) => ({
       throw new Error(error.message || 'Could not create trip — check your connection and try again')
     }
     set(state => ({ trips: [...state.trips, { ...data, trip_collaborators: [] }] }))
+    // trips_created and other trip stats are recomputed server-side by DB triggers
     try {
-      await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'trips_created', p_amount: 1 })
       await checkAndAwardBadges(user.id, useAuthStore.getState().session?.access_token)
       await useAuthStore.getState().fetchStats()
     } catch {}
@@ -151,12 +153,7 @@ export const useTripsStore = create((set, get) => ({
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-          const nights = data.end_date && data.start_date
-            ? Math.round((new Date(data.end_date) - new Date(data.start_date)) / (1000 * 60 * 60 * 24))
-            : 0
-          await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'trips_completed', p_amount: 1 })
-          if (nights > 0) await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'days_abroad', p_amount: nights })
-          if (data.destination_country_code) await supabase.rpc('upsert_visited_country', { p_user_id: user.id, p_country: data.destination_country_code })
+          // trips_completed / days_abroad / countries_visited are recomputed server-side by DB triggers
           await checkAndAwardBadges(user.id, useAuthStore.getState().session?.access_token)
         }
       } catch {}
@@ -181,19 +178,8 @@ export const useTripsStore = create((set, get) => ({
       const db = b.departure_time || (b.check_in_date ? b.check_in_date + 'T12:00:00' : null) || '9999'
       return da < db ? -1 : da > db ? 1 : 0
     }) }))
-    if (bookingData.type === 'flight' && user?.id) {
-      try {
-        await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'total_flights', p_amount: 1 })
-        await checkAndAwardBadges(user.id, useAuthStore.getState().session?.access_token)
-        await useAuthStore.getState().fetchStats()
-      } catch {}
-    } else if (bookingData.type === 'hotel' && user?.id) {
-      try {
-        await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'hotels_booked', p_amount: 1 })
-        await checkAndAwardBadges(user.id, useAuthStore.getState().session?.access_token)
-        await useAuthStore.getState().fetchStats()
-      } catch {}
-    } else if ((bookingData.type === 'activity' || bookingData.type === 'other') && user?.id) {
+    // total_flights and other booking stats are recomputed server-side by DB triggers
+    if (['flight', 'hotel', 'activity', 'other'].includes(bookingData.type) && user?.id) {
       try {
         await checkAndAwardBadges(user.id, useAuthStore.getState().session?.access_token)
         await useAuthStore.getState().fetchStats()
@@ -224,10 +210,7 @@ export const useTripsStore = create((set, get) => ({
     set(state => ({ activities: [...state.activities, data] }))
     if (user?.id) {
       try {
-        const field = activityData.category === 'food' ? 'restaurants_added'
-          : activityData.category === 'museum' ? 'museums_visited'
-          : 'activities_added'
-        await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: field, p_amount: 1 })
+        // restaurants_added / museums_visited / activities_added are recomputed server-side by DB triggers
         await checkAndAwardBadges(user.id, useAuthStore.getState().session?.access_token)
         await useAuthStore.getState().fetchStats()
       } catch {}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTripsStore, useUIStore, useCollabStore, useAuthStore } from '../../store'
-import { format, isPast, isFuture, isWithinInterval } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate, todayLocalISO, daysBetween, hasTripEnded } from '../../lib/dates'
 import Goose from '../../components/goose/Goose'
 import { getCountryColor, getFlagEmoji } from '../../lib/countryColors'
 import ShareNudge from '../../components/shared/ShareNudge'
@@ -10,8 +11,8 @@ import { parseBookingEmail } from '../../lib/gemini'
 // Uses monthly aggregates — tiny payload vs 30yr daily
 async function fetchClimateForecast(lat, lon, startDate, endDate) {
   try {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+    const start = parseLocalDate(startDate)
+    const end = parseLocalDate(endDate)
     // Collect unique months covered by the trip (1-12)
     const months = new Set()
     const d = new Date(start)
@@ -70,12 +71,12 @@ function matchTrip(trips, ultimateDestination, bookings) {
   const departureDates = allBookings
     .map(b => b.departure_time || b.check_in_date || b.activity_date)
     .filter(Boolean)
-    .map(d => new Date(d))
+    .map(d => parseLocalDate(d))
     .filter(d => !isNaN(d.getTime()))
   const arrivalDates = allBookings
     .map(b => b.arrival_time || b.check_out_date)
     .filter(Boolean)
-    .map(d => new Date(d))
+    .map(d => parseLocalDate(d))
     .filter(d => !isNaN(d.getTime()))
 
   const bookingStart = departureDates.length ? new Date(Math.min(...departureDates)) : null
@@ -92,8 +93,8 @@ function matchTrip(trips, ultimateDestination, bookings) {
     if (!cityMatch) continue
 
     if (bookingStart) {
-      const tripStart = new Date(trip.start_date)
-      const tripEnd   = new Date(trip.end_date)
+      const tripStart = parseLocalDate(trip.start_date)
+      const tripEnd   = parseLocalDate(trip.end_date)
       tripStart.setDate(tripStart.getDate() - 7)
       tripEnd.setDate(tripEnd.getDate() + 7)
       if (!(bookingStart <= tripEnd && (bookingEnd || bookingStart) >= tripStart)) continue
@@ -186,12 +187,12 @@ function GlobalEmailImportSheet({ onClose, trips, onBookingCreated }) {
       // Derive date range from all booking legs
       const allDates = parsedBookings.flatMap(b => [
         b.departure_time, b.arrival_time, b.check_in_date, b.check_out_date, b.activity_date
-      ]).filter(Boolean).map(d => new Date(d)).filter(d => !isNaN(d.getTime()))
+      ]).filter(Boolean).map(d => parseLocalDate(d)).filter(d => !isNaN(d.getTime()))
 
       const earliest = allDates.length ? new Date(Math.min(...allDates)) : new Date()
       const latest   = allDates.length ? new Date(Math.max(...allDates)) : earliest
-      const startDate = earliest.toISOString().slice(0, 10)
-      const endDate   = latest.toISOString().slice(0, 10)
+      const startDate = format(earliest, 'yyyy-MM-dd')
+      const endDate   = format(latest, 'yyyy-MM-dd')
 
       // Best-effort country geocode via Photon
       let countryName = '', countryCode = ''
@@ -283,7 +284,7 @@ function GlobalEmailImportSheet({ onClose, trips, onBookingCreated }) {
                 <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 13, color: 'var(--primary)', marginBottom: 2 }}>
                   🎯 Matched to: {matched.title}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-sec)' }}>{matched.destination_city} · {format(new Date(matched.start_date), 'MMM d')} – {format(new Date(matched.end_date), 'MMM d, yyyy')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-sec)' }}>{matched.destination_city} · {format(parseLocalDate(matched.start_date), 'MMM d')} – {format(parseLocalDate(matched.end_date), 'MMM d, yyyy')}</div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   <button className="btn btn-ghost" style={{ flex: 1, fontSize: 13 }} onClick={() => setStep('pick')}>Change trip</button>
                   <button className="btn btn-primary" style={{ flex: 1, fontSize: 13 }} onClick={() => handleSave(matched.id)} disabled={saving}>
@@ -315,7 +316,7 @@ function GlobalEmailImportSheet({ onClose, trips, onBookingCreated }) {
                   fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, color: 'var(--text)',
                 }}>
                   {t.title}
-                  <div style={{ fontSize: 12, color: 'var(--text-tert)', fontWeight: 400, marginTop: 2 }}>{t.destination_city} · {format(new Date(t.start_date), 'MMM d, yyyy')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-tert)', fontWeight: 400, marginTop: 2 }}>{t.destination_city} · {format(parseLocalDate(t.start_date), 'MMM d, yyyy')}</div>
                 </button>
               ))}
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
@@ -360,16 +361,17 @@ function GlobalEmailImportSheet({ onClose, trips, onBookingCreated }) {
 }
 
 function TripCard({ trip, onPress, climate, climateLoading }) {
-  const now = new Date()
-  const start = new Date(trip.start_date)
-  const end = new Date(trip.end_date)
-  const isActive = isWithinInterval(now, { start, end })
-  const isUpcoming = isFuture(start)
+  const today = todayLocalISO()
+  const start = parseLocalDate(trip.start_date)
+  const end = parseLocalDate(trip.end_date)
+  const isActive = trip.start_date <= today && today <= trip.end_date
+  const isUpcoming = trip.start_date > today
+  const isCancelled = trip.status === 'cancelled'
 
-  const statusColor = isActive ? '#2D8B55' : isUpcoming ? '#1A73E8' : '#A09688'
-  const statusLabel = isActive ? 'Active' : isUpcoming ? 'Upcoming' : 'Completed'
+  const statusColor = isCancelled ? '#A09688' : isActive ? '#2D8B55' : isUpcoming ? '#1A73E8' : '#A09688'
+  const statusLabel = isCancelled ? 'Cancelled' : isActive ? 'Active' : isUpcoming ? 'Upcoming' : 'Completed'
 
-  const nights = Math.round((end - start) / (1000 * 60 * 60 * 24))
+  const nights = daysBetween(trip.start_date, trip.end_date)
   const flightCount = trip.bookings?.filter(b => b.type === 'flight').length || 0
   const tempLabel = climate ? `${climate.avgLow}° – ${climate.avgHigh}°C` : null
   const showTempSkeleton = climateLoading && (isActive || isUpcoming)
@@ -510,9 +512,8 @@ export default function TripsScreen() {
   // Geocode + fetch climate for all upcoming trips once on mount / when trips change
   useEffect(() => {
     if (!trips.length) return
-    const now = new Date()
     const relevant = trips.filter(t =>
-      new Date(t.end_date) >= now &&
+      !hasTripEnded(t) &&
       t.destination_city &&
       t.start_date &&
       !(t.id in climateMap)  // skip already-fetched
@@ -560,11 +561,10 @@ export default function TripsScreen() {
 
   useEffect(() => { fetchTrips() }, [])
 
-  const now = new Date()
-  const upcoming = trips.filter(t => new Date(t.end_date) >= now || t.status === 'active')
-    .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
-  const past = trips.filter(t => new Date(t.end_date) < now && t.status !== 'active')
-    .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
+  const upcoming = trips.filter(t => !hasTripEnded(t) || t.status === 'active')
+    .sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
+  const past = trips.filter(t => hasTripEnded(t) && t.status !== 'active')
+    .sort((a, b) => parseLocalDate(b.start_date) - parseLocalDate(a.start_date))
 
   const shown = view === 'upcoming' ? upcoming : past
 

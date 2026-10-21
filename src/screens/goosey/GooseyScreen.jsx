@@ -84,7 +84,7 @@ export default function GooseyScreen() {
         if (user) await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'honks_used', p_amount: 1 })
       } catch {}
     } catch (e) {
-      setError('The Goose hit a snag. Check your Gemini API key or try again.')
+      setError(e?.message ? `The Goose hit a snag: ${e.message}` : 'The Goose hit a snag. Please try again.')
       setHonked(false)
     } finally { setLoading(false) }
   }
@@ -155,6 +155,11 @@ export default function GooseyScreen() {
             {error && (
               <div style={{ background: '#FFF0EE', border: '1.5px solid var(--error)', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: 'var(--error)', marginBottom: 16, textAlign: 'center' }}>
                 {error}
+                {selectedMood && !loading && (
+                  <div style={{ marginTop: 8 }}>
+                    <button className="btn btn-ghost" onClick={handleHonk} style={{ fontSize: 13 }}>Try again</button>
+                  </div>
+                )}
               </div>
             )}
 

@@ -4,6 +4,8 @@ import { useUIStore, useAuthStore, useTripsStore } from '../../store'
 import ShareNudge from '../../components/shared/ShareNudge'
 import Goose from '../../components/goose/Goose'
 import TranslateTool from './components/TranslateTool'
+import { findCurrentOrNextTrip } from '../../lib/dates'
+import { currencyForCountry } from '../../lib/currencies'
 
 const TOOLBOX_TABS = [
   { id: 'currency', label: '💱 Currency' },
@@ -82,44 +84,65 @@ function getCurrencyName(code) {
 // CURRENCY TOOL
 // ============================================================
 function CurrencyTool() {
-  const { profile } = useAuthStore()
+  const { profile, user } = useAuthStore()
+  const { trips } = useTripsStore()
   const homeCurrency = profile?.home_currency || 'USD'
-  const topFive = TOP_PAIRS[homeCurrency] || TOP_PAIRS['USD']
+
+  // Default "from": current/next trip's destination currency, else home currency
+  const destCurrency = currencyForCountry(findCurrentOrNextTrip(trips).trip?.destination_country_code)
+  const defaultFrom = destCurrency || homeCurrency
+  const defaultTo = defaultFrom !== homeCurrency ? homeCurrency : (TOP_PAIRS[homeCurrency] || TOP_PAIRS['USD'])[0]
 
   const [amount, setAmount] = useState('100')
-  const [from, setFrom] = useState(homeCurrency)
-  const [to, setTo] = useState(topFive[0])
+  const [from, setFrom] = useState(defaultFrom)
+  const [to, setTo] = useState(defaultTo)
   const [rates, setRates] = useState(null)
   const [loading, setLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [error, setError] = useState(null)
+  const latestBase = useRef(null)
+
+  // Popular list: home currency first (when converting from elsewhere), then common pairs for `from`
+  const topFive = [...new Set([
+    ...(from !== homeCurrency ? [homeCurrency] : []),
+    ...(TOP_PAIRS[from] || TOP_PAIRS[homeCurrency] || TOP_PAIRS['USD']),
+  ])].filter(c => c !== from).slice(0, 5)
 
   useEffect(() => {
-    setFrom(homeCurrency)
-    setTo((TOP_PAIRS[homeCurrency] || TOP_PAIRS['USD'])[0])
-  }, [homeCurrency])
+    setFrom(defaultFrom)
+    setTo(defaultTo)
+  }, [defaultFrom, defaultTo])
 
   useEffect(() => { fetchRates(from) }, [from])
 
   const fetchRates = async (base) => {
+    latestBase.current = base
     setLoading(true)
     setError(null)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10000)
     try {
-      const res = await fetch(`https://open.er-api.com/v6/latest/${base}`)
+      const res = await fetch(`https://open.er-api.com/v6/latest/${base}`, { signal: controller.signal })
       const data = await res.json()
+      if (latestBase.current !== base) return // a newer request superseded this one
       if (data.result === 'success') {
         setRates(data.rates)
         setLastUpdated(new Date().toLocaleTimeString())
-        // Stat increment — fire and forget
-        try {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'currency_lookups', p_amount: 1 })
-        } catch {}
+        // Stat increment — fire and forget; never block the result on it
+        if (user?.id) {
+          supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'currency_lookups', p_amount: 1 })
+            .then(() => {}, () => {})
+        }
       } else {
+        setRates(null)
         setError('Could not load rates')
       }
-    } catch { setError('No connection') }
-    finally { setLoading(false) }
+    } catch {
+      if (latestBase.current === base) { setRates(null); setError('No connection') }
+    } finally {
+      clearTimeout(timer)
+      if (latestBase.current === base) setLoading(false)
+    }
   }
 
   const rate = rates?.[to]
@@ -378,7 +401,7 @@ const EMBASSY_DATA = {
 
 // Emergency numbers by country code
 const EMERGENCY = {
-  US: { police: '911', ambulance: '911', fire: '911', tourist: '1-800-CALL-FBI' },
+  US: { police: '911', ambulance: '911', fire: '911', tourist: null },
   GB: { police: '999', ambulance: '999', fire: '999', tourist: '101' },
   AU: { police: '000', ambulance: '000', fire: '000', tourist: '131 444' },
   CA: { police: '911', ambulance: '911', fire: '911', tourist: null },
@@ -407,13 +430,9 @@ function SOSTool() {
   const [showCard, setShowCard] = useState(false)
 
   // Priority: active trip country → next upcoming trip country → passport country → default
-  const now = new Date()
-  const activeTrip = trips.find(t => new Date(t.start_date) <= now && new Date(t.end_date) >= now)
-  const nextTrip = trips
-    .filter(t => new Date(t.start_date) > now)
-    .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))[0]
-
-  const destinationTrip = activeTrip || nextTrip
+  const { trip: destinationTrip, isLive: hasLiveTrip } = findCurrentOrNextTrip(trips)
+  const activeTrip = hasLiveTrip ? destinationTrip : null
+  const nextTrip = hasLiveTrip ? null : destinationTrip
   const countryCode = destinationTrip?.destination_country_code || profile?.passport_country || 'DEFAULT'
   const countryName = destinationTrip?.destination_country || profile?.passport_country || 'your destination'
   const isLive = !!activeTrip

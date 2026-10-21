@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore, useTripsStore, useUIStore, useCollabStore } from '../../store'
-import { format, isFuture, isWithinInterval, differenceInDays } from 'date-fns'
+import { format } from 'date-fns'
+import { parseLocalDate, todayLocalISO, daysBetween, isTripCompleted, hasTripEnded } from '../../lib/dates'
 import { getFlagEmoji, getCountryColor } from '../../lib/countryColors'
 import { parseBookingEmail } from '../../lib/gemini'
 import Goose from '../../components/goose/Goose'
@@ -87,7 +88,7 @@ function ItineraryTab({ trip }) {
   const allItems = [
     ...bookings.map(b => ({ ...b, _kind: 'booking', _date: b.departure_time || b.check_in_date || (b.activity_date ? b.activity_date + 'T12:00:00' : null) })),
     ...activities.map(a => ({ ...a, _kind: 'activity', _date: a.date }))
-  ].filter(i => i._date).sort((a, b) => new Date(a._date) - new Date(b._date))
+  ].filter(i => i._date).sort((a, b) => parseLocalDate(a._date) - parseLocalDate(b._date))
 
   const noDate = [
     ...bookings.filter(b => !b.departure_time && !b.check_in_date && !b.activity_date).map(b => ({ ...b, _kind: 'booking' })),
@@ -618,7 +619,7 @@ function EmailImportSheet({ tripId, onClose, onCreate }) {
       const bookings = Array.isArray(result.bookings) ? result.bookings : [result]
       setParsedBookings(bookings)
       setUltimateDest(result.ultimate_destination || null)
-    } catch (e) { setError('Could not parse email. Try again or add manually.') }
+    } catch (e) { setError(e?.message || 'Could not parse email. Try again or add manually.') }
     finally { setLoading(false) }
   }
 
@@ -765,10 +766,16 @@ function WeatherTab({ trip }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isHistorical, setIsHistorical] = useState(false)
+  const [tripEnded, setTripEnded] = useState(false)
 
   useEffect(() => {
     const fetchWeather = async () => {
       try {
+        if (hasTripEnded(trip)) {
+          // Past trip: a live forecast would be today's weather, not the trip's
+          setTripEnded(true)
+          return
+        }
         let lat = trip.destination_lat, lon = trip.destination_lng
         if (!lat || !lon) {
           const geoRes = await fetch(
@@ -783,9 +790,8 @@ function WeatherTab({ trip }) {
         const unit = profile?.temp_unit || 'C'
         const tempUnit = unit === 'F' ? 'fahrenheit' : 'celsius'
 
-        const today = new Date(); today.setHours(0,0,0,0)
-        const tripStart = new Date(trip.start_date + 'T12:00:00')
-        const daysUntilTrip = Math.round((tripStart - today) / (1000 * 60 * 60 * 24))
+        const tripStart = parseLocalDate(trip.start_date)
+        const daysUntilTrip = daysBetween(todayLocalISO(), trip.start_date)
 
         if (daysUntilTrip <= 16) {
           // Live forecast
@@ -860,6 +866,13 @@ function WeatherTab({ trip }) {
   }
 
   if (loading) return <div style={{ padding: 24, display: 'flex', justifyContent: 'center' }}><div className="skeleton" style={{ width: '100%', height: 200, borderRadius: 16 }} /></div>
+  if (tripEnded) return (
+    <div className="empty-state" style={{ marginTop: 40 }}>
+      <Goose variant="pilot" size={72} />
+      <div className="empty-state-title">Trip ended</div>
+      <p className="empty-state-text">This trip ended on {format(parseLocalDate(trip.end_date), 'MMM d, yyyy')}, so there is no forecast to show.</p>
+    </div>
+  )
   if (error) return <div className="empty-state" style={{ marginTop: 40 }}><Goose variant="worried" size={72} /><div className="empty-state-title">{error}</div></div>
 
   const [icon, desc] = weatherDesc(weather.code)
@@ -906,7 +919,7 @@ function WeatherTab({ trip }) {
             }}>
               <div style={{ minWidth: 52 }}>
                 <div style={{ fontSize: 12, fontFamily: 'var(--font-heading)', fontWeight: 700, color: inTrip ? 'var(--primary)' : 'var(--text-sec)' }}>
-                  {day.date === new Date().toISOString().slice(0, 10) ? 'Today' : format(new Date(day.date + 'T12:00:00'), 'EEE')}
+                  {day.date === todayLocalISO() ? 'Today' : format(new Date(day.date + 'T12:00:00'), 'EEE')}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-tert)', fontFamily: 'var(--font-mono)' }}>
                   {format(new Date(day.date + 'T12:00:00'), 'MMM d')}
@@ -942,6 +955,7 @@ function WeatherTab({ trip }) {
 function ChecklistTab({ trip }) {
   const { bookings } = useTripsStore()
   const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState(null)
   const [collapsed, setCollapsed] = useState({})
 
   const STORAGE_KEY = `checklist_${trip.id}`
@@ -981,11 +995,13 @@ function ChecklistTab({ trip }) {
     ],
   }
 
-  const nights = Math.round((new Date(trip.end_date) - new Date(trip.start_date)) / (1000 * 60 * 60 * 24))
+  const nights = daysBetween(trip.start_date, trip.end_date)
   const flightCount = bookings.filter(b => b.type === 'flight').length
+  const tripOver = hasTripEnded(trip)
 
   const generateWithAI = async () => {
     setGenerating(true)
+    setGenError(null)
     try {
       // Fetch lightweight weather context for the trip window
       let weatherContext = null
@@ -1022,6 +1038,7 @@ function ChecklistTab({ trip }) {
 
       const { generateChecklist } = await import('../../lib/gemini.js')
       const aiSections = await generateChecklist(trip, bookings, weatherContext)
+      if (!Array.isArray(aiSections)) throw new Error('The Goose returned an unexpected response. Please try again.')
       const result = aiSections.map(section => ({
         title: section.title,
         items: section.items.map(item => {
@@ -1034,11 +1051,16 @@ function ChecklistTab({ trip }) {
       }))
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(result)) } catch {}
       setSections(result)
-    } catch {
-      const result = objectToChecklist(DEFAULTS)
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(result)) } catch {}
-      setSections(result)
+    } catch (e) {
+      setGenError(e?.message || 'Could not build your packing list.')
     } finally { setGenerating(false) }
+  }
+
+  const applyBasicList = () => {
+    const result = objectToChecklist(DEFAULTS)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(result)) } catch {}
+    setGenError(null)
+    setSections(result)
   }
 
   const objectToChecklist = (obj) => Object.entries(obj).map(([title, items]) => ({
@@ -1062,13 +1084,34 @@ function ChecklistTab({ trip }) {
 
   const toggleSection = (title) => setCollapsed(c => ({ ...c, [title]: !c[title] }))
 
-  // Auto-generate on mount if no saved checklist
+  // Auto-generate on mount if no saved checklist — never for trips that have already ended
   useEffect(() => {
-    if (!sections && !generating) generateWithAI()
+    if (!sections && !generating && !tripOver) generateWithAI()
   }, []) // eslint-disable-line
 
   const totalItems = sections?.reduce((sum, s) => sum + s.items.length, 0) || 0
   const checkedItems = sections?.reduce((sum, s) => sum + s.items.filter(i => i.checked).length, 0) || 0
+
+  if (genError && !generating) return (
+    <div className="empty-state" style={{ marginTop: 40 }}>
+      <Goose variant="worried" size={72} />
+      <div className="empty-state-title">Couldn't build your packing list</div>
+      <p className="empty-state-text">{genError}</p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={generateWithAI}>Try again</button>
+        <button className="btn btn-ghost" onClick={applyBasicList}>Use a basic list</button>
+      </div>
+    </div>
+  )
+
+  if (!sections && !generating && tripOver) return (
+    <div className="empty-state" style={{ marginTop: 40 }}>
+      <Goose variant="pilot" size={72} />
+      <div className="empty-state-title">Trip ended</div>
+      <p className="empty-state-text">This trip is over, so there is no packing list to build.</p>
+      <button className="btn btn-ghost" onClick={generateWithAI}>Build one anyway</button>
+    </div>
+  )
 
   if (!sections || generating) return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', textAlign: 'center', marginTop: 40 }}>
@@ -1118,7 +1161,7 @@ function ChecklistTab({ trip }) {
         </div>
       ))}
 
-      <button className="btn btn-ghost btn-full" onClick={() => { try { localStorage.removeItem(STORAGE_KEY) } catch {}; setSections(null) }} style={{ fontSize: 13 }}>Regenerate List</button>
+      <button className="btn btn-ghost btn-full" onClick={() => { try { localStorage.removeItem(STORAGE_KEY) } catch {}; setSections(null); generateWithAI() }} style={{ fontSize: 13 }}>Regenerate List</button>
     </div>
   )
 }
@@ -1272,13 +1315,14 @@ export default function TripDetailScreen() {
 
   if (!trip) return null
 
-  const now = new Date()
-  const start = new Date(trip.start_date)
-  const end = new Date(trip.end_date)
-  const isActive = isWithinInterval(now, { start, end })
-  const isUpcoming = isFuture(start)
-  const daysAway = differenceInDays(start, now)
-  const dayOf = isActive ? differenceInDays(now, start) + 1 : null
+  const today = todayLocalISO()
+  const start = parseLocalDate(trip.start_date)
+  const end = parseLocalDate(trip.end_date)
+  const isActive = trip.start_date <= today && today <= trip.end_date
+  const isUpcoming = trip.start_date > today
+  const daysAway = daysBetween(today, trip.start_date)
+  const dayOf = isActive ? daysBetween(trip.start_date, today) + 1 : null
+  const totalDays = daysBetween(trip.start_date, trip.end_date) + 1
 
   const flag = getFlagEmoji(trip.destination_country_code)
   const accentColor = getCountryColor(trip.destination_country_code)
@@ -1339,12 +1383,17 @@ export default function TripDetailScreen() {
           </span>
           {isActive && (
             <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 99, padding: '2px 10px', fontSize: 12, fontFamily: 'var(--font-heading)', fontWeight: 700 }}>
-              Day {dayOf} of {differenceInDays(end, start) + 1}
+              Day {dayOf} of {totalDays}
             </span>
           )}
           {isUpcoming && (
             <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 99, padding: '2px 10px', fontSize: 12, fontFamily: 'var(--font-heading)', fontWeight: 700 }}>
-              {daysAway === 0 ? 'Tomorrow!' : daysAway === 1 ? '1 day away' : `${daysAway} days away`}
+              {daysAway === 1 ? 'Tomorrow!' : `${daysAway} days away`}
+            </span>
+          )}
+          {isTripCompleted(trip) && (
+            <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 99, padding: '2px 10px', fontSize: 12, fontFamily: 'var(--font-heading)', fontWeight: 700 }}>
+              Completed
             </span>
           )}
           <span style={{ marginLeft: 'auto', opacity: 0.85, fontSize: 13, fontFamily: 'var(--font-mono)' }}>

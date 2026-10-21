@@ -17,7 +17,8 @@ async function checkAndAwardBadges(userId, accessToken) {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ user_id: userId }),
+      // Server derives the user from the JWT; body.user_id is not sent
+      body: JSON.stringify({}),
     })
   } catch (e) {
     console.error('checkAndAwardBadges error', e)

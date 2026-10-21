@@ -140,10 +140,8 @@ export default function TranslateTool() {
       } catch {}
 
       const { generatePhrases } = await import('../../../lib/gemini.js')
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Phrase generation timed out — please retry')), 20000)
-      )
-      const generated = await Promise.race([generatePhrases(lang.code, lang.name), timeoutPromise])
+      // invokeFunction applies a 30s timeout and surfaces the server's { error } message
+      const generated = await generatePhrases(lang.code, lang.name)
 
       const phraseData = {}
       PHRASE_CATEGORIES.forEach(cat => { phraseData[cat.id] = generated[cat.id] || [] })
@@ -173,7 +171,7 @@ export default function TranslateTool() {
 
       setPhrases(phraseData)
     } catch (e) {
-      setError('Phrase generation failed. Check connection and try again.')
+      setError(e?.message || 'Phrase generation failed. Check connection and try again.')
     } finally {
       setLoading(false)
     }

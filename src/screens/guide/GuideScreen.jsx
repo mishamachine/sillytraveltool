@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useTripsStore, useUIStore, useGuideStore, useAuthStore } from '../../store'
 import Goose from '../../components/goose/Goose'
 import ShareNudge from '../../components/shared/ShareNudge'
+import { parseLocalDate, hasTripEnded } from '../../lib/dates'
 
 const GUIDE_TABS = [
   { id: 'know',   emoji: '🧠', label: 'Know'   },
@@ -17,10 +18,9 @@ const GUIDE_TABS = [
 function AddToTripSheet({ item, itemType, onClose }) {
   const { trips, createActivity } = useTripsStore()
   const { user } = useAuthStore()
-  const now = new Date()
   const upcoming = trips
-    .filter(t => new Date(t.end_date) >= now && t.status !== 'cancelled')
-    .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+    .filter(t => !hasTripEnded(t) && t.status !== 'cancelled')
+    .sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
 
   const [selectedTripId, setSelectedTripId] = useState(upcoming[0]?.id || '')
   const [date, setDate] = useState('')
@@ -645,8 +645,8 @@ export default function GuideScreen() {
   const [loadingMore, setLoadingMore] = useState(null)
 
   const upcomingTrips = trips
-    .filter(t => new Date(t.end_date) >= new Date() && t.status !== 'cancelled')
-    .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+    .filter(t => !hasTripEnded(t) && t.status !== 'cancelled')
+    .sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
 
   const upcomingTrip = upcomingTrips[0]
 
@@ -844,7 +844,16 @@ export default function GuideScreen() {
           <Goose variant="worried" size={80} />
           <div className="empty-state-title">Couldn't load this section</div>
           <p className="empty-state-text">{guideError}</p>
-          <button className="btn btn-primary" onClick={() => { clearGuide(); loadGuide(destination.city, destination.country, destination.country_code) }}>
+          <button className="btn btn-primary" onClick={async () => {
+            if (!useGuideStore.getState().sections.overview) {
+              clearGuide()
+              await loadGuide(destination.city, destination.country, destination.country_code)
+            }
+            // Re-request any sub-sections this tab still needs
+            neededSections.forEach(s => {
+              if (!useGuideStore.getState().sections[s]) loadGuideSection(destination.city, destination.country, s)
+            })
+          }}>
             Try again
           </button>
         </div>

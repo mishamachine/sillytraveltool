@@ -922,7 +922,7 @@ function SettingsTab({ profile, onSignOut }) {
       </button>
 
       <div style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-tert)', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>
-        STT v0.1.0 · Made with 🪿
+        STT v{import.meta.env.VITE_APP_VERSION || '0.19.0'} · Made with 🪿
       </div>
     </div>
   )
