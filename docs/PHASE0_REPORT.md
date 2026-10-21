@@ -57,9 +57,12 @@ Rollback material: `supabase/backups/2026-10-21-pre-phase0.md`.
 - `npm run build:native` builds without the service worker and syncs to `android/`; `npm run android` builds and runs.
 - Emulator `STT_Pixel` (Pixel 7, API 37 Play Store image). Screenshots in `docs/screenshots/`.
 - No JS errors in logcat; one harmless Capacitor safe-area injection warning.
-- **Known blocker for native sign-in:** magic link, sign-up confirmation, password reset and Google OAuth redirect to
-  `window.location.origin` (`https://localhost` inside the app). Needs deep links / custom URL scheme (Phase 2, App Store readiness).
-  Email + password sign-in should work.
+- **Native sign-in links (added after Phase 0):** magic link, sign-up confirmation, password reset and Google return to the app via
+  `com.sillytraveltool.app://auth-callback` (PKCE; handler in `src/native/deepLinks.js`). Requires the Supabase redirect URL
+  `com.sillytraveltool.app://**` (Authentication → URL Configuration). Emulator-tested with simulated links; a real email/Google
+  round trip still needs the owner. Android App Links (https) planned for Phase 2.
+- Emulator note: the API 37 image forces software rendering on this Mac, so the emulator is slow and can show "isn't responding"
+  dialogs under load. Not an app issue; an API 36 image or a real device avoids it.
 - Placeholder adaptive icon from `app-icon-tag.svg`; splash is still Capacitor's default.
 
 ## Known gaps
