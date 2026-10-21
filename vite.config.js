@@ -1,11 +1,28 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { readFileSync } from 'node:fs'
 
-export default defineConfig({
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+
+// `vite build --mode native` = Capacitor build: no PWA plugin, so no service
+// worker and no registerSW script (HANDOFF: "Disable the service worker in the native build").
+export default defineConfig(({ mode }) => {
+  const isNative = mode === 'native'
+  return {
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version),
+    'import.meta.env.VITE_NATIVE': JSON.stringify(isNative),
+  },
   plugins: [
     react(),
-    VitePWA({
+    // Native: drop viewport-fit=cover so Capacitor's SystemBars pads the WebView
+    // below the status bar / above the nav bar (screens don't all honour safe-area-inset-top yet).
+    isNative && {
+      name: 'stt-native-viewport',
+      transformIndexHtml: (html) => html.replace(', viewport-fit=cover', ''),
+    },
+    !isNative && VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
@@ -98,8 +115,9 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/]
       }
     })
-  ],
+  ].filter(Boolean),
   resolve: {
     alias: { '@': '/src' }
+  }
   }
 })

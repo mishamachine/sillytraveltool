@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Silly Travel Tool</string>
+    <string name="title_activity_main">Silly Travel Tool</string>
+    <string name="package_name">com.sillytraveltool.app</string>
+    <string name="custom_url_scheme">com.sillytraveltool.app</string>
+</resources>
