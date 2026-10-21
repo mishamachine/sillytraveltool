@@ -1,3 +1,22 @@
-.explore-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface-page); }
-.explore-shell__switch { flex-shrink: 0; padding: calc(var(--safe-top) + var(--space-4)) var(--space-5) var(--space-2); }
-.explore-shell__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* Explore tab: guide overview tiles, section detail, HONK */
+.explore-tile { align-items: flex-start; min-height: 132px; text-align: left; }
+.explore-tile__line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.explore-tile--hint { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong); justify-content: center; }
+
+.explore-moods { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.c-card--inverse .explore-mood { background: transparent; color: var(--ink-inverse); box-shadow: inset 0 0 0 1px var(--progress-track-inverse); }
+.c-card--inverse .explore-mood.is-selected { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
+
+.explore-place { gap: var(--space-3); }
+.explore-place__head { display: flex; align-items: flex-start; gap: var(--space-2); }
+.explore-place__toggle {
+  flex: 1; min-width: 0; min-height: var(--touch-min); display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: inherit; font: inherit;
+}
+.explore-quip { font-style: italic; }
+.explore-clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.explore-list { margin: 0; padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); color: var(--ink); }
+.explore-list li::marker { color: var(--accent); }
+.explore-ai { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.explore-chips .c-chip--action.is-selected { background: var(--accent-fill); color: var(--on-accent); box-shadow: var(--shadow-accent); }
+.c-screen > .explore-chips, .c-stack > .explore-chips, .c-stack > .explore-filter { flex-shrink: 0; }
