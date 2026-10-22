@@ -23,6 +23,37 @@ import { supabase } from '../lib/supabase'
 // Sections built from Google places: the facts arrive first, then the Goose's words "ink in" (voice stage)
 export const PLACE_SECTIONS = ['eat_cheap', 'eat_mid', 'eat_splurge', 'see_temples', 'see_museums', 'see_parks']
 
+// Everything else in a guide; preloaded in the background as soon as a city is picked
+const AI_SECTIONS = ['see_neighbourhoods', 'see_daytrips', 'move', 'events']
+
+const destinationKey = (city, countryOrCode) => `${city.toLowerCase().replace(/ /g, '-')}-${countryOrCode.toLowerCase().replace(/ /g, '-')}`
+
+/** Run async jobs with at most `limit` in flight. */
+async function pool(jobs, limit) {
+  const queue = [...jobs]
+  const worker = async () => { while (queue.length) { try { await queue.shift()() } catch { /* best-effort */ } } }
+  await Promise.all(Array.from({ length: Math.min(limit, queue.length) }, worker))
+}
+
+/**
+ * Warm a city's shared guide cache without showing it (a trip was just created): overview, Google facts and the
+ * Goose's words for every section, so the guide opens instantly later. Server-side cache only; fire and forget.
+ */
+// Countries Goose doesn't write guides for
+export const GUIDE_EXCLUDED = ['IL']
+
+export async function warmGuide(city, country, countryCode) {
+  if (!city || !country || GUIDE_EXCLUDED.includes((countryCode || '').toUpperCase())) return
+  const key = destinationKey(city, countryCode || country)
+  const { generateGuideContent } = await import('../lib/gemini.js')
+  const ask = (section, stage) => () => generateGuideContent(city, country, section, [], key, stage)
+  await pool([
+    ask('overview'),
+    ...PLACE_SECTIONS.map(sec => async () => { const f = await ask(sec, 'facts')(); if (f?.voice_pending) await ask(sec, 'voice')() }),
+    ...AI_SECTIONS.map(sec => ask(sec)),
+  ], 3)
+}
+
 // Module-level — never stale in closures, not part of reactive state
 // Keys are "destinationKey:section" e.g. "tokyo-japan:overview"
 const _inflight = {}
@@ -77,7 +108,15 @@ export const useGuideStore = create((set, get) => ({
       loadingSections: {},
     })
 
+    // Every section starts loading now, in the background, so tabs open instantly
+    get().prefetchAll(city, country)
     await get().loadGuideSection(city, country, 'overview')
+  },
+
+  /** Google-backed sections all at once (fast, no AI); the AI-only ones two at a time. */
+  prefetchAll: (city, country) => {
+    PLACE_SECTIONS.forEach(sec => get().loadGuideSection(city, country, sec))
+    pool(AI_SECTIONS.map(sec => () => get().loadGuideSection(city, country, sec)), 2)
   },
 
   loadGuideSection: async (city, country, section) => {

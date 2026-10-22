@@ -1,14 +1,15 @@
-import { useState } from 'react'
-import { useUIStore, useGuideStore } from '../../store'
+import { useEffect, useState } from 'react'
+import { useUIStore, useGuideStore, useTripsStore, useIdeasStore, tripForCity } from '../../store'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import {
   Screen, ScreenHeader, Section, Card, Chip, Text, Stack, Icon, IconTile, ListRow, Button,
-  Loading, ErrorState, EmptyState, Skeleton, GooseMark,
+  Loading, ErrorState, EmptyState, Skeleton, GooseMark, Toast,
 } from '../../ui'
 import { useCityGuide, TAB_SECTIONS } from './useCityGuide'
 import { GUIDE_SECTIONS, KnowSection, EatSection, SeeSection, MoveSection, EventsSection } from './GuideSections'
 import HonkView, { MOODS } from './HonkView'
-import AddToTripSheet from './AddToTripSheet'
+import IdeaSheet from './IdeaSheet'
+import GetThereSheet from '../../components/shared/GetThereSheet'
 import AiDisclosure from './AiDisclosure'
 import './explore.css'
 
@@ -68,14 +69,33 @@ export default function ExploreScreen() {
 
 function GuideHome({ setHonkMood, setMode }) {
   const [open, setOpen] = useState(false)
-  const [addToTripItem, setAddToTripItem] = useState(null)
+  const [ideaFor, setIdeaFor] = useState(null) // { item, kind, status }
+  const [getThere, setGetThere] = useState(null)
+  const [toast, setToast] = useState(null)
   const g = useCityGuide(open)
   const { destination } = g
   const loadingSections = useGuideStore(s => s.loadingSections)
   useBackHandler(open, () => setOpen(false))
 
+  // Trip ideas: the guide belongs to the trip for this city (if there is one) and shows what's shortlisted or booked
+  const trips = useTripsStore(s => s.trips)
+  const cityTrip = tripForCity(trips, destination?.city)
+  const { load: loadIdeas, statusFor, addIdea } = useIdeasStore()
+  useIdeasStore(s => s.byTrip[cityTrip?.id]) // re-render when this trip's ideas change
+  useEffect(() => { if (cityTrip?.id) loadIdeas(cityTrip.id) }, [cityTrip?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const statusOf = item => (cityTrip ? statusFor(cityTrip.id, item) : null)
+  const say = msg => { setToast(msg); setTimeout(() => setToast(null), 2600) }
+
   const openSection = (id) => { g.setGuideTab(id); setOpen(true) }
-  const handleAddToTrip = (item, itemType) => setAddToTripItem({ item, itemType })
+  // One tap saves to the city's trip; shortlisted / booked places, or no trip yet, open the idea sheet
+  const handleAddToTrip = async (item, kind) => {
+    const status = statusOf(item)
+    if (cityTrip && !status) {
+      try { await addIdea(cityTrip.id, item, kind); say(`Saved to ${cityTrip.title} ideas`) } catch { say('Couldn\'t save it. Check your connection.') }
+      return
+    }
+    setIdeaFor({ item, kind, status })
+  }
   const overviewLoading = !!loadingSections.overview
   const overviewFailed = !overviewLoading && !!g.guideError && !g.sections.overview
 
@@ -126,12 +146,15 @@ function GuideHome({ setHonkMood, setMode }) {
 
         {g.isSectionLoaded && (
           <>
-            <View data={g.guideData} destination={destination} onAddToTrip={handleAddToTrip} onLoadMore={g.loadMore} loadingMore={g.loadingMore} />
+            <View data={g.guideData} destination={destination} onAddToTrip={handleAddToTrip} onGetThere={setGetThere} statusOf={statusOf}
+              onLoadMore={g.loadMore} loadingMore={g.loadingMore} />
             <AiDisclosure city={destination.city} />
           </>
         )}
 
-        {addToTripItem && <AddToTripSheet item={addToTripItem.item} itemType={addToTripItem.itemType} onClose={() => setAddToTripItem(null)} />}
+        {ideaFor && <IdeaSheet {...ideaFor} destination={destination} trip={cityTrip} onSaved={say} onClose={() => setIdeaFor(null)} />}
+        {getThere && <GetThereSheet place={getThere} countryCode={destination.country_code} onClose={() => setGetThere(null)} />}
+        {toast && <Toast icon="check" title={toast} />}
       </Screen>
     )
   }
@@ -182,7 +205,7 @@ function GuideHome({ setHonkMood, setMode }) {
               })}
               <Card variant="tile" className="explore-tile explore-tile--hint" as="div">
                 <Icon name="sparkles" size={24} className="tone-accent" />
-                <Text variant="micro" tone="muted" as="span">Each section is written the first time you open it, then saved for everyone.</Text>
+                <Text variant="micro" tone="muted" as="span">Goose writes every section in the background as soon as you pick a city, then saves it for everyone.</Text>
               </Card>
             </div>
           )}

@@ -13,7 +13,8 @@ export const TAB_SECTIONS = {
 }
 
 // Destinations with no guide
-export const EXCLUDED = ['IL']
+export { GUIDE_EXCLUDED as EXCLUDED } from '../../store/guideStore'
+import { GUIDE_EXCLUDED as EXCLUDED } from '../../store/guideStore'
 
 const toDest = t => ({ city: t.destination_city, country: t.destination_country, country_code: t.destination_country_code })
 

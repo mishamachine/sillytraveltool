@@ -3,6 +3,8 @@ import {
   Card, Text, Stack, Icon, IconTile, IconButton, Button, LinkButton, Chip, SegmentedControl, EmptyState, ListRow, Overline, Banner, cx, GooseSvg,
 } from '../../ui'
 import { mapsUrl } from '../../lib/trips'
+import { format } from 'date-fns'
+import { parseLocalDate } from '../../lib/dates'
 import { safeUrl } from '../../lib/safeUrl'
 import { PlacePhoto, GoogleRating, GoogleAttribution, InkWait } from '../../components/shared/PlaceMedia'
 
@@ -27,6 +29,8 @@ function ScoreChip({ score }) {
   if (isNaN(s)) return null
   return <Chip icon="star" aria-label={`Goose rating ${s.toFixed(1)} out of 10`}>{s.toFixed(1)}</Chip>
 }
+
+const formatShort = d => format(parseLocalDate(d), 'EEE d MMM')
 
 const PRICE = ['Free', '$', '$$', '$$$', '$$$$']
 const compact = n => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
@@ -62,7 +66,26 @@ function GoosePick() {
 }
 
 /** Restaurant or attraction: collapsed summary, expands to description, tip and links. */
-function PlaceCard({ item, kind, onAddToTrip }) {
+/** The card's save button reflects the trip: new (+), shortlisted (soft check), booked (solid calendar). */
+function SaveButton({ item, kind, status, onAddToTrip }) {
+  const state = status?.state
+  const label = state === 'booked' ? `${item.name} is booked on your trip` : state === 'idea' ? `${item.name} is in your trip ideas` : `Save ${item.name} to trip ideas`
+  return (
+    <IconButton icon={state === 'booked' ? 'calendar' : state === 'idea' ? 'check' : 'plus'}
+      variant={state === 'booked' ? 'accent' : 'sunken'} className={state === 'idea' ? 'is-saved' : undefined}
+      label={label} aria-pressed={!!state} onClick={() => onAddToTrip(item, kind)} />
+  )
+}
+
+function StatusLine({ status }) {
+  if (!status) return null
+  if (status.state === 'idea') return <Text variant="micro" tone="accent" as="span" className="explore-place__status">In your trip ideas</Text>
+  const b = status.booking
+  const when = [b.activity_date && formatShort(b.activity_date), b.activity_time?.slice(0, 5)].filter(Boolean).join(', ')
+  return <Text variant="micro" tone="success" as="span" className="explore-place__status">{when ? `Booked · ${when}` : 'Booked'}</Text>
+}
+
+function PlaceCard({ item, kind, onAddToTrip, onGetThere, status }) {
   const [expanded, setExpanded] = useState(false)
   const bodyId = useId()
   const sub = kind === 'restaurant' ? item.cuisine : item.type
@@ -78,6 +101,7 @@ function PlaceCard({ item, kind, onAddToTrip }) {
           <span className="explore-place__text">
             <Text variant="card-title" as="span" className="explore-place__name">{item.name}</Text>
             <PlaceMeta item={item} sub={sub} />
+            <StatusLine status={status} />
             {item.pending && !expanded && <InkWait label="The Goose is writing" />}
             {!item.pending && !expanded && (item.goose_quip || item.is_goose_pick) && (
               <Text variant="caption" tone="accent" as="span" className={cx('explore-quip explore-quip--short', ink)}>
@@ -86,7 +110,12 @@ function PlaceCard({ item, kind, onAddToTrip }) {
             )}
           </span>
         </button>
-        <IconButton icon="plus" variant="sunken" label={`Add ${item.name} to a trip`} onClick={() => onAddToTrip(item, kind)} />
+        <div className="explore-place__actions">
+          <SaveButton item={item} kind={kind} status={status} onAddToTrip={onAddToTrip} />
+          {onGetThere && (item.lat != null || item.address) && (
+            <IconButton icon="navigation" variant="sunken" label={`Get there: ${item.name}`} onClick={() => onGetThere(item)} />
+          )}
+        </div>
       </div>
       {expanded && (
         <Stack gap={3} id={bodyId}>
@@ -117,7 +146,10 @@ function PlaceCard({ item, kind, onAddToTrip }) {
             </Stack>
           )}
           <Stack row gap={2} wrap>
-            <Button variant="primary" size="sm" icon="plus" onClick={() => onAddToTrip(item, kind)}>Add to trip</Button>
+            <Button variant="primary" size="sm" icon={status?.state === 'idea' ? 'calendar' : status ? 'check' : 'plus'} onClick={() => onAddToTrip(item, kind)}>
+              {status?.state === 'idea' ? 'Confirm a visit' : status ? 'Booked' : 'Save to trip ideas'}
+            </Button>
+            {onGetThere && (item.lat != null || item.address) && <LinkButton icon="navigation" onClick={() => onGetThere(item)}>Get there</LinkButton>}
             {(safeUrl(item.maps_url) || item.google_maps_query) && (
               <LinkButton href={safeUrl(item.maps_url) || mapsUrl(item.google_maps_query)} target="_blank" rel="noreferrer" icon="map">Maps</LinkButton>
             )}
@@ -134,7 +166,7 @@ function LoadMore({ sectionKey, loadingMore, onLoadMore, label }) {
   const busy = loadingMore === sectionKey
   return (
     <Button variant="outline" block icon={busy ? undefined : 'plus'} loading={busy} onClick={() => onLoadMore(sectionKey)}>
-      {busy ? 'Goose is finding more' : `Show 10 more ${label}`}
+      {busy ? 'Goose is finding more' : `Show 15 more ${label}`}
     </Button>
   )
 }
@@ -225,7 +257,7 @@ const TIERS = [
   { value: 'splurge', label: 'Splurge', key: 'eat_splurge' },
 ]
 
-export function EatSection({ data, onAddToTrip, onLoadMore, loadingMore }) {
+export function EatSection({ data, onAddToTrip, onGetThere, statusOf, onLoadMore, loadingMore }) {
   const [tier, setTier] = useState('cheap')
   const sectionKey = TIERS.find(t => t.value === tier).key
   const restaurants = data?.[sectionKey] || []
@@ -233,7 +265,7 @@ export function EatSection({ data, onAddToTrip, onLoadMore, loadingMore }) {
     <Stack gap={3}>
       <SegmentedControl role="radiogroup" label="Price" value={tier} onChange={setTier} options={TIERS} />
       {restaurants.length === 0 && <EmptyState goose="worried" title="No restaurants yet">Try another price range.</EmptyState>}
-      {restaurants.map((r, i) => <PlaceCard key={`${r.name}-${i}`} item={r} kind="restaurant" onAddToTrip={onAddToTrip} />)}
+      {restaurants.map((r, i) => <PlaceCard key={`${r.name}-${i}`} item={r} kind="restaurant" onAddToTrip={onAddToTrip} onGetThere={onGetThere} status={statusOf?.(r)} />)}
       {restaurants.length > 0 && <LoadMore sectionKey={sectionKey} loadingMore={loadingMore} onLoadMore={onLoadMore} label="places" />}
       {restaurants.some(r => r.place_id) && <GoogleAttribution />}
     </Stack>
@@ -251,7 +283,7 @@ const SEE_CATEGORIES = [
   { value: 'daytrips', label: 'Day trips', key: 'see_daytrips' },
 ]
 
-export function SeeSection({ data, onAddToTrip, onLoadMore, loadingMore }) {
+export function SeeSection({ data, onAddToTrip, onGetThere, statusOf, onLoadMore, loadingMore }) {
   const [cat, setCat] = useState('museums')
   const sectionKey = SEE_CATEGORIES.find(c => c.value === cat).key
   const items = data?.[sectionKey] || []
@@ -263,7 +295,7 @@ export function SeeSection({ data, onAddToTrip, onLoadMore, loadingMore }) {
         ))}
       </div>
       {items.length === 0 && <EmptyState goose="worried" title="Nothing here yet">Try another kind of place.</EmptyState>}
-      {items.map((item, i) => <PlaceCard key={`${item.name}-${i}`} item={item} kind="attraction" onAddToTrip={onAddToTrip} />)}
+      {items.map((item, i) => <PlaceCard key={`${item.name}-${i}`} item={item} kind="attraction" onAddToTrip={onAddToTrip} onGetThere={onGetThere} status={statusOf?.(item)} />)}
       {items.length > 0 && <LoadMore sectionKey={sectionKey} loadingMore={loadingMore} onLoadMore={onLoadMore} label="places" />}
       {items.some(r => r.place_id) && <GoogleAttribution />}
     </Stack>

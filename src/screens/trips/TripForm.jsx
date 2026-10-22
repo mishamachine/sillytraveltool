@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTripsStore, useUIStore, useCollabStore } from '../../store'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import { lookupZone } from '../../lib/zoneLookup'
+import { warmGuide } from '../../store/guideStore'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import { Sheet, Field, Button, IconButton, SegmentedControl, Banner, Text, Stack, Card, IconTile, EmptyState } from '../../ui'
 
@@ -71,6 +72,8 @@ export default function TripForm() {
         closeTripForm()
       } else {
         const trip = await createTrip(form)
+        // Start writing the city guide now, so it's ready when they open Explore
+        warmGuide(form.destination_city, form.destination_country, form.destination_country_code)
         if (tripType === 'group' && trip?.id) {
           setNewTripId(trip.id)
           setStep('invite')

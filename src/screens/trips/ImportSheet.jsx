@@ -4,6 +4,7 @@ import { useTripsStore } from '../../store'
 import { parseLocalDate } from '../../lib/dates'
 import { parseBookingEmail } from '../../lib/gemini'
 import { geocode } from '../../lib/places'
+import { warmGuide } from '../../store/guideStore'
 import { track } from '../../lib/analytics'
 import { formatRange, bookingKind, bookingMeta } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
@@ -161,6 +162,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       // Best-effort country and coordinates from Google (server-side)
       const geo = await geocode(ultimateDest?.country ? `${city}, ${ultimateDest.country}` : city)
 
+      warmGuide(city, geo?.country || ultimateDest?.country || '', geo?.country_code || '')
       const newTrip = await createTrip({
         title: newTripName || `Trip to ${city}`,
         destination_city: city,

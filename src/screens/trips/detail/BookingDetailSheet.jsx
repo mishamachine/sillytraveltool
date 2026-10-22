@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '../../../lib/dates'
-import { bookingKind, mapsUrl, plural, bookingZone, arrivalZone } from '../../../lib/trips'
+import { bookingKind, plural, bookingZone, arrivalZone } from '../../../lib/trips'
 import { dateTimeIn, zoneName } from '../../../lib/localTime'
 import { Sheet, Card, Button, IconTile, Text, Stack, category } from '../../../ui'
 import ConfirmDialog from '../../../components/shared/ConfirmDialog'
+import GetThereSheet from '../../../components/shared/GetThereSheet'
 import { ACTIVITY_CATEGORIES } from './planKinds'
 import { safeUrl } from '../../../lib/safeUrl'
 import { placeDetails, findPlace } from '../../../lib/places'
@@ -81,8 +82,9 @@ function useLivePlace(item, isActivity) {
 }
 
 /** Booking or plan details, with directions, copy and delete. */
-export default function BookingDetailSheet({ item, tripTz, isActivity, canDelete, onDelete, onToggle, onClose }) {
+export default function BookingDetailSheet({ item, tripTz, countryCode, isActivity, canDelete, onDelete, onToggle, onConfirmVisit, onClose }) {
   const [confirm, setConfirm] = useState(false)
+  const [getThere, setGetThere] = useState(false)
   const [copied, setCopied] = useState(false)
   const cat = isActivity ? (ACTIVITY_CATEGORIES[item.category] || ACTIVITY_CATEGORIES.note) : category(bookingKind(item))
   const place = item.venue_address || item.hotel_address || item.location_address || item.location_name || item.venue_name || item.hotel_name
@@ -124,20 +126,28 @@ export default function BookingDetailSheet({ item, tripTz, isActivity, canDelete
 
         <Stack gap={2}>
           {safeUrl(item.booking_url) && <a className="c-btn c-btn--primary c-btn--md c-btn--block" href={safeUrl(item.booking_url)} target="_blank" rel="noreferrer">Open booking</a>}
-          {(safeUrl(live?.maps_url) || place) && <a className="c-btn c-btn--secondary c-btn--md c-btn--block" href={safeUrl(live?.maps_url) || mapsUrl(place)} target="_blank" rel="noreferrer">Directions</a>}
+          {onConfirmVisit && <Button variant="primary" block icon="calendar" onClick={onConfirmVisit}>Confirm a visit</Button>}
+          {place && <Button block icon="navigation" onClick={() => setGetThere(true)}>Get there</Button>}
           {item.confirmation_number && <Button block icon={copied ? 'check' : 'copy'} onClick={copyRef}>{copied ? 'Copied' : 'Copy confirmation number'}</Button>}
-          {isActivity && onToggle && (
+          {isActivity && onToggle && !item.is_idea && (
             <Button block icon={item.is_completed ? 'refresh' : 'check'} onClick={() => { onToggle(!item.is_completed); onClose() }}>
               {item.is_completed ? 'Mark as not done' : 'Mark as done'}
             </Button>
           )}
           {canDelete && (
             <Button variant="ghost" block icon="trash" className="detail-delete" onClick={() => setConfirm(true)}>
-              {isActivity ? 'Remove from plan' : 'Delete booking'}
+              {item.is_idea ? 'Remove from trip ideas' : isActivity ? 'Remove from plan' : 'Delete booking'}
             </Button>
           )}
         </Stack>
       </Sheet>
+      {getThere && (
+        <GetThereSheet countryCode={countryCode} onClose={() => setGetThere(false)} place={{
+          name: live?.name || item.venue_name || item.hotel_name || item.location_name || item.title,
+          address: live?.address || place, place_id: live?.place_id || item.place_id || null,
+          lat: live?.lat ?? item.place_lat ?? item.location_lat ?? null, lng: live?.lng ?? item.place_lng ?? item.location_lng ?? null,
+        }} />
+      )}
       {confirm && (
         <ConfirmDialog
           message={isActivity ? `Remove "${item.title}"?` : `Delete "${item.title}"?`}

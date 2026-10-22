@@ -1,5 +1,25 @@
 # STT Handoff — 2026-10-21
 
+## Update — Get there, trip ideas, preloading, auth deadlock fix (2026-10-21, late night)
+- **Auth deadlock fixed** (`src/store/authStore.js`): the `onAuthStateChange` callback awaited Supabase queries while
+  Supabase held its auth lock, so after sign-in / the hourly token refresh every data call could hang until restart.
+  The callback is now synchronous and defers profile work with `setTimeout(0)`. Never await Supabase inside it.
+- **Get there** (`src/components/shared/GetThereSheet.jsx`, `src/lib/getThere.js`): navigation-arrow button under "+"
+  on guide cards, on HONK and in booking details. Walk / transit / drive with times (Google Routes, `places` action
+  `routes`), each opening the default maps app (Apple Maps on iOS, Google Maps elsewhere); ride apps by country
+  (Uber, Lyft US/CA, Grab SE Asia, Bolt Europe/Africa) with the drop-off filled in. `AFFILIATE` in getThere.js holds
+  partner IDs for later. Grab/Bolt use app schemes with a store fallback; not verified on a device with those apps.
+- **Trip ideas** (`src/store/ideasStore.js`, `src/screens/explore/IdeaSheet.jsx`, migration `trip_ideas`:
+  `trip_activities.is_idea`, `place_id`): "+" saves a guide/HONK place to the trip for that city in one tap (or starts
+  a trip with dates if none). Cards show + / shortlisted (outlined check, "In your trip ideas") / booked (calendar,
+  "Booked · Wed 11 Nov, 13:30"). "Confirm a visit" opens the booking form pre-filled (place, address, place's zone);
+  the booking replaces the idea. Plan tab has a "Trip ideas" section.
+- **15 per batch** everywhere; Eat price bands enforced server-side (Google ignores `priceLevels` at times).
+- **Background preloading:** picking a city loads every guide section at once (Google facts in parallel, AI-only
+  sections two at a time); creating a trip (form, import, guide) warms its city's guide cache (`warmGuide`).
+- Deployed `generate-guide` v28 has a compacted copy of `buildPrompt` (same prompts) and trimmed `_shared` copies;
+  redeploy from the repo with the CLI to sync.
+
 ## Update — Google Maps, DeepSeek, phrasebooks (2026-10-21, night)
 - **Google Maps Platform** (server-side only; `GOOGLE_MAPS_SERVER_KEY` secret; client calls the `places` Edge Function,
   helpers in `src/lib/places.js` + `supabase/functions/_shared/google.ts`; responses cached in `public.google_cache`):

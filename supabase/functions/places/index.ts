@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import {
   autocomplete, cached, geocode, reverseGeocode, placeDetails, normalizePlace, photoUri, searchNearby, searchText,
-  staticMap, DETAIL_FIELDS,
+  staticMap, DETAIL_FIELDS, routeTimes,
 } from '../_shared/google.ts'
 import { resolveZone } from '../_shared/timezones.ts'
 
@@ -17,6 +17,7 @@ import { resolveZone } from '../_shared/timezones.ts'
 //   nearby       { lat, lng, kind: 'hospital' | 'police' | 'pharmacy' } → { places }
 //   embassy      { lat, lng, country } → { places }
 //   staticmap    { markers: [{ lat, lng }], w?, h?, dark? } → PNG
+//   routes       { lat, lng, to_lat, to_lng } → { walk, transit, drive: { minutes, metres } | null }
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -139,6 +140,15 @@ Deno.serve(async (req) => {
         const res = await staticMap(markers, { w: Number(b.w) || 600, h: Number(b.h) || 300, zoom: num(b.zoom, 21), dark: !!b.dark })
         if (!res) return json({ error: 'Map not available' }, 404)
         return new Response(res.body, { headers: { ...CORS, 'Content-Type': res.headers.get('Content-Type') || 'image/png', 'Cache-Control': 'private, max-age=86400' } })
+      }
+
+      case 'routes': {
+        const toLat = num(b.to_lat, 90), toLng = num(b.to_lng, 180)
+        if (!point || toLat == null || toLng == null) return json({ error: 'lat/lng and to_lat/to_lng required' }, 400)
+        // Origins rounded to ~100 m and cached briefly: traffic and transit timetables change through the day
+        const key = `route:${point.lat.toFixed(3)},${point.lng.toFixed(3)}>${toLat.toFixed(4)},${toLng.toFixed(4)}`
+        const out = await cached(admin, key, 1 / 96, () => routeTimes(point, { lat: toLat, lng: toLng }))
+        return json(out || { walk: null, transit: null, drive: null })
       }
 
       default:

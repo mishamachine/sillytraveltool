@@ -59,18 +59,23 @@ export const useAuthStore = create((set, get) => ({
     const { data: { session } } = await supabase.auth.getSession()
     if (session) { set({ session, user: session.user }); await get().ensureProfile(session.user, session.access_token, false) }
     set({ loading: false })
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    // Supabase runs this callback while it holds its auth lock (sign-in, hourly token refresh). Every
+    // supabase query waits for that lock, so awaiting one in here deadlocks the client and all data calls
+    // hang until the app restarts. Keep the callback synchronous and do the profile work on the next tick.
+    supabase.auth.onAuthStateChange((event, session) => {
       set({ session, user: session?.user ?? null })
       if (event === 'PASSWORD_RECOVERY') set({ passwordRecovery: true })
       if (event === 'SIGNED_IN' && session?.user) {
         const provider = session.user.app_metadata?.provider
         track('sign_in', provider ? { provider } : {})
       }
-      if (session?.user) {
-        const shouldCheckBadges = event === 'SIGNED_IN'
-        await get().ensureProfile(session.user, session.access_token, shouldCheckBadges)
-      }
-      else set({ profile: null, profileReady: false })
+      setTimeout(() => {
+        if (session?.user) {
+          // A token refresh doesn't need the profile reloaded; sign-in and first load do
+          if (event === 'TOKEN_REFRESHED' && get().profileReady) return
+          get().ensureProfile(session.user, session.access_token, event === 'SIGNED_IN').catch(e => console.error('ensureProfile', e))
+        } else set({ profile: null, profileReady: false })
+      }, 0)
     })
   },
 

@@ -5,12 +5,15 @@ import { fetchWithTimeout } from '../../lib/http'
 import { track } from '../../lib/analytics'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import {
-  Screen, ScreenHeader, Card, Chip, Button, Text, Stack, Icon, Banner, Loading, ErrorState, GooseMark, LinkButton,
+  Screen, ScreenHeader, Card, Chip, Button, IconButton, Text, Stack, Icon, Banner, Loading, ErrorState, GooseMark, LinkButton, Toast,
 } from '../../ui'
 import AiDisclosure from './AiDisclosure'
 import { safeUrl } from '../../lib/safeUrl'
 import { reverseGeocode } from '../../lib/places'
 import { PlacePhoto, GoogleRating, OpenNow, GoogleAttribution, InkWait } from '../../components/shared/PlaceMedia'
+import GetThereSheet from '../../components/shared/GetThereSheet'
+import IdeaSheet from './IdeaSheet'
+import { useTripsStore, useIdeasStore, tripForCity } from '../../store'
 
 export const MOODS = [
   { id: 'hungry',    label: "I'm hungry",        icon: 'restaurant' },
@@ -48,7 +51,7 @@ function useGeolocation() {
             const addr = (await res.json()).address || {}
             place = { city: addr.city || addr.town || addr.municipality || addr.village || addr.county || 'your area', country: addr.country || '' }
           }
-          setState({ loading: false, city: place.city, country: place.country || '', error: null, coords: { latitude, longitude } })
+          setState({ loading: false, city: place.city, country: place.country || '', countryCode: place.country_code || '', error: null, coords: { latitude, longitude } })
         } catch {
           setState({ loading: false, city: null, country: null, error: 'Couldn\'t work out the name of where you are.', coords: { latitude, longitude } })
         }
@@ -77,11 +80,30 @@ export default function HonkView({ initialMood = null, onBack }) {
   const [error, setError] = useState(null)
   const [manualCity, setManualCity] = useState(null)
   const seen = useRef([]) // Google places already suggested this session, so "Another spot" moves on
+  const [getThere, setGetThere] = useState(false)
+  const [ideaOpen, setIdeaOpen] = useState(false)
+  const [toast, setToast] = useState(null)
+  const say = msg => { setToast(msg); setTimeout(() => setToast(null), 2600) }
   const autoRan = useRef(false)
 
   // Effective location: GPS city if available, else manual selection
   const effectiveCity = geo.city || manualCity?.city || null
   const effectiveCountry = geo.city ? geo.country : (manualCity?.country || '')
+  const effectiveCountryCode = geo.city ? geo.countryCode : (manualCity?.country_code || '')
+
+  // Save the spot to the trip for this city (or start one), same as the guide
+  const trips = useTripsStore(s => s.trips)
+  const honkTrip = tripForCity(trips, effectiveCity)
+  const { load: loadIdeas, statusFor, addIdea } = useIdeasStore()
+  useIdeasStore(s => s.byTrip[honkTrip?.id])
+  useEffect(() => { if (honkTrip?.id) loadIdeas(honkTrip.id) }, [honkTrip?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const honkStatus = result && honkTrip ? statusFor(honkTrip.id, result) : null
+  const honkKind = /restaurant|cafe|bar|food|bakery|eat/i.test(result?.type || '') ? 'restaurant' : 'attraction'
+  const saveHonk = async () => {
+    if (honkTrip && !honkStatus) {
+      try { await addIdea(honkTrip.id, result, honkKind, 'goosey'); say(`Saved to ${honkTrip.title} ideas`) } catch { say('Couldn\'t save it. Check your connection.') }
+    } else setIdeaOpen(true)
+  }
 
   const handleHonk = async (moodId = selectedMood) => {
     if (!moodId || !effectiveCity) return
@@ -204,14 +226,24 @@ export default function HonkView({ initialMood = null, onBack }) {
             )}
             {result.insider_tip && <Banner icon="lightbulb" title="Insider tip" className={honkInk}>{result.insider_tip}</Banner>}
             <Stack row gap={2}>
-              {safeUrl(result.google_maps_url) && (
+              {(result.lat != null || result.address) && (
+                <Button variant="primary" className="grow" icon="navigation" onClick={() => setGetThere(true)}>Get there</Button>
+              )}
+              {!result.lat && !result.address && safeUrl(result.google_maps_url) && (
                 <a className="c-btn c-btn--primary c-btn--md grow" href={safeUrl(result.google_maps_url)} target="_blank" rel="noreferrer">Directions</a>
               )}
-              <Button className="grow" icon="refresh" onClick={reset}>Another spot</Button>
+              <IconButton icon={honkStatus?.state === 'booked' ? 'calendar' : honkStatus ? 'check' : 'plus'} variant={honkStatus?.state === 'booked' ? 'accent' : 'sunken'}
+                className={honkStatus?.state === 'idea' ? 'is-saved' : undefined} aria-pressed={!!honkStatus}
+                label={honkStatus ? `${result.name} is on your trip` : `Save ${result.name} to trip ideas`} onClick={saveHonk} />
+              <IconButton icon="refresh" variant="sunken" label="Another spot" onClick={reset} />
             </Stack>
           </Card>
           {result.place_id && <GoogleAttribution />}
           <AiDisclosure city={effectiveCity} what="HONK" />
+          {getThere && <GetThereSheet place={result} countryCode={effectiveCountryCode} onClose={() => setGetThere(false)} />}
+          {ideaOpen && <IdeaSheet item={result} kind={honkKind} status={honkStatus} trip={honkTrip} onSaved={say} onClose={() => setIdeaOpen(false)}
+            destination={{ city: effectiveCity, country: effectiveCountry, country_code: effectiveCountryCode }} />}
+          {toast && <Toast icon="check" title={toast} />}
         </>
       )}
     </Screen>

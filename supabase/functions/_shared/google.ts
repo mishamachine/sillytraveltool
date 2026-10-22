@@ -209,3 +209,24 @@ export async function attachPlace(admin: Admin | null, b: Record<string, any>, c
   if (!b[addrKey] || String(b[addrKey]).length < 12) b[addrKey] = p.address
   return b
 }
+
+// ── Routes (travel times for "Get there") ──────────────────────────────────────
+const ROUTE_MODES = { walk: 'WALK', transit: 'TRANSIT', drive: 'DRIVE' } as const
+
+/** Minutes and metres from origin to destination for walking, transit and driving (null per mode when unavailable). */
+export async function routeTimes(from: { lat: number, lng: number }, to: { lat: number, lng: number }) {
+  if (!hasGoogle()) return null
+  const point = (p: { lat: number, lng: number }) => ({ waypoint: { location: { latLng: { latitude: p.lat, longitude: p.lng } } } })
+  const one = async (mode: string) => {
+    const d = await call('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': KEY(), 'X-Goog-FieldMask': 'duration,distanceMeters,condition' },
+      body: JSON.stringify({ origins: [point(from)], destinations: [point(to)], travelMode: mode }),
+    })
+    const e = Array.isArray(d) ? d[0] : null
+    if (!e || e.condition !== 'ROUTE_EXISTS' || !e.duration) return null
+    return { minutes: Math.max(1, Math.round(parseInt(e.duration, 10) / 60)), metres: e.distanceMeters ?? null }
+  }
+  const entries = await Promise.all(Object.entries(ROUTE_MODES).map(async ([k, m]) => [k, await one(m)] as const))
+  return Object.fromEntries(entries)
+}

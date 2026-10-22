@@ -153,7 +153,7 @@ export default function TodayView({ trip, onShowAll }) {
       )}
 
       <Button variant="ghost" icon="calendar" onClick={openPlan}>Full trip plan</Button>
-      {detail && <BookingDetailSheet item={detail} tripTz={tz} isActivity={!!detail._activity} canDelete={false} onClose={() => setDetail(null)} />}
+      {detail && <BookingDetailSheet item={detail} tripTz={tz} countryCode={trip.destination_country_code} isActivity={!!detail._activity} canDelete={false} onClose={() => setDetail(null)} />}
     </Screen>
   )
 }

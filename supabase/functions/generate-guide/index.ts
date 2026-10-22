@@ -31,6 +31,9 @@ async function placeCandidates(section: string, city: string, country: string, e
   // Same-named cities exist (Granada, Spain / Nicaragua / Mexico City's Granada): stay within 40 km of this one
   const center = await geocode(`${city}, ${country}`)
   const near = (p: Place) => !center || p.lat == null || p.lng == null || km(center, { lat: p.lat, lng: p.lng }) <= 40
+  // Google doesn't always honour priceLevels: keep the section's price band (one step wider if that leaves too few)
+  const band = s.price ? s.price.map(p => PRICE_RANK[p]) : null
+  const inBand = (p: Place, slack = 0) => !band || p.price_level == null || (p.price_level >= Math.min(...band) - slack && p.price_level <= Math.max(...band) + slack)
   const out: Place[] = []
   let pageToken: string | undefined
   for (let page = 0; page < 3; page++) {
@@ -38,24 +41,27 @@ async function placeCandidates(section: string, city: string, country: string, e
       includedType: s.type, priceLevels: s.price, minRating: s.minRating, pageToken,
       near: center ? { lat: center.lat, lng: center.lng, radius: 20000 } : undefined,
     })
-    if (!r) return page === 0 ? null : out
+    if (!r) { if (page === 0) return null; break }
     out.push(...r.places.filter(p => !p.closed && near(p) && !skip.has(p.name.toLowerCase()) && !out.some(o => o.place_id === p.place_id)))
-    if (out.length >= 12 || !r.next) break // 12 good candidates is plenty for 10 cards; more pages cost time
+    if (out.filter(p => inBand(p)).length >= 18 || !r.next) break // 18 good candidates is plenty for 15 cards; more pages cost time
     pageToken = r.next
   }
-  return out
+  const strict = out.filter(p => inBand(p))
+  return strict.length >= 8 ? strict : out.filter(p => inBand(p, 1))
 }
+
+const PRICE_RANK: Record<string, number> = { PRICE_LEVEL_INEXPENSIVE: 1, PRICE_LEVEL_MODERATE: 2, PRICE_LEVEL_EXPENSIVE: 3, PRICE_LEVEL_VERY_EXPENSIVE: 4 }
 
 // Well-rated AND well-reviewed first: 4.8 from 30 reviews ranks below 4.6 from 8,000
 const placeScore = (p: { rating: number | null, rating_count: number | null }) => (p.rating || 0) * Math.log10((p.rating_count || 0) + 10)
 
 /**
- * Facts stage: the 10 best Google places as cards, Goose text still to come (pending: true).
+ * Facts stage: the 15 best Google places as cards, Goose text still to come (pending: true).
  * The order is fixed here so the Goose's words can "ink in" later without cards jumping around.
  */
 function factItems(section: string, city: string, places: Place[]) {
   const restaurant = PLACE_SECTIONS[section].restaurant
-  return places.slice().sort((a, b) => placeScore(b) - placeScore(a)).slice(0, 10).map(p => ({
+  return places.slice().sort((a, b) => placeScore(b) - placeScore(a)).slice(0, 15).map(p => ({
     name: p.name,
     ...(restaurant ? { cuisine: p.type_label || '', price_tier: p.price_level ?? null } : { type: p.type_label || '' }),
     address: p.short_address || p.address,
@@ -145,7 +151,7 @@ Use real, accurate information about ${city}, ${country}.`
     return `You are The Goose — opinionated travel guide with genuine insider food knowledge.
 Return ONLY a valid JSON object for budget dining in ${city}, ${country}. No markdown, no preamble. Raw JSON only.
 { "items": [] }
-items must have EXACTLY 10 objects:
+items must have EXACTLY 15 objects:
 { "name": "actual restaurant name", "cuisine": "specific cuisine", "price_tier": 1, "address": "real street address", "description": "2 sentences — what to order, the vibe", "goose_quip": "witty one-liner specific to this place", "goose_score": 8.4, "rating_estimate": 8.4, "is_goose_pick": false, "google_maps_query": "restaurant name ${city}" }
 Mark is_goose_pick: true for the 1-2 best picks. Use real restaurants in ${city}, ${country}.${excludeClause}`
   }
@@ -154,7 +160,7 @@ Mark is_goose_pick: true for the 1-2 best picks. Use real restaurants in ${city}
     return `You are The Goose — opinionated travel guide with genuine insider food knowledge.
 Return ONLY a valid JSON object for mid-range dining in ${city}, ${country}. No markdown, no preamble. Raw JSON only.
 { "items": [] }
-items must have EXACTLY 10 objects:
+items must have EXACTLY 15 objects:
 { "name": "actual restaurant name", "cuisine": "specific cuisine", "price_tier": 2, "address": "real street address", "description": "2 sentences — what to order, the vibe", "goose_quip": "witty one-liner specific to this place", "goose_score": 8.4, "rating_estimate": 8.4, "is_goose_pick": false, "google_maps_query": "restaurant name ${city}" }
 Mark is_goose_pick: true for the 1-2 best picks. Use real restaurants in ${city}, ${country}.${excludeClause}`
   }
@@ -163,7 +169,7 @@ Mark is_goose_pick: true for the 1-2 best picks. Use real restaurants in ${city}
     return `You are The Goose — opinionated travel guide with genuine insider food knowledge.
 Return ONLY a valid JSON object for splurge dining in ${city}, ${country}. No markdown, no preamble. Raw JSON only.
 { "items": [] }
-items must have EXACTLY 10 objects:
+items must have EXACTLY 15 objects:
 { "name": "actual restaurant name", "cuisine": "specific cuisine", "price_tier": 3, "address": "real street address", "description": "2 sentences — what to order, the vibe", "goose_quip": "witty one-liner specific to this place", "goose_score": 8.4, "rating_estimate": 8.4, "is_goose_pick": false, "google_maps_query": "restaurant name ${city}" }
 Mark is_goose_pick: true for the 1-2 best picks. Use real restaurants in ${city}, ${country}.${excludeClause}`
   }
@@ -172,7 +178,7 @@ Mark is_goose_pick: true for the 1-2 best picks. Use real restaurants in ${city}
     return `You are The Goose — opinionated travel guide.
 Return ONLY a valid JSON object for temples, shrines and religious sites in ${city}, ${country}. No markdown, no preamble. Raw JSON only.
 { "items": [] }
-items must have EXACTLY 10 objects:
+items must have EXACTLY 15 objects:
 { "name": "real place name", "type": "specific type/era/style", "address": "real address or area", "description": "2 sentences on what you see and why it matters", "goose_quip": "what most tourists miss or get wrong here", "is_goose_pick": false, "official_url": "real URL or empty string", "wikipedia_url": "real wikipedia URL or empty string", "google_maps_query": "place name ${city}" }
 Mark is_goose_pick: true for the 1-2 best. Use real places in ${city}, ${country}.${excludeClause}`
   }
@@ -181,7 +187,7 @@ Mark is_goose_pick: true for the 1-2 best. Use real places in ${city}, ${country
     return `You are The Goose — opinionated travel guide.
 Return ONLY a valid JSON object for neighbourhoods and districts to explore in ${city}, ${country}. No markdown, no preamble. Raw JSON only.
 { "items": [] }
-items must have EXACTLY 10 objects:
+items must have EXACTLY 15 objects:
 { "name": "real neighbourhood name", "type": "character/vibe e.g. bohemian, historic, foodie", "address": "area or district", "description": "2 sentences on the vibe and what to do there", "goose_quip": "what most tourists miss or get wrong here", "is_goose_pick": false, "official_url": "real URL or empty string", "wikipedia_url": "real wikipedia URL or empty string", "google_maps_query": "neighbourhood name ${city}" }
 Mark is_goose_pick: true for the 1-2 best. Use real neighbourhoods in ${city}, ${country}.${excludeClause}`
   }
@@ -190,7 +196,7 @@ Mark is_goose_pick: true for the 1-2 best. Use real neighbourhoods in ${city}, $
     return `You are The Goose — opinionated travel guide.
 Return ONLY a valid JSON object for museums and galleries in ${city}, ${country}. No markdown, no preamble. Raw JSON only.
 { "items": [] }
-items must have EXACTLY 10 objects:
+items must have EXACTLY 15 objects:
 { "name": "real museum name", "type": "type e.g. art, history, science", "address": "real address", "description": "2 sentences on the collection and why to go", "goose_quip": "what most tourists miss or get wrong here", "is_goose_pick": false, "official_url": "real URL or empty string", "wikipedia_url": "real wikipedia URL or empty string", "google_maps_query": "museum name ${city}" }
 Mark is_goose_pick: true for the 1-2 best. Use real museums in ${city}, ${country}.${excludeClause}`
   }
@@ -199,7 +205,7 @@ Mark is_goose_pick: true for the 1-2 best. Use real museums in ${city}, ${countr
     return `You are The Goose — opinionated travel guide.
 Return ONLY a valid JSON object for parks, gardens and outdoor spaces in ${city}, ${country}. No markdown, no preamble. Raw JSON only.
 { "items": [] }
-items must have EXACTLY 10 objects:
+items must have EXACTLY 15 objects:
 { "name": "real park name", "type": "type e.g. urban park, botanical garden, waterfront", "address": "real address or area", "description": "2 sentences on what makes it worth visiting", "goose_quip": "what most tourists miss or get wrong here", "is_goose_pick": false, "official_url": "real URL or empty string", "wikipedia_url": "real wikipedia URL or empty string", "google_maps_query": "park name ${city}" }
 Mark is_goose_pick: true for the 1-2 best. Use real parks in ${city}, ${country}.${excludeClause}`
   }
@@ -208,7 +214,7 @@ Mark is_goose_pick: true for the 1-2 best. Use real parks in ${city}, ${country}
     return `You are The Goose — opinionated travel guide.
 Return ONLY a valid JSON object for day trips from ${city}, ${country}. No markdown, no preamble. Raw JSON only.
 { "items": [] }
-items must have EXACTLY 10 objects:
+items must have EXACTLY 15 objects:
 { "name": "real destination name", "type": "type e.g. coastal town, mountain village, ancient ruins", "address": "distance and direction e.g. 45min south by train", "description": "2 sentences on what makes it worth the trip", "goose_quip": "insider tip most visitors dont know", "is_goose_pick": false, "official_url": "real URL or empty string", "wikipedia_url": "real wikipedia URL or empty string", "google_maps_query": "destination name ${country}" }
 Mark is_goose_pick: true for the 1-2 best. Use real day trip destinations from ${city}, ${country}.${excludeClause}`
   }
@@ -302,7 +308,7 @@ Deno.serve(async (req) => {
     if (!(await checkAiQuota(user.id))) return reply({ error: QUOTA_MESSAGE }, 429)
 
     const askGemini = async (prompt: string, maxOutputTokens = 3000) => {
-      const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens } })
+      const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens } }, { timeoutMs: 35000 }) // 15 items take DeepSeek a while
       if (!gemRes.ok) throw new Error(`Gemini error: ${(await gemRes.text()).slice(0, 200)}`)
       const text = (await gemRes.json()).candidates?.[0]?.content?.parts?.[0]?.text
       if (!text) throw new Error('No content from Gemini')
@@ -317,9 +323,9 @@ Deno.serve(async (req) => {
     // ── Voice: the Goose's words for the pending cards ──
     if (PLACE_SECTIONS[section] && cachedRow?.data?.voice_pending && Array.isArray(cachedRow.data.items)) {
       const items = cachedRow.data.items
-      const targets = items.filter((it: any) => it.pending).slice(0, 12)
+      const targets = items.filter((it: any) => it.pending).slice(0, 15)
       try {
-        const words = (await askGemini(voicePrompt(section, city, country, targets), 4000))?.items
+        const words = (await askGemini(voicePrompt(section, city, country, targets), 5000))?.items
         const merged = withVoice(section, items, targets, Array.isArray(words) ? words : [])
         const data = { ...cachedRow.data, items: merged, voice_pending: merged.some((it: any) => it.pending) }
         await writeCache(data)
@@ -334,7 +340,7 @@ Deno.serve(async (req) => {
 
     // ── AI-only sections (overview, neighbourhoods, day trips, transit, events), or Google unavailable ──
     let result
-    try { result = await askGemini(buildPrompt(city, country, section, exclude_names)) } catch (e) {
+    try { result = await askGemini(buildPrompt(city, country, section, exclude_names), 5000) } catch (e) {
       console.warn(`guide ${section}: ${(e as Error).message}`)
       return reply({ error: (e as Error).message }, 502)
     }
