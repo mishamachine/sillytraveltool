@@ -34,10 +34,12 @@
 - **Privacy guard:** `cleanProps()` drops keys like email/name/title/text/address/lat/lng/confirmation and strings over
   40 chars, with `@` or 5+ digit runs. **Opt-out:** Settings → "Share usage stats" (localStorage `stt_analytics`); off by
   default under Do Not Track / Global Privacy Control; off stops GA and Supabase events. Privacy page updated to match.
-- **BLOCKER (owner):** `https://www.googletagmanager.com/gtag/js?id=G-H7ZP1DBHN3` returns **404** (other IDs return 200),
-  so GA receives nothing today. Check GA Admin → Data streams (stream deleted, or ID mistyped?). A new ID can go in
-  `VITE_GA_ID` with no code change. Then register custom dimensions in GA for `app_platform`, `via`, `type`, `source`,
-  `section`, `feature`, `kind`. Test with `stt-dev-ga` in `.claude/launch.json` (VITE_GA_DEV=1, debug_mode → DebugView).
+- **GA ID:** the script and config use the stream's **Google tag ID `G-KRXDJXZ4SS`** (GA Admin → Data streams →
+  Configure tag settings); Google answers 404 for the measurement ID `G-H7ZP1DBHN3` itself. The tag forwards each hit
+  to two destinations: `G-H7ZP1DBHN3` (current property, added 13 Mar 2026) and `G-KRXDJXZ4SS` (older destination,
+  added 16 Feb 2026). Remove the old one in Manage Google tag if it is not wanted. Verified 2026-10-21: `/g/collect`
+  hits to both, events in DebugView. Override with `VITE_GA_ID`. Still to do in GA: custom dimensions for
+  `app_platform`, `via`, `type`, `source`, `section`, `feature`, `kind`. Test with `stt-dev-ga` in `.claude/launch.json`.
 - Play Data safety form must now declare Analytics (app interactions, device IDs), not shared, optional.
 
 ## Update — fixes from the testing pass (2026-10-22, see docs/TESTING_PASS.md)

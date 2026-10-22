@@ -26,7 +26,7 @@ Ship STT as native iOS and Android apps with Capacitor, wrapping this React 18 +
 - Edge Functions currently deploy with JWT verify OFF; lock this in `supabase/config.toml` as part of Phase 0.
 
 ## Stack
-React 18.2 + Vite · Zustand · Supabase (project `swywrvbuswylvqlktsym`, us-east-2: auth, DB, Edge Functions) · Resend (email) · Hostinger static hosting (upload `dist/`) · GA4 (`G-H7ZP1DBHN3`, web + app, fed by `track()` in `src/lib/analytics.js`) · Sentry in code, inactive until `VITE_SENTRY_DSN` is set.
+React 18.2 + Vite · Zustand · Supabase (project `swywrvbuswylvqlktsym`, us-east-2: auth, DB, Edge Functions) · Resend (email) · Hostinger static hosting (upload `dist/`) · GA4 (Google tag `G-KRXDJXZ4SS` → property `G-H7ZP1DBHN3`, web + app, fed by `track()` in `src/lib/analytics.js`) · Sentry in code, inactive until `VITE_SENTRY_DSN` is set.
 
 ## Design
 Clay design system: tokens in `docs/brand/brand-tokens.json`. Use `#B24A17` for terracotta text and fills (`#C4561E` is decorative only). Space Grotesk headings, DM Sans body, 24px stroke icons, no emoji. Logo is the luggage tag (`docs/brand/logos/`).

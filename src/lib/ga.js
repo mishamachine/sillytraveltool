@@ -4,7 +4,10 @@ import { Capacitor } from '@capacitor/core'
 // else should call gtag. Production builds only; a dev build loads it with VITE_GA_DEV=1 (events are sent
 // with debug_mode, so they show in GA4 DebugView). No ads storage, ad signals or Google signals.
 
-const GA_ID = import.meta.env.VITE_GA_ID || 'G-H7ZP1DBHN3'
+// The stream's Google tag ID (GA Admin → Data streams → Configure tag settings). It forwards to the GA4
+// measurement ID G-H7ZP1DBHN3; Google answers 404 when the script or config uses the measurement ID itself.
+const GA_ID = import.meta.env.VITE_GA_ID || 'G-KRXDJXZ4SS'
+const KILL_IDS = [GA_ID, 'G-H7ZP1DBHN3']
 const ENABLED = import.meta.env.MODE === 'production' || import.meta.env.VITE_GA_DEV === '1'
 const DEBUG = import.meta.env.DEV
 const CLIENT_KEY = 'stt_ga_client_id'
@@ -36,7 +39,7 @@ function nativeClientId() {
 export function initGA() {
   if (!ENABLED || started || typeof window === 'undefined') return
   started = true
-  window[`ga-disable-${GA_ID}`] = false
+  KILL_IDS.forEach(id => { window[`ga-disable-${id}`] = false })
   window.dataLayer = window.dataLayer || []
   window.gtag = function gtag() { window.dataLayer.push(arguments) } // gtag needs the arguments object, not an array
   window.gtag('consent', 'default', {
@@ -62,7 +65,7 @@ export function initGA() {
 
 // Opting out mid-session: GA's own kill switch stops every later hit.
 export function stopGA() {
-  if (typeof window !== 'undefined') window[`ga-disable-${GA_ID}`] = true
+  if (typeof window !== 'undefined') KILL_IDS.forEach(id => { window[`ga-disable-${id}`] = true })
 }
 
 export function gaSetUser(userId) {
