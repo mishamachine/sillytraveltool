@@ -85,8 +85,13 @@ export async function generateGuideContent(city, country, section = 'overview', 
 /**
  * Generate offline phrases for a language
  */
-export async function generatePhrases(languageCode, languageName) {
-  return invokeFunction('generate-phrases', { languageCode, languageName }, 45000)
+export async function generatePhrases(languageCode, languageName, source = { code: 'en', name: 'English' }) {
+  return invokeFunction('generate-phrases', { languageCode, languageName, sourceCode: source.code, sourceName: source.name }, 45000)
+}
+
+/** One typed sentence → { native, romanized, back }. Not cached server-side; the Translate tool keeps it on the phone. */
+export async function translateText(text, target, source = { code: 'en', name: 'English' }) {
+  return invokeFunction('generate-phrases', { mode: 'text', text, languageCode: target.code, languageName: target.name, sourceCode: source.code, sourceName: source.name }, 30000)
 }
 
 /**
@@ -107,8 +112,8 @@ export async function parseBookingEmail(emailText) {
 /**
  * Generate AI-powered packing checklist
  */
-export async function generateChecklist(trip, bookings, weatherContext) {
-  return invokeFunction('generate-checklist', { trip, bookings, weatherContext }, 45000)
+export async function generateChecklist(trip, bookings, weatherContext, stops = []) {
+  return invokeFunction('generate-checklist', { trip, bookings, weatherContext, stops }, 45000)
 }
 
 export default { generateGuideContent, generatePhrases, gooseyDiscover, parseBookingEmail, generateChecklist }

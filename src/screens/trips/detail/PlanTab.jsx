@@ -97,7 +97,7 @@ function DayBlock({ items, ...rowProps }) {
 }
 
 export default function PlanTab({ trip, readOnly }) {
-  const { bookings, activities, createBooking, deleteBooking, createActivity, toggleActivity, deleteActivity, loadingDetail, fetchTrips } = useTripsStore()
+  const { bookings, activities, createBooking, updateBooking, deleteBooking, createActivity, toggleActivity, deleteActivity, fillDatesIfUndated, loadingDetail, fetchTrips } = useTripsStore()
   const { user } = useAuthStore()
   const currentUserId = user?.id
   const [sheet, setSheet] = useState(null) // 'add' | 'paste' | 'plan' | { type, mode } | { detail }
@@ -119,6 +119,8 @@ export default function PlanTab({ trip, readOnly }) {
   })
 
   const canDelete = (item) => !readOnly && (!currentUserId || !item.created_by || item.created_by === currentUserId)
+  // Same rule as the database: the person who added a booking, or the trip owner, can change it
+  const canEdit = (item) => !readOnly && item._kind === 'booking' && (canDelete(item) || trip.owner_id === currentUserId)
   const rowProps = {
     tz, currentUserId, readOnly,
     onOpen: (item) => setSheet({ detail: item }),
@@ -190,8 +192,14 @@ export default function PlanTab({ trip, readOnly }) {
       {sheet === 'plan' && <ActivityFormSheet tripId={trip.id} onClose={() => setSheet(null)} onCreate={createActivity} />}
       {sheet?.type && (
         <BookingFormSheet tripId={trip.id} trip={trip} type={sheet.type} initial={sheet.initial || (sheet.mode ? { transport_mode: sheet.mode } : {})}
+          booking={sheet.edit || null}
           onClose={() => setSheet(null)}
           onCreate={async (tripId, data) => {
+            if (sheet.edit) {
+              const saved = await updateBooking(sheet.edit.id, data)
+              await fillDatesIfUndated(tripId, [saved]) // a booking moved outside the trip widens it
+              return saved
+            }
             const booking = await createBooking(tripId, data)
             if (sheet.fromIdea) await deleteActivity(sheet.fromIdea.id)
             return booking
@@ -200,6 +208,7 @@ export default function PlanTab({ trip, readOnly }) {
       {detail && (
         <BookingDetailSheet item={detail} tripTz={tz} countryCode={trip.destination_country_code} isActivity={detail._kind === 'activity'} canDelete={canDelete(detail)}
           onConfirmVisit={!readOnly && detail.is_idea ? () => confirmIdea(detail) : undefined}
+          onEdit={canEdit(detail) ? () => setSheet({ type: detail.type || 'other', edit: detail }) : undefined}
           onToggle={!readOnly && detail._kind === 'activity' ? (v) => toggleActivity(detail.id, v) : undefined}
           onDelete={() => (detail._kind === 'activity' ? deleteActivity(detail.id) : deleteBooking(detail.id))}
           onClose={() => setSheet(null)} />

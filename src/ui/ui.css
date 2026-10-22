@@ -79,19 +79,20 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 /* ---------- buttons ---------- */
 .c-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-  min-height: var(--touch-min); padding: 0 var(--space-5);
+  min-height: var(--touch-min); padding: var(--space-1) var(--space-5);
   border: 0; border-radius: var(--radius-md);
-  font-family: var(--font-body); font-size: 15px; font-weight: 600; line-height: 1.2;
-  cursor: pointer; text-decoration: none; white-space: nowrap;
+  font-family: var(--font-body); font-size: 0.9375rem; font-weight: 600; line-height: 1.2;
+  cursor: pointer; text-decoration: none; text-align: center;
   transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
   -webkit-user-select: none; user-select: none;
 }
 .c-btn:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
 .c-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.c-btn__label { overflow: hidden; text-overflow: ellipsis; }
-.c-btn--md { height: var(--button-height); }
-.c-btn--lg { height: 54px; font-size: 16px; border-radius: 18px; }
-.c-btn--sm { height: var(--touch-min); padding: 0 var(--space-4); font-size: 14px; }
+/* Large text wraps onto a second line instead of cutting the label off */
+.c-btn__label { overflow-wrap: anywhere; }
+.c-btn--md { min-height: var(--button-height); }
+.c-btn--lg { min-height: 54px; font-size: 1rem; border-radius: 18px; }
+.c-btn--sm { min-height: var(--touch-min); padding: var(--space-1) var(--space-4); font-size: 0.875rem; }
 .c-btn--block { width: 100%; }
 .c-btn--primary { background: var(--accent-fill); color: var(--on-accent); box-shadow: var(--shadow-accent); }
 .c-btn--primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
@@ -170,9 +171,9 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-row--action { cursor: pointer; }
 .c-row--action:active { opacity: 0.7; }
 .c-row__body { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
-.c-row__title { font-size: 15px; line-height: 1.35; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
-.c-row__meta { font-size: 13px; line-height: 1.4; color: var(--ink-muted); overflow-wrap: anywhere; }
-.c-row__trailing { font-size: 13px; color: var(--ink-muted); flex-shrink: 0; text-align: right; }
+.c-row__title { font-size: 0.9375rem; line-height: 1.35; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.c-row__meta { font-size: 0.8125rem; line-height: 1.4; color: var(--ink-muted); overflow-wrap: anywhere; }
+.c-row__trailing { font-size: 0.8125rem; color: var(--ink-muted); flex-shrink: 0; text-align: right; }
 .c-row__chevron { color: var(--ink-muted); }
 .c-row--danger .c-row__title { color: var(--danger); }
 .c-card--inverse .c-row__title { color: var(--ink-inverse); }
@@ -202,7 +203,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-seg--n4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .c-seg__opt {
   min-height: var(--touch-min); border: 0; border-radius: 14px; background: transparent; cursor: pointer;
-  font-family: var(--font-body); font-size: 14px; font-weight: 500; color: var(--ink-secondary);
+  font-family: var(--font-body); font-size: 0.875rem; font-weight: 500; color: var(--ink-secondary);
   padding: 0 var(--space-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: background-color 150ms ease, color 150ms ease;
 }
@@ -270,7 +271,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 
 /* ---------- fields ---------- */
 .c-field { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.c-field__label { font-size: 14px; font-weight: 600; color: var(--ink); }
+.c-field__label { font-size: 0.875rem; font-weight: 600; color: var(--ink); }
 .c-field__box {
   position: relative; display: flex; align-items: center; gap: 10px;
   min-height: 52px; padding: 0 var(--space-4);
@@ -284,7 +285,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-field__input {
   flex: 1; min-width: 0; width: 100%; height: 50px;
   border: 0; background: transparent; outline: none; -webkit-appearance: none; appearance: none;
-  font-family: var(--font-body); font-size: 16px; color: var(--ink);
+  font-family: var(--font-body); font-size: 1rem; color: var(--ink);
 }
 .c-field__box--textarea .c-field__input { height: auto; min-height: 96px; resize: vertical; line-height: 1.5; }
 .c-field__box--select .c-field__input { padding-right: var(--space-6); cursor: pointer; }
@@ -297,7 +298,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-chip {
   display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
   height: 28px; padding: 0 10px; border-radius: 10px;
-  font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap;
+  font-size: 0.75rem; font-weight: 600; line-height: 1; white-space: nowrap;
 }
 .c-chip--neutral { background: var(--surface-sunken); color: var(--ink-secondary); }
 .c-chip--accent { background: var(--accent-soft); color: var(--accent); }
@@ -308,7 +309,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-chip--inverse { background: var(--surface-inverse); color: var(--ink-inverse); }
 .c-chip--action {
   height: var(--touch-min); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm);
-  font-size: 14px; cursor: pointer; background: var(--surface-card); color: var(--ink); box-shadow: var(--shadow-card);
+  font-size: 0.875rem; cursor: pointer; background: var(--surface-card); color: var(--ink); box-shadow: var(--shadow-card);
 }
 .c-chip--action.is-selected { background: var(--surface-card); color: var(--accent); box-shadow: var(--shadow-card), inset 0 0 0 2px var(--accent); }
 .c-chip-row { flex-shrink: 0; display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: none; padding: 4px 2px 10px; margin: -4px -2px -10px; }
@@ -320,8 +321,8 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
   padding: var(--space-3) 14px; border-radius: 18px; min-height: 48px;
 }
 .c-banner__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.c-banner__title { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
-.c-banner__text { font-size: 13px; line-height: 1.45; color: var(--ink-secondary); }
+.c-banner__title { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+.c-banner__text { font-size: 0.8125rem; line-height: 1.45; color: var(--ink-secondary); }
 .c-banner--soft.c-banner--accent { background: var(--accent-soft); }
 .c-banner--soft.c-banner--accent .c-banner__icon { color: var(--accent); }
 .c-banner--soft.c-banner--info { background: var(--info-soft); }
@@ -414,8 +415,8 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-toast--top { top: calc(var(--safe-top) + var(--space-4)); }
 .c-toast__icon { color: var(--accent-on-inverse); }
 .c-toast__body { flex: 1; min-width: 0; }
-.c-toast__title { margin: 0; font-weight: 600; font-size: 15px; }
-.c-toast__text { margin: 0; font-size: 13px; color: var(--ink-inverse-muted); }
+.c-toast__title { margin: 0; font-weight: 600; font-size: 0.9375rem; }
+.c-toast__text { margin: 0; font-size: 0.8125rem; color: var(--ink-inverse-muted); }
 
 /* ---------- goose + logo ---------- */
 .c-goose-wrap { display: inline-flex; }
@@ -456,9 +457,9 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-wordmark { display: inline-flex; flex-direction: column; align-items: flex-start; text-align: left; font-family: var(--font-display); font-weight: 700; letter-spacing: -0.03em; line-height: 0.92; text-transform: lowercase; }
 .c-wordmark__silly { color: var(--accent); }
 .c-wordmark__rest { color: var(--ink); }
-.c-wordmark--sm { font-size: 15px; }
-.c-wordmark--md { font-size: 22px; }
-.c-wordmark--lg { font-size: 40px; }
+.c-wordmark--sm { font-size: 0.9375rem; }
+.c-wordmark--md { font-size: 1.375rem; }
+.c-wordmark--lg { font-size: 2.5rem; }
 
 /* ---------- motion ---------- */
 @keyframes c-fade { from { opacity: 0; } to { opacity: 1; } }

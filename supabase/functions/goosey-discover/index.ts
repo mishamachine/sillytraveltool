@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
-import { geocode, searchText, type Place } from '../_shared/google.ts'
+import { geocode, searchText, routeOne, type Place } from '../_shared/google.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -28,7 +28,16 @@ const metres = (a: { lat: number, lng: number }, b: { lat: number, lng: number }
   return Math.round(12742000 * Math.asin(Math.sqrt(h)))
 }
 
-type Candidate = Place & { distance_m: number | null }
+type Candidate = Place & { distance_m: number | null, walk_min?: number | null }
+
+// Straight-line distance understates a walk (streets, rivers, big roads): estimate for ranking, then ask Google
+// Routes for the place we actually send someone to
+const estWalk = (m: number | null) => (m != null ? Math.ceil((m * 1.3) / 80) : null)
+async function withRealWalk(p: Candidate, origin: { lat: number, lng: number } | null, gps: boolean): Promise<Candidate> {
+  if (!gps || !origin || p.lat == null || p.lng == null) return { ...p, walk_min: estWalk(p.distance_m) }
+  const r = await routeOne(origin, { lat: p.lat, lng: p.lng }, 'WALK')
+  return { ...p, walk_min: r?.minutes ?? estWalk(p.distance_m), distance_m: r?.metres ?? p.distance_m }
+}
 
 // Facts-stage pick without AI: well rated, well reviewed, and close
 const honkScore = (p: Candidate) => (p.rating || 0) * Math.log10((p.rating_count || 0) + 10) / (1 + (p.distance_m ?? 800) / 1200)
@@ -63,7 +72,7 @@ function toResult(p: Candidate, words: any = null) {
     pending: !words,
     // Google facts
     place_id: p.place_id, rating: p.rating, rating_count: p.rating_count, photo: p.photo,
-    open_now: true, distance_m: p.distance_m, walk_min: p.distance_m != null ? Math.ceil(p.distance_m / 80) : null,
+    open_now: true, distance_m: p.distance_m, walk_min: p.walk_min ?? estWalk(p.distance_m),
     lat: p.lat, lng: p.lng, source: 'google',
   }
 }
@@ -133,13 +142,21 @@ Deno.serve(async (req) => {
     }
 
     if (candidates.length && stage === 'facts') {
-      return json(toResult(candidates.slice().sort((a, b) => honkScore(b) - honkScore(a))[0]))
+      // "Walkable right now": if the best match is a long walk in reality, try the next two before settling
+      const ranked = candidates.slice().sort((a, b) => honkScore(b) - honkScore(a))
+      let best: Candidate | null = null
+      for (const c of ranked.slice(0, gps ? 3 : 1)) {
+        const w = await withRealWalk(c, origin, gps)
+        if (!best || (w.walk_min ?? 99) < (best.walk_min ?? 99)) best = w
+        if ((w.walk_min ?? 99) <= 20) { best = w; break }
+      }
+      return json(toResult(best!))
     }
 
     if (!(await checkAiQuota(user.id))) return json({ error: QUOTA_MESSAGE }, 429)
 
     if (candidates.length) {
-      const list = candidates.map((p, i) => ({ i, name: p.name, type: p.type_label, rating: p.rating, reviews: p.rating_count, price: p.price_level, summary: p.summary, walk_min: p.distance_m != null ? Math.ceil(p.distance_m / 80) : null }))
+      const list = candidates.map((p, i) => ({ i, name: p.name, type: p.type_label, rating: p.rating, reviews: p.rating_count, price: p.price_level, summary: p.summary, walk_min: estWalk(p.distance_m) }))
       let pick: any = null
       try {
         pick = await askGemini(GEMINI_API_KEY, `You are The Goose, a cheeky but trustworthy travel companion.
@@ -151,7 +168,7 @@ Pick ONE — the kind of place a local friend would whisper to you, not just the
 Never invent facts that contradict the data.`)
       } catch (e) { console.warn(`honk pick: ${(e as Error).message}`) }
       const idx = Number.isInteger(pick?.i) && candidates[pick.i] ? pick.i : 0
-      return json(toResult(candidates[idx], pick || {}))
+      return json(toResult(await withRealWalk(candidates[idx], origin, gps), pick || {}))
     }
 
     // 2. No Google results (no key, nothing open): the Goose recommends from memory, as before

@@ -82,7 +82,7 @@ function useLivePlace(item, isActivity) {
 }
 
 /** Booking or plan details, with directions, copy and delete. */
-export default function BookingDetailSheet({ item, tripTz, countryCode, isActivity, canDelete, onDelete, onToggle, onConfirmVisit, onClose }) {
+export default function BookingDetailSheet({ item, tripTz, countryCode, isActivity, canDelete, onDelete, onEdit, onToggle, onConfirmVisit, onClose }) {
   const [confirm, setConfirm] = useState(false)
   const [getThere, setGetThere] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -129,6 +129,7 @@ export default function BookingDetailSheet({ item, tripTz, countryCode, isActivi
           {onConfirmVisit && <Button variant="primary" block icon="calendar" onClick={onConfirmVisit}>Confirm a visit</Button>}
           {place && <Button block icon="navigation" onClick={() => setGetThere(true)}>Get there</Button>}
           {item.confirmation_number && <Button block icon={copied ? 'check' : 'copy'} onClick={copyRef}>{copied ? 'Copied' : 'Copy confirmation number'}</Button>}
+          {onEdit && <Button block icon="edit" onClick={onEdit}>Edit booking</Button>}
           {isActivity && onToggle && !item.is_idea && (
             <Button block icon={item.is_completed ? 'refresh' : 'check'} onClick={() => { onToggle(!item.is_completed); onClose() }}>
               {item.is_completed ? 'Mark as not done' : 'Mark as done'}

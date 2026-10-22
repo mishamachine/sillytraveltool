@@ -77,7 +77,9 @@ export default function TripHeader({ trip, readOnly }) {
               <ListRow icon="edit" tone="neutral" title="Edit trip" meta={readOnly ? 'Dates, name and notes' : 'Dates, name, notes or delete'} chevron
                 onClick={() => { setShowMenu(false); openTripForm(trip) }} />
             )}
-            <ListRow icon="user-plus" tone="accent" title="Invite travelers" meta="They get an email from Goose" chevron
+            <ListRow icon={trip._isShared ? 'users' : 'user-plus'} tone="accent"
+              title={trip._isShared ? 'Travelers' : 'Invite travelers'}
+              meta={trip._isShared ? 'Who is on this trip, or leave it' : 'They get an email from Goose'} chevron
               onClick={() => { setShowMenu(false); setShowTravelers(true) }} />
             <ListRow icon="arrow-left" tone="neutral" title="Back to trips" chevron onClick={() => { setShowMenu(false); setActiveTrip(null) }} />
           </Card>

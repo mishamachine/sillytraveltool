@@ -20,22 +20,43 @@ Deno.serve(async (req) => {
 
     const raw = await req.json()
     const languageCode = cap(raw.languageCode, 12), languageName = cap(raw.languageName, 60)
+    // The traveler's own language; English unless they picked another
+    const sourceCode = cap(raw.sourceCode, 12) || 'en', sourceName = cap(raw.sourceName, 60) || 'English'
     if (!languageCode || !languageName) return new Response(JSON.stringify({ error: 'languageCode and languageName required' }), { status: 400, headers: CORS })
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
+    const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
+
+    // Free text: one sentence the traveler typed. Not cached here (it can be personal); the app keeps it on the phone
+    if (raw.mode === 'text') {
+      const text = cap(raw.text, 300)
+      if (!text) return reply({ error: 'text required' }, 400)
+      if (!(await checkAiQuota(user.id))) return reply({ error: QUOTA_MESSAGE }, 429)
+      const res = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: `Translate for a traveler, from ${sourceName} into ${languageName}. Natural, polite, as a local would say it.
+Text: ${JSON.stringify(text)}
+Return ONLY JSON: { "native": "the ${languageName} translation", "romanized": "pronunciation for a ${sourceName} speaker, or empty if ${languageName} uses the same script", "back": "the translation said back in ${sourceName}, to check the meaning" }` }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 600 } })
+      if (!res.ok) return reply({ error: `Gemini error: ${(await res.text()).slice(0, 200)}` }, 502)
+      const out = (await res.json()).candidates?.[0]?.content?.parts?.[0]?.text || ''
+      try {
+        const j = JSON.parse(out.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim())
+        return reply({ native: cap(j.native, 600), romanized: cap(j.romanized, 600), back: cap(j.back, 600) })
+      } catch { return reply({ error: 'Failed to parse Gemini response' }, 502) }
+    }
 
     // Shared cache is server-written only (clients have read access)
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     // phrase_cache is permanent: a language is generated once, then served from here for everyone
-    const { data: cached } = await admin.from('phrase_cache').select('*').eq('language_code', languageCode).maybeSingle()
+    const { data: cached } = await admin.from('phrase_cache').select('*').eq('source_code', sourceCode).eq('language_code', languageCode).maybeSingle()
     if (cached) return new Response(JSON.stringify(cached), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 
     if (!(await checkAiQuota(user.id))) {
       return new Response(JSON.stringify({ error: QUOTA_MESSAGE }), { status: 429, headers: CORS })
     }
 
-    const prompt = `Generate travel phrases in ${languageName} (${languageCode}).
+    // For a non-English traveler the "english" field carries the meaning in their language (kept for older app builds)
+    const meaning = sourceCode === 'en' ? 'English' : sourceName
+    const prompt = `Generate travel phrases in ${languageName} (${languageCode}) for a traveler who speaks ${meaning}.
 
 Return ONLY a valid JSON object with no markdown, no explanation. Just raw JSON.
 
@@ -51,9 +72,10 @@ Return ONLY a valid JSON object with no markdown, no explanation. Just raw JSON.
 }
 
 Each array must have exactly 8 phrase objects: { "english": "", "native": "", "romanized": "", "context": "" }
+"english" = what the phrase means, written in ${meaning}. "context" = when to use it, written in ${meaning}.
 
 goose_specials should be funny and useful phrases unique to this culture that travelers love.
-Make romanizations phonetically accurate for English speakers.`
+Make romanizations phonetically accurate for ${meaning} speakers.`
 
     const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.6, maxOutputTokens: 4096 } })
 
@@ -76,16 +98,16 @@ Make romanizations phonetically accurate for English speakers.`
 
     const CATEGORIES = ['greetings', 'food', 'transport', 'hotel', 'shopping', 'health', 'social', 'goose_specials']
     const row: Record<string, unknown> = {
-      language_code: languageCode, language_name: languageName,
+      source_code: sourceCode, language_code: languageCode, language_name: languageName,
       generated_at: new Date().toISOString(), expires_at: 'infinity',
     }
     for (const c of CATEGORIES) row[c] = Array.isArray(result?.[c]) ? result[c] : []
     // Saved forever, so only a complete phrasebook goes in; a thin reply is shown but the next request retries
     const complete = CATEGORIES.every(c => (row[c] as unknown[]).filter((p: any) => p?.english && p?.native).length >= 5)
     if (complete) {
-      const { error: cacheErr } = await admin.from('phrase_cache').upsert(row, { onConflict: 'language_code' })
+      const { error: cacheErr } = await admin.from('phrase_cache').upsert(row, { onConflict: 'source_code,language_code' })
       if (cacheErr) console.error('phrase_cache write failed:', cacheErr.message)
-    } else console.warn(`phrases ${languageCode}: incomplete reply, not cached`)
+    } else console.warn(`phrases ${sourceCode}>${languageCode}: incomplete reply, not cached`)
 
     return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 

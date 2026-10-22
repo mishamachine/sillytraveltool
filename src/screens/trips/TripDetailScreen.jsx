@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useTripsStore, useUIStore } from '../../store'
 import { tripPhase } from '../../lib/trips'
-import { Screen, SegmentedControl } from '../../ui'
+import { Screen, SegmentedControl, Banner } from '../../ui'
 import TripHeader from './detail/TripHeader'
 import PlanTab from './detail/PlanTab'
 import WeatherTab from './detail/WeatherTab'
@@ -34,12 +34,14 @@ export default function TripDetailScreen() {
 
   const tab = PANELS[activeTripTab] ? activeTripTab : 'itinerary'
   const Panel = PANELS[tab]
-  // Past trips are a look back: no adding or editing bookings
-  const readOnly = tripPhase(trip) === 'past'
+  // Past trips are a look back, and "View only" travelers can't change the plan (the database enforces it too)
+  const viewOnly = trip._isShared && trip._myRole === 'viewer'
+  const readOnly = tripPhase(trip) === 'past' || viewOnly
 
   return (
     <Screen gap={4} className="detail" labelledBy="detail-title">
       <TripHeader trip={trip} readOnly={readOnly} />
+      {viewOnly && <Banner tone="info" icon="eye" role="note">View only. The organiser can change this trip; ask them for edit access.</Banner>}
       <div className="detail-tabs">
         <SegmentedControl label="Trip sections" value={tab} onChange={setTripTab} options={TABS} idPrefix="trip" />
       </div>

@@ -1,5 +1,23 @@
 # STT Handoff — 2026-10-21
 
+## Update — second fix batch from the testing pass (2026-10-22)
+- **Edit bookings:** `BookingFormSheet` takes `booking` (edit mode, times shown via `toWallInput` in each zone);
+  `PlanTab` saves with `updateBooking` + `fillDatesIfUndated`. Creator or trip owner can edit (same rule as RLS).
+  Travel times are checked: arrival must be after departure.
+- **View only + travellers:** `TripDetailScreen` treats `_myRole === 'viewer'` as read-only with a note.
+  `TravelersSheet`: owner changes access / removes / cancels invites (`collabStore.setCollaboratorRole`,
+  `removeCollaborator`); a collaborator can leave. Share links are still not built.
+- **HONK:** `goosey-discover` (live v17) gets the real walking time from Routes (`_shared/google.ts#routeOne`) for
+  the pick, trying up to 3 when the first is over 20 min.
+- **Multi-city:** `src/lib/stays.js` finds each night's city from hotel bookings (50 km+ from the destination).
+  Weather fetches per city and labels days; Pack sends `stops` to `generate-checklist` (live v16).
+- **Translate:** migration `20261022040000_phrase_source_language.sql` (applied): `phrase_cache.source_code`,
+  unique (source_code, language_code). `generate-phrases` (live v18) writes phrasebooks for any from→to pair (the
+  `english` field holds the meaning in the traveller's language) and has `mode: 'text'` for typed sentences, which
+  are cached on the phone only (`stt_translations`), never server-side.
+- **Large text:** all font sizes and type tokens in rem; `.c-btn` uses min-height and wraps. iOS Dynamic Type is not
+  wired yet (no iOS build); add `font: -apple-system-body` on the native iOS shell when it exists.
+
 ## Update — analytics: GA4 web + app, funnel events, opt-out (2026-10-21)
 - **One pipe:** `track()` (`src/lib/analytics.js`) writes `analytics_events` (signed in) and sends the same event to GA4
   (`src/lib/ga.js`), web and Capacitor app. GA: Consent Mode with ads storage/signals denied, Google signals off, IP

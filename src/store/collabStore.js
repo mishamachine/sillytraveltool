@@ -73,11 +73,17 @@ export const useCollabStore = create((set, get) => ({
     }
   },
 
+  // Owner removes someone or cancels an invite; a traveler removing their own row leaves the trip (RLS allows both)
   removeCollaborator: async (collaboratorId) => {
-    try {
-      await supabase.from('trip_collaborators').delete().eq('id', collaboratorId)
-    } catch (e) {
-      console.error('removeCollaborator error', e)
-    }
+    const { error } = await supabase.from('trip_collaborators').delete().eq('id', collaboratorId)
+    if (error) throw error
+    await useTripsStore.getState().fetchTrips()
+  },
+
+  setCollaboratorRole: async (collaboratorId, role) => {
+    const { error } = await supabase.from('trip_collaborators').update({ role }).eq('id', collaboratorId)
+    if (error) throw error
+    track('collaborator_role_changed', { role })
+    await useTripsStore.getState().fetchTrips()
   },
 }))

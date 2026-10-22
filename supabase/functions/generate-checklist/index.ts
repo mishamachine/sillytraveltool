@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
-    const { trip, bookings: rawBookings, weatherContext } = await req.json()
+    const { trip, bookings: rawBookings, weatherContext, stops: rawStops } = await req.json()
     const bookings = Array.isArray(rawBookings) ? rawBookings.slice(0, 100) : []
     if (!trip) return new Response(JSON.stringify({ error: 'trip required' }), { status: 400, headers: CORS })
 
@@ -37,13 +37,19 @@ Deno.serve(async (req) => {
     const hasActivities = (bookings || []).some((b: any) => b.type === 'activity')
     const month = trip?.start_date ? new Date(trip.start_date).toLocaleString('default', { month: 'long' }) : 'unknown'
     const destination = [cap(trip?.destination_city, 80), cap(trip?.destination_country, 80)].filter(Boolean).join(', ') || 'the destination'
+    // Multi-city trips (from hotel bookings): pack for every stop's climate, not only the destination's
+    const stops = (Array.isArray(rawStops) ? rawStops : []).slice(0, 12)
+      .map((x: any) => `${cap(x?.city, 60)}${x?.country ? `, ${cap(x.country, 60)}` : ''} (${cap(x?.start, 10)} to ${cap(x?.end, 10)})`)
+    const stopsLine = stops.length > 1
+      ? `This trip has several stops: ${stops.join('; ')}. Cover the climate and customs of EVERY stop (plugs, clothing, money), and say which stop an item is for when it only matters for one.`
+      : ''
     const weatherLine = weatherContext
       ? `Weather during trip: avg high ${weatherContext.avgHigh}°, avg low ${weatherContext.avgLow}°, conditions: ${weatherContext.summary}. Rain expected: ${weatherContext.rainDays} day(s).`
       : ''
 
     const prompt = `You are a world-class travel packer helping someone prepare for ${nights} nights in ${destination} in ${month}.
 
-Facts: ${flightCount} flight(s), hotel: ${hasHotel}, activities booked: ${hasActivities}.${weatherLine ? '\n' + weatherLine : ''}
+Facts: ${flightCount} flight(s), hotel: ${hasHotel}, activities booked: ${hasActivities}.${stopsLine ? '\n' + stopsLine : ''}${weatherLine ? '\n' + weatherLine + (stopsLine ? ` (forecast for ${destination} only)` : '') : ''}
 
 Generate a tight, smart packing checklist tailored to this destination and season. Every item must be specific — no vague entries like "clothes".
 

@@ -4,7 +4,7 @@ import { reverseGeocodeCountry } from '../../../lib/geo'
 import { useTripsStore } from '../../../store'
 import { track } from '../../../lib/analytics'
 import {
-  Card, ListRow, Button, IconButton, Chip, Sheet, Text, Stack, Section, Loading, ErrorState, EmptyState, LinkButton, Overline, Icon,
+  Card, ListRow, Button, IconButton, Chip, Sheet, Text, Stack, Section, Loading, ErrorState, EmptyState, LinkButton, Overline, Icon, Field,
 } from '../../../ui'
 
 const PHRASE_CATEGORIES = [
@@ -66,7 +66,18 @@ const ALL_LANGUAGES = [
   { code: 'sv', name: 'Swedish' }, { code: 'tl', name: 'Tagalog' },
   { code: 'th', name: 'Thai' }, { code: 'tr', name: 'Turkish' },
   { code: 'uk', name: 'Ukrainian' }, { code: 'vi', name: 'Vietnamese' },
-]
+  { code: 'bn', name: 'Bengali' }, { code: 'hr', name: 'Croatian' },
+  { code: 'is', name: 'Icelandic' }, { code: 'ta', name: 'Tamil' },
+  { code: 'ur', name: 'Urdu' },
+].sort((a, b) => a.name.localeCompare(b.name))
+
+const ENGLISH = { code: 'en', name: 'English' }
+// The traveler's own language: phrase meanings and typed text are in this one
+const FROM_LANGUAGES = [ENGLISH, ...ALL_LANGUAGES]
+const FROM_KEY = 'stt_translate_from'
+const TEXT_KEY = 'stt_translations' // typed sentences, kept on this phone only
+const readFrom = () => { try { return JSON.parse(localStorage.getItem(FROM_KEY)) || ENGLISH } catch { return ENGLISH } }
+const readTexts = () => { try { return JSON.parse(localStorage.getItem(TEXT_KEY)) || {} } catch { return {} } }
 
 export default function TranslateTool() {
   const { activeTrip } = useTripsStore()
@@ -74,9 +85,14 @@ export default function TranslateTool() {
   const [phrases, setPhrases] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [showLangPicker, setShowLangPicker] = useState(false)
+  const [showLangPicker, setShowLangPicker] = useState(false) // false | 'to' | 'from'
+  const [sourceLang, setSourceLang] = useState(readFrom)
+  const [typed, setTyped] = useState('')
+  const [typedResult, setTypedResult] = useState(null) // { native, romanized, back }
+  const [typing, setTyping] = useState(false)
+  const [typedError, setTypedError] = useState(null)
   const [featuredIdx, setFeaturedIdx] = useState(0)
-  const [showBig, setShowBig] = useState(false)
+  const [showBig, setShowBig] = useState(null) // the phrase shown full screen
   const [speakingIdx, setSpeakingIdx] = useState(null)
 
   const tripLang = activeTrip?.destination_country_code
@@ -111,6 +127,9 @@ export default function TranslateTool() {
 
   const currentLang = selectedLang || autoLang
 
+  // English phrasebooks keep their old device key
+  const localKey = (lang) => `phrases_${sourceLang.code === 'en' ? '' : `${sourceLang.code}_`}${lang.code}`
+
   const loadPhrases = async (lang) => {
     if (!lang) return
     setLoading(true); setError(null); setPhrases(null); setFeaturedIdx(0)
@@ -118,6 +137,7 @@ export default function TranslateTool() {
       const { data: cached } = await supabase
         .from('phrase_cache')
         .select('*')
+        .eq('source_code', sourceLang.code)
         .eq('language_code', lang.code)
         .maybeSingle() // permanent shared phrasebook, no expiry
 
@@ -131,7 +151,7 @@ export default function TranslateTool() {
       }
 
       try {
-        const local = localStorage.getItem('phrases_' + lang.code)
+        const local = localStorage.getItem(localKey(lang))
         if (local) {
           const parsed = JSON.parse(local)
           if (parsed.expires_at && new Date(parsed.expires_at) > new Date()) {
@@ -145,7 +165,7 @@ export default function TranslateTool() {
 
       const { generatePhrases } = await import('../../../lib/gemini.js')
       // invokeFunction applies a 30s timeout and surfaces the server's { error } message
-      const generated = await generatePhrases(lang.code, lang.name)
+      const generated = await generatePhrases(lang.code, lang.name, sourceLang)
 
       const phraseData = {}
       PHRASE_CATEGORIES.forEach(cat => { phraseData[cat.id] = generated[cat.id] || [] })
@@ -154,7 +174,7 @@ export default function TranslateTool() {
       try {
         const expiresLocal = new Date()
         expiresLocal.setDate(expiresLocal.getDate() + 30)
-        localStorage.setItem('phrases_' + lang.code, JSON.stringify({ data: phraseData, expires_at: expiresLocal.toISOString() }))
+        localStorage.setItem(localKey(lang), JSON.stringify({ data: phraseData, expires_at: expiresLocal.toISOString() }))
       } catch {}
 
       setPhrases(phraseData)
@@ -168,11 +188,35 @@ export default function TranslateTool() {
   }
 
   useEffect(() => {
-    if (currentLang && currentLang.code !== loadedLangRef.current) {
-      loadedLangRef.current = currentLang.code
+    const key = currentLang && `${sourceLang.code}>${currentLang.code}`
+    if (key && key !== loadedLangRef.current) {
+      loadedLangRef.current = key
       loadPhrases(currentLang)
     }
-  }, [currentLang?.code])
+  }, [currentLang?.code, sourceLang.code])
+
+  const translateTyped = async (e) => {
+    e?.preventDefault()
+    const text = typed.trim()
+    if (!text || !currentLang) return
+    const key = `${sourceLang.code}>${currentLang.code}:${text.toLowerCase()}`
+    const saved = readTexts()[key]
+    if (saved) { setTypedResult(saved); setTypedError(null); track('text_translated', { language: currentLang.code, from: 'device' }, 'tools'); return }
+    setTyping(true); setTypedError(null)
+    try {
+      const { translateText } = await import('../../../lib/gemini.js')
+      const out = await translateText(text, currentLang, sourceLang)
+      if (!out?.native) throw new Error('Goose couldn\'t translate that. Try shorter words.')
+      setTypedResult(out)
+      try {
+        const all = readTexts(); all[key] = out
+        const keys = Object.keys(all); if (keys.length > 50) delete all[keys[0]]
+        localStorage.setItem(TEXT_KEY, JSON.stringify(all))
+      } catch {}
+      track('text_translated', { language: currentLang.code, from: 'new' }, 'tools')
+    } catch (err) { setTypedError(err?.message || 'Translation failed. Check your connection and try again.') }
+    finally { setTyping(false) }
+  }
 
   const speak = (phrase, idx) => {
     if (!window.speechSynthesis) return
@@ -205,14 +249,19 @@ export default function TranslateTool() {
   const featured = currentCategoryPhrases[featuredIdx] || currentCategoryPhrases[0]
   const featuredI = currentCategoryPhrases[featuredIdx] ? featuredIdx : 0
   const canSpeak = typeof window !== 'undefined' && !!window.speechSynthesis
-  const pickLang = (lang) => { loadedLangRef.current = null; setSelectedLang(lang); setShowLangPicker(false) }
+  const pickLang = (lang) => { loadedLangRef.current = null; setSelectedLang(lang); setShowLangPicker(false); setTypedResult(null) }
+  const pickFrom = (lang) => {
+    loadedLangRef.current = null; setSourceLang(lang); setShowLangPicker(false); setTypedResult(null)
+    try { localStorage.setItem(FROM_KEY, JSON.stringify(lang)) } catch {}
+  }
 
   return (
     <Stack gap={4}>
       <Stack row gap={2}>
-        <span className="tools-lang tools-lang--static">English</span>
+        <button type="button" className="tools-lang" onClick={() => setShowLangPicker('from')}
+          aria-label={`From ${sourceLang.name}. Change your language`}>{sourceLang.name}</button>
         <Icon name="arrow-right" size={18} className="tools-lang__arrow" />
-        <button type="button" className="tools-lang" onClick={() => setShowLangPicker(true)}
+        <button type="button" className="tools-lang" onClick={() => setShowLangPicker('to')}
           aria-label={currentLang ? `Phrases in ${currentLang.name}. Change language` : 'Choose a language'}>
           {currentLang ? currentLang.name : 'Choose a language'}
         </button>
@@ -223,7 +272,7 @@ export default function TranslateTool() {
 
       {!currentLang && (
         <EmptyState goose="happy" title="Pocket phrase book"
-          action={<Button variant="primary" size="lg" block onClick={() => setShowLangPicker(true)}>Choose a language</Button>}>
+          action={<Button variant="primary" size="lg" block onClick={() => setShowLangPicker('to')}>Choose a language</Button>}>
           64 travel phrases in 8 topics, saved on your phone once loaded.
         </EmptyState>
       )}
@@ -234,6 +283,28 @@ export default function TranslateTool() {
 
       {currentLang && error && !loading && (
         <ErrorState onRetry={() => loadPhrases(currentLang)}>{error}</ErrorState>
+      )}
+
+      {currentLang && currentLang.code !== sourceLang.code && (
+        <Card>
+          <form onSubmit={translateTyped} className="detail-form">
+            <Field label={`Say anything in ${currentLang.name}`} as="textarea" rows={2} maxLength={300} value={typed}
+              onChange={e => setTyped(e.target.value)} placeholder={sourceLang.code === 'en' ? 'My bag is lost. Where is the police station?' : `Type in ${sourceLang.name}`} />
+            <Button type="submit" variant="secondary" icon="translate" loading={typing} disabled={!typed.trim()}>{typing ? 'Translating' : 'Translate'}</Button>
+          </form>
+          {typedError && <Text variant="caption" tone="danger" role="alert">{typedError}</Text>}
+          {typedResult && (
+            <Stack gap={2} aria-live="polite">
+              <p className="tools-phrase-big" lang={currentLang.code}>{typedResult.native}</p>
+              {typedResult.romanized && typedResult.romanized !== typedResult.native && <Text variant="caption" tone="muted">{typedResult.romanized}</Text>}
+              {typedResult.back && <Text variant="caption" tone="muted">Means: {typedResult.back}</Text>}
+              <Stack row gap={2} wrap>
+                {canSpeak && <Button icon={speakingIdx === 'typed' ? 'pause' : 'volume'} onClick={() => speak(typedResult, 'typed')}>{speakingIdx === 'typed' ? 'Stop' : 'Play'}</Button>}
+                <Button variant="outline" onClick={() => setShowBig({ native: typedResult.native, english: typed.trim() })}>Show big</Button>
+              </Stack>
+            </Stack>
+          )}
+        </Card>
       )}
 
       {currentLang && phrases && !loading && (
@@ -250,7 +321,7 @@ export default function TranslateTool() {
                     {speakingIdx === featuredI ? 'Stop' : 'Play'}
                   </Button>
                 )}
-                <Button variant="outline" className="tools-on-inverse" onClick={() => setShowBig(true)}>Show big</Button>
+                <Button variant="outline" className="tools-on-inverse" onClick={() => setShowBig(featured)}>Show big</Button>
               </Stack>
             </Card>
           )}
@@ -292,14 +363,25 @@ export default function TranslateTool() {
         </>
       )}
 
-      {showBig && featured && (
-        <Sheet title="Show this" onClose={() => setShowBig(false)}>
-          <p className="tools-phrase-huge" lang={currentLang?.code}>{featured.native}</p>
-          <Text variant="body-lg" tone="secondary">{featured.english}</Text>
+      {showBig && (
+        <Sheet title="Show this" onClose={() => setShowBig(null)} size="tall">
+          <p className="tools-phrase-huge" lang={currentLang?.code}>{showBig.native}</p>
+          <Text variant="body-lg" tone="secondary">{showBig.english}</Text>
         </Sheet>
       )}
 
-      {showLangPicker && (
+      {showLangPicker === 'from' && (
+        <Sheet title="Your language" subtitle="Phrase meanings and what you type use this one" onClose={() => setShowLangPicker(false)} size="tall">
+          <Card variant="group">
+            {FROM_LANGUAGES.map(lang => (
+              <ListRow key={lang.code} title={lang.name} onClick={() => pickFrom(lang)} aria-current={sourceLang.code === lang.code ? 'true' : undefined}
+                trailing={sourceLang.code === lang.code ? <span className="tone-accent t-label">Selected</span> : undefined} />
+            ))}
+          </Card>
+        </Sheet>
+      )}
+
+      {showLangPicker === 'to' && (
         <Sheet title="Choose a language" onClose={() => setShowLangPicker(false)} size="tall">
           {autoLang && (
             <Section title="For your trip">

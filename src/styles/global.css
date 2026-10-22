@@ -11,7 +11,7 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-html { height: 100%; overflow: hidden; font-size: 16px; -webkit-text-size-adjust: 100%; background: var(--surface-sunken); }
+html { height: 100%; overflow: hidden; font-size: 1rem; -webkit-text-size-adjust: 100%; background: var(--surface-sunken); }
 
 body {
   height: 100%;
@@ -19,7 +19,7 @@ body {
   background: var(--surface-sunken);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

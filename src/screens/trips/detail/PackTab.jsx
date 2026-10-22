@@ -3,6 +3,7 @@ import { useTripsStore } from '../../../store'
 import { hasTripEnded } from '../../../lib/dates'
 import { fetchWithTimeout } from '../../../lib/http'
 import { tripCoords } from '../../../lib/weather'
+import { tripSegments } from '../../../lib/stays'
 import { track } from '../../../lib/analytics'
 import { Card, Field, IconButton, Button, LinkButton, Text, Stack, Icon, Loading, ErrorState, EmptyState, ProgressBar } from '../../../ui'
 
@@ -102,8 +103,13 @@ export default function PackTab({ trip }) {
         }
       } catch { /* weather fetch failed — proceed without it */ }
 
+      // A multi-city trip packs for every stop, not only the destination
+      let stops = []
+      try { stops = (await tripSegments(trip, bookings)).map(({ city, country, start, end }) => ({ city, country, start, end })) } catch { /* single city */ }
+      if (new Set(stops.map(x => x.city)).size < 2) stops = []
+
       const { generateChecklist } = await import('../../../lib/gemini.js')
-      const aiSections = await generateChecklist(trip, bookings, weatherContext)
+      const aiSections = await generateChecklist(trip, bookings, weatherContext, stops)
       if (!Array.isArray(aiSections)) throw new Error('Goose sent back something odd. Try again.')
       const result = aiSections.map(section => ({
         title: section.title,

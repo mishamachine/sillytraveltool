@@ -43,6 +43,14 @@ Fixed, deployed and re-tested on the live account (screenshots `fix-*.jpg`):
 | M4 ride apps (Q3) | Singapore hotel in a Greek trip → Grab (`fix-q3-singapore-hotel-grab.jpg`) |
 | m3 Guests (Q4) | Restaurant form starts with 2 |
 | m4 trip tab (Q5) | Opening a trip starts on Plan after switching tabs on another visit |
+| M2 edit bookings | "Edit booking" on the detail sheet reopens the form pre-filled in each place's local time; saved arrival 07:30 → 08:05 London, departure unchanged (`fix-m2-m3-edit-flight-time-check.jpg`) |
+| M3 time check | Arrival before departure is blocked: "Arrives before it leaves. Overnight flights land the next day"; the error scrolls into view |
+| M4 multi-city Weather / Pack | London trip with a Singapore hotel: 13–14 Nov show Singapore 30–31°, tips per city; Pack gets separate London and Singapore sections (`fix-m4-weather-london-singapore.jpg`) |
+| M5 HONK walk time | Final pick uses Google Routes walking time; if over 20 min it tries the next two picks. Bangkok now returns a 3-min (235 m) walk |
+| M7 view only | Viewers get the read-only trip with a "View only" note; no add, edit or delete (`fix-m7-view-only.jpg`, simulated in demo) |
+| M11 travellers | Organiser can switch Can edit / View only and remove or cancel an invite; a traveller can leave the trip (`fix-m11-manage-traveler.jpg`) |
+| M9 Translate | "From" language picker (Japanese → Turkish phrasebook, written once and saved for everyone), "Say anything" free text kept on the phone only, all 35 languages listed (`fix-m9-*.jpg`) |
+| M10 large text | Type in rem; buttons wrap instead of cutting off; Today's buttons stack at large sizes; nothing overflows at 150 % or 200 %, default size unchanged (`fix-m10-*.jpg`) |
 
 Still open: everything else below, in the recommended order.
 

@@ -40,11 +40,11 @@ function NextUp({ item, tz, onShow }) {
           {bookingMeta(item) && <Text variant="caption" tone="muted">{bookingMeta(item)}</Text>}
         </Stack>
       </Stack>
-      <Stack row gap={2}>
+      <Stack row gap={2} wrap>
         {safeUrl(item.booking_url)
-          ? <a className="c-btn c-btn--primary c-btn--md grow" href={safeUrl(item.booking_url)} target="_blank" rel="noreferrer">Open booking</a>
-          : <Button variant="primary" className="grow" onClick={onShow}>{item._activity ? 'Show plan' : SHOW_LABEL[item.type] || 'Show booking'}</Button>}
-        {place && <a className="c-btn c-btn--secondary c-btn--md grow" href={mapsUrl(place)} target="_blank" rel="noreferrer">Directions</a>}
+          ? <a className="c-btn c-btn--primary c-btn--md today-action" href={safeUrl(item.booking_url)} target="_blank" rel="noreferrer">Open booking</a>
+          : <Button variant="primary" className="today-action" onClick={onShow}>{item._activity ? 'Show plan' : SHOW_LABEL[item.type] || 'Show booking'}</Button>}
+        {place && <a className="c-btn c-btn--secondary c-btn--md today-action" href={mapsUrl(place)} target="_blank" rel="noreferrer">Directions</a>}
       </Stack>
     </Card>
   )

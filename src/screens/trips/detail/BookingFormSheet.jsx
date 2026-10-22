@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sanitizeBookingForm } from './planKinds'
-import { deviceZone, isValidZone, zoneName, allZones } from '../../../lib/localTime'
+import { deviceZone, isValidZone, zoneName, allZones, toWallInput, wallToInstant } from '../../../lib/localTime'
 import { lookupPlaceZone, lookupZone } from '../../../lib/zoneLookup'
 import PlaceAutocomplete from '../../../components/shared/PlaceAutocomplete'
 import { Sheet, Field, Button, Banner, Chip, Stack, Text, LinkButton } from '../../../ui'
@@ -11,6 +11,24 @@ const TITLES = {
   flight: 'Add a flight', hotel: 'Add a stay', restaurant: 'Add a reservation', activity: 'Add a ticket',
   transport: 'Add transport', other: 'Add a booking',
 }
+const EDIT_TITLES = {
+  flight: 'Edit flight', hotel: 'Edit stay', restaurant: 'Edit reservation', activity: 'Edit ticket',
+  transport: 'Edit transport', other: 'Edit booking',
+}
+// Columns the form never sends back on an edit
+const NOT_EDITABLE = ['id', 'trip_id', 'created_by', 'created_at', 'updated_at', '_kind']
+
+/** A saved booking as form values: times back to the wall clock at each place, as they were entered. */
+function bookingToForm(b, tripTz) {
+  const form = Object.fromEntries(Object.entries(b).filter(([k, v]) => !NOT_EDITABLE.includes(k) && v != null))
+  if (b.departure_time) form.departure_time = toWallInput(b.departure_time, b.departure_tz || tripTz || deviceZone())
+  if (b.arrival_time) form.arrival_time = toWallInput(b.arrival_time, b.arrival_tz || tripTz || deviceZone())
+  if (b.activity_time) form.activity_time = String(b.activity_time).slice(0, 5)
+  if (b.price != null) form.price = String(b.price)
+  if (b.party_size != null) form.party_size = String(b.party_size)
+  return form
+}
+
 const PLACEHOLDER = {
   flight: 'SEA → MAD', hotel: 'Hotel Urban, Madrid', restaurant: 'Dinner at Casa Lucio',
   transport: 'Madrid → Granada', activity: 'Alhambra · Nasrid Palaces', other: 'Flamenco show',
@@ -51,17 +69,21 @@ function useZoneFor(text, { airport = false, city = '', enabled = true }, apply)
 }
 
 
-/** Manual booking form for one type. `initial` may carry transport_mode. */
-export default function BookingFormSheet({ tripId, trip, type, initial = {}, onClose, onCreate }) {
+/** Manual booking form for one type. `initial` may carry transport_mode; `booking` edits a saved one. */
+export default function BookingFormSheet({ tripId, trip, type, initial = {}, booking = null, onClose, onCreate }) {
   const tripTz = isValidZone(trip?.destination_tz) ? trip.destination_tz : null
   // Times are entered as the local time at the place. Defaults until a lookup answers:
   // departure where you are now, arrival and venues at the destination.
   const [form, setForm] = useState(() => ({
     departure_tz: deviceZone(), arrival_tz: tripTz || deviceZone(), local_tz: tripTz || deviceZone(),
-    ...(type === 'restaurant' ? { party_size: '2' } : {}), ...initial,
+    ...(type === 'restaurant' && !booking ? { party_size: '2' } : {}), ...initial,
+    ...(booking ? bookingToForm(booking, tripTz) : {}),
   }))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  // The error sits at the top of a long sheet; bring it into view when Save is tapped at the bottom
+  const errorRef = useRef(null)
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: 'nearest' }) }, [error])
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const bind = (k) => ({ value: form[k] || '', onChange: e => set(k, e.target.value) })
   const travel = type === 'flight' || type === 'transport'
@@ -90,6 +112,11 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
     e?.preventDefault()
     const title = autoTitle()
     if (!title) return setError(simple ? 'Add the place so you can find it later.' : 'Give it a title so you can find it later.')
+    // A flight or train can't land before it leaves (usually a missed "+1" on an overnight arrival)
+    if (travel && form.departure_time?.includes('T') && form.arrival_time?.includes('T')) {
+      const leaves = wallToInstant(form.departure_time, form.departure_tz), lands = wallToInstant(form.arrival_time, form.arrival_tz)
+      if (leaves && lands && lands <= leaves) return setError('Arrives before it leaves. Overnight flights land the next day: check the arrival date.')
+    }
     setLoading(true)
     setError(null)
     try {
@@ -104,9 +131,9 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
   }
 
   return (
-    <Sheet title={TITLES[type] || TITLES.other} onClose={onClose}>
+    <Sheet title={booking ? EDIT_TITLES[type] || EDIT_TITLES.other : TITLES[type] || TITLES.other} onClose={onClose}>
       <form className="detail-form" onSubmit={handleSave} noValidate>
-        {error && <Banner tone="danger" icon="alert-circle" role="alert">{error}</Banner>}
+        {error && <div ref={errorRef}><Banner tone="danger" icon="alert-circle" role="alert">{error}</Banner></div>}
 
         {type === 'transport' && (
           <Stack gap={2}>
@@ -194,7 +221,7 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
           </>
         )}
 
-        <Button type="submit" variant="primary" size="lg" block loading={loading}>{loading ? 'Saving' : 'Save booking'}</Button>
+        <Button type="submit" variant="primary" size="lg" block loading={loading}>{loading ? 'Saving' : booking ? 'Save changes' : 'Save booking'}</Button>
       </form>
     </Sheet>
   )

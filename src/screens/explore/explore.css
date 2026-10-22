@@ -20,7 +20,7 @@
 .goose-pick {
   display: inline-flex; align-items: center; gap: 5px; margin-right: 6px; padding: 2px 9px 2px 2px;
   border-radius: var(--radius-pill); background: var(--accent-fill); color: var(--on-accent);
-  font-style: normal; font-size: 12px; font-weight: 700; line-height: 18px; vertical-align: 1px; white-space: nowrap;
+  font-style: normal; font-size: 0.75rem; font-weight: 700; line-height: 1.125rem; vertical-align: 1px; white-space: nowrap;
 }
 .goose-pick__face {
   width: 18px; height: 18px; border-radius: 50%; background: var(--goose-tile); flex-shrink: 0;
