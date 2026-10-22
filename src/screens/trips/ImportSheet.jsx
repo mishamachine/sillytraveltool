@@ -6,7 +6,7 @@ import { parseBookingEmail } from '../../lib/gemini'
 import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
 import { track } from '../../lib/analytics'
-import { formatRange, bookingKind, bookingMeta } from '../../lib/trips'
+import { formatRange, bookingKind, bookingMeta, tripDates, isUndated } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
 import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, category } from '../../ui'
 
@@ -31,7 +31,9 @@ function matchTrip(trips, ultimateDestination, bookings) {
   const bookingEnd   = arrivalDates.length   ? new Date(Math.max(...arrivalDates))   : bookingStart
   const destCity = (ultimateDestination?.city || '').toLowerCase().trim()
 
-  for (const trip of trips.filter(t => t.status !== 'cancelled')) {
+  // Dated trips must overlap the bookings; an undated (planning) trip for the city is the fallback, and takes their dates
+  const candidates = trips.filter(t => t.status !== 'cancelled').sort((a, b) => Number(isUndated(a)) - Number(isUndated(b)))
+  for (const trip of candidates) {
     const tripCity = (trip.destination_city || '').toLowerCase().trim()
     const cityWords = tripCity.split(/\s+/).filter(w => w.length >= 3)
     const cityMatch = destCity && tripCity && (
@@ -40,7 +42,7 @@ function matchTrip(trips, ultimateDestination, bookings) {
     )
     if (!cityMatch) continue
 
-    if (bookingStart) {
+    if (bookingStart && !isUndated(trip)) {
       const tripStart = parseLocalDate(trip.start_date)
       const tripEnd   = parseLocalDate(trip.end_date)
       tripStart.setDate(tripStart.getDate() - 7)
@@ -132,9 +134,12 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
     if (!parsedBookings.length || !tripId) return
     setSaving(true); setError(null)
     try {
+      const saved = []
       for (const booking of parsedBookings) {
-        await createBooking(tripId, sanitizeBooking(booking))
+        saved.push(await createBooking(tripId, sanitizeBooking(booking), { fillDates: false }))
       }
+      // An undated (planning) trip takes the whole itinerary's dates, not just the first leg's
+      await useTripsStore.getState().fillDatesIfUndated(tripId, saved)
       setStep('success')
       if (onBookingCreated) onBookingCreated()
     } catch (e) { setError(e.message || 'Could not save the booking.') }
@@ -223,7 +228,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
               <Stack gap={1}>
                 <Text variant="overline" tone="accent" as="p">{fixedTrip ? 'Adding to' : 'Matched to'}</Text>
                 <Text variant="card-title">{matched.title}</Text>
-                <Text variant="caption" tone="muted">{matched.destination_city} · {formatRange(matched.start_date, matched.end_date, { year: true })}</Text>
+                <Text variant="caption" tone="muted">{matched.destination_city} · {tripDates(matched, { year: true })}</Text>
               </Stack>
               <Stack row gap={2}>
                 {!fixedTrip && <Button className="grow" onClick={() => setStep('pick')}>Change trip</Button>}
@@ -254,7 +259,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
                 {trips.map(t => (
                   <ListRow key={t.id} role="radio" aria-checked={selectedTripId === t.id} onClick={() => setSelectedTripId(t.id)}
                     icon={selectedTripId === t.id ? 'check' : 'trips'} tone={selectedTripId === t.id ? 'accent' : 'neutral'}
-                    title={t.title} meta={`${t.destination_city} · ${formatRange(t.start_date, t.end_date, { year: true })}`} />
+                    title={t.title} meta={`${t.destination_city} · ${tripDates(t, { year: true })}`} />
                 ))}
               </Card>
             )}

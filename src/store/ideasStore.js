@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
-import { hasTripEnded, parseLocalDate, todayAtTrip } from '../lib/dates'
+import { hasTripEnded, todayAtTrip } from '../lib/dates'
+import { compareTripStart } from '../lib/trips'
 import { track } from '../lib/analytics'
 
 /**
@@ -15,8 +16,8 @@ export function tripForCity(trips, city) {
   const c = norm(city)
   if (!c) return null
   const matches = (trips || []).filter(t => norm(t.destination_city) === c && t.status !== 'cancelled' && !hasTripEnded(t) && t._myRole !== 'viewer')
-  const live = matches.find(t => t.start_date <= todayAtTrip(t))
-  return live || matches.sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))[0] || null
+  const live = matches.find(t => t.start_date && t.start_date <= todayAtTrip(t))
+  return live || matches.sort(compareTripStart)[0] || null
 }
 
 export const useIdeasStore = create((set, get) => ({

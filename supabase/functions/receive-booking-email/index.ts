@@ -94,7 +94,7 @@ function matchTrip(trips: any[], booking: any): any | null {
     new Date(t.end_date) >= new Date()
   ).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
 
-  if (!upcoming.length) return null // no upcoming trips — let caller auto-create
+  // (no dated upcoming trips: fall through to an undated one for the city, else auto-create)
 
   // 1. Date overlap match
   const bookingDate =
@@ -125,7 +125,13 @@ function matchTrip(trips: any[], booking: any): any | null {
     if (cityMatch) return cityMatch
   }
 
-  // 3. No confident match — return null so caller can auto-create a trip
+  // 3. A trip planned without dates for this city: the booking joins it (and gives it dates, below)
+  const cityHint = (booking.destination_city || booking.arrival_airport || '').toLowerCase()
+  const undated = trips.find(t => !t.start_date && t.status !== 'cancelled' && t.destination_city &&
+    cityHint.includes(t.destination_city.toLowerCase()))
+  if (undated) return undated
+
+  // 4. No confident match — return null so caller can auto-create a trip
   return null
 }
 
@@ -425,6 +431,15 @@ Rules:
     if (insertErr) {
       console.error('Booking insert error:', insertErr)
       return err(`Database insert failed: ${insertErr.message}`, 500)
+    }
+
+    // A trip planned without dates takes them from this booking
+    if (matchedTrip && !matchedTrip.start_date) {
+      const dates = [sanitized.departure_time, sanitized.arrival_time, sanitized.check_in_date, sanitized.check_out_date, sanitized.activity_date]
+        .filter(Boolean).map((d: string) => String(d).slice(0, 10)).sort()
+      if (dates.length) {
+        await supabase.from('trips').update({ start_date: dates[0], end_date: dates[dates.length - 1] }).eq('id', matchedTrip.id)
+      }
     }
 
     console.log(`✅ Booking created for user ${userId}: ${booking.id} → trip ${matchedTrip?.id || 'unassigned'}`)

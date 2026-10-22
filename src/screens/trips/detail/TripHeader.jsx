@@ -3,7 +3,7 @@ import { useTripsStore, useUIStore } from '../../../store'
 import { timeIn } from '../../../lib/localTime'
 import { useTripZone } from '../useTripZone'
 import { PlacePhoto } from '../../../components/shared/PlaceMedia'
-import { tripPhase, tripDay, nightsOf, formatRange, plural } from '../../../lib/trips'
+import { tripPhase, tripDay, nightsOf, plural, tripDates, isUndated } from '../../../lib/trips'
 import { daysBetween, todayAtTrip } from '../../../lib/dates'
 import { ScreenHeader, IconButton, Button, Sheet, Card, ListRow, Text, Stack, Chip } from '../../../ui'
 import TravelersSheet from './TravelersSheet'
@@ -38,11 +38,15 @@ export default function TripHeader({ trip, readOnly }) {
 
   const phase = tripPhase(trip)
   const { n, total } = tripDay(trip)
-  const away = daysBetween(todayAtTrip(trip), trip.start_date)
+  const undated = isUndated(trip)
+  const away = undated ? null : daysBetween(todayAtTrip(trip), trip.start_date)
   const status = phase === 'active' ? `Day ${n} of ${total}`
+    : phase === 'cancelled' ? 'Cancelled'
+    : undated ? 'Planning'
     : phase === 'upcoming' ? (away === 1 ? 'Tomorrow' : `In ${plural(away, 'day')}`)
-    : phase === 'cancelled' ? 'Cancelled' : 'Completed'
-  const meta = [formatRange(trip.start_date, trip.end_date), plural(nightsOf(trip), 'night'), trip.destination_country].filter(Boolean).join(' · ')
+    : 'Completed'
+  const nights = nightsOf(trip)
+  const meta = [tripDates(trip), nights != null ? plural(nights, 'night') : null, trip.destination_country].filter(Boolean).join(' · ')
 
   return (
     <>
@@ -59,6 +63,9 @@ export default function TripHeader({ trip, readOnly }) {
           <Chip tone={phase === 'active' ? 'accent' : phase === 'upcoming' ? 'info' : phase === 'past' ? 'success' : 'neutral'}
             icon={phase === 'past' ? 'check' : undefined}>{status}</Chip>
           {localTime && <Text variant="micro" tone="muted" as="span">{localTime} in {trip.destination_city}</Text>}
+          {undated && !readOnly && !trip._isShared && (
+            <Chip icon="calendar" onClick={() => openTripForm(trip)}>Add dates</Chip>
+          )}
         </Stack>
       </ScreenHeader>
       {trip.cover_photo && <PlacePhoto name={trip.cover_photo} w={900} className="detail-cover" />}

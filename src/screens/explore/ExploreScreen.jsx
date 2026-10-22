@@ -9,6 +9,7 @@ import { useCityGuide, TAB_SECTIONS } from './useCityGuide'
 import { GUIDE_SECTIONS, KnowSection, EatSection, SeeSection, MoveSection, EventsSection } from './GuideSections'
 import HonkView, { MOODS } from './HonkView'
 import IdeaSheet from './IdeaSheet'
+import { saveIdea } from './saveIdea'
 import GetThereSheet from '../../components/shared/GetThereSheet'
 import AiDisclosure from './AiDisclosure'
 import './explore.css'
@@ -80,21 +81,22 @@ function GuideHome({ setHonkMood, setMode }) {
   // Trip ideas: the guide belongs to the trip for this city (if there is one) and shows what's shortlisted or booked
   const trips = useTripsStore(s => s.trips)
   const cityTrip = tripForCity(trips, destination?.city)
-  const { load: loadIdeas, statusFor, addIdea } = useIdeasStore()
+  const { load: loadIdeas, statusFor } = useIdeasStore()
+  const openTripForm = useUIStore(s => s.openTripForm)
   useIdeasStore(s => s.byTrip[cityTrip?.id]) // re-render when this trip's ideas change
   useEffect(() => { if (cityTrip?.id) loadIdeas(cityTrip.id) }, [cityTrip?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const statusOf = item => (cityTrip ? statusFor(cityTrip.id, item) : null)
-  const say = msg => { setToast(msg); setTimeout(() => setToast(null), 2600) }
+  const say = (msg, trip) => { setToast({ msg, trip }); setTimeout(() => setToast(null), trip ? 5000 : 2600) }
 
   const openSection = (id) => { g.setGuideTab(id); setOpen(true) }
-  // One tap saves to the city's trip; shortlisted / booked places, or no trip yet, open the idea sheet
+  // One tap saves to the city's trip (starting an undated one if needed); saved or booked places open the idea sheet
   const handleAddToTrip = async (item, kind) => {
     const status = statusOf(item)
-    if (cityTrip && !status) {
-      try { await addIdea(cityTrip.id, item, kind); say(`Saved to ${cityTrip.title} ideas`) } catch { say('Couldn\'t save it. Check your connection.') }
-      return
-    }
-    setIdeaFor({ item, kind, status })
+    if (status) { setIdeaFor({ item, kind, status }); return }
+    try {
+      const { trip, created } = await saveIdea(destination, item, kind)
+      say(created ? `Saved to your new ${destination.city} trip` : `Saved to ${trip.title} ideas`, created ? trip : null)
+    } catch { say('Couldn\'t save it. Check your connection.') }
   }
   const overviewLoading = !!loadingSections.overview
   const overviewFailed = !overviewLoading && !!g.guideError && !g.sections.overview
@@ -152,9 +154,12 @@ function GuideHome({ setHonkMood, setMode }) {
           </>
         )}
 
-        {ideaFor && <IdeaSheet {...ideaFor} destination={destination} trip={cityTrip} onSaved={say} onClose={() => setIdeaFor(null)} />}
+        {ideaFor && cityTrip && <IdeaSheet {...ideaFor} trip={cityTrip} onSaved={say} onClose={() => setIdeaFor(null)} />}
         {getThere && <GetThereSheet place={getThere} countryCode={destination.country_code} onClose={() => setGetThere(null)} />}
-        {toast && <Toast icon="check" title={toast} />}
+        {toast && (
+          <Toast icon="check" title={toast.msg}
+            action={toast.trip && <Button size="sm" variant="secondary" onClick={() => { openTripForm(toast.trip); setToast(null) }}>Add dates</Button>} />
+        )}
       </Screen>
     )
   }

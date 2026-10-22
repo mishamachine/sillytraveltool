@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './authStore'
 import { checkAndAwardBadges } from './authStore'
-import { parseLocalDate } from '../lib/dates'
+import { compareTripStart, isUndated, bookingDates } from '../lib/trips'
 import { pgQuote } from '../lib/postgrest'
 import { track } from '../lib/analytics'
 
@@ -78,7 +78,7 @@ export const useTripsStore = create((set, get) => ({
       }
 
       const allTrips = [...ownedWithCollabs, ...sharedTrips]
-        .sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
+        .sort(compareTripStart)
 
       set({ trips: allTrips })
 
@@ -174,11 +174,28 @@ export const useTripsStore = create((set, get) => ({
   },
 
   // BOOKINGS
-  createBooking: async (tripId, bookingData) => {
+  /**
+   * Keep the trip's dates in step with its bookings, so a planning trip and the bookings that confirm it never
+   * conflict: an undated trip takes the bookings' dates, and a dated one widens to cover a booking outside them
+   * (the return flight added after the outbound one).
+   */
+  fillDatesIfUndated: async (tripId, bookings) => {
+    const trip = get().trips.find(t => t.id === tripId) || (get().activeTrip?.id === tripId ? get().activeTrip : null)
+    if (!trip) return
+    const dates = bookings.flatMap(bookingDates).sort()
+    if (!dates.length) return
+    const start = isUndated(trip) || dates[0] < trip.start_date ? dates[0] : trip.start_date
+    const end = isUndated(trip) || dates[dates.length - 1] > trip.end_date ? dates[dates.length - 1] : trip.end_date
+    if (start === trip.start_date && end === trip.end_date) return
+    try { await get().updateTrip(tripId, { start_date: start, end_date: end }) } catch { /* best-effort */ }
+  },
+
+  createBooking: async (tripId, bookingData, { fillDates = true } = {}) => {
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('bookings')
       .insert({ ...bookingData, trip_id: tripId, created_by: user.id }).select().single()
     if (error) throw error
+    if (fillDates) await get().fillDatesIfUndated(tripId, [data])
     track('booking_added', { type: bookingData.type || null, source: bookingData.source === 'email_import' ? 'email_import' : 'manual' })
     set(state => ({ bookings: [...state.bookings, data].sort((a, b) => {
       const da = a.departure_time || (a.check_in_date ? a.check_in_date + 'T12:00:00' : null) || '9999'

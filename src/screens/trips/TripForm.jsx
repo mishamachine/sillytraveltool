@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useTripsStore, useUIStore, useCollabStore } from '../../store'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import { lookupZone } from '../../lib/zoneLookup'
+import { isUndated } from '../../lib/trips'
 import { warmGuide } from '../../store/guideStore'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
-import { Sheet, Field, Button, IconButton, SegmentedControl, Banner, Text, Stack, Card, IconTile, EmptyState } from '../../ui'
+import { Sheet, Field, Button, IconButton, SegmentedControl, Banner, Text, Stack, Card, IconTile, EmptyState, Switch } from '../../ui'
 
 export default function TripForm() {
   const { editingItem, closeTripForm } = useUIStore()
-  const { createTrip, updateTrip, deleteTrip } = useTripsStore()
+  const { trips, createTrip, updateTrip, deleteTrip } = useTripsStore()
   const { inviteCollaborator } = useCollabStore()
 
   // editingItem with an id = edit; without an id = prefill for a new trip (e.g. "Go back again")
@@ -21,6 +22,8 @@ export default function TripForm() {
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteResults, setInviteResults] = useState([])
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  // "Not sure yet": a planning trip without dates; flights or hotels added later fill them in
+  const [noDates, setNoDates] = useState(isEdit && !editingItem?.start_date)
 
   const [form, setForm] = useState({
     title: editingItem?.title || '',
@@ -62,16 +65,26 @@ export default function TripForm() {
     })
   }
 
+  const datesOf = (f) => (noDates ? { ...f, start_date: null, end_date: null } : f)
+
   const handleSubmit = async (e) => {
     e?.preventDefault()
     setLoading(true)
     setError(null)
     try {
       if (isEdit) {
-        await updateTrip(editingItem.id, form)
+        await updateTrip(editingItem.id, datesOf(form))
         closeTripForm()
       } else {
-        const trip = await createTrip(form)
+        // Already planning this city without dates? Give that trip these dates instead of making a second one
+        const twin = !noDates && trips.find(t => isUndated(t) && !t._isShared && t.status !== 'cancelled'
+          && t.destination_city?.trim().toLowerCase() === form.destination_city.trim().toLowerCase())
+        if (twin) {
+          await updateTrip(twin.id, { start_date: form.start_date, end_date: form.end_date })
+          closeTripForm()
+          return
+        }
+        const trip = await createTrip(datesOf(form))
         // Start writing the city guide now, so it's ready when they open Explore
         warmGuide(form.destination_city, form.destination_country, form.destination_country_code)
         if (tripType === 'group' && trip?.id) {
@@ -107,7 +120,7 @@ export default function TripForm() {
     closeTripForm()
   }
 
-  const isValid = form.title && form.destination_city && form.destination_country && form.start_date && form.end_date
+  const isValid = form.title && form.destination_city && form.destination_country && (noDates || (form.start_date && form.end_date))
 
   // ── INVITE STEP ─────────────────────────────────────────────
   if (step === 'invite') {
@@ -188,9 +201,11 @@ export default function TripForm() {
           <Field label="Trip name" placeholder="Tokyo in spring" value={form.title} onChange={e => update('title', e.target.value)} />
 
           <div className="grid-2">
-            <Field label="Depart" type="date" value={form.start_date} onChange={e => update('start_date', e.target.value)} />
-            <Field label="Return" type="date" value={form.end_date} min={form.start_date} onChange={e => update('end_date', e.target.value)} />
+            <Field label="Depart" type="date" value={form.start_date} disabled={noDates} onChange={e => update('start_date', e.target.value)} />
+            <Field label="Return" type="date" value={form.end_date} disabled={noDates} min={form.start_date} onChange={e => update('end_date', e.target.value)} />
           </div>
+          <Switch label="Not sure of the dates yet" description="Plan now. Goose fills in the dates when flights or hotels are added."
+            checked={noDates} onChange={setNoDates} />
 
           {!isEdit && (
             <Stack gap={2}>

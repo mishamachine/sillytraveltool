@@ -13,6 +13,7 @@ import { reverseGeocode } from '../../lib/places'
 import { PlacePhoto, GoogleRating, OpenNow, GoogleAttribution, InkWait } from '../../components/shared/PlaceMedia'
 import GetThereSheet from '../../components/shared/GetThereSheet'
 import IdeaSheet from './IdeaSheet'
+import { saveIdea } from './saveIdea'
 import { useTripsStore, useIdeasStore, tripForCity } from '../../store'
 
 export const MOODS = [
@@ -94,15 +95,17 @@ export default function HonkView({ initialMood = null, onBack }) {
   // Save the spot to the trip for this city (or start one), same as the guide
   const trips = useTripsStore(s => s.trips)
   const honkTrip = tripForCity(trips, effectiveCity)
-  const { load: loadIdeas, statusFor, addIdea } = useIdeasStore()
+  const { load: loadIdeas, statusFor } = useIdeasStore()
   useIdeasStore(s => s.byTrip[honkTrip?.id])
   useEffect(() => { if (honkTrip?.id) loadIdeas(honkTrip.id) }, [honkTrip?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const honkStatus = result && honkTrip ? statusFor(honkTrip.id, result) : null
   const honkKind = /restaurant|cafe|bar|food|bakery|eat/i.test(result?.type || '') ? 'restaurant' : 'attraction'
   const saveHonk = async () => {
-    if (honkTrip && !honkStatus) {
-      try { await addIdea(honkTrip.id, result, honkKind, 'goosey'); say(`Saved to ${honkTrip.title} ideas`) } catch { say('Couldn\'t save it. Check your connection.') }
-    } else setIdeaOpen(true)
+    if (honkStatus) { setIdeaOpen(true); return }
+    try {
+      const { trip, created } = await saveIdea({ city: effectiveCity, country: effectiveCountry, country_code: effectiveCountryCode }, result, honkKind, 'goosey')
+      say(created ? `Saved to your new ${effectiveCity} trip` : `Saved to ${trip.title} ideas`)
+    } catch { say('Couldn\'t save it. Check your connection.') }
   }
 
   const handleHonk = async (moodId = selectedMood) => {
@@ -241,8 +244,7 @@ export default function HonkView({ initialMood = null, onBack }) {
           {result.place_id && <GoogleAttribution />}
           <AiDisclosure city={effectiveCity} what="HONK" />
           {getThere && <GetThereSheet place={result} countryCode={effectiveCountryCode} onClose={() => setGetThere(false)} />}
-          {ideaOpen && <IdeaSheet item={result} kind={honkKind} status={honkStatus} trip={honkTrip} onSaved={say} onClose={() => setIdeaOpen(false)}
-            destination={{ city: effectiveCity, country: effectiveCountry, country_code: effectiveCountryCode }} />}
+          {ideaOpen && honkTrip && <IdeaSheet item={result} kind={honkKind} status={honkStatus} trip={honkTrip} onSaved={say} onClose={() => setIdeaOpen(false)} />}
           {toast && <Toast icon="check" title={toast} />}
         </>
       )}

@@ -1,5 +1,18 @@
 # STT Handoff — 2026-10-21
 
+## Update — undated trips, one-tap save, simple reservations (2026-10-22, early)
+- **Trips without dates** (migration `undated_trips`: dates nullable, both-or-neither, end >= start). Helpers in
+  `src/lib/trips.js`: `isUndated`, `tripDates` ("Dates to be decided"), `compareTripStart` (undated last),
+  `bookingDates`. Screens show "Planning" + an "Add dates" chip; Weather/countdowns hide until dates exist.
+  New trip form has "Not sure of the dates yet".
+- **One tap from the guide/HONK** (`src/screens/explore/saveIdea.js`): saves to the city's trip, or creates an undated
+  trip for the city (with its zone) and offers "Add dates" in the toast. No form.
+- **No conflicts:** `tripsStore.fillDatesIfUndated` gives an undated trip its bookings' dates and widens a dated trip to
+  cover any booking added to it; imports match an undated trip by city; creating a dated trip for a city that already
+  has an undated one fills that trip in. `receive-booking-email` does the same (repo; not yet deployed).
+- **Simple reservations:** restaurant / ticket form is place, date + time, guests, confirmation (optional); title is
+  automatic; address, zone, price and notes sit under "More details".
+
 ## Update — Get there, trip ideas, preloading, auth deadlock fix (2026-10-21, late night)
 - **Auth deadlock fixed** (`src/store/authStore.js`): the `onAuthStateChange` callback awaited Supabase queries while
   Supabase held its auth lock, so after sign-in / the hourly token refresh every data call could hang until restart.

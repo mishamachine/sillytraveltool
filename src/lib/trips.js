@@ -6,6 +6,21 @@ import { deviceZone, isValidZone, wallToInstant, dayIn, timeIn, zoneName, differ
 /** Today's date where the trip is (its destination zone), else on the phone. */
 export const tripToday = todayAtTrip
 
+// ---- undated trips ("Lisbon, dates to be decided"): start_date and end_date are both null ----
+export const DATES_TBD = 'Dates to be decided'
+export const isUndated = trip => !trip?.start_date || !trip?.end_date
+
+/** The trip's date range for display, or "Dates to be decided". */
+export function tripDates(trip, opts) {
+  return isUndated(trip) ? DATES_TBD : formatRange(trip.start_date, trip.end_date, opts)
+}
+
+/** Sort by start date, undated trips last. */
+export function compareTripStart(a, b) {
+  if (isUndated(a) || isUndated(b)) return isUndated(a) === isUndated(b) ? 0 : isUndated(a) ? 1 : -1
+  return a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : 0
+}
+
 /** 'active' | 'upcoming' | 'past' | 'cancelled' by the date at the destination. */
 export function tripPhase(trip, today = tripToday(trip)) {
   if (!trip) return 'upcoming'
@@ -16,14 +31,17 @@ export function tripPhase(trip, today = tripToday(trip)) {
   return 'upcoming'
 }
 
-/** Day number within the trip (1-based) and total days. */
+/** Day number within the trip (1-based) and total days; nulls for an undated trip. */
 export function tripDay(trip, today = tripToday(trip)) {
+  if (isUndated(trip)) return { n: null, total: null }
   const total = daysBetween(trip.start_date, trip.end_date) + 1
   const n = Math.min(total, Math.max(1, daysBetween(trip.start_date, today) + 1))
   return { n, total }
 }
 
+/** Nights on the trip, or null when undated. */
 export function nightsOf(trip) {
+  if (isUndated(trip)) return null
   return Math.max(0, daysBetween(trip.start_date, trip.end_date))
 }
 
@@ -166,4 +184,14 @@ export function relativeIn(date, now = new Date()) {
 /** Maps search for an address or place. */
 export function mapsUrl(query) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+}
+
+/** Calendar dates a booking covers, local to each place ('YYYY-MM-DD'); fills in an undated trip's dates. */
+export function bookingDates(b) {
+  const zone = tz => (isValidZone(tz) ? tz : deviceZone())
+  const at = (v, tz) => (!v ? null : /T/.test(v) ? dayIn(v, zone(tz)) : String(v).slice(0, 10))
+  return [
+    at(b.departure_time, b.departure_tz), at(b.arrival_time, b.arrival_tz),
+    b.check_in_date?.slice(0, 10), b.check_out_date?.slice(0, 10), b.activity_date?.slice(0, 10),
+  ].filter(d => d && /^\d{4}-\d{2}-\d{2}$/.test(d))
 }

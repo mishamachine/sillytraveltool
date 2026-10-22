@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTripsStore, useUIStore, useGuideStore } from '../../store'
-import { parseLocalDate, hasTripEnded } from '../../lib/dates'
+import { hasTripEnded } from '../../lib/dates'
+import { compareTripStart } from '../../lib/trips'
 import { track } from '../../lib/analytics'
 
 // Sub-sections each guide section needs (loaded lazily, per section, to avoid Edge Function timeouts)
@@ -35,7 +36,7 @@ export function useCityGuide(open) {
 
   const upcomingTrips = trips
     .filter(t => !hasTripEnded(t) && t.status !== 'cancelled')
-    .sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
+    .sort(compareTripStart)
   const upcomingTrip = upcomingTrips[0]
 
   const [destination, setDestination] = useState(upcomingTrip ? toDest(upcomingTrip) : null)

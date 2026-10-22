@@ -80,14 +80,20 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
   )
   const venueZoneLine = <ZoneLine id="zone-venue" zone={form.local_tz} where={form.venue_name || form.hotel_name || trip?.destination_city} onChange={tz => set('local_tz', tz)} />
 
+  // Restaurants and tickets stay simple: place, when, guests, confirmation. The rest is behind "More details".
+  const simple = type === 'restaurant' || type === 'activity' || type === 'other'
+  const [more, setMore] = useState(false)
+  const autoTitle = () => form.title || (type === 'restaurant' && form.venue_name ? `Dinner at ${form.venue_name}` : form.venue_name) || ''
+
   const handleSave = async (e) => {
     e?.preventDefault()
-    if (!form.title) return setError('Give it a title so you can find it later.')
+    const title = autoTitle()
+    if (!title) return setError(simple ? 'Add the place so you can find it later.' : 'Give it a title so you can find it later.')
     setLoading(true)
     setError(null)
     try {
       // Keep only the zones this booking uses: travel has departure/arrival, the rest a venue zone
-      const { departure_tz, arrival_tz, local_tz, ...rest } = form
+      const { departure_tz, arrival_tz, local_tz, ...rest } = { ...form, title }
       const zones = travel ? { departure_tz, arrival_tz: form.arrival_time ? arrival_tz : null } : { local_tz }
       await onCreate(tripId, sanitizeBookingForm({ ...rest, ...zones }, type))
       onClose()
@@ -112,7 +118,7 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
           </Stack>
         )}
 
-        <Field label="Title" required {...bind('title')} placeholder={PLACEHOLDER[type] || PLACEHOLDER.other} />
+        {!simple && <Field label="Title" required {...bind('title')} placeholder={PLACEHOLDER[type] || PLACEHOLDER.other} />}
 
         {type === 'flight' && <>
           <div className="grid-2">
@@ -141,12 +147,10 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
 
         {type === 'restaurant' && <>
           {placeField('venue_name', 'venue_address', 'Restaurant', 'Search restaurants')}
-          <Field label="Address" {...bind('venue_address')} placeholder="Street, city" />
           <div className="grid-2">
             <Field label="Date" type="date" {...bind('activity_date')} />
             <Field label="Time" type="time" {...bind('activity_time')} />
           </div>
-          {venueZoneLine}
           <Field label="Guests" type="number" inputMode="numeric" min="1" max="50" {...bind('party_size')} placeholder="2" />
         </>}
 
@@ -171,15 +175,23 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
             <Field label="Date" type="date" {...bind('activity_date')} />
             <Field label="Time" type="time" {...bind('activity_time')} />
           </div>
-          {venueZoneLine}
         </>}
 
-        <Field label="Confirmation number" {...bind('confirmation_number')} placeholder="ABC123" autoCapitalize="characters" />
-        <div className="detail-price">
-          <Field label="Currency" {...bind('currency')} onChange={e => set('currency', e.target.value.toUpperCase())} placeholder="EUR" maxLength={3} />
-          <Field label="Price" type="number" inputMode="decimal" {...bind('price')} placeholder="0.00" />
-        </div>
-        <Field label="Notes" as="textarea" rows={2} {...bind('notes')} placeholder="Anything to remember" />
+        <Field label={simple ? 'Confirmation number (optional)' : 'Confirmation number'} {...bind('confirmation_number')} placeholder="ABC123" autoCapitalize="characters" />
+        {simple && !more ? (
+          <LinkButton icon="chevron-down" onClick={() => setMore(true)}>More details</LinkButton>
+        ) : (
+          <>
+            {simple && <Field label="Title" {...bind('title')} placeholder={autoTitle() || PLACEHOLDER[type] || PLACEHOLDER.other} />}
+            {simple && <Field label="Address" {...bind('venue_address')} placeholder="Street, city" />}
+            {simple && venueZoneLine}
+            <div className="detail-price">
+              <Field label="Currency" {...bind('currency')} onChange={e => set('currency', e.target.value.toUpperCase())} placeholder="EUR" maxLength={3} />
+              <Field label="Price" type="number" inputMode="decimal" {...bind('price')} placeholder="0.00" />
+            </div>
+            <Field label="Notes" as="textarea" rows={2} {...bind('notes')} placeholder="Anything to remember" />
+          </>
+        )}
 
         <Button type="submit" variant="primary" size="lg" block loading={loading}>{loading ? 'Saving' : 'Save booking'}</Button>
       </form>

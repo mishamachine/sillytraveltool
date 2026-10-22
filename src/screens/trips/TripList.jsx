@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { useTripsStore, useUIStore, useCollabStore } from '../../store'
 import { parseLocalDate, daysBetween } from '../../lib/dates'
 import { fetchWithTimeout } from '../../lib/http'
-import { tripPhase, tripDay, nightsOf, formatRange, plural, sortByStart, bookingStart, bookingTime, hasClockTime, tripToday } from '../../lib/trips'
+import { tripPhase, tripDay, nightsOf, formatRange, plural, sortByStart, bookingStart, bookingTime, hasClockTime, tripToday, tripDates, isUndated, compareTripStart } from '../../lib/trips'
 import { tripCoords } from '../../lib/weather'
 import {
   Screen, ScreenHeader, Section, Button, IconButton, Card, ListRow, Chip, Text, Overline, Stack, Icon,
@@ -76,7 +76,7 @@ function OnTheRoadCard({ trip, onOpen }) {
       </Stack>
       <Stack gap={1}>
         <Text variant="h2" tone="inverse" as="h3">{trip.destination_country || trip.destination_city}</Text>
-        <Text variant="body" tone="inverse-muted">{trip.title} · {formatRange(trip.start_date, trip.end_date)}</Text>
+        <Text variant="body" tone="inverse-muted">{trip.title} · {tripDates(trip)}</Text>
       </Stack>
       <ProgressBar value={n / total} inverse label={`Day ${n} of ${total}`} />
       {next && <Text variant="caption" tone="inverse-muted">Next: {next.title}{hasClockTime(next) ? ` at ${bookingTime(next, tz)}` : ''}</Text>}
@@ -86,6 +86,10 @@ function OnTheRoadCard({ trip, onOpen }) {
 
 function DateTile({ iso, tone = 'info' }) {
   const d = parseLocalDate(iso)
+  if (!d) {
+    // Undated trip: a calendar icon instead of a date
+    return <span className={`trips-date c-tile c-tile--lg c-tile--${tone}`} aria-hidden="true"><Icon name="calendar" size={24} /></span>
+  }
   return (
     <span className={`trips-date c-tile c-tile--lg c-tile--${tone}`} aria-hidden="true">
       <span className="trips-date__month">{format(d, 'MMM')}</span>
@@ -95,9 +99,11 @@ function DateTile({ iso, tone = 'info' }) {
 }
 
 function UpcomingCard({ trip, climate, onOpen }) {
-  const days = daysBetween(tripToday(trip), trip.start_date)
+  const undated = isUndated(trip)
+  const days = undated ? null : daysBetween(tripToday(trip), trip.start_date)
   const count = trip.bookings?.length || 0
-  const meta = [formatRange(trip.start_date, trip.end_date), plural(nightsOf(trip), 'night'), count ? plural(count, 'booking') : null,
+  const nights = nightsOf(trip)
+  const meta = [tripDates(trip), nights != null ? plural(nights, 'night') : null, count ? plural(count, 'booking') : null,
     climate ? `${climate.avgLow}–${climate.avgHigh}°` : null].filter(Boolean).join(' · ')
   const people = travelersOf(trip)
   return (
@@ -114,7 +120,7 @@ function UpcomingCard({ trip, climate, onOpen }) {
           )}
         </Stack>
         <Chip tone={trip.status === 'cancelled' ? 'neutral' : 'info'}>
-          {trip.status === 'cancelled' ? 'Cancelled' : days === 1 ? 'Tomorrow' : `In ${plural(days, 'day')}`}
+          {trip.status === 'cancelled' ? 'Cancelled' : undated ? 'Planning' : days === 1 ? 'Tomorrow' : `In ${plural(days, 'day')}`}
         </Chip>
       </Stack>
     </Card>
@@ -151,7 +157,7 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
     })).then(results => setClimateMap(prev => ({ ...prev, ...Object.fromEntries(results) })))
   }, [trips.length]) // re-run only when trip count changes
 
-  const byStart = [...trips].sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
+  const byStart = [...trips].sort(compareTripStart)
   const active = byStart.filter(t => tripPhase(t) === 'active')
   const upcoming = byStart.filter(t => ['upcoming', 'cancelled'].includes(tripPhase(t)) && !(tripPhase(t) === 'cancelled' && t.end_date < tripToday(t)))
   const past = byStart.filter(t => tripPhase(t) === 'past').reverse()
@@ -216,7 +222,7 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
               <ListRow key={trip.id} onClick={() => onOpenRecap(trip)}
                 leading={<span className="c-tile c-tile--md c-tile--neutral"><Icon name="flag" /></span>}
                 title={trip.title}
-                meta={`${formatRange(trip.start_date, trip.end_date, { year: true })} · ${plural(nightsOf(trip), 'night')}`}
+                meta={`${tripDates(trip, { year: true })}${nightsOf(trip) != null ? ` · ${plural(nightsOf(trip), 'night')}` : ''}`}
                 trailing={<span className="t-caption tone-accent w-600">Recap</span>} />
             ))}
           </Card>

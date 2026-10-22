@@ -78,7 +78,7 @@ export default function PackTab({ trip }) {
       let weatherContext = null
       try {
         const { lat, lon } = (await tripCoords(trip)) || {}
-        if (lat && lon) {
+        if (lat && lon && trip.start_date) {
           const wRes = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&forecast_days=7`)
           const wData = await wRes.json()
           if (wData?.daily?.time) {

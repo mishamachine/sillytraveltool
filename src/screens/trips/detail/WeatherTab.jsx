@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { useAuthStore } from '../../../store'
 import { parseLocalDate, todayAtTrip, daysBetween } from '../../../lib/dates'
 import { fetchWithTimeout } from '../../../lib/http'
-import { formatRange, tripPhase } from '../../../lib/trips'
+import { formatRange, tripPhase, isUndated } from '../../../lib/trips'
 import { tripCoords, weatherInfo, fetchTripHistory } from '../../../lib/weather'
 import { Card, Section, Text, Overline, Stack, Icon, Banner, ErrorState, Skeleton, EmptyState } from '../../../ui'
 
@@ -43,6 +43,8 @@ export default function WeatherTab({ trip }) {
   useEffect(() => {
     let alive = true
     const run = async () => {
+      // No dates yet: nothing to forecast (the render below says so)
+      if (isUndated(trip)) { setLoading(false); setData(null); return }
       setLoading(true); setError(null)
       try {
         const coords = await tripCoords(trip)
@@ -103,6 +105,9 @@ export default function WeatherTab({ trip }) {
     return () => { alive = false }
   }, [trip.id, trip.destination_city, trip.destination_lat, trip.destination_lng, trip.start_date, trip.end_date, unit, attempt])
 
+  if (isUndated(trip)) {
+    return <EmptyState goose="happy" title="Add dates to see the weather">Goose shows the forecast, or typical weather for your dates, once the trip has them.</EmptyState>
+  }
   if (loading) return <Card variant="raised" aria-busy="true" aria-label="Loading weather"><Skeleton lines={4} /></Card>
   if (error) return <ErrorState title="Goose lost the forecast" onRetry={() => setAttempt(a => a + 1)}>{error}</ErrorState>
   if (!data?.days?.length && !data?.now) {
