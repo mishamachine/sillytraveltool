@@ -18,6 +18,18 @@
 - **Large text:** all font sizes and type tokens in rem; `.c-btn` uses min-height and wraps. iOS Dynamic Type is not
   wired yet (no iOS build); add `font: -apple-system-body` on the native iOS shell when it exists.
 
+## Website deploy (2026-10-21)
+- **sillytraveltool.com is live with the Clay build** (main `e823545`; it had been the 12 Mar 2026 build). Verified on the live
+  site: no console/CSP errors, service worker active, manifest, GA hits to `G-H7ZP1DBHN3`, HTTPS redirect, `/privacy`.
+- **Deploy over SSH** (owner-approved; Hostinger SSH enabled, key `stt-deploy (Claude Code, Mac)` = `~/.ssh/stt_hostinger`;
+  it reaches every site on the hosting account; remove it in hPanel → Advanced → SSH Access to revoke):
+  `npm run build && rsync -az --delete -e "ssh -i ~/.ssh/stt_hostinger -p 65002" dist/ u880786000@217.196.54.17:domains/sillytraveltool.com/public_html/`
+  Back up first: `ssh -i ~/.ssh/stt_hostinger -p 65002 u880786000@217.196.54.17 'tar -czf ~/backups/stt-$(date +%Y%m%d%H%M).tar.gz -C ~/domains/sillytraveltool.com public_html'`
+- Backups on the server: `~/backups/sillytraveltool-public_html-20261021-clay.tar.gz` (this deploy). The March build was
+  overwritten without a backup (a failed backup step during the first deploy).
+- CSP in `public/.htaccess` now allows `*.googleusercontent.com` (Google place and cover photos). Any new client-side host
+  must be added there too, or it works on localhost and breaks live.
+
 ## Update — analytics: GA4 web + app, funnel events, opt-out (2026-10-21)
 - **One pipe:** `track()` (`src/lib/analytics.js`) writes `analytics_events` (signed in) and sends the same event to GA4
   (`src/lib/ga.js`), web and Capacitor app. GA: Consent Mode with ads storage/signals denied, Google signals off, IP
