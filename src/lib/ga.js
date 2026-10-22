@@ -6,7 +6,8 @@ import { Capacitor } from '@capacitor/core'
 
 // The stream's Google tag ID (GA Admin → Data streams → Configure tag settings). It forwards to the GA4
 // measurement ID G-H7ZP1DBHN3; Google answers 404 when the script or config uses the measurement ID itself.
-const GA_ID = import.meta.env.VITE_GA_ID || 'G-KRXDJXZ4SS'
+// The tag's other ID, G-KRXDJXZ4SS, is an old measurement ID: configuring it would also send hits there.
+const GA_ID = import.meta.env.VITE_GA_ID || 'GT-PHRN37HF'
 const KILL_IDS = [GA_ID, 'G-H7ZP1DBHN3']
 const ENABLED = import.meta.env.MODE === 'production' || import.meta.env.VITE_GA_DEV === '1'
 const DEBUG = import.meta.env.DEV
