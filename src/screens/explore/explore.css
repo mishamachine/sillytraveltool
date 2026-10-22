@@ -7,16 +7,32 @@
 .c-card--inverse .explore-mood { background: transparent; color: var(--ink-inverse); box-shadow: inset 0 0 0 1px var(--progress-track-inverse); }
 .c-card--inverse .explore-mood.is-selected { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
 
-.explore-place { gap: var(--space-3); }
+/* Guide place card: photo | name, one meta line, quip (2 lines) | add. Rating lives in the meta line so the text gets the width */
+.explore-place { gap: var(--space-3); padding: var(--space-3); }
+.explore-place.is-pick { box-shadow: var(--shadow-card), inset 0 0 0 1.5px var(--accent); }
 .explore-place__head { display: flex; align-items: flex-start; gap: var(--space-2); }
 .explore-place__toggle {
   flex: 1; min-width: 0; min-height: var(--touch-min); display: flex; align-items: flex-start; gap: var(--space-3);
   padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: inherit; font: inherit;
 }
+.explore-place__thumb { position: relative; flex-shrink: 0; }
+.explore-place__thumb .place-photo--thumb { width: 64px; height: 64px; }
+.explore-place__badge {
+  position: absolute; left: 4px; right: 4px; bottom: 4px; padding: 1px 0; border-radius: var(--radius-pill);
+  background: var(--accent-fill); color: var(--on-accent); font-size: 10px; font-weight: 700; line-height: 14px;
+  text-align: center; white-space: nowrap; overflow: hidden;
+}
+.explore-place__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.explore-place__name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.explore-place__meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.explore-place__rating { display: inline-flex; align-items: center; gap: 2px; }
+.explore-place__rating .c-icon, .explore-place__rating svg { margin: 0 1px 0 0; }
 .explore-quip { font-style: italic; }
+.explore-quip--short { margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .explore-clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .explore-list { margin: 0; padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); color: var(--ink); }
 .explore-list li::marker { color: var(--accent); }
 .explore-ai { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .c-screen > .explore-chips, .c-stack > .explore-chips, .c-stack > .explore-filter { flex-shrink: 0; }
 
+.explore-place__score { color: var(--ink); font-weight: 600; }

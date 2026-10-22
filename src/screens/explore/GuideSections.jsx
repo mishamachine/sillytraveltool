@@ -28,6 +28,29 @@ function ScoreChip({ score }) {
   return <Chip icon="star" aria-label={`Goose rating ${s.toFixed(1)} out of 10`}>{s.toFixed(1)}</Chip>
 }
 
+const PRICE = ['Free', '$', '$$', '$$$', '$$$$']
+const compact = n => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
+
+/** One line under the name, short facts first so a narrow screen cuts the cuisine, not the rating:
+ *  ★ 4.5 · 20k · $$ · Portuguese sandwiches (older AI-only guides show the Goose score instead). */
+function PlaceMeta({ item, sub }) {
+  const price = item.price_tier != null ? PRICE[item.price_tier] : null
+  const score = item.rating == null && (item.goose_score || item.rating_estimate)
+  const rest = [item.rating_count ? compact(item.rating_count) : null, price, sub].filter(Boolean).join(' · ')
+  return (
+    <Text variant="caption" tone="muted" as="span" className="explore-place__meta">
+      {item.rating != null && (
+        <span className="explore-place__rating" aria-label={`Google rating ${item.rating} out of 5${item.rating_count ? ` from ${item.rating_count} reviews` : ''}`}>
+          <Icon name="star" size={13} strokeWidth={2.2} className="tone-accent" />
+          <span className="explore-place__score">{Number(item.rating).toFixed(1)}</span>
+        </span>
+      )}
+      {score ? <span className="explore-place__score">{`Goose ${parseFloat(score).toFixed(1)}`}</span> : null}
+      {rest && <span>{(item.rating != null || score) ? ` · ${rest}` : rest}</span>}
+    </Text>
+  )
+}
+
 /** Restaurant or attraction: collapsed summary, expands to description, tip and links. */
 function PlaceCard({ item, kind, onAddToTrip }) {
   const [expanded, setExpanded] = useState(false)
@@ -38,19 +61,22 @@ function PlaceCard({ item, kind, onAddToTrip }) {
   if (item.pending) waited.current = true
   const ink = waited.current && !item.pending ? 'ink-in' : undefined
   return (
-    <Card variant={item.is_goose_pick ? 'raised' : 'plain'} className="explore-place">
+    <Card className={cx('explore-place', item.is_goose_pick && 'is-pick')}>
       <div className="explore-place__head">
         <button type="button" className="explore-place__toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}>
-          {item.photo && <PlacePhoto name={item.photo} w={200} className="place-photo--thumb" />}
-          <Stack gap={1} grow>
-            {item.is_goose_pick && <Overline tone="accent">Goose pick</Overline>}
-            <Text variant="card-title" as="span">{item.name}</Text>
-            {sub && <Text variant="caption" tone="muted" as="span">{sub}</Text>}
+          {item.photo && (
+            <span className="explore-place__thumb">
+              <PlacePhoto name={item.photo} w={200} className="place-photo--thumb" />
+              {item.is_goose_pick && <span className="explore-place__badge">Goose pick</span>}
+            </span>
+          )}
+          <span className="explore-place__text">
+            {item.is_goose_pick && !item.photo && <Overline tone="accent">Goose pick</Overline>}
+            <Text variant="card-title" as="span" className="explore-place__name">{item.name}</Text>
+            <PlaceMeta item={item} sub={sub} />
             {item.pending && !expanded && <InkWait label="The Goose is writing" />}
-            {item.goose_quip && !expanded && <Text variant="caption" tone="accent" as="span" className={cx('explore-quip', ink)}>“{item.goose_quip}”</Text>}
-          </Stack>
-          {item.rating != null ? <GoogleRating rating={item.rating} />
-            : kind === 'restaurant' ? <ScoreChip score={item.goose_score || item.rating_estimate} /> : <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={20} className="tone-muted" />}
+            {item.goose_quip && !expanded && <Text variant="caption" tone="accent" as="span" className={cx('explore-quip explore-quip--short', ink)}>“{item.goose_quip}”</Text>}
+          </span>
         </button>
         <IconButton icon="plus" variant="sunken" label={`Add ${item.name} to a trip`} onClick={() => onAddToTrip(item, kind)} />
       </div>
