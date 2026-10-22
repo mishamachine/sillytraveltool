@@ -63,9 +63,11 @@ export const useAuthStore = create((set, get) => ({
     // supabase query waits for that lock, so awaiting one in here deadlocks the client and all data calls
     // hang until the app restarts. Keep the callback synchronous and do the profile work on the next tick.
     supabase.auth.onAuthStateChange((event, session) => {
+      const prevUserId = get().user?.id
       set({ session, user: session?.user ?? null })
       if (event === 'PASSWORD_RECOVERY') set({ passwordRecovery: true })
-      if (event === 'SIGNED_IN' && session?.user) {
+      // Supabase also sends SIGNED_IN for a session it restores (page load, tab focus); count only real sign-ins
+      if (event === 'SIGNED_IN' && session?.user && session.user.id !== prevUserId) {
         const provider = session.user.app_metadata?.provider
         track('sign_in', provider ? { provider } : {})
       }
@@ -106,6 +108,7 @@ export const useAuthStore = create((set, get) => ({
       .select().single()
     if (newProfile) {
       set({ profile: newProfile })
+      track('sign_up', { provider: user.app_metadata?.provider || 'email' })
       await supabase.from('user_stats').upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true }).select().single()
       // Fire welcome email — non-blocking, failure must never affect signup
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL

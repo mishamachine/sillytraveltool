@@ -4,14 +4,29 @@
     {
       "name": "stt-dev",
       "runtimeExecutable": "/bin/zsh",
-      "runtimeArgs": ["-c", "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite --port 5173 --strictPort"],
+      "runtimeArgs": [
+        "-c",
+        "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite --port 5173 --strictPort"
+      ],
       "port": 5173
     },
     {
       "name": "stt-preview",
       "runtimeExecutable": "/bin/zsh",
-      "runtimeArgs": ["-c", "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite preview --port 4173 --strictPort"],
+      "runtimeArgs": [
+        "-c",
+        "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite preview --port 4173 --strictPort"
+      ],
       "port": 4173
+    },
+    {
+      "name": "stt-dev-ga",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=$HOME/.local/node/bin:$PATH; VITE_GA_DEV=1 exec npx vite --port 5174 --strictPort"
+      ],
+      "port": 5174
     }
   ]
 }

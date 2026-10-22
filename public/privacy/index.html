@@ -51,9 +51,14 @@
   uses it to find spots near you. Your coordinates are turned into a city and country by a geocoding service; only the city
   and country are sent to our AI. We don't store your location history.</p>
   <h3>Usage and diagnostics</h3>
-  <p>Simple product events (for example "trip created", "guide viewed") with no names, emails or document numbers, so we can
-  see which features work. If the app crashes we may receive a crash report without personal data. On our website (not
-  in the mobile apps) we use Google Analytics to understand where visitors come from.</p>
+  <p>Simple product events (for example "trip created", "guide viewed", which screen was opened) so we can see which
+  features work. Events carry only short codes such as the booking type or a country code: no names, emails, trip titles,
+  confirmation or document numbers, typed text or exact locations. They are stored with your account in our database and
+  also sent to Google Analytics, on the website and in the apps, with a random device identifier and your account's random
+  ID (never your email), IP addresses anonymised and no advertising features. If the app crashes we may receive a crash
+  report without personal data.</p>
+  <p><strong>Your choice:</strong> turn off <em>Settings → Share usage stats</em> to stop all usage events on that device.
+  If your browser sends Do Not Track or Global Privacy Control, it starts off.</p>
 
   <h2>Why we use it</h2>
   <ul>
@@ -63,7 +68,7 @@
     <li>To email you about your account or trip invites. No marketing emails without your consent.</li>
   </ul>
   <p>Where the law asks for a legal basis: performing our contract with you (running the app), our legitimate interest in
-  keeping it secure and improving it, and your consent for location and website analytics.</p>
+  keeping it secure and improving it (including usage stats, which you can turn off), and your consent for location.</p>
 
   <h2>Who processes it for us</h2>
   <div class="card">
@@ -77,7 +82,7 @@
         <tr><td>Open-Meteo</td><td>Weather and past-trip weather</td><td>Trip coordinates and dates</td></tr>
         <tr><td>OpenStreetMap Nominatim, Komoot Photon, BigDataCloud, timeapi.io</td><td>City search, coordinates to city, local time</td><td>Search text or coordinates</td></tr>
         <tr><td>open.er-api.com</td><td>Exchange rates</td><td>Currency codes only</td></tr>
-        <tr><td>Google Analytics (website only)</td><td>Website visitor statistics</td><td>Pseudonymous visit data</td></tr>
+        <tr><td>Google Analytics</td><td>Usage statistics for the website and apps</td><td>Pseudonymous usage events and device/browser type</td></tr>
         <tr><td>Sentry (if enabled)</td><td>Crash reports</td><td>Technical error details, no personal data</td></tr>
       </tbody>
     </table>

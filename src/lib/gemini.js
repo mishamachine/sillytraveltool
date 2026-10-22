@@ -6,6 +6,7 @@
  * Client only needs VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY.
  */
 import { supabase } from './supabase'
+import { track } from './analytics'
 
 /**
  * Core Edge Function invoker — handles auth + error unwrapping
@@ -40,7 +41,10 @@ async function invokeFunction(name, payload, timeoutMs = 30000) {
       timeout,
     ])
     if (timedOut) throw new Error('This is taking longer than expected. Please try again.')
-    if (error) throw new Error(await extractErrorMessage(error))
+    if (error) {
+      if (error?.context?.status === 429) track('ai_quota_hit', { feature: name })
+      throw new Error(await extractErrorMessage(error))
+    }
     if (data?.error) throw new Error(data.error)
     return data
   } finally {

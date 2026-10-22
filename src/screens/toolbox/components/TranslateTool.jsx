@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { reverseGeocodeCountry } from '../../../lib/geo'
 import { useTripsStore } from '../../../store'
+import { track } from '../../../lib/analytics'
 import {
   Card, ListRow, Button, IconButton, Chip, Sheet, Text, Stack, Section, Loading, ErrorState, EmptyState, LinkButton, Overline, Icon,
 } from '../../../ui'
@@ -125,6 +126,7 @@ export default function TranslateTool() {
         PHRASE_CATEGORIES.forEach(cat => { phraseData[cat.id] = cached[cat.id] || [] })
         setPhrases(phraseData)
         setLoading(false)
+        track('phrases_loaded', { language: lang.code, from: 'cache' }, 'tools')
         return
       }
 
@@ -135,6 +137,7 @@ export default function TranslateTool() {
           if (parsed.expires_at && new Date(parsed.expires_at) > new Date()) {
             setPhrases(parsed.data)
             setLoading(false)
+            track('phrases_loaded', { language: lang.code, from: 'device' }, 'tools')
             return
           }
         }
@@ -155,7 +158,9 @@ export default function TranslateTool() {
       } catch {}
 
       setPhrases(phraseData)
+      track('phrases_loaded', { language: lang.code, from: 'new' }, 'tools')
     } catch (e) {
+      track('ai_error', { feature: 'phrases' }, 'tools')
       setError(e?.message || 'Phrase generation failed. Check connection and try again.')
     } finally {
       setLoading(false)

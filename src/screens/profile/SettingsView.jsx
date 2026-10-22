@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore, useUIStore } from '../../store'
 import { InboxAddress } from '../trips/InboxHint'
+import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
 import {
-  Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Text, Stack, Logo, LinkButton, Icon,
+  Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Switch, Text, Stack, Logo, LinkButton, Icon,
 } from '../../ui'
 
 const PROVIDER = { email: 'Email', google: 'Google', apple: 'Apple' }
@@ -36,6 +37,7 @@ export default function SettingsView({ onBack, onDelete }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [shareStats, setShareStats] = useState(analyticsEnabled)
 
   useEffect(() => {
     if (profile?.display_name) setName(profile.display_name)
@@ -148,6 +150,8 @@ export default function SettingsView({ onBack, onDelete }) {
 
       <Section title="Privacy and about">
         <Card variant="group">
+          <Switch label="Share usage stats" description="Anonymous feature counts help us improve the app. No names, emails or trip details."
+            checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
           <ExternalRow href="https://sillytraveltool.com/privacy/" title="Privacy Policy" />
           <ExternalRow href="https://sillytraveltool.com/terms/" title="Terms of Service" />
           <ListRow title="Delete account" meta="Erase your trips, documents and score" danger chevron onClick={onDelete} />

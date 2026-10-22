@@ -1,5 +1,27 @@
 # STT Handoff — 2026-10-21
 
+## Update — analytics: GA4 web + app, funnel events, opt-out (2026-10-21)
+- **One pipe:** `track()` (`src/lib/analytics.js`) writes `analytics_events` (signed in) and sends the same event to GA4
+  (`src/lib/ga.js`), web and Capacitor app. GA: Consent Mode with ads storage/signals denied, Google signals off, IP
+  anonymised, `user_id` = Supabase UUID, user property + param `app_platform`. In the app GA gets a device-held
+  `client_id` with `cookie_storage: 'none'` (WebView origin can't keep cookies) and `page_location` on sillytraveltool.com.
+- **Screen views** from the stores (`src/lib/screenTracking.js`): `sign_in`, `trips`, `trip_form`, `trip/<tab>`,
+  `explore/guide|honk`, `tools`, `profile` → GA `page_view` + Supabase `screen_view`.
+- **New events:** `sign_up {provider}`; `sign_in` only on a real sign-in (Supabase re-sends SIGNED_IN on restore, which
+  doubled it); `trip_created {dated, via: form|import|one_tap, country}`; `booking_added {type, source: manual|
+  paste_import|idea|email_import}`, `booking_edited/deleted {type}`; `import_parsed/import_saved {bookings}`,
+  `import_failed {stage, reason}`; `guide_load_more {section}`; `get_there {kind, ride, country}`; `phrases_loaded
+  {language, from: cache|device|new}`; `invite_accepted`, `invite_accept_failed`; `ai_quota_hit {feature}` (any 429 from
+  an Edge Function); `app_error {kind: js|promise|render, error_type}` (max 5/session, never the message).
+- **Privacy guard:** `cleanProps()` drops keys like email/name/title/text/address/lat/lng/confirmation and strings over
+  40 chars, with `@` or 5+ digit runs. **Opt-out:** Settings → "Share usage stats" (localStorage `stt_analytics`); off by
+  default under Do Not Track / Global Privacy Control; off stops GA and Supabase events. Privacy page updated to match.
+- **BLOCKER (owner):** `https://www.googletagmanager.com/gtag/js?id=G-H7ZP1DBHN3` returns **404** (other IDs return 200),
+  so GA receives nothing today. Check GA Admin → Data streams (stream deleted, or ID mistyped?). A new ID can go in
+  `VITE_GA_ID` with no code change. Then register custom dimensions in GA for `app_platform`, `via`, `type`, `source`,
+  `section`, `feature`, `kind`. Test with `stt-dev-ga` in `.claude/launch.json` (VITE_GA_DEV=1, debug_mode → DebugView).
+- Play Data safety form must now declare Analytics (app interactions, device IDs), not shared, optional.
+
 ## Update — fixes from the testing pass (2026-10-22, see docs/TESTING_PASS.md)
 - **Import destination + leg dates** (B1, M1): `parse-booking-email` (live v24) prompt says the destination is never
   the home city of a round trip and "+1" carries into the next leg; `_shared/itinerary.ts` then checks it without the

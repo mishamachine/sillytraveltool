@@ -2,11 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import { initSentry } from './lib/sentry'
-import { initGA } from './lib/ga'
+import { initAnalytics } from './lib/analytics'
 import { applyTheme, getSavedTheme } from './lib/theme'
 
 initSentry()
-initGA()
+initAnalytics()
 applyTheme(getSavedTheme())
 
 const root = createRoot(document.getElementById('root'))

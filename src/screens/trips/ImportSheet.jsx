@@ -6,7 +6,7 @@ import { parseBookingEmail } from '../../lib/gemini'
 import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
-import { track } from '../../lib/analytics'
+import { track, errorReason } from '../../lib/analytics'
 import { formatRange, bookingKind, bookingMeta, tripDates, isUndated } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
 import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, category } from '../../ui'
@@ -127,8 +127,10 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       setMatched(match)
       setSelectedTripId(match?.id || null)
       setStep('preview')
+      track('import_parsed', { bookings: bookings.length, matched_trip: !!match }, 'trips')
     } catch (e) {
       track('ai_error', { feature: 'parse_booking' }, 'trips')
+      track('import_failed', { stage: 'parse', reason: errorReason(e) }, 'trips')
       setError(e.message || 'Goose couldn\'t read that. Try again, or add it by hand.')
     }
     finally { setLoading(false) }
@@ -140,13 +142,17 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
     try {
       const saved = []
       for (const booking of parsedBookings) {
-        saved.push(await createBooking(tripId, sanitizeBooking(booking), { fillDates: false }))
+        saved.push(await createBooking(tripId, sanitizeBooking(booking), { fillDates: false, via: 'paste_import' }))
       }
       // An undated (planning) trip takes the whole itinerary's dates, not just the first leg's
       await useTripsStore.getState().fillDatesIfUndated(tripId, saved)
       setStep('success')
+      track('import_saved', { bookings: saved.length }, 'trips')
       if (onBookingCreated) onBookingCreated()
-    } catch (e) { setError(e.message || 'Could not save the booking.') }
+    } catch (e) {
+      track('import_failed', { stage: 'save', reason: errorReason(e) }, 'trips')
+      setError(e.message || 'Could not save the booking.')
+    }
     finally { setSaving(false) }
   }
 
@@ -187,7 +193,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
         status: 'planning',
         // A trip without a zone gets one the first time it's opened
         destination_tz: newPlace?.tz || (sameAsGoose ? ultimateDest?.tz : null) || null,
-      })
+      }, { via: 'import' })
       warmGuide(city, country, geo?.country_code || '')
       await handleSave(newTrip.id)
     } catch (e) { setError(e.message || 'Could not create the trip.') }

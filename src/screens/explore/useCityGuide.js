@@ -88,6 +88,7 @@ export function useCityGuide(open) {
   const loadMore = async (section) => {
     if (!destination) return
     setLoadingMore(section)
+    track('guide_load_more', { section, country: destination.country_code || null }, 'guide')
     await loadMoreSection(destination.city, destination.country, section)
     setLoadingMore(null)
   }

@@ -124,7 +124,8 @@ export const useTripsStore = create((set, get) => ({
     set({ bookings: bookings || [], activities: activities || [], loadingDetail: false })
   },
 
-  createTrip: async (tripData) => {
+  // via: 'form' | 'import' | 'one_tap' (analytics only)
+  createTrip: async (tripData, { via = 'form' } = {}) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) throw new Error('Not signed in — please refresh and try again')
     // Ensure country code is uppercase and non-empty
@@ -140,7 +141,7 @@ export const useTripsStore = create((set, get) => ({
       throw new Error(error.message || 'Could not create trip — check your connection and try again')
     }
     set(state => ({ trips: [...state.trips, { ...data, trip_collaborators: [] }] }))
-    track('trip_created', { country: sanitized.destination_country_code })
+    track('trip_created', { country: sanitized.destination_country_code, dated: !!sanitized.start_date, via })
     // trips_created and other trip stats are recomputed server-side by DB triggers
     try {
       await checkAndAwardBadges(user.id, useAuthStore.getState().session?.access_token)
@@ -193,13 +194,14 @@ export const useTripsStore = create((set, get) => ({
     try { await get().updateTrip(tripId, { start_date: start, end_date: end }) } catch { /* best-effort */ }
   },
 
-  createBooking: async (tripId, bookingData, { fillDates = true } = {}) => {
+  // via (analytics only): 'manual' | 'paste_import' | 'idea'; email-inbox bookings say so in bookingData.source
+  createBooking: async (tripId, bookingData, { fillDates = true, via = 'manual' } = {}) => {
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('bookings')
       .insert({ ...bookingData, trip_id: tripId, created_by: user.id }).select().single()
     if (error) throw error
     if (fillDates) await get().fillDatesIfUndated(tripId, [data])
-    track('booking_added', { type: bookingData.type || null, source: bookingData.source === 'email_import' ? 'email_import' : 'manual' })
+    track('booking_added', { type: bookingData.type || null, source: bookingData.source === 'email_import' ? 'email_import' : via })
     set(state => ({ bookings: [...state.bookings, data].sort((a, b) => {
       const da = a.departure_time || (a.check_in_date ? a.check_in_date + 'T12:00:00' : null) || '9999'
       const db = b.departure_time || (b.check_in_date ? b.check_in_date + 'T12:00:00' : null) || '9999'
@@ -218,13 +220,16 @@ export const useTripsStore = create((set, get) => ({
   updateBooking: async (id, updates) => {
     const { data, error } = await supabase.from('bookings').update(updates).eq('id', id).select().single()
     if (error) throw error
+    track('booking_edited', { type: data?.type || null })
     set(state => ({ bookings: state.bookings.map(b => b.id === id ? data : b) }))
     return data
   },
 
   deleteBooking: async (id) => {
+    const type = get().bookings.find(b => b.id === id)?.type || null
     const { error } = await supabase.from('bookings').delete().eq('id', id)
     if (error) throw error
+    track('booking_deleted', { type })
     set(state => ({ bookings: state.bookings.filter(b => b.id !== id) }))
   },
 

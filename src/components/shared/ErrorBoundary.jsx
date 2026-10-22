@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import { captureException } from '../../lib/sentry'
+import { trackError } from '../../lib/analytics'
 import { ErrorState, Button } from '../../ui'
 
 export default class ErrorBoundary extends Component {
@@ -15,6 +16,7 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     console.error('ErrorBoundary caught:', error, info.componentStack)
     captureException(error, { contexts: { react: { componentStack: info.componentStack } } })
+    trackError('render', error)
   }
 
   handleReset = () => {

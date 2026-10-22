@@ -21,11 +21,12 @@ Ship STT as native iOS and Android apps with Capacitor, wrapping this React 18 +
 - Resend inbound webhook has no body. Fetch it with `GET https://api.resend.com/emails/receiving/{email_id}`.
 - `trip_status` enum: `planning` / `active` / `completed` / `cancelled`.
 - Guide content loads per section (lazy) to avoid Edge Function timeouts.
+- Analytics: call `track(event, props)` only (it feeds Supabase `analytics_events` and GA4). Props are short codes/counts/booleans; `cleanProps()` drops anything personal. Respect the Settings opt-out.
 - Translate: `phrase_cache` table → localStorage → Gemini last.
 - Edge Functions currently deploy with JWT verify OFF; lock this in `supabase/config.toml` as part of Phase 0.
 
 ## Stack
-React 18.2 + Vite · Zustand · Supabase (project `swywrvbuswylvqlktsym`, us-east-2: auth, DB, Edge Functions) · Resend (email) · Hostinger static hosting (upload `dist/`) · Sentry + GA4 (`G-H7ZP1DBHN3`), not yet wired.
+React 18.2 + Vite · Zustand · Supabase (project `swywrvbuswylvqlktsym`, us-east-2: auth, DB, Edge Functions) · Resend (email) · Hostinger static hosting (upload `dist/`) · GA4 (`G-H7ZP1DBHN3`, web + app, fed by `track()` in `src/lib/analytics.js`) · Sentry in code, inactive until `VITE_SENTRY_DSN` is set.
 
 ## Design
 Clay design system: tokens in `docs/brand/brand-tokens.json`. Use `#B24A17` for terracotta text and fills (`#C4561E` is decorative only). Space Grotesk headings, DM Sans body, 24px stroke icons, no emoji. Logo is the luggage tag (`docs/brand/logos/`).

@@ -10,7 +10,8 @@ import { useVisibilityRestore } from './hooks/useVisibilityRestore'
 import { initDeepLinks } from './native/deepLinks'
 import { initBackButton } from './native/backButton'
 import { initExternalLinks } from './native/externalLinks'
-import { gaPageView } from './lib/ga'
+import { track } from './lib/analytics'
+import { initScreenTracking } from './lib/screenTracking'
 import { applyTheme, onSystemThemeChange } from './lib/theme'
 import './styles/global.css'
 import './styles/app.css'
@@ -65,7 +66,7 @@ export default function App() {
   useEffect(() => { init(); initDeepLinks(); initBackButton(); initExternalLinks() }, [])
 
   // GA4 page_view per tab (no-op on native and non-production builds)
-  useEffect(() => { if (user?.id) gaPageView(activeTab) }, [activeTab, user?.id])
+  useEffect(() => initScreenTracking(), [])
 
   useEffect(() => {
     if (user) fetchPendingInvites()
@@ -153,11 +154,13 @@ export default function App() {
         if (res.ok && result.success) {
           await useTripsStore.getState().fetchTrips()
           await fetchPendingInvites()
+          track('invite_accepted')
           setInviteToast({ tripName: result.trip_title || 'the trip' })
           setTimeout(() => setInviteToast(null), 4000)
           useUIStore.getState().setTab('trips')
         } else {
           console.error('accept-invite failed:', result.error)
+          track('invite_accept_failed', { status: res.status })
         }
       } catch (e) { console.error('accept invite error', e) }
     }

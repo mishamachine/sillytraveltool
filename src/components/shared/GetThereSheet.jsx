@@ -29,8 +29,9 @@ export default function GetThereSheet({ place, countryCode, onClose }) {
     return () => { live = false }
   }, [place.lat, place.lng]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // kind: walk / transit / drive / google_maps, or a ride app id (uber, lyft, grab, bolt)
   const go = (kind, url, open) => {
-    track('get_there', { kind }, 'explore')
+    track('get_there', { kind, ride: !!open, country: countryCode || null }, 'explore')
     if (open) open(place)
     else openOut(url)
   }

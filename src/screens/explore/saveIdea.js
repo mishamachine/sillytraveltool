@@ -20,7 +20,7 @@ export async function saveIdea(destination, item, kind, source = 'guide') {
       destination_tz,
       start_date: null,
       end_date: null,
-    })
+    }, { via: 'one_tap' })
     created = true
     warmGuide(destination.city, destination.country, destination.country_code)
   }

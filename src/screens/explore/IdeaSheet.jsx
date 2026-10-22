@@ -34,7 +34,7 @@ export default function IdeaSheet({ item, kind, trip, status, onClose, onSaved }
         }}
         onClose={onClose}
         onCreate={async (tripId, data) => {
-          const booking = await createBooking(tripId, data)
+          const booking = await createBooking(tripId, data, { via: 'idea' })
           await markBooked(trip.id, booking, status?.idea?.id)
           onSaved?.(`Visit to ${item.name} added to your trip`)
         }} />
