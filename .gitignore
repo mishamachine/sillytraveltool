@@ -15,3 +15,4 @@ android/capacitor-cordova-android-plugins/build/
 ios/App/Pods/
 ios/App/build/
 supabase/.temp/
+release/
