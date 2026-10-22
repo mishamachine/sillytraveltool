@@ -20,6 +20,9 @@ import { supabase } from '../lib/supabase'
  *    concurrent destination.
  */
 
+// Sections built from Google places: the facts arrive first, then the Goose's words "ink in" (voice stage)
+export const PLACE_SECTIONS = ['eat_cheap', 'eat_mid', 'eat_splurge', 'see_temples', 'see_museums', 'see_parks']
+
 // Module-level — never stale in closures, not part of reactive state
 // Keys are "destinationKey:section" e.g. "tokyo-japan:overview"
 const _inflight = {}
@@ -133,6 +136,7 @@ export const useGuideStore = create((set, get) => ({
       if (!cacheErr && cached?.data) {
         set({ lastSectionFromCache: true })
         _finish(cached.data)
+        if (cached.data.voice_pending) get().loadVoice(city, country, section)
         return
       }
     } catch {
@@ -144,13 +148,41 @@ export const useGuideStore = create((set, get) => ({
     try {
       const { generateGuideContent } = await import('../lib/gemini.js')
       // The Edge Function writes the shared cache (clients can only read it)
-      const content = await generateGuideContent(city, country, section, [], currentKey)
+      const isPlaces = PLACE_SECTIONS.includes(section)
+      const content = await generateGuideContent(city, country, section, [], currentKey, isPlaces ? 'facts' : undefined)
 
       _finish(content)
+      if (content?.voice_pending) get().loadVoice(city, country, section)
     } catch (e) {
       console.error(`[guideStore] Section error — ${section}:`, e.message)
       _finish(null, e.message)
     }
+  },
+
+  /** The Goose's words for cards still marked pending; they replace the section in place. */
+  loadVoice: async (city, country, section) => {
+    const key = get().currentDestination?.key
+    if (!key) return
+    const voiceKey = `${key}:${section}:voice`
+    if (_inflight[voiceKey]) return
+    _inflight[voiceKey] = true
+    const settle = (data) => set(s => {
+      if (s.currentDestination?.key !== key || !s.sections[section]) return {}
+      return { sections: { ...s.sections, [section]: data } }
+    })
+    // Stop the placeholders: the cards keep their Google facts, Google's summary stands in for the words
+    const giveUp = () => settle({
+      ...get().sections[section],
+      voice_pending: false,
+      items: (get().sections[section]?.items || []).map(it => (it.pending ? { ...it, pending: false, description: it.description || it.summary || '' } : it)),
+    })
+    try {
+      const { generateGuideContent } = await import('../lib/gemini.js')
+      const data = await generateGuideContent(city, country, section, [], key, 'voice')
+      if (data?.voice_error || !Array.isArray(data?.items)) giveUp()
+      else settle(data)
+    } catch { giveUp() }
+    finally { delete _inflight[voiceKey] }
   },
 
   clearGuide: () => {
@@ -178,15 +210,17 @@ export const useGuideStore = create((set, get) => ({
     try {
       const { generateGuideContent } = await import('../lib/gemini.js')
       // The Edge Function appends these items to the cached section server-side
-      const content = await generateGuideContent(city, country, section, excludeNames, key)
+      const isPlaces = PLACE_SECTIONS.includes(section)
+      const content = await generateGuideContent(city, country, section, excludeNames, key, isPlaces ? 'facts' : undefined)
       const merged = [...existing, ...(content?.items || [])]
-      const updatedSection = { ...sections[section], items: merged }
+      const updatedSection = { ...sections[section], items: merged, ...(content?.voice_pending ? { voice_pending: true } : {}) }
 
       set(s => {
         if (s.currentDestination?.key !== destinationKeyAtCallTime) return {}
         const { [moreKey]: _removed, ...restLoading } = s.loadingSections
         return { sections: { ...s.sections, [section]: updatedSection }, loadingSections: restLoading }
       })
+      if (content?.voice_pending) get().loadVoice(city, country, section)
     } catch (e) {
       console.error(`[guideStore] Load more error — ${section}:`, e.message)
       set(s => {

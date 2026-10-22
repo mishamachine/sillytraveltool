@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { fetchWithTimeout } from '../../lib/http'
+import { suggestCities, cityDetails, newSession } from '../../lib/places'
 import { Field, Icon } from '../../ui'
 import './cityAutocomplete.css'
 
 /**
- * Shared city autocomplete using Photon API (combobox + listbox).
+ * Shared city autocomplete: Google Places (through the places Edge Function), Photon as a fallback.
  * Props:
- *  - value, onChange(text), onSelect({ city, country, country_code })
+ *  - value, onChange(text), onSelect({ city, country, country_code, lat?, lng?, tz?, place_id?, photo? })
  *  - label (visible label; hidden when hideLabel), placeholder, icon (leading icon, e.g. 'search')
  */
 export default function CityAutocomplete({
@@ -27,6 +28,7 @@ export default function CityAutocomplete({
   const debounceRef = useRef(null)
   const wrapperRef = useRef(null)
   const listId = useId()
+  const session = useRef(newSession())
 
   useEffect(() => { setQuery(value || '') }, [value])
 
@@ -42,6 +44,14 @@ export default function CityAutocomplete({
     if (q.length < 2) { setResults([]); setOpen(false); return }
     setLoading(true)
     try {
+      const google = await suggestCities(q, session.current)
+      if (google.length) {
+        const cities = google.slice(0, 5).map(g => ({ place_id: g.place_id, city: g.main, country: g.secondary.split(', ').pop() || '', label: g.secondary }))
+        setResults(cities)
+        setActive(-1)
+        setOpen(true)
+        return
+      }
       const res = await fetchWithTimeout(
         `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en&osm_tag=place:city&osm_tag=place:town`,
         { headers: { 'Accept-Language': 'en' } }
@@ -75,11 +85,17 @@ export default function CityAutocomplete({
     debounceRef.current = setTimeout(() => search(q), 350)
   }
 
-  const handleSelect = (result) => {
+  const handleSelect = async (result) => {
     setQuery(result.city)
     setOpen(false)
     setResults([])
-    onSelect?.(result)
+    if (!result.place_id) { onSelect?.(result); return }
+    // Google suggestion: fetch country code, coordinates and time zone (same billing session)
+    setLoading(true)
+    const d = await cityDetails(result.place_id, session.current)
+    session.current = newSession()
+    setLoading(false)
+    onSelect?.(d?.country_code ? { ...d, city: d.city || result.city } : { city: result.city, country: result.country, country_code: '' })
   }
 
   const onKeyDown = (e) => {
@@ -118,7 +134,7 @@ export default function CityAutocomplete({
                 <Icon name="pin" size={20} className="city-ac__pin" />
                 <span className="city-ac__text">
                   <span className="city-ac__city">{r.city}</span>
-                  <span className="city-ac__country">{r.country}</span>
+                  <span className="city-ac__country">{r.label || r.country}</span>
                 </span>
               </button>
             </li>

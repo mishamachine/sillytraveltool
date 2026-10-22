@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { geminiFetch, checkAiQuota } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
+import { attachPlace } from '../_shared/google.ts'
 
 // ============================================================
 // receive-booking-email
@@ -306,7 +307,7 @@ Rules:
     const gemRes = await geminiFetch(GEMINI_API_KEY, {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 2048 },
-    }, { timeoutMs: 20000 })
+    }, { timeoutMs: 30000 })
 
     if (!gemRes.ok) {
       const gemErr = await gemRes.text()
@@ -369,6 +370,7 @@ Rules:
       await supabase.from('trips').update({ destination_tz: tripTz }).eq('id', matchedTrip.id)
     }
     await attachZones(supabase, parsed, { fallbackTz: tripTz, city: parsed.destination_city || '' })
+    await attachPlace(supabase, parsed, parsed.destination_city || '')
 
     // ── 7. Sanitize booking fields ────────────────────────────
     // Only real bookings columns — a field Gemini invents must not break the insert
@@ -378,6 +380,7 @@ Rules:
       'check_in_date', 'check_out_date', 'room_type', 'activity_date', 'activity_time', 'venue_name',
       'venue_address', 'price', 'currency', 'booking_url', 'notes', 'passenger_name', 'seat_number',
       'ticket_quantity', 'party_size', 'transport_mode', 'departure_tz', 'arrival_tz', 'local_tz',
+      'place_id', 'place_lat', 'place_lng',
     ])
     const BOOKING_TYPES = ['flight', 'hotel', 'activity', 'transport', 'restaurant', 'other']
     if (!BOOKING_TYPES.includes(parsed.type)) parsed.type = 'other'

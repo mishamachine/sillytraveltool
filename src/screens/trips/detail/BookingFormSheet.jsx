@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { sanitizeBookingForm } from './planKinds'
 import { deviceZone, isValidZone, zoneName, allZones } from '../../../lib/localTime'
-import { lookupPlaceZone } from '../../../lib/zoneLookup'
+import { lookupPlaceZone, lookupZone } from '../../../lib/zoneLookup'
+import PlaceAutocomplete from '../../../components/shared/PlaceAutocomplete'
 import { Sheet, Field, Button, Banner, Chip, Stack, Text, LinkButton } from '../../../ui'
 
 const TRANSPORT_MODES = ['train', 'bus', 'ferry', 'coach', 'car']
@@ -66,6 +67,17 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
   useZoneFor(form.departure_airport, { airport: type === 'flight', enabled: travel }, tz => set('departure_tz', tz))
   useZoneFor(form.arrival_airport, { airport: type === 'flight', enabled: travel }, tz => set('arrival_tz', tz))
   useZoneFor(form.venue_address || form.hotel_address, { city: trip?.destination_city || '', enabled: !travel }, tz => set('local_tz', tz))
+  // Picking a Google place fills the name, address, coordinates and the venue's time zone
+  const near = trip?.destination_lat && trip?.destination_lng ? { lat: Number(trip.destination_lat), lng: Number(trip.destination_lng) } : undefined
+  const pickPlace = (nameKey, addressKey) => (p) => {
+    setForm(f => ({ ...f, [nameKey]: p.name, [addressKey]: p.address, place_id: p.place_id, place_lat: p.lat, place_lng: p.lng, title: f.title || p.name }))
+    if (p.lat != null && p.lng != null) lookupZone({ lat: p.lat, lng: p.lng }).then(tz => { if (tz) set('local_tz', tz) })
+  }
+  const placeField = (nameKey, addressKey, label, placeholder) => (
+    <PlaceAutocomplete label={label} value={form[nameKey]} near={near} placeholder={placeholder}
+      onChange={v => setForm(f => ({ ...f, [nameKey]: v, place_id: null, place_lat: null, place_lng: null }))}
+      onPick={pickPlace(nameKey, addressKey)} />
+  )
   const venueZoneLine = <ZoneLine id="zone-venue" zone={form.local_tz} where={form.venue_name || form.hotel_name || trip?.destination_city} onChange={tz => set('local_tz', tz)} />
 
   const handleSave = async (e) => {
@@ -118,6 +130,7 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
         </>}
 
         {type === 'hotel' && <>
+          {placeField('hotel_name', 'hotel_address', 'Hotel', 'Search hotels')}
           <Field label="Address" {...bind('hotel_address')} placeholder="Street, city" />
           <div className="grid-2">
             <Field label="Check-in" type="date" {...bind('check_in_date')} />
@@ -127,7 +140,7 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
         </>}
 
         {type === 'restaurant' && <>
-          <Field label="Restaurant" {...bind('venue_name')} placeholder="Casa Lucio" />
+          {placeField('venue_name', 'venue_address', 'Restaurant', 'Search restaurants')}
           <Field label="Address" {...bind('venue_address')} placeholder="Street, city" />
           <div className="grid-2">
             <Field label="Date" type="date" {...bind('activity_date')} />
@@ -153,6 +166,7 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
         </>}
 
         {(type === 'activity' || type === 'other') && <>
+          {placeField('venue_name', 'venue_address', 'Place', 'Search a museum, tour, venue')}
           <div className="grid-2">
             <Field label="Date" type="date" {...bind('activity_date')} />
             <Field label="Time" type="time" {...bind('activity_time')} />

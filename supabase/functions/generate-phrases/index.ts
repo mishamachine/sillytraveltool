@@ -27,8 +27,8 @@ Deno.serve(async (req) => {
 
     // Shared cache is server-written only (clients have read access)
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-    const { data: cached } = await admin.from('phrase_cache').select('*')
-      .eq('language_code', languageCode).gt('expires_at', new Date().toISOString()).maybeSingle()
+    // phrase_cache is permanent: a language is generated once, then served from here for everyone
+    const { data: cached } = await admin.from('phrase_cache').select('*').eq('language_code', languageCode).maybeSingle()
     if (cached) return new Response(JSON.stringify(cached), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 
     if (!(await checkAiQuota(user.id))) {
@@ -75,14 +75,17 @@ Make romanizations phonetically accurate for English speakers.`
     }
 
     const CATEGORIES = ['greetings', 'food', 'transport', 'hotel', 'shopping', 'health', 'social', 'goose_specials']
-    const expires = new Date(); expires.setDate(expires.getDate() + 30)
     const row: Record<string, unknown> = {
       language_code: languageCode, language_name: languageName,
-      generated_at: new Date().toISOString(), expires_at: expires.toISOString(),
+      generated_at: new Date().toISOString(), expires_at: 'infinity',
     }
     for (const c of CATEGORIES) row[c] = Array.isArray(result?.[c]) ? result[c] : []
-    const { error: cacheErr } = await admin.from('phrase_cache').upsert(row, { onConflict: 'language_code' })
-    if (cacheErr) console.error('phrase_cache write failed:', cacheErr.message)
+    // Saved forever, so only a complete phrasebook goes in; a thin reply is shown but the next request retries
+    const complete = CATEGORIES.every(c => (row[c] as unknown[]).filter((p: any) => p?.english && p?.native).length >= 5)
+    if (complete) {
+      const { error: cacheErr } = await admin.from('phrase_cache').upsert(row, { onConflict: 'language_code' })
+      if (cacheErr) console.error('phrase_cache write failed:', cacheErr.message)
+    } else console.warn(`phrases ${languageCode}: incomplete reply, not cached`)
 
     return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 

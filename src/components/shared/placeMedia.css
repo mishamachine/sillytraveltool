@@ -1,0 +1,32 @@
+.place-photo, .place-map {
+  position: relative; overflow: hidden; border-radius: var(--radius-md); background: var(--surface-sunken);
+}
+.place-photo { aspect-ratio: 16 / 9; }
+.place-map { aspect-ratio: 600 / 260; }
+.place-photo img, .place-map img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.place-photo.is-loading, .place-map.is-loading { animation: place-pulse 1.4s ease-in-out infinite; }
+@keyframes place-pulse { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) {
+  .place-photo.is-loading, .place-map.is-loading { animation: none; }
+}
+.place-photo--thumb { width: 72px; height: 72px; aspect-ratio: auto; flex-shrink: 0; border-radius: var(--radius-sm); }
+.place-attrib { text-align: center; }
+
+/* "Ink": Google facts show at once; the Goose's words appear in their place when written */
+.ink-wait { display: flex; flex-direction: column; gap: 6px; padding: 3px 0; }
+.ink-wait__line {
+  display: block; height: 10px; border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--surface-sunken) 0%, var(--line) 50%, var(--surface-sunken) 100%);
+  background-size: 200% 100%; animation: ink-wait 1.6s ease-in-out infinite;
+}
+.ink-wait__line--short { width: 62%; }
+@keyframes ink-wait { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.ink-in { animation: ink-in 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes ink-in {
+  from { opacity: 0; filter: blur(5px); }
+  60% { opacity: 0.85; filter: blur(1px); }
+  to { opacity: 1; filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ink-wait__line, .ink-in { animation: none; }
+}

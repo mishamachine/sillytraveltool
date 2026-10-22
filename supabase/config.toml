@@ -43,3 +43,6 @@ verify_jwt = false
 
 [functions.resolve-timezone]
 verify_jwt = false
+
+[functions.places]
+verify_jwt = false

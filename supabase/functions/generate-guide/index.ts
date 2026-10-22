@@ -1,9 +1,109 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
+import { geocode, searchText, type Place } from '../_shared/google.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Sections built from real Google places; the AI only writes the Goose's words for them (stage 'voice').
+// Neighbourhoods, day trips, overview, move and events stay Gemini-written (Places has no good source).
+const PLACE_SECTIONS: Record<string, { query: string, type?: string, price?: string[], minRating?: number, restaurant?: boolean }> = {
+  eat_cheap:   { query: 'best cheap eats and local favourites', type: 'restaurant', price: ['PRICE_LEVEL_INEXPENSIVE'], minRating: 4, restaurant: true },
+  eat_mid:     { query: 'best restaurants', type: 'restaurant', price: ['PRICE_LEVEL_MODERATE'], minRating: 4, restaurant: true },
+  eat_splurge: { query: 'best fine dining restaurants', type: 'restaurant', price: ['PRICE_LEVEL_EXPENSIVE', 'PRICE_LEVEL_VERY_EXPENSIVE'], minRating: 4, restaurant: true },
+  see_temples: { query: 'famous temples, churches, cathedrals, mosques and shrines', minRating: 4 },
+  see_museums: { query: 'best museums and galleries', type: 'museum', minRating: 4 },
+  see_parks:   { query: 'best parks and gardens', type: 'park', minRating: 4 },
+}
+
+const km = (a: { lat: number, lng: number }, b: { lat: number, lng: number }) => {
+  const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2
+  return 12742 * Math.asin(Math.sqrt(h))
+}
+
+/** Up to 60 Google candidates for a section near the city, skipping closed places and names already shown. */
+async function placeCandidates(section: string, city: string, country: string, exclude: string[]): Promise<Place[] | null> {
+  const s = PLACE_SECTIONS[section]
+  const skip = new Set(exclude.map(n => n.toLowerCase()))
+  // Same-named cities exist (Granada, Spain / Nicaragua / Mexico City's Granada): stay within 40 km of this one
+  const center = await geocode(`${city}, ${country}`)
+  const near = (p: Place) => !center || p.lat == null || p.lng == null || km(center, { lat: p.lat, lng: p.lng }) <= 40
+  const out: Place[] = []
+  let pageToken: string | undefined
+  for (let page = 0; page < 3; page++) {
+    const r = await searchText(`${s.query} in ${city}, ${country}`, {
+      includedType: s.type, priceLevels: s.price, minRating: s.minRating, pageToken,
+      near: center ? { lat: center.lat, lng: center.lng, radius: 20000 } : undefined,
+    })
+    if (!r) return page === 0 ? null : out
+    out.push(...r.places.filter(p => !p.closed && near(p) && !skip.has(p.name.toLowerCase()) && !out.some(o => o.place_id === p.place_id)))
+    if (out.length >= 12 || !r.next) break // 12 good candidates is plenty for 10 cards; more pages cost time
+    pageToken = r.next
+  }
+  return out
+}
+
+// Well-rated AND well-reviewed first: 4.8 from 30 reviews ranks below 4.6 from 8,000
+const placeScore = (p: { rating: number | null, rating_count: number | null }) => (p.rating || 0) * Math.log10((p.rating_count || 0) + 10)
+
+/**
+ * Facts stage: the 10 best Google places as cards, Goose text still to come (pending: true).
+ * The order is fixed here so the Goose's words can "ink in" later without cards jumping around.
+ */
+function factItems(section: string, city: string, places: Place[]) {
+  const restaurant = PLACE_SECTIONS[section].restaurant
+  return places.slice().sort((a, b) => placeScore(b) - placeScore(a)).slice(0, 10).map(p => ({
+    name: p.name,
+    ...(restaurant ? { cuisine: p.type_label || '', price_tier: p.price_level ?? null } : { type: p.type_label || '' }),
+    address: p.short_address || p.address,
+    summary: p.summary || '',
+    description: '',
+    goose_quip: '',
+    goose_score: null as number | null,
+    is_goose_pick: false,
+    pending: true,
+    google_maps_query: `${p.name} ${city}`,
+    official_url: p.website || '',
+    place_id: p.place_id, maps_url: p.maps_url, rating: p.rating, rating_count: p.rating_count,
+    photo: p.photo, lat: p.lat, lng: p.lng, hours: p.hours,
+  }))
+}
+
+function voicePrompt(section: string, city: string, country: string, items: any[]): string {
+  const restaurant = PLACE_SECTIONS[section].restaurant
+  const list = items.map((p, i) => ({ i, name: p.name, type: p.cuisine || p.type, rating: p.rating, reviews: p.rating_count, price: p.price_tier, summary: p.summary, area: p.address }))
+  return `You are The Goose — opinionated, slightly cheeky travel guide with genuine insider knowledge of ${city}, ${country}.
+These are REAL places from Google Maps (rating out of 5, reviews = number of Google reviews):
+${JSON.stringify(list)}
+
+Write for EVERY place in the list, keeping the index. Return ONLY a valid JSON object, no markdown:
+{ "items": [ { "i": 0, ${restaurant ? '"cuisine": "specific cuisine", ' : '"type": "specific type/era/style", '}"description": "2 sentences — ${restaurant ? 'what to order, the vibe' : 'what you see and why it matters'}", "goose_quip": "${restaurant ? 'witty one-liner specific to this place' : 'what most tourists miss or get wrong here'}", "goose_score": 8.4, "is_goose_pick": false } ] }
+goose_score is your own score out of 10. Mark is_goose_pick: true for at most 2 places in this list. Never invent facts that contradict the data.`
+}
+
+/** Voice stage: merge the Goose's words into the pending cards, in place. */
+function withVoice(section: string, items: any[], targets: any[], words: any[]) {
+  const restaurant = PLACE_SECTIONS[section].restaurant
+  const byId = new Map<string, any>()
+  for (const w of words) if (Number.isInteger(w?.i) && targets[w.i]) byId.set(targets[w.i].place_id, w)
+  const asked = new Set(targets.map(t => t.place_id))
+  return items.map(it => {
+    if (!it.pending || !asked.has(it.place_id)) return it // not in this batch: stays pending for the next call
+    const g = byId.get(it.place_id)
+    const { pending: _p, ...rest } = it
+    if (!g) return { ...rest, description: rest.summary || '' } // no words for this one: show Google's summary
+    return {
+      ...rest,
+      ...(restaurant ? { cuisine: cap(g.cuisine, 60) || it.cuisine } : { type: cap(g.type, 60) || it.type }),
+      description: cap(g.description, 400) || it.summary || '',
+      goose_quip: cap(g.goose_quip, 200),
+      goose_score: typeof g.goose_score === 'number' ? g.goose_score : null,
+      is_goose_pick: !!g.is_goose_pick,
+    }
+  })
 }
 
 function buildPrompt(city: string, country: string, section: string, excludeNames: string[] = []): string {
@@ -156,59 +256,94 @@ Deno.serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
 
+    // stage: 'facts' = Google cards only, fast, no AI; 'voice' = the Goose's words for pending cards;
+    // omitted = both in one call (older app builds)
+    const stage = raw.stage === 'facts' || raw.stage === 'voice' ? raw.stage : 'full'
+    const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
+
     // Shared cache is server-written only (clients have read access)
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const isLoadMore = exclude_names.length > 0
     let cachedRow: any = null
+    let freshIds: Set<string> | null = null // load-more in one call: older builds expect only the new items back
     if (destinationKey) {
       const { data } = await admin.from('guide_cache_sections').select('data, expires_at')
         .eq('destination_key', destinationKey).eq('section', section).maybeSingle()
-      cachedRow = data
-      if (!isLoadMore && data?.data && new Date(data.expires_at) > new Date()) {
-        return new Response(JSON.stringify(data.data), { headers: { ...CORS, 'Content-Type': 'application/json' } })
-      }
+      cachedRow = data && new Date(data.expires_at) > new Date() ? data : null
+      const needsVoice = stage !== 'facts' && cachedRow?.data?.voice_pending
+      if (!isLoadMore && cachedRow?.data && !needsVoice && stage !== 'voice') return reply(cachedRow.data)
+      if (stage === 'voice' && cachedRow?.data && !cachedRow.data.voice_pending) return reply(cachedRow.data)
     }
-
-    if (!(await checkAiQuota(user.id))) {
-      return new Response(JSON.stringify({ error: QUOTA_MESSAGE }), { status: 429, headers: CORS })
-    }
-
-    const prompt = buildPrompt(city, country, section, exclude_names)
-
-    const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens: 3000 } })
-
-    if (!gemRes.ok) {
-      const err = await gemRes.text()
-      return new Response(JSON.stringify({ error: `Gemini error: ${err.slice(0, 200)}` }), { status: 502, headers: CORS })
-    }
-
-    const gemData = await gemRes.json()
-    const text = gemData.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!text) return new Response(JSON.stringify({ error: 'No content from Gemini' }), { status: 502, headers: CORS })
-
-    const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
-    let result
-    try { result = JSON.parse(cleaned) } catch {
-      const m = cleaned.match(/(\{[\s\S]*\})/)
-      if (m) result = JSON.parse(m[0])
-      else return new Response(JSON.stringify({ error: 'Failed to parse Gemini response' }), { status: 502, headers: CORS })
-    }
-
-    const content = { section, ...result }
-    if (destinationKey) {
-      // Load-more appends to the cached section; a fresh load replaces it
-      const toStore = isLoadMore && Array.isArray(cachedRow?.data?.items)
-        ? { ...cachedRow.data, items: [...cachedRow.data.items, ...(Array.isArray(result?.items) ? result.items : [])] }
-        : content
+    const writeCache = async (data: any) => {
+      if (!destinationKey) return
       const expires = new Date(); expires.setDate(expires.getDate() + 7)
       const { error: cacheErr } = await admin.from('guide_cache_sections').upsert({
         destination_key: destinationKey, destination_city: city, destination_country: country,
-        section, data: toStore, generated_at: new Date().toISOString(), expires_at: expires.toISOString(),
+        section, data, generated_at: new Date().toISOString(), expires_at: expires.toISOString(),
       }, { onConflict: 'destination_key,section' })
       if (cacheErr) console.error('guide_cache_sections write failed:', cacheErr.message)
     }
 
-    return new Response(JSON.stringify(content), { headers: { ...CORS, 'Content-Type': 'application/json' } })
+    // ── Facts: real places from Google, no AI ──
+    if (PLACE_SECTIONS[section] && stage !== 'voice' && (isLoadMore || !cachedRow?.data)) {
+      const places = await placeCandidates(section, city, country, exclude_names)
+      if (places?.length) {
+        const fresh = factItems(section, city, places)
+        const data = isLoadMore && Array.isArray(cachedRow?.data?.items)
+          ? { ...cachedRow.data, items: [...cachedRow.data.items, ...fresh], voice_pending: true }
+          : { section, items: fresh, source: 'google', voice_pending: true }
+        await writeCache(data)
+        if (stage === 'facts') return reply(isLoadMore ? { section, items: fresh, voice_pending: true } : data)
+        cachedRow = { data }
+        if (isLoadMore) freshIds = new Set(fresh.map(f => f.place_id))
+      }
+    }
+
+    if (!(await checkAiQuota(user.id))) return reply({ error: QUOTA_MESSAGE }, 429)
+
+    const askGemini = async (prompt: string, maxOutputTokens = 3000) => {
+      const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens } })
+      if (!gemRes.ok) throw new Error(`Gemini error: ${(await gemRes.text()).slice(0, 200)}`)
+      const text = (await gemRes.json()).candidates?.[0]?.content?.parts?.[0]?.text
+      if (!text) throw new Error('No content from Gemini')
+      const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+      try { return JSON.parse(cleaned) } catch {
+        const m = cleaned.match(/(\{[\s\S]*\})/)
+        if (m) return JSON.parse(m[0])
+        throw new Error('Failed to parse Gemini response')
+      }
+    }
+
+    // ── Voice: the Goose's words for the pending cards ──
+    if (PLACE_SECTIONS[section] && cachedRow?.data?.voice_pending && Array.isArray(cachedRow.data.items)) {
+      const items = cachedRow.data.items
+      const targets = items.filter((it: any) => it.pending).slice(0, 12)
+      try {
+        const words = (await askGemini(voicePrompt(section, city, country, targets), 4000))?.items
+        const merged = withVoice(section, items, targets, Array.isArray(words) ? words : [])
+        const data = { ...cachedRow.data, items: merged, voice_pending: merged.some((it: any) => it.pending) }
+        await writeCache(data)
+        return reply(freshIds ? { section, items: merged.filter((it: any) => freshIds!.has(it.place_id)) } : data)
+      } catch (e) {
+        // Leave the cards pending so the next viewer retries; the app stops waiting for this one
+        console.warn(`guide voice: ${(e as Error).message}`)
+        return reply({ ...cachedRow.data, voice_error: true })
+      }
+    }
+    if (stage === 'voice') return reply({ error: 'Nothing waiting for the Goose: load the facts first' }, 409)
+
+    // ── AI-only sections (overview, neighbourhoods, day trips, transit, events), or Google unavailable ──
+    let result
+    try { result = await askGemini(buildPrompt(city, country, section, exclude_names)) } catch (e) {
+      console.warn(`guide ${section}: ${(e as Error).message}`)
+      return reply({ error: (e as Error).message }, 502)
+    }
+    const content = { section, ...result }
+    // Load-more appends to the cached section; a fresh load replaces it
+    await writeCache(isLoadMore && Array.isArray(cachedRow?.data?.items)
+      ? { ...cachedRow.data, items: [...cachedRow.data.items, ...(Array.isArray(result?.items) ? result.items : [])] }
+      : content)
+    return reply(content)
 
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS })

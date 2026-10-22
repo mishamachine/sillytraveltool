@@ -13,7 +13,16 @@ function resolveTimezone(body) {
   return { tz: (DEMO_ZONES.find(([re]) => re.test(text)) || [null, 'Europe/Madrid'])[1] }
 }
 
+// places: no Google in demo mode; every lookup answers "nothing", so screens show their non-Google fallbacks
+function places(body) {
+  if (body.action === 'autocomplete') return { suggestions: [] }
+  if (body.action === 'nearby' || body.action === 'embassy') return { places: [] }
+  if (body.action === 'find') return { place: null }
+  return null
+}
+
 export const DEMO_FUNCTIONS = {
+  places,
   'resolve-timezone': resolveTimezone,
   'generate-guide': guide,
   'goosey-discover': honk,

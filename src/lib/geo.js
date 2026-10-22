@@ -1,4 +1,5 @@
 import { fetchJson } from './http'
+import { reverseGeocode } from './places'
 
 // One-shot device position. Resolves { latitude, longitude } or rejects.
 export function getCurrentPosition({ timeout = 10000, maximumAge = 300000 } = {}) {
@@ -15,11 +16,13 @@ export function getCurrentPosition({ timeout = 10000, maximumAge = 300000 } = {}
   })
 }
 
-// Coordinates → { countryCode, countryName, city } using BigDataCloud's free
-// client-side endpoint (made for in-browser use, no key). Falls back to Nominatim.
+// Coordinates → { countryCode, countryName, city }: Google (server-side) first, then BigDataCloud's
+// free client-side endpoint, then Nominatim.
 export async function reverseGeocodeCountry(latitude, longitude, ms = 6000) {
   const lat = Number(latitude).toFixed(4)
   const lon = Number(longitude).toFixed(4)
+  const g = await reverseGeocode(lat, lon)
+  if (g?.country_code) return { countryCode: g.country_code, countryName: g.country || g.country_code, city: g.city || null }
   try {
     const d = await fetchJson(
       `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,

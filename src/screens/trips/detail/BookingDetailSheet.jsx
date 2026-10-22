@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { parseLocalDate } from '../../../lib/dates'
 import { bookingKind, mapsUrl, plural, bookingZone, arrivalZone } from '../../../lib/trips'
@@ -7,6 +7,8 @@ import { Sheet, Card, Button, IconTile, Text, Stack, category } from '../../../u
 import ConfirmDialog from '../../../components/shared/ConfirmDialog'
 import { ACTIVITY_CATEGORIES } from './planKinds'
 import { safeUrl } from '../../../lib/safeUrl'
+import { placeDetails, findPlace } from '../../../lib/places'
+import { StaticMap, GoogleRating, OpenNow, GoogleAttribution } from '../../../components/shared/PlaceMedia'
 
 const day = d => format(parseLocalDate(d), 'EEE, MMM d')
 // Booking times are shown in the place's own zone, named, so they never shift with the phone
@@ -58,12 +60,33 @@ function activityDetails(a, tripTz) {
   ]
 }
 
+// Google's weekday lines run Monday → Sunday
+const todayHours = (hours) => (Array.isArray(hours) && hours.length === 7 ? hours[(new Date().getDay() + 6) % 7] : null)
+
+/** The booking's place from Google: by saved place_id, else a best match on name + address. */
+function useLivePlace(item, isActivity) {
+  const [place, setPlace] = useState(null)
+  const name = isActivity ? item.location_name : (item.hotel_name || item.venue_name)
+  const address = isActivity ? item.location_address : (item.hotel_address || item.venue_address)
+  const travel = !isActivity && (item.type === 'flight' || item.type === 'transport')
+  useEffect(() => {
+    if (travel || (!item.place_id && !name && !address)) return
+    let live = true
+    const get = item.place_id ? placeDetails(item.place_id)
+      : findPlace([name, address].filter(Boolean).join(', ')).then(p => (p ? placeDetails(p.place_id) : null))
+    get.then(p => { if (live) setPlace(p) })
+    return () => { live = false }
+  }, [item.place_id, name, address, travel])
+  return place
+}
+
 /** Booking or plan details, with directions, copy and delete. */
 export default function BookingDetailSheet({ item, tripTz, isActivity, canDelete, onDelete, onToggle, onClose }) {
   const [confirm, setConfirm] = useState(false)
   const [copied, setCopied] = useState(false)
   const cat = isActivity ? (ACTIVITY_CATEGORIES[item.category] || ACTIVITY_CATEGORIES.note) : category(bookingKind(item))
   const place = item.venue_address || item.hotel_address || item.location_address || item.location_name || item.venue_name || item.hotel_name
+  const live = useLivePlace(item, isActivity)
   const rows = (isActivity ? activityDetails(item, tripTz) : bookingDetails(item, tripTz)).filter(([, v]) => v)
 
   const copyRef = async () => {
@@ -83,9 +106,25 @@ export default function BookingDetailSheet({ item, tripTz, isActivity, canDelete
           {rows.length > 0 && <dl className="detail-kvs">{rows.map(([k, v], i) => <Detail key={`${k}-${i}`} label={k} value={v} />)}</dl>}
         </Card>
 
+        {live && (
+          <Card>
+            {live.lat != null && <StaticMap markers={[{ lat: live.lat, lng: live.lng }]} zoom={15} alt={`Map of ${live.name}`} />}
+            <Stack row gap={2} wrap>
+              <GoogleRating rating={live.rating} count={live.rating_count} />
+              <OpenNow open={live.open_now} />
+            </Stack>
+            {todayHours(live.hours) && <Text variant="caption" tone="muted">{todayHours(live.hours)}</Text>}
+            <Stack row gap={2} wrap>
+              {live.phone && <a className="c-btn c-btn--secondary c-btn--sm" href={`tel:${live.phone.replace(/[^+\d]/g, '')}`}>Call</a>}
+              {safeUrl(live.website) && <a className="c-btn c-btn--secondary c-btn--sm" href={safeUrl(live.website)} target="_blank" rel="noreferrer">Website</a>}
+            </Stack>
+            <GoogleAttribution />
+          </Card>
+        )}
+
         <Stack gap={2}>
           {safeUrl(item.booking_url) && <a className="c-btn c-btn--primary c-btn--md c-btn--block" href={safeUrl(item.booking_url)} target="_blank" rel="noreferrer">Open booking</a>}
-          {place && <a className="c-btn c-btn--secondary c-btn--md c-btn--block" href={mapsUrl(place)} target="_blank" rel="noreferrer">Directions</a>}
+          {(safeUrl(live?.maps_url) || place) && <a className="c-btn c-btn--secondary c-btn--md c-btn--block" href={safeUrl(live?.maps_url) || mapsUrl(place)} target="_blank" rel="noreferrer">Directions</a>}
           {item.confirmation_number && <Button block icon={copied ? 'check' : 'copy'} onClick={copyRef}>{copied ? 'Copied' : 'Copy confirmation number'}</Button>}
           {isActivity && onToggle && (
             <Button block icon={item.is_completed ? 'refresh' : 'check'} onClick={() => { onToggle(!item.is_completed); onClose() }}>

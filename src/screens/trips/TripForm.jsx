@@ -27,6 +27,10 @@ export default function TripForm() {
     destination_country: editingItem?.destination_country || '',
     destination_country_code: editingItem?.destination_country_code || '',
     destination_tz: editingItem?.destination_tz || null,
+    destination_lat: editingItem?.destination_lat ?? null,
+    destination_lng: editingItem?.destination_lng ?? null,
+    destination_place_id: editingItem?.destination_place_id || null,
+    cover_photo: editingItem?.cover_photo || null,
     start_date: isEdit ? editingItem?.start_date || '' : '',
     end_date: isEdit ? editingItem?.end_date || '' : '',
     notes: isEdit ? editingItem?.notes || '' : '',
@@ -42,9 +46,15 @@ export default function TripForm() {
       destination_city: result.city,
       destination_country: result.country,
       destination_country_code: result.country_code,
-      destination_tz: null,
+      // Google city pick: coordinates, place, cover photo and zone come with it
+      destination_lat: result.lat ?? null,
+      destination_lng: result.lng ?? null,
+      destination_place_id: result.place_id || null,
+      cover_photo: result.photo || null,
+      destination_tz: result.tz || null,
       title: f.title || result.city,
     }))
+    if (result.tz) return
     // The destination's time zone drives Today, day counts and booking times
     lookupZone({ query: `${result.city}, ${result.country}` }).then(tz => {
       if (tz) setForm(f => (f.destination_city === result.city ? { ...f, destination_tz: tz } : f))

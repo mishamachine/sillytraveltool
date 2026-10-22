@@ -3,22 +3,11 @@ import { format } from 'date-fns'
 import { useTripsStore } from '../../store'
 import { parseLocalDate } from '../../lib/dates'
 import { parseBookingEmail } from '../../lib/gemini'
-import { fetchWithTimeout } from '../../lib/http'
+import { geocode } from '../../lib/places'
 import { track } from '../../lib/analytics'
 import { formatRange, bookingKind, bookingMeta } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
 import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, category } from '../../ui'
-
-// Geocode city to lat/lon using Photon
-async function geocodeCity(city, country = '') {
-  try {
-    const res = await fetchWithTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(city + ' ' + country)}&limit=1&lang=en`)
-    const data = await res.json()
-    const f = data.features?.[0]
-    if (!f) return null
-    return { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] }
-  } catch { return null }
-}
 
 // ── Client-side trip matcher ──────────────────────────────
 // Requires BOTH city match AND date range overlap. No match → null (→ "Create New Trip").
@@ -84,7 +73,7 @@ const sanitizeBooking = (raw) => {
     'activity_date','activity_time','venue_name','venue_address','is_shared',
     'passenger_name','seat_number','ticket_quantity','party_size','transport_mode',
     // Local time: the server attaches each place's zone and returns real instants
-    'departure_tz','arrival_tz','local_tz',
+    'departure_tz','arrival_tz','local_tz','place_id','place_lat','place_lng',
   ])
   const clean = {}
   Object.entries(raw).forEach(([k, v]) => {
@@ -169,23 +158,16 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       const earliest = allDates.length ? new Date(Math.min(...allDates)) : new Date()
       const latest   = allDates.length ? new Date(Math.max(...allDates)) : earliest
 
-      // Best-effort country geocode via Photon
-      let countryName = '', countryCode = ''
-      try {
-        const geo = await geocodeCity(city)
-        if (geo) {
-          const rev = await fetchWithTimeout(`https://nominatim.openstreetmap.org/reverse?lat=${geo.lat}&lon=${geo.lon}&format=json&accept-language=en`)
-          const revData = await rev.json()
-          countryName = revData.address?.country || ''
-          countryCode = (revData.address?.country_code || '').toUpperCase()
-        }
-      } catch { /* geocode is best-effort — silently ignore */ }
+      // Best-effort country and coordinates from Google (server-side)
+      const geo = await geocode(ultimateDest?.country ? `${city}, ${ultimateDest.country}` : city)
 
       const newTrip = await createTrip({
         title: newTripName || `Trip to ${city}`,
         destination_city: city,
-        destination_country: countryName,
-        destination_country_code: countryCode,
+        destination_country: geo?.country || ultimateDest?.country || '',
+        destination_country_code: geo?.country_code || '',
+        destination_lat: geo?.lat ?? null,
+        destination_lng: geo?.lng ?? null,
         start_date: format(earliest, 'yyyy-MM-dd'),
         end_date: format(latest, 'yyyy-MM-dd'),
         status: 'planning',

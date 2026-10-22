@@ -118,8 +118,7 @@ export default function TranslateTool() {
         .from('phrase_cache')
         .select('*')
         .eq('language_code', lang.code)
-        .gt('expires_at', new Date().toISOString())
-        .maybeSingle()
+        .maybeSingle() // permanent shared phrasebook, no expiry
 
       if (cached) {
         const phraseData = {}

@@ -1,5 +1,33 @@
 # STT Handoff — 2026-10-21
 
+## Update — Google Maps, DeepSeek, phrasebooks (2026-10-21, night)
+- **Google Maps Platform** (server-side only; `GOOGLE_MAPS_SERVER_KEY` secret; client calls the `places` Edge Function,
+  helpers in `src/lib/places.js` + `supabase/functions/_shared/google.ts`; responses cached in `public.google_cache`):
+  - Guide Eat / Temples / Museums / Parks = real Google places (rating, reviews, hours, photo, Maps link), kept within
+    40 km of the city. The AI only writes the Goose's words. **Two stages:** `facts` (Google, ~2-4 s, no AI) then
+    `voice` (AI, ~8-10 s) which "inks in" on the same cards (`guideStore.loadVoice`, `.ink-wait` / `.ink-in`).
+  - HONK = places open now within walking distance of the user's GPS; same facts → voice stages.
+  - City search (Google autocomplete + details: coords, zone, cover photo), geocoding everywhere (weather, pack,
+    import, SOS, translator country), booking form place search (hotel/restaurant/venue → address, place_id, zone),
+    booking detail live card (map, rating, open now, today's hours, call, website), SOS nearest hospital/police/
+    pharmacy + Google embassy lookup, trip cover photos (backfilled when a trip is opened), email import matches
+    hotels/restaurants to their Google place. Attribution "Places data from Google Maps" shown under Places lists.
+  - Migration `20261022000000_google_places.sql` (applied): `google_cache`; bookings `place_id/place_lat/place_lng`;
+    trips `destination_place_id/cover_photo`.
+- **AI provider: DeepSeek** (owner decision; `DEEPSEEK_API_KEY` secret). `_shared/gemini.ts#geminiFetch` calls DeepSeek
+  first (one retry on 429/5xx), Gemini as fallback. **Gemini prepaid credits are depleted** (402), so the fallback does
+  nothing until the owner tops up AI Studio. Privacy page must name DeepSeek as a processor (servers in China) before launch.
+- **Phrasebooks are permanent:** `phrase_cache.expires_at = infinity`; generate-phrases saves only complete replies.
+  35 languages × 8 categories × 8 phrases pre-written with Claude (top 20 by international arrivals + 15 already there).
+- **Guide tab "Move" renamed "Transit".**
+- **Not yet redeployed:** `receive-booking-email` (repo has DeepSeek + place matching; live v30 still Gemini-only). It
+  is dormant until `RESEND_WEBHOOK_SECRET` is set; redeploy it first. The other functions were deployed through the MCP
+  tool with trimmed copies of `_shared/*`; run `supabase functions deploy` from this repo once the CLI is logged in so
+  live matches the repo exactly.
+- **Next (owner request): "Get there"** on any place/booking: walking / driving / transit times (Google Routes API) +
+  ride-hailing deep links chosen by country (Uber, Lyft, Grab, Bolt, DiDi), affiliate IDs later. Also worth doing:
+  "leave by" times on Today, air-quality/pollen card. Set a Google Cloud budget alert.
+
 ## Update — Clay rebuild done (2026-10-21, evening)
 - Clay redesign is on `main`; see `docs/CLAY_REPORT.md`. Dark palette **signed off** (`docs/brand/DARK_MODE.md`).
 - Owner decisions:

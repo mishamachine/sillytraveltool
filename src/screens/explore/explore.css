@@ -19,3 +19,4 @@
 .explore-list li::marker { color: var(--accent); }
 .explore-ai { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .c-screen > .explore-chips, .c-stack > .explore-chips, .c-stack > .explore-filter { flex-shrink: 0; }
+

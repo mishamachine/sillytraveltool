@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
+import { attachPlace } from '../_shared/google.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -106,13 +107,13 @@ Rules:
   activity_time, ticket_quantity
 - party_size: guests on a restaurant reservation, otherwise null. transport_mode: null unless type is transport.`
 
-    // 20s cap prevents the EarlyDrop wall-clock kill; geminiFetch returns 504 on timeout
+    // 24s cap prevents the EarlyDrop wall-clock kill; geminiFetch returns 504 on timeout
     const gemRes = await geminiFetch(GEMINI_API_KEY, {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 2048 },
-    }, { timeoutMs: 20000 })
+    }, { timeoutMs: 24000 })
     if (gemRes.status === 504) {
-      return new Response(JSON.stringify({ error: 'Gemini timed out — please try again' }), { status: 504, headers: CORS })
+      return new Response(JSON.stringify({ error: 'Reading the email timed out — please try again' }), { status: 504, headers: CORS })
     }
 
     if (!gemRes.ok) {
@@ -163,6 +164,7 @@ Rules:
     for (const b of result.bookings) {
       const legTz = b.destination_city && b.destination_city !== destCity ? await resolveZone(admin, { query: b.destination_city }) : destTz
       await attachZones(admin, b, { fallbackTz: legTz || destTz, city: b.destination_city || destCity || '' })
+      await attachPlace(admin, b, b.destination_city || destCity || '')
     }
 
     return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } })

@@ -3,8 +3,11 @@ import { createPortal } from 'react-dom'
 import { useAuthStore, useTripsStore } from '../../store'
 import { findCurrentOrNextTrip } from '../../lib/dates'
 import { getCurrentPosition, reverseGeocodeCountry } from '../../lib/geo'
+import { nearby, embassy as findEmbassy, geocode, distanceM } from '../../lib/places'
+import { safeUrl } from '../../lib/safeUrl'
+import { GoogleAttribution } from '../../components/shared/PlaceMedia'
 import { track } from '../../lib/analytics'
-import { Card, ListRow, Button, IconTile, Banner, Text, Stack, Icon, Section, IconButton } from '../../ui'
+import { Card, ListRow, Button, IconTile, Banner, Text, Stack, Icon, Section, IconButton, SegmentedControl, Skeleton } from '../../ui'
 import { EMERGENCY, EMBASSY_DATA, PASSPORT_COUNTRY_NAMES } from './data'
 
 function regionName(code) {
@@ -25,7 +28,7 @@ function useCurrentCountry() {
     ;(async () => {
       try {
         const { latitude, longitude } = await getCurrentPosition({ timeout: 10000 })
-        const loc = await reverseGeocodeCountry(latitude, longitude, 6000)
+        const loc = { ...(await reverseGeocodeCountry(latitude, longitude, 6000)), lat: latitude, lng: longitude }
         cachedLocation = { at: Date.now(), loc }
         if (!cancelled) setState({ status: 'found', loc })
       } catch {
@@ -107,7 +110,68 @@ function EmergencyCard({ onClose, countryName, nums, profile }) {
   )
 }
 
-function Embassy({ profile, embassyDest }) {
+const km = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`)
+
+const HELP_KINDS = [
+  { value: 'hospital', label: 'Hospitals', icon: 'medical' },
+  { value: 'police', label: 'Police', icon: 'police' },
+  { value: 'pharmacy', label: 'Pharmacies', icon: 'plus' },
+]
+
+/** Nearest hospitals, police stations and pharmacies from Google, with call and directions. */
+function NearestHelp({ point }) {
+  const [kind, setKind] = useState('hospital')
+  const [state, setState] = useState({ loading: true, places: [] })
+  useEffect(() => {
+    let live = true
+    setState({ loading: true, places: [] })
+    nearby(kind, point.lat, point.lng).then(p => { if (live) setState({ loading: false, places: (p || []).slice(0, 3) }) })
+    return () => { live = false }
+  }, [kind, point.lat, point.lng])
+  const meta = HELP_KINDS.find(k => k.value === kind)
+  return (
+    <Section title="Nearest help">
+      <SegmentedControl label="Kind of help" value={kind} onChange={setKind} options={HELP_KINDS.map(({ value, label }) => ({ value, label }))} />
+      {state.loading ? <Skeleton lines={3} /> : state.places.length === 0 ? (
+        <Text variant="caption" tone="muted">Nothing found nearby. Call the emergency number above.</Text>
+      ) : (
+        <Card variant="group">
+          {state.places.map(p => (
+            <Stack key={p.place_id} row gap={3} align="center" className="sos-near">
+              <IconTile icon={meta.icon} tone="danger" size="sm" />
+              <Stack gap={0} grow>
+                <Text variant="body" weight={600} as="p">{p.name}</Text>
+                <Text variant="caption" tone="muted">{[p.lat != null && km(distanceM(point, { lat: p.lat, lng: p.lng })), p.short_address || p.address].filter(Boolean).join(' · ')}</Text>
+              </Stack>
+              {p.phone && <a className="c-iconbtn c-iconbtn--sunken" href={tel(p.phone)} aria-label={`Call ${p.name}`}><Icon name="phone" size={20} strokeWidth={2} /></a>}
+              {safeUrl(p.maps_url) && <a className="c-iconbtn c-iconbtn--sunken" href={safeUrl(p.maps_url)} target="_blank" rel="noreferrer" aria-label={`Directions to ${p.name}`}><Icon name="navigation" size={20} strokeWidth={2} /></a>}
+            </Stack>
+          ))}
+        </Card>
+      )}
+      <GoogleAttribution />
+    </Section>
+  )
+}
+
+/** Embassy from Google when the built-in list doesn't have this passport/country pair. */
+function useGoogleEmbassy(passportName, dest, point, enabled) {
+  const [found, setFound] = useState(null)
+  useEffect(() => {
+    if (!enabled) return
+    let live = true
+    ;(async () => {
+      const at = point || (dest?.city ? await geocode(`${dest.city}, ${dest.country}`) : await geocode(dest.country))
+      if (!at) return
+      const list = await findEmbassy(passportName, at.lat, at.lng)
+      if (live && list?.length) setFound(list[0])
+    })()
+    return () => { live = false }
+  }, [enabled, passportName, dest?.code, dest?.city, point?.lat, point?.lng]) // eslint-disable-line react-hooks/exhaustive-deps
+  return found
+}
+
+function Embassy({ profile, embassyDest, point }) {
   if (!profile?.passport_country) {
     return <ListRow as="div" icon="passport" tone="info" title="Your embassy" meta="Set your passport country in Profile, Settings to find it here." />
   }
@@ -118,8 +182,14 @@ function Embassy({ profile, embassyDest }) {
   if (embassyDest.code === profile.passport_country) {
     return <ListRow as="div" icon="passport" tone="info" title="Your embassy" meta={`${embassyDest.country} is your passport country, so no embassy needed. Abroad, it shows up here.`} />
   }
-  const known = EMBASSY_DATA[`${profile.passport_country}_${embassyDest.code}`]
-  const mapsQuery = known ? encodeURIComponent(known.address) : encodeURIComponent(`${passportName} embassy ${embassyDest.city || embassyDest.country}`)
+  const builtIn = EMBASSY_DATA[`${profile.passport_country}_${embassyDest.code}`]
+  return <EmbassyDetails passportName={passportName} embassyDest={embassyDest} builtIn={builtIn} point={point} />
+}
+
+function EmbassyDetails({ passportName, embassyDest, builtIn, point }) {
+  const google = useGoogleEmbassy(passportName, embassyDest, point, !builtIn)
+  const known = builtIn || (google && { address: google.address, phone: google.phone })
+  const mapsHref = safeUrl(google?.maps_url) || `https://maps.google.com/?q=${encodeURIComponent(known ? known.address : `${passportName} embassy ${embassyDest.city || embassyDest.country}`)}`
   return (
     <Stack gap={3}>
       <Stack row gap={3} align="center">
@@ -128,9 +198,9 @@ function Embassy({ profile, embassyDest }) {
           <Text variant="body" weight={600} as="p">{passportName} embassy · {embassyDest.country}</Text>
           <Text variant="caption" tone="muted">{known ? known.address : 'Exact details unavailable. Maps finds the nearest one.'}</Text>
         </Stack>
-        {known && <a className="c-iconbtn c-iconbtn--sunken" href={tel(known.phone)} aria-label={`Call embassy, ${known.phone}`}><Icon name="phone" size={20} strokeWidth={2} /></a>}
+        {known?.phone && <a className="c-iconbtn c-iconbtn--sunken" href={tel(known.phone)} aria-label={`Call embassy, ${known.phone}`}><Icon name="phone" size={20} strokeWidth={2} /></a>}
       </Stack>
-      <a className="c-btn c-btn--secondary c-btn--md" href={`https://maps.google.com/?q=${mapsQuery}`} target="_blank" rel="noopener noreferrer">
+      <a className="c-btn c-btn--secondary c-btn--md" href={mapsHref} target="_blank" rel="noopener noreferrer">
         <Icon name="map" size={18} strokeWidth={2} />Open in Maps
       </a>
       <Text variant="micro" tone="muted">Staying long? Register your trip with your embassy.</Text>
@@ -157,6 +227,7 @@ export default function SosTool({ onTitle }) {
   const activeTrip = hasLiveTrip ? destinationTrip : null
   const nextTrip = hasLiveTrip ? null : destinationTrip
   const locCountry = current.status === 'found' ? current.loc : null
+  const locPoint = locCountry?.lat != null ? { lat: locCountry.lat, lng: locCountry.lng } : null
   const source = locCountry ? 'location'
     : activeTrip?.destination_country_code ? 'active_trip'
     : nextTrip?.destination_country_code ? 'next_trip'
@@ -199,8 +270,10 @@ export default function SosTool({ onTitle }) {
       <Numbers nums={nums} />
 
       <Card>
-        <Embassy profile={profile} embassyDest={embassyDest} />
+        <Embassy profile={profile} embassyDest={embassyDest} point={locPoint} />
       </Card>
+
+      {locPoint && <NearestHelp point={locPoint} />}
 
       <Button variant="dark" size="lg" icon="id-card" block onClick={() => setShowCard(true)}>Show emergency card</Button>
 

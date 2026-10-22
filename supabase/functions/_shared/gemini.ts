@@ -1,4 +1,4 @@
-// Shared Gemini caller for all AI Edge Functions.
+// Shared AI caller for all AI Edge Functions (DeepSeek first, Gemini fallback; see geminiFetch).
 // - Model comes from the GEMINI_MODEL secret (default gemini-2.5-flash); on a 404
 //   (model retired) it retries once on the gemini-flash-latest alias so the app
 //   doesn't go dark again the way it did when gemini-2.0-flash was shut down.
@@ -7,8 +7,61 @@
 
 const PRIMARY_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash'
 const FALLBACK_MODEL = 'gemini-flash-latest'
+const DEEPSEEK_MODEL = Deno.env.get('DEEPSEEK_MODEL') || 'deepseek-chat'
 
+/**
+ * The app's AI call. DeepSeek is the primary provider when DEEPSEEK_API_KEY is set (owner decision,
+ * 21 Oct 2026); Gemini is the fallback. Callers send and receive Gemini-shaped JSON either way, so the
+ * Edge Functions don't need to know which provider answered.
+ */
 export async function geminiFetch(
+  apiKey: string,
+  body: Record<string, any>,
+  { timeoutMs = 25000 }: { timeoutMs?: number } = {},
+): Promise<Response> {
+  const deepseekKey = Deno.env.get('DEEPSEEK_API_KEY')
+  if (deepseekKey) {
+    let res = await deepseekFetch(deepseekKey, body, timeoutMs)
+    // One retry on a passing hiccup (rate limit, server error, dropped connection); not on a timeout
+    if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 500) res = await deepseekFetch(deepseekKey, body, timeoutMs)
+    if (res.ok || !apiKey) return res
+    console.warn(`DeepSeek ${res.status}, falling back to Gemini: ${(await res.clone().text()).slice(0, 200)}`)
+  }
+  return geminiDirect(apiKey, body, { timeoutMs })
+}
+
+/** DeepSeek chat completion (OpenAI-compatible), returned in Gemini's response shape. */
+async function deepseekFetch(key: string, body: Record<string, any>, timeoutMs: number): Promise<Response> {
+  const gc = body.generationConfig || {}
+  const prompt = (body.contents || []).flatMap((c: any) => c.parts || []).map((p: any) => p.text || '').join('\n')
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: DEEPSEEK_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: gc.temperature ?? 0.7,
+        max_tokens: Math.min(gc.maxOutputTokens || 4000, 8000),
+        // JSON mode; every prompt here already asks for JSON, which DeepSeek requires
+        ...(gc.responseMimeType === 'application/json' ? { response_format: { type: 'json_object' } } : {}),
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) return new Response(await res.text(), { status: res.status })
+    const text = (await res.json()).choices?.[0]?.message?.content || ''
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], provider: 'deepseek' }), { status: 200 })
+  } catch (e: any) {
+    const msg = e?.name === 'AbortError' ? `DeepSeek timed out after ${timeoutMs / 1000}s` : `DeepSeek failed: ${e?.message}`
+    return new Response(JSON.stringify({ error: { message: msg } }), { status: e?.name === 'AbortError' ? 504 : 502 })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function geminiDirect(
   apiKey: string,
   body: Record<string, any>,
   { timeoutMs = 25000 }: { timeoutMs?: number } = {},

@@ -1,5 +1,6 @@
 // Open-Meteo helpers shared by the Today view and the trip Weather tab.
 import { fetchWithTimeout } from './http'
+import { geocode } from './places'
 
 // WMO weather code → icon name (src/ui/icons) + label
 export function weatherInfo(code) {
@@ -16,10 +17,12 @@ export function weatherInfo(code) {
   return { icon: 'storm', label: 'Thunderstorm' }
 }
 
-/** Trip coordinates: stored lat/lng, else Photon geocode of the city. */
+/** Trip coordinates: stored lat/lng, else Google geocode of the city (Photon as a fallback). */
 export async function tripCoords(trip) {
   if (trip?.destination_lat && trip?.destination_lng) return { lat: Number(trip.destination_lat), lon: Number(trip.destination_lng) }
   if (!trip?.destination_city) return null
+  const g = await geocode([trip.destination_city, trip.destination_country].filter(Boolean).join(', '))
+  if (g) return { lat: g.lat, lon: g.lng }
   try {
     const q = `${trip.destination_city} ${trip.destination_country || ''}`.trim()
     const res = await fetchWithTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=en`)

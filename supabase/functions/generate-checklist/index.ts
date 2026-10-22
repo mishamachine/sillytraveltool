@@ -47,15 +47,15 @@ Facts: ${flightCount} flight(s), hotel: ${hasHotel}, activities booked: ${hasAct
 
 Generate a tight, smart packing checklist tailored to this destination and season. Every item must be specific — no vague entries like "clothes".
 
-Return ONLY a valid JSON array with no markdown:
-[
+Return ONLY a valid JSON object with no markdown:
+{ "sections": [
   {
-    "title": "section emoji + name",
+    "title": "Section name",
     "items": [
       { "label": "Item name", "note": "One short reason or tip, max 8 words" }
     ]
   }
-]
+] }
 
 Rules:
 - 4-6 sections, 4-7 items each. Keep it tight — quality over quantity.
@@ -85,6 +85,8 @@ Rules:
     if (Array.isArray(result)) return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } })
     if (Array.isArray(result.sections)) return new Response(JSON.stringify(result.sections), { headers: { ...CORS, 'Content-Type': 'application/json' } })
     if (Array.isArray(result.checklist)) return new Response(JSON.stringify(result.checklist), { headers: { ...CORS, 'Content-Type': 'application/json' } })
+    const anyList = result && typeof result === 'object' ? Object.values(result).find(v => Array.isArray(v)) : null
+    if (anyList) return new Response(JSON.stringify(anyList), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 
     return new Response(JSON.stringify({ error: 'Unexpected checklist format' }), { status: 502, headers: CORS })
 

@@ -72,37 +72,39 @@ async function extractErrorMessage(error) {
  * Generate destination guide content — section-based
  * section: 'overview' | 'eat' | 'see' | 'move' | 'events'
  */
-export async function generateGuideContent(city, country, section = 'overview', excludeNames = [], destinationKey = null) {
-  // destination_key lets the function read/write the shared guide cache server-side
-  return invokeFunction('generate-guide', { city, country, section, exclude_names: excludeNames, destination_key: destinationKey }, 45000)
+export async function generateGuideContent(city, country, section = 'overview', excludeNames = [], destinationKey = null, stage) {
+  // destination_key lets the function read/write the shared guide cache server-side.
+  // stage 'facts' = Google places only (fast); 'voice' = the Goose's words for them (see guideStore)
+  return invokeFunction('generate-guide', { city, country, section, exclude_names: excludeNames, destination_key: destinationKey, stage }, 45000)
 }
 
 /**
  * Generate offline phrases for a language
  */
 export async function generatePhrases(languageCode, languageName) {
-  return invokeFunction('generate-phrases', { languageCode, languageName })
+  return invokeFunction('generate-phrases', { languageCode, languageName }, 45000)
 }
 
 /**
  * Goosey discovery
  */
-export async function gooseyDiscover({ city, country, mood, filters = [] }) {
-  return invokeFunction('goosey-discover', { city, country, mood, filters })
+// stage 'facts' = the Google place at once; 'voice' = the Goose's words for `place` (see HonkView)
+export async function gooseyDiscover({ city, country, mood, filters = [], lat, lng, exclude = [], stage, place }) {
+  return invokeFunction('goosey-discover', { city, country, mood, filters, lat, lng, exclude, stage, place })
 }
 
 /**
  * Parse booking email
  */
 export async function parseBookingEmail(emailText) {
-  return invokeFunction('parse-booking-email', { emailText }, 28000)
+  return invokeFunction('parse-booking-email', { emailText }, 32000)
 }
 
 /**
  * Generate AI-powered packing checklist
  */
 export async function generateChecklist(trip, bookings, weatherContext) {
-  return invokeFunction('generate-checklist', { trip, bookings, weatherContext })
+  return invokeFunction('generate-checklist', { trip, bookings, weatherContext }, 45000)
 }
 
 export default { generateGuideContent, generatePhrases, gooseyDiscover, parseBookingEmail, generateChecklist }

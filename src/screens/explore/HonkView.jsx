@@ -9,6 +9,8 @@ import {
 } from '../../ui'
 import AiDisclosure from './AiDisclosure'
 import { safeUrl } from '../../lib/safeUrl'
+import { reverseGeocode } from '../../lib/places'
+import { PlacePhoto, GoogleRating, OpenNow, GoogleAttribution, InkWait } from '../../components/shared/PlaceMedia'
 
 export const MOODS = [
   { id: 'hungry',    label: "I'm hungry",        icon: 'restaurant' },
@@ -36,15 +38,17 @@ function useGeolocation() {
         const { latitude, longitude } = pos.coords
         setState(s => ({ ...s, coords: { latitude, longitude } }))
         try {
-          const res = await fetchWithTimeout(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
-            { headers: { 'Accept-Language': 'en' } }
-          )
-          const data = await res.json()
-          const addr = data.address || {}
-          const city = addr.city || addr.town || addr.municipality || addr.village || addr.county || 'your area'
-          const country = addr.country || ''
-          setState({ loading: false, city, country, error: null, coords: { latitude, longitude } })
+          // Google first (server-side), OpenStreetMap if that fails
+          let place = await reverseGeocode(latitude, longitude)
+          if (!place?.city) {
+            const res = await fetchWithTimeout(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+              { headers: { 'Accept-Language': 'en' } }
+            )
+            const addr = (await res.json()).address || {}
+            place = { city: addr.city || addr.town || addr.municipality || addr.village || addr.county || 'your area', country: addr.country || '' }
+          }
+          setState({ loading: false, city: place.city, country: place.country || '', error: null, coords: { latitude, longitude } })
         } catch {
           setState({ loading: false, city: null, country: null, error: 'Couldn\'t work out the name of where you are.', coords: { latitude, longitude } })
         }
@@ -72,6 +76,7 @@ export default function HonkView({ initialMood = null, onBack }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [manualCity, setManualCity] = useState(null)
+  const seen = useRef([]) // Google places already suggested this session, so "Another spot" moves on
   const autoRan = useRef(false)
 
   // Effective location: GPS city if available, else manual selection
@@ -83,8 +88,18 @@ export default function HonkView({ initialMood = null, onBack }) {
     setLoading(true); setError(null)
     try {
       const moodLabel = MOODS.find(m => m.id === moodId)?.label || moodId
-      const discovered = await gooseyDiscover({ city: effectiveCity, country: effectiveCountry, mood: moodLabel })
+      const coords = geo.city ? geo.coords : null
+      const ask = { city: effectiveCity, country: effectiveCountry, mood: moodLabel }
+      // Facts first: the real place from Google shows at once, the Goose's words ink in after
+      const discovered = await gooseyDiscover({ ...ask, lat: coords?.latitude, lng: coords?.longitude, exclude: seen.current, stage: 'facts' })
+      if (discovered?.place_id) seen.current = [...seen.current, discovered.place_id].slice(-20)
       setResult(discovered)
+      if (discovered?.pending) {
+        setLoading(false)
+        gooseyDiscover({ ...ask, stage: 'voice', place: discovered })
+          .then(words => setResult(r => (r?.place_id === discovered.place_id ? { ...r, ...words, pending: false } : r)))
+          .catch(() => setResult(r => (r?.place_id === discovered.place_id ? { ...r, why: r.summary || '', pending: false } : r)))
+      }
       track('honk_used', { mood: moodId, gps: !!geo.city }, 'goosey')
       // Stat trigger: HONK used
       try {
@@ -103,6 +118,10 @@ export default function HonkView({ initialMood = null, onBack }) {
   }, [effectiveCity]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reset = () => { setResult(null); setSelectedMood(null); setError(null) }
+  // The Goose's words "ink in" when they arrive after the place is already on screen
+  const inked = useRef(null)
+  if (result?.pending) inked.current = result.place_id
+  const honkInk = result && !result.pending && inked.current === result.place_id ? 'ink-in' : undefined
   const place = effectiveCity ? `${effectiveCity}${effectiveCountry ? `, ${effectiveCountry}` : ''}` : null
 
   return (
@@ -168,13 +187,22 @@ export default function HonkView({ initialMood = null, onBack }) {
                 <Text variant="title" as="h2" id="honk-result">{result.name}</Text>
                 <Text variant="caption" tone="muted">{[result.type, result.neighbourhood, result.price_range].filter(Boolean).join(' · ')}</Text>
               </Stack>
-              {result.goose_rating && <Chip icon="star" aria-label={`Goose rating ${result.goose_rating} out of 10`}>{result.goose_rating}</Chip>}
+              {result.goose_rating && <Chip icon="star" className={honkInk} aria-label={`Goose says: ${result.goose_rating}`}>{result.goose_rating}</Chip>}
             </Stack>
-            {result.why && <Text variant="body" tone="secondary">{result.why}</Text>}
-            {result.best_time && (
-              <Stack row gap={2}><Icon name="clock" size={18} className="tone-muted" /><Text variant="caption" tone="muted">Best time: {result.best_time}</Text></Stack>
+            {result.photo && <PlacePhoto name={result.photo} alt={result.name} />}
+            {(result.rating != null || result.walk_min != null || result.open_now) && (
+              <Stack row gap={2} wrap>
+                <GoogleRating rating={result.rating} count={result.rating_count} />
+                {result.open_now && <OpenNow open />}
+                {result.walk_min != null && <Chip icon="walk">{`${result.walk_min} min walk`}</Chip>}
+              </Stack>
             )}
-            {result.insider_tip && <Banner icon="lightbulb" title="Insider tip">{result.insider_tip}</Banner>}
+            {result.pending ? <InkWait lines={3} label="The Goose is writing" />
+              : result.why && <Text variant="body" tone="secondary" className={honkInk}>{result.why}</Text>}
+            {result.best_time && (
+              <Stack row gap={2} className={honkInk}><Icon name="clock" size={18} className="tone-muted" /><Text variant="caption" tone="muted">Best time: {result.best_time}</Text></Stack>
+            )}
+            {result.insider_tip && <Banner icon="lightbulb" title="Insider tip" className={honkInk}>{result.insider_tip}</Banner>}
             <Stack row gap={2}>
               {safeUrl(result.google_maps_url) && (
                 <a className="c-btn c-btn--primary c-btn--md grow" href={safeUrl(result.google_maps_url)} target="_blank" rel="noreferrer">Directions</a>
@@ -182,6 +210,7 @@ export default function HonkView({ initialMood = null, onBack }) {
               <Button className="grow" icon="refresh" onClick={reset}>Another spot</Button>
             </Stack>
           </Card>
+          {result.place_id && <GoogleAttribution />}
           <AiDisclosure city={effectiveCity} what="HONK" />
         </>
       )}

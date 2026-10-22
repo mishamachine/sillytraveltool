@@ -99,3 +99,6 @@ h2.sos-card__ink { color: var(--on-danger); }
   display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: var(--touch-min);
   padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit;
 }
+
+.sos-near { padding: var(--space-3) var(--space-4); }
+.sos-near + .sos-near { border-top: 1px solid var(--line); }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTripsStore } from '../../../store'
 import { hasTripEnded } from '../../../lib/dates'
 import { fetchWithTimeout } from '../../../lib/http'
+import { tripCoords } from '../../../lib/weather'
 import { track } from '../../../lib/analytics'
 import { Card, Field, IconButton, Button, LinkButton, Text, Stack, Icon, Loading, ErrorState, EmptyState, ProgressBar } from '../../../ui'
 
@@ -76,12 +77,7 @@ export default function PackTab({ trip }) {
       // Fetch lightweight weather context for the trip window
       let weatherContext = null
       try {
-        let lat = trip.destination_lat, lon = trip.destination_lng
-        if (!lat || !lon) {
-          const geoRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trip.destination_city + ', ' + trip.destination_country)}&limit=1`, { headers: { 'Accept-Language': 'en' } })
-          const geoData = await geoRes.json()
-          if (geoData[0]) { lat = geoData[0].lat; lon = geoData[0].lon }
-        }
+        const { lat, lon } = (await tripCoords(trip)) || {}
         if (lat && lon) {
           const wRes = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&forecast_days=7`)
           const wData = await wRes.json()

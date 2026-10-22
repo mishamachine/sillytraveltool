@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTripsStore, useUIStore } from '../../../store'
 import { timeIn } from '../../../lib/localTime'
 import { useTripZone } from '../useTripZone'
+import { PlacePhoto } from '../../../components/shared/PlaceMedia'
 import { tripPhase, tripDay, nightsOf, formatRange, plural } from '../../../lib/trips'
 import { daysBetween, todayAtTrip } from '../../../lib/dates'
 import { ScreenHeader, IconButton, Button, Sheet, Card, ListRow, Text, Stack, Chip } from '../../../ui'
@@ -60,6 +61,7 @@ export default function TripHeader({ trip, readOnly }) {
           {localTime && <Text variant="micro" tone="muted" as="span">{localTime} in {trip.destination_city}</Text>}
         </Stack>
       </ScreenHeader>
+      {trip.cover_photo && <PlacePhoto name={trip.cover_photo} w={900} className="detail-cover" />}
 
       {showMenu && (
         <Sheet title="Trip options" onClose={() => setShowMenu(false)}>
