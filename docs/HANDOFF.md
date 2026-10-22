@@ -75,8 +75,10 @@
   `supabase functions deploy` from the repo gives the same code.
 
 ## Android test builds (2026-10-22)
-- Public Supabase storage bucket `releases` (APK files only) hosts test builds; owner-approved. Current:
-  `https://swywrvbuswylvqlktsym.supabase.co/storage/v1/object/public/releases/SillyTravelTool-0.19.0.apk`.
+- Public Supabase storage bucket `releases` (APK files only) hosts test builds; owner-approved. Current (debug build,
+  versionCode 2, 2026-10-22, same code as the website):
+  `https://swywrvbuswylvqlktsym.supabase.co/storage/v1/object/public/releases/SillyTravelTool-0.20.0.apk`.
+  0.19.0 is still in the bucket. Bump `versionCode` in `android/app/build.gradle` each build so it installs over the last.
 - Download page: claude.ai artifact "Silly Travel Tool for Android" (https://claude.ai/artifact/KXBjjavcDsSnjbTJR8jm75).
 - The bucket has no upload policy: to publish a new build, add a temporary insert policy for the bucket, upload,
   drop the policy (or upload from the Supabase dashboard), then update the artifact's link and version.
