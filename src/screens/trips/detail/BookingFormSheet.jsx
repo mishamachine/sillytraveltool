@@ -57,7 +57,8 @@ export default function BookingFormSheet({ tripId, trip, type, initial = {}, onC
   // Times are entered as the local time at the place. Defaults until a lookup answers:
   // departure where you are now, arrival and venues at the destination.
   const [form, setForm] = useState(() => ({
-    departure_tz: deviceZone(), arrival_tz: tripTz || deviceZone(), local_tz: tripTz || deviceZone(), ...initial,
+    departure_tz: deviceZone(), arrival_tz: tripTz || deviceZone(), local_tz: tripTz || deviceZone(),
+    ...(type === 'restaurant' ? { party_size: '2' } : {}), ...initial,
   }))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)

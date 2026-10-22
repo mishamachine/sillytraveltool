@@ -29,6 +29,23 @@ Screenshots: `docs/screenshots/testing/` (file names start with the persona, e.g
 | Minor | 22 |
 | Polish | 16 |
 
+## Fix status (updated 2026-10-22)
+
+Fixed, deployed and re-tested on the live account (screenshots `fix-*.jpg`):
+
+| Item | Result after the fix |
+|---|---|
+| B1 import destination | Same Lufthansa + hotels email → "Final destination: Athens", default "Trip to Athens", Destination editable on New trip (`fix-b1-*.jpg`) |
+| M1 overnight leg | MUC → ATH now Sun 15 Nov 13:20, after SFO → MUC lands (`fix-m1-muc-ath-sun-15-nov.jpg`) |
+| B2 quota | Import + new trip used 1 AI call (the parse); warming wrote Google facts for 6 sections with 0 AI; guide AI now counts in its own `guide` allowance (40/day) |
+| M6 °F advice (Q1) | 47 °F → "Cold later, bring a jacket", same as 8 °C |
+| M8 Android back (Q2) | Emulator: Continue with email → back → welcome screen, app stays open (`fix-q2-android-*.jpg`) |
+| M4 ride apps (Q3) | Singapore hotel in a Greek trip → Grab (`fix-q3-singapore-hotel-grab.jpg`) |
+| m3 Guests (Q4) | Restaurant form starts with 2 |
+| m4 trip tab (Q5) | Opening a trip starts on Plan after switching tabs on another visit |
+
+Still open: everything else below, in the recommended order.
+
 ## The 10 personas
 
 | # | Persona | Cities | Goals tested | Where | Result |

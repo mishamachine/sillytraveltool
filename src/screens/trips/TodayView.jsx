@@ -116,7 +116,7 @@ export default function TodayView({ trip, onShowAll }) {
             <Icon name={w?.icon || 'cloud-sun'} size={28} className={w?.icon === 'sun' ? 'today-sun' : 'tone-info'} />
             <Stack gap={0}>
               <Text variant="stat" as="p" className="today-temp">{weather ? `${weather.now.temp}°` : '–'}</Text>
-              <Text variant="micro" tone="muted" as="p">{weather ? weatherHint(weather.today) : 'Checking the sky'}</Text>
+              <Text variant="micro" tone="muted" as="p">{weather ? weatherHint(weather.today, tempUnit) : 'Checking the sky'}</Text>
             </Stack>
           </Stack>
         </Card>

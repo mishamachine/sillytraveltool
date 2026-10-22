@@ -5,6 +5,7 @@ import { parseLocalDate } from '../../lib/dates'
 import { parseBookingEmail } from '../../lib/gemini'
 import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
+import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import { track } from '../../lib/analytics'
 import { formatRange, bookingKind, bookingMeta, tripDates, isUndated } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
@@ -107,6 +108,8 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
   const [matched, setMatched] = useState(null)
   const [selectedTripId, setSelectedTripId] = useState(null)
   const [newTripName, setNewTripName] = useState('')
+  const [newCity, setNewCity] = useState(null)       // typed destination (null = Goose's pick)
+  const [newPlace, setNewPlace] = useState(null)     // picked from city search
   const [creatingTrip, setCreatingTrip] = useState(false)
 
   const handleParse = async () => {
@@ -119,6 +122,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       const dest = result.ultimate_destination || null
       setParsedBookings(bookings)
       setUltimateDest(dest)
+      setNewCity(null); setNewPlace(null)
       const match = fixedTrip || matchTrip(trips, dest, bookings)
       setMatched(match)
       setSelectedTripId(match?.id || null)
@@ -154,7 +158,9 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
     if (!parsedBookings.length) return
     setCreatingTrip(true); setError(null)
     try {
-      const city = fallbackCity || parsedBookings[0]?.hotel_name || 'Unknown'
+      const typed = newCity?.trim()
+      const city = newPlace?.city || typed || fallbackCity || parsedBookings[0]?.hotel_name || 'Unknown'
+      const sameAsGoose = city === ultimateDest?.city
 
       // Derive date range from all booking legs
       const allDates = parsedBookings.flatMap(b => [
@@ -165,21 +171,24 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       const latest   = allDates.length ? new Date(Math.max(...allDates)) : earliest
 
       // Best-effort country and coordinates from Google (server-side)
-      const geo = await geocode(ultimateDest?.country ? `${city}, ${ultimateDest.country}` : city)
+      const geo = newPlace?.lat != null ? newPlace
+        : await geocode(sameAsGoose && ultimateDest?.country ? `${city}, ${ultimateDest.country}` : city)
+      const country = geo?.country || (sameAsGoose ? ultimateDest?.country : '') || ''
 
-      warmGuide(city, geo?.country || ultimateDest?.country || '', geo?.country_code || '')
       const newTrip = await createTrip({
         title: newTripName || `Trip to ${city}`,
         destination_city: city,
-        destination_country: geo?.country || ultimateDest?.country || '',
+        destination_country: country,
         destination_country_code: geo?.country_code || '',
         destination_lat: geo?.lat ?? null,
         destination_lng: geo?.lng ?? null,
         start_date: format(earliest, 'yyyy-MM-dd'),
         end_date: format(latest, 'yyyy-MM-dd'),
         status: 'planning',
-        destination_tz: ultimateDest?.tz || null,
+        // A trip without a zone gets one the first time it's opened
+        destination_tz: newPlace?.tz || (sameAsGoose ? ultimateDest?.tz : null) || null,
       })
+      warmGuide(city, country, geo?.country_code || '')
       await handleSave(newTrip.id)
     } catch (e) { setError(e.message || 'Could not create the trip.') }
     finally { setCreatingTrip(false) }
@@ -276,8 +285,11 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       {step === 'create' && (
         <>
           <Text tone="secondary">Goose builds the trip from the booking dates. You can edit it after.</Text>
+          <CityAutocomplete label="Destination" value={newCity ?? fallbackCity ?? ''}
+            onChange={(val) => { setNewCity(val); setNewPlace(null) }}
+            onSelect={(p) => { setNewCity(p.city); setNewPlace(p) }} />
           <Field label="Trip name (optional)" value={newTripName} onChange={e => setNewTripName(e.target.value)}
-            placeholder={`Trip to ${fallbackCity || 'destination'}`} />
+            placeholder={`Trip to ${newPlace?.city || newCity?.trim() || fallbackCity || 'destination'}`} />
           <Stack row gap={2}>
             <Button className="grow" onClick={() => setStep('preview')}>Back</Button>
             <Button className="grow" variant="primary" loading={creatingTrip} onClick={handleCreateTrip}>

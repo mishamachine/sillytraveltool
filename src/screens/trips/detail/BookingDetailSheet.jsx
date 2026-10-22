@@ -142,7 +142,7 @@ export default function BookingDetailSheet({ item, tripTz, countryCode, isActivi
         </Stack>
       </Sheet>
       {getThere && (
-        <GetThereSheet countryCode={countryCode} onClose={() => setGetThere(false)} place={{
+        <GetThereSheet countryCode={live?.country_code || countryCode} onClose={() => setGetThere(false)} place={{
           name: live?.name || item.venue_name || item.hotel_name || item.location_name || item.title,
           address: live?.address || place, place_id: live?.place_id || item.place_id || null,
           lat: live?.lat ?? item.place_lat ?? item.location_lat ?? null, lng: live?.lng ?? item.place_lng ?? item.location_lng ?? null,

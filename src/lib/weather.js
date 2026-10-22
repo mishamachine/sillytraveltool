@@ -55,12 +55,14 @@ export async function fetchTripHistory(lat, lon, start, end, unit = 'celsius') {
   } catch { return null }
 }
 
-/** One-line packing hint for today's forecast. */
-export function weatherHint(today) {
+/** One-line packing hint for today's forecast. `unit` is the forecast's unit; the thresholds are °C. */
+export function weatherHint(today, unit = 'celsius') {
   if (!today) return ''
+  const c = t => (unit === 'fahrenheit' ? (t - 32) * 5 / 9 : t)
+  const hi = c(today.hi), lo = c(today.lo)
   if (today.rain != null && today.rain >= 50) return 'Rain likely, take a layer'
-  if (today.lo <= 8) return 'Cold later, bring a jacket'
-  if (today.hi >= 30) return 'Hot, stay hydrated'
-  if (today.hi - today.lo >= 10) return 'Cooler tonight, light jacket'
+  if (lo <= 8) return 'Cold later, bring a jacket'
+  if (hi >= 30) return 'Hot, stay hydrated'
+  if (hi - lo >= 10) return 'Cooler tonight, light jacket'
   return 'Comfortable all day'
 }

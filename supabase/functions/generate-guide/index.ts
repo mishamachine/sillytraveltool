@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
+import { geminiFetch, cap, checkAiQuota, GUIDE_QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { geocode, searchText, type Place } from '../_shared/google.ts'
 
 const CORS = {
@@ -305,7 +305,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!(await checkAiQuota(user.id))) return reply({ error: QUOTA_MESSAGE }, 429)
+    // Guide sections go into the shared cache for everyone: their own daily allowance, not the user's AI requests
+    if (!(await checkAiQuota(user.id, 'guide'))) return reply({ error: GUIDE_QUOTA_MESSAGE }, 429)
 
     const askGemini = async (prompt: string, maxOutputTokens = 3000) => {
       const gemRes = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens } }, { timeoutMs: 35000 }) // 15 items take DeepSeek a while

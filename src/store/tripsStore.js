@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './authStore'
+import { useUIStore } from './uiStore'
 import { checkAndAwardBadges } from './authStore'
 import { compareTripStart, isUndated, bookingDates } from '../lib/trips'
 import { pgQuote } from '../lib/postgrest'
@@ -105,6 +106,8 @@ export const useTripsStore = create((set, get) => ({
       if (trip) sessionStorage.setItem('stt_active_trip_id', trip.id)
       else sessionStorage.removeItem('stt_active_trip_id')
     } catch {}
+    // Opening a trip starts on Plan (a remembered Pack tab would start an AI packing run nobody asked for)
+    if (trip && trip.id !== get().activeTrip?.id) useUIStore.getState().setTripTab('itinerary')
     set({ activeTrip: trip, bookings: [], activities: [] })
     if (trip) get().fetchTripDetail(trip.id)
   },

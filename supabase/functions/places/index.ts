@@ -74,9 +74,14 @@ Deno.serve(async (req) => {
       case 'place': {
         const id = str(b.place_id, 300)
         // Opening hours change: keep details for a day
-        const out = await cached(admin, `place:${id}`, 1, async () => {
+        const out = await cached(admin, `place:v2:${id}`, 1, async () => {
           const d = await placeDetails(id, DETAIL_FIELDS)
-          return d ? { ...normalizePlace(d), phone: d.internationalPhoneNumber || d.nationalPhoneNumber || null } : null
+          // country_code: Get there picks ride apps by the place's country, not the trip's
+          const country = d?.addressComponents?.find((c: any) => c.types?.includes('country'))
+          return d ? {
+            ...normalizePlace(d), phone: d.internationalPhoneNumber || d.nationalPhoneNumber || null,
+            country_code: (country?.shortText || '').toUpperCase() || null,
+          } : null
         })
         return out ? json(out) : json({ error: 'Place not found' }, 404)
       }

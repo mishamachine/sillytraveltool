@@ -112,9 +112,12 @@ export function cap(value: unknown, max: number): string {
 // Daily per-user AI quota (public.consume_ai_quota, service role only).
 // Returns false once the user is over the limit. Fails open: a quota-check
 // outage must not take the AI features down with it.
+// "guide" = sections written into the shared guide cache (for every user), on their own allowance so they
+// don't use up the user's own AI requests.
 export const AI_DAILY_LIMIT = Number(Deno.env.get('AI_DAILY_LIMIT') || 100)
+export const GUIDE_DAILY_LIMIT = Number(Deno.env.get('GUIDE_DAILY_LIMIT') || 40)
 
-export async function checkAiQuota(userId: string): Promise<boolean> {
+export async function checkAiQuota(userId: string, kind: 'ai' | 'guide' = 'ai'): Promise<boolean> {
   try {
     const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/consume_ai_quota`, {
       method: 'POST',
@@ -123,7 +126,7 @@ export async function checkAiQuota(userId: string): Promise<boolean> {
         apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
         Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
       },
-      body: JSON.stringify({ p_user_id: userId, p_limit: AI_DAILY_LIMIT }),
+      body: JSON.stringify({ p_user_id: userId, p_limit: kind === 'guide' ? GUIDE_DAILY_LIMIT : AI_DAILY_LIMIT, p_kind: kind }),
     })
     if (!res.ok) {
       console.error('consume_ai_quota failed:', res.status, await res.text())
@@ -137,3 +140,4 @@ export async function checkAiQuota(userId: string): Promise<boolean> {
 }
 
 export const QUOTA_MESSAGE = 'You have reached today\'s AI limit. It resets at midnight UTC.'
+export const GUIDE_QUOTA_MESSAGE = 'Goose has written a lot of new guide pages for you today. More tomorrow (resets at midnight UTC).'

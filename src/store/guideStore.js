@@ -36,8 +36,9 @@ async function pool(jobs, limit) {
 }
 
 /**
- * Warm a city's shared guide cache without showing it (a trip was just created): overview, Google facts and the
- * Goose's words for every section, so the guide opens instantly later. Server-side cache only; fire and forget.
+ * Warm a city's shared guide cache without showing it (a trip was just created): the Google facts for every place
+ * section, so the guide opens with real places at once. No AI here: the Goose's words and the AI-only sections are
+ * written when someone opens the guide. Server-side cache only; fire and forget.
  */
 // Countries Goose doesn't write guides for
 export const GUIDE_EXCLUDED = ['IL']
@@ -47,11 +48,7 @@ export async function warmGuide(city, country, countryCode) {
   const key = destinationKey(city, countryCode || country)
   const { generateGuideContent } = await import('../lib/gemini.js')
   const ask = (section, stage) => () => generateGuideContent(city, country, section, [], key, stage)
-  await pool([
-    ask('overview'),
-    ...PLACE_SECTIONS.map(sec => async () => { const f = await ask(sec, 'facts')(); if (f?.voice_pending) await ask(sec, 'voice')() }),
-    ...AI_SECTIONS.map(sec => ask(sec)),
-  ], 3)
+  await pool(PLACE_SECTIONS.map(sec => ask(sec, 'facts')), 3)
 }
 
 // Module-level — never stale in closures, not part of reactive state

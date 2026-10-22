@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
 import { attachPlace } from '../_shared/google.ts'
+import { fixConnectingLegs, pickDestination } from '../_shared/itinerary.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -39,7 +40,8 @@ ${emailText}
 ---
 
 For multi-leg flights (e.g. YVR -> LAX -> NRT), return EACH leg as a separate object in the bookings array.
-Connection cities are intermediate stops. The ultimate_destination is the FINAL arrival city/airport.
+Connection cities are intermediate stops. The ultimate_destination is where the traveller is going, never the
+city they fly home to: for a round trip (outbound and return), it is the final arrival of the OUTBOUND journey.
 
 Return ONLY valid JSON with no markdown, exactly this shape:
 {
@@ -85,8 +87,10 @@ Rules:
 - For a single-leg booking, bookings array has exactly 1 item
 - For multi-leg flights, each leg is its own object in the array
 - title for flights should be "ORIGIN -> DESTINATION" (e.g. "YVR -> LAX")
-- ultimate_destination.city = city name of the FINAL destination (not a connection)
-- destination_city on each booking = arrival city for that specific leg
+- ultimate_destination.city = city name of the destination (not a connection, not the home city of a round trip)
+- destination_city on each booking = arrival city for that specific leg (for hotels, the hotel's city)
+- Overnight legs: when an arrival is marked "+1" (or "+2"), its date is the next day, and a connecting leg that
+  leaves from that airport departs on or after that arrival date, even if it is listed under the earlier day heading
 - Shared fields like confirmation_number, price, airline appear on each leg
 - departure_time and arrival_time: the LOCAL time exactly as printed on the confirmation, as YYYY-MM-DDTHH:MM with NO time zone or offset. The departure time is local to the departure airport/station, the arrival time local to the arrival airport/station. Never convert between time zones. Date only (YYYY-MM-DD) if no time is printed.
 - activity_time: local time exactly as printed, HH:MM 24h.
@@ -158,14 +162,26 @@ Rules:
 
     // Local time: attach each place's zone and turn printed local times into instants
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-    const destCity = result.ultimate_destination?.city || null
-    const destTz = destCity ? await resolveZone(admin, { query: destCity }) : null
-    result.ultimate_destination = { ...(result.ultimate_destination || {}), tz: destTz }
-    for (const b of result.bookings) {
-      const legTz = b.destination_city && b.destination_city !== destCity ? await resolveZone(admin, { query: b.destination_city }) : destTz
-      await attachZones(admin, b, { fallbackTz: legTz || destTz, city: b.destination_city || destCity || '' })
-      await attachPlace(admin, b, b.destination_city || destCity || '')
+    const zoneOf = new Map<string, Promise<string | null>>()
+    const cityZone = (city: string | null) => {
+      if (!city) return Promise.resolve(null)
+      if (!zoneOf.has(city)) zoneOf.set(city, resolveZone(admin, { query: city }))
+      return zoneOf.get(city)!
     }
+    const aiCity = result.ultimate_destination?.city || null
+    const wall = new Map<Record<string, any>, { dep?: string, arr?: string }>()
+    for (const b of result.bookings) {
+      wall.set(b, { dep: b.departure_time || undefined, arr: b.arrival_time || undefined })
+      const legTz = await cityZone(b.destination_city || aiCity)
+      await attachZones(admin, b, { fallbackTz: legTz, city: b.destination_city || aiCity || '' })
+    }
+    // Don't trust the AI on these two: connecting legs in order, and the destination is where you stay
+    fixConnectingLegs(result.bookings, wall)
+    const picked = pickDestination(result.bookings)
+    if (picked) result.ultimate_destination = { ...(result.ultimate_destination || {}), ...picked }
+    const destCity = result.ultimate_destination?.city || null
+    result.ultimate_destination = { ...(result.ultimate_destination || {}), tz: await cityZone(destCity) }
+    for (const b of result.bookings) await attachPlace(admin, b, b.destination_city || destCity || '')
 
     return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 

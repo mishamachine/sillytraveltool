@@ -1,5 +1,22 @@
 # STT Handoff — 2026-10-21
 
+## Update — fixes from the testing pass (2026-10-22, see docs/TESTING_PASS.md)
+- **Import destination + leg dates** (B1, M1): `parse-booking-email` (live v24) prompt says the destination is never
+  the home city of a round trip and "+1" carries into the next leg; `_shared/itinerary.ts` then checks it without the
+  AI: `fixConnectingLegs` moves a leg that leaves before the previous one lands, `pickDestination` = longest hotel
+  stay, else the turnaround of a round trip. The "New trip" step in `ImportSheet.jsx` has an editable Destination.
+  `receive-booking-email` parses one booking per email, so it doesn't need this.
+- **AI quota kinds** (B2, migration `20261022030000_ai_quota_kinds.sql`, applied): `ai_usage.kind` ('ai' | 'guide'),
+  `consume_ai_quota(p_user_id, p_limit, p_kind default 'ai')`. `generate-guide` (live v29) counts against
+  `GUIDE_DAILY_LIMIT` (secret, default 40 sections/user/day, about 3–4 new cities), not the 100 personal calls.
+  `warmGuide` (new trip, import, one-tap save) now fetches Google facts only: no AI until someone opens the guide.
+- **Quick wins:** `weatherHint(today, unit)` compares in °C; Android back on the email / forgot / magic-link sign-in
+  screens steps back (`AuthScreen.jsx` `useBackHandler`); `places` (live v5) returns `country_code` in place
+  details and Get there uses it for ride apps; restaurant Guests starts at 2; opening a different trip resets the
+  tab to Plan (`tripsStore.setActiveTrip`).
+- Functions were deployed through the MCP tool as esbuild bundles of the repo code (CLI not logged in); a later
+  `supabase functions deploy` from the repo gives the same code.
+
 ## Android test builds (2026-10-22)
 - Public Supabase storage bucket `releases` (APK files only) hosts test builds; owner-approved. Current:
   `https://swywrvbuswylvqlktsym.supabase.co/storage/v1/object/public/releases/SillyTravelTool-0.19.0.apk`.

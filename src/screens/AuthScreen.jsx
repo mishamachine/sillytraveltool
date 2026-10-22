@@ -4,6 +4,7 @@ import { Browser } from '@capacitor/browser'
 import { supabase } from '../lib/supabase'
 import { authRedirect, isNative } from '../lib/authRedirect'
 import { useAuthStore } from '../store/authStore'
+import { useBackHandler } from '../lib/backStack'
 import {
   Screen, Button, IconButton, Field, Banner, SegmentedControl, Text, Stack, GooseMark, Logo, LinkButton,
 } from '../ui'
@@ -46,6 +47,14 @@ export default function AuthScreen() {
   }, [authError])
 
   const switchMode = (m) => { setMode(m); setError(null) }
+
+  // Android back steps out the way the on-screen back buttons do, instead of leaving the app
+  useBackHandler(step === 'email' || sent, () => {
+    if (sent) setSent(false)
+    else if (mode === 'forgot' || mode === 'magic') setMode('login')
+    else { setStep('welcome'); setMode('login') }
+    setError(null)
+  })
 
   const handleEmailAuth = async (e) => {
     e.preventDefault()

@@ -117,7 +117,7 @@ export async function searchNearby(lat: number, lng: number, types: string[], { 
   return (d.places || []).map((p: any) => ({ ...normalizePlace(p), phone: p.internationalPhoneNumber || null }))
 }
 
-export const DETAIL_FIELDS = [...LIST_FIELDS, 'internationalPhoneNumber', 'nationalPhoneNumber', 'utcOffsetMinutes']
+export const DETAIL_FIELDS = [...LIST_FIELDS, 'internationalPhoneNumber', 'nationalPhoneNumber', 'utcOffsetMinutes', 'addressComponents']
 
 export async function placeDetails(id: string, fields = LIST_FIELDS): Promise<any | null> {
   if (!hasGoogle() || !/^[\w-]{10,300}$/.test(id)) return null
