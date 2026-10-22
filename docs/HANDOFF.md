@@ -1,5 +1,12 @@
 # STT Handoff — 2026-10-21
 
+## Android test builds (2026-10-22)
+- Public Supabase storage bucket `releases` (APK files only) hosts test builds; owner-approved. Current:
+  `https://swywrvbuswylvqlktsym.supabase.co/storage/v1/object/public/releases/SillyTravelTool-0.19.0.apk`.
+- Download page: claude.ai artifact "Silly Travel Tool for Android" (https://claude.ai/artifact/KXBjjavcDsSnjbTJR8jm75).
+- The bucket has no upload policy: to publish a new build, add a temporary insert policy for the bucket, upload,
+  drop the policy (or upload from the Supabase dashboard), then update the artifact's link and version.
+
 ## Update — undated trips, one-tap save, simple reservations (2026-10-22, early)
 - **Trips without dates** (migration `undated_trips`: dates nullable, both-or-neither, end >= start). Helpers in
   `src/lib/trips.js`: `isUndated`, `tripDates` ("Dates to be decided"), `compareTripStart` (undated last),
