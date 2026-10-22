@@ -39,7 +39,9 @@
   `gtag/js?id=G-H7ZP1DBHN3`. Don't use the tag's other ID `G-KRXDJXZ4SS`: it is an old measurement ID and configuring it
   also sends hits there. That old destination was moved off this tag on 2026-10-21 (to a new tag "STT old destination
   (unused)"). Verified: `/g/collect` hits only to `G-H7ZP1DBHN3`, events in DebugView. Override with `VITE_GA_ID`.
-  Still to do in GA: custom dimensions for `app_platform`, `via`, `type`, `source`, `section`, `feature`, `kind`.
+  GA custom dimensions (created 2026-10-21): user `app_platform`; event `via`, `type`, `source`, `section`, `feature`,
+  `kind`, `country`, `method`, `language`, `from`, `stage`, `reason`, `error_type`, `screen`, `dated`, `ride`,
+  `matched_trip`, `bookings`. New event props need a matching dimension in GA (Admin → Custom definitions) to show in reports.
   Test with `stt-dev-ga` in `.claude/launch.json` (VITE_GA_DEV=1, debug_mode → DebugView).
 - Play Data safety form must now declare Analytics (app interactions, device IDs), not shared, optional.
 
