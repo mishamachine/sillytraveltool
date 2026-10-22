@@ -9,18 +9,22 @@
 
 /* Guide place card: photo | name, one meta line, quip (2 lines) | add. Rating lives in the meta line so the text gets the width */
 .explore-place { gap: var(--space-3); padding: var(--space-3); }
-.explore-place.is-pick { box-shadow: var(--shadow-card), inset 0 0 0 1.5px var(--accent); }
+/* Goose pick: terracotta edge to spot it while scrolling, plus a mini luggage-tag pill leading the Goose's line */
+.explore-place.is-pick { box-shadow: var(--shadow-card), inset 4px 0 0 var(--accent-fill); }
 .explore-place__head { display: flex; align-items: flex-start; gap: var(--space-2); }
 .explore-place__toggle {
   flex: 1; min-width: 0; min-height: var(--touch-min); display: flex; align-items: flex-start; gap: var(--space-3);
   padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: inherit; font: inherit;
 }
-.explore-place__thumb { position: relative; flex-shrink: 0; }
-.explore-place__thumb .place-photo--thumb { width: 64px; height: 64px; }
-.explore-place__badge {
-  position: absolute; left: 4px; right: 4px; bottom: 4px; padding: 1px 0; border-radius: var(--radius-pill);
-  background: var(--accent-fill); color: var(--on-accent); font-size: 10px; font-weight: 700; line-height: 14px;
-  text-align: center; white-space: nowrap; overflow: hidden;
+.explore-place__thumb.place-photo--thumb { width: 64px; height: 64px; }
+.goose-pick {
+  display: inline-flex; align-items: center; gap: 5px; margin-right: 6px; padding: 2px 9px 2px 2px;
+  border-radius: var(--radius-pill); background: var(--accent-fill); color: var(--on-accent);
+  font-style: normal; font-size: 12px; font-weight: 700; line-height: 18px; vertical-align: 1px; white-space: nowrap;
+}
+.goose-pick__face {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--goose-tile); flex-shrink: 0;
+  display: inline-grid; place-items: center; overflow: hidden;
 }
 .explore-place__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .explore-place__name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

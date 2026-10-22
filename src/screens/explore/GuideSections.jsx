@@ -1,6 +1,6 @@
 import { useState, useId, useRef } from 'react'
 import {
-  Card, Text, Stack, Icon, IconTile, IconButton, Button, LinkButton, Chip, SegmentedControl, EmptyState, ListRow, Overline, Banner, cx,
+  Card, Text, Stack, Icon, IconTile, IconButton, Button, LinkButton, Chip, SegmentedControl, EmptyState, ListRow, Overline, Banner, cx, GooseSvg,
 } from '../../ui'
 import { mapsUrl } from '../../lib/trips'
 import { safeUrl } from '../../lib/safeUrl'
@@ -51,6 +51,16 @@ function PlaceMeta({ item, sub }) {
   )
 }
 
+/** The Goose's top pick: a mini luggage tag (Goose on cream, on terracotta) that leads the Goose's own line. */
+function GoosePick() {
+  return (
+    <span className="goose-pick">
+      <span className="goose-pick__face" aria-hidden="true"><GooseSvg expression="happy" size={16} /></span>
+      Goose pick
+    </span>
+  )
+}
+
 /** Restaurant or attraction: collapsed summary, expands to description, tip and links. */
 function PlaceCard({ item, kind, onAddToTrip }) {
   const [expanded, setExpanded] = useState(false)
@@ -64,18 +74,16 @@ function PlaceCard({ item, kind, onAddToTrip }) {
     <Card className={cx('explore-place', item.is_goose_pick && 'is-pick')}>
       <div className="explore-place__head">
         <button type="button" className="explore-place__toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}>
-          {item.photo && (
-            <span className="explore-place__thumb">
-              <PlacePhoto name={item.photo} w={200} className="place-photo--thumb" />
-              {item.is_goose_pick && <span className="explore-place__badge">Goose pick</span>}
-            </span>
-          )}
+          {item.photo && <PlacePhoto name={item.photo} w={200} className="place-photo--thumb explore-place__thumb" />}
           <span className="explore-place__text">
-            {item.is_goose_pick && !item.photo && <Overline tone="accent">Goose pick</Overline>}
             <Text variant="card-title" as="span" className="explore-place__name">{item.name}</Text>
             <PlaceMeta item={item} sub={sub} />
             {item.pending && !expanded && <InkWait label="The Goose is writing" />}
-            {item.goose_quip && !expanded && <Text variant="caption" tone="accent" as="span" className={cx('explore-quip explore-quip--short', ink)}>“{item.goose_quip}”</Text>}
+            {!item.pending && !expanded && (item.goose_quip || item.is_goose_pick) && (
+              <Text variant="caption" tone="accent" as="span" className={cx('explore-quip explore-quip--short', ink)}>
+                {item.is_goose_pick && <GoosePick />}{item.goose_quip && `“${item.goose_quip}”`}
+              </Text>
+            )}
           </span>
         </button>
         <IconButton icon="plus" variant="sunken" label={`Add ${item.name} to a trip`} onClick={() => onAddToTrip(item, kind)} />
@@ -91,7 +99,11 @@ function PlaceCard({ item, kind, onAddToTrip }) {
               {item.rating != null && <span className={ink}><ScoreChip score={item.goose_score} /></span>}
             </Stack>
           )}
-          {item.goose_quip && <Text variant="body" tone="accent" className={cx('explore-quip', ink)}>“{item.goose_quip}”</Text>}
+          {(item.goose_quip || item.is_goose_pick) && (
+            <Text variant="body" tone="accent" className={cx('explore-quip', ink)}>
+              {item.is_goose_pick && <GoosePick />}{item.goose_quip && `“${item.goose_quip}”`}
+            </Text>
+          )}
           {item.address && (
             <Stack row gap={2} align="start">
               <Icon name="pin" size={18} className="tone-muted" />
