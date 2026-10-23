@@ -85,6 +85,9 @@ API with the same parameters), the signed-in `/upgrade/` page, the portal sessio
 card / 3DS (`4000 0000 0000 0002`, `4000 0025 0000 3155`), and `past_due` grace.
 
 ## Gotchas
+- **The charge plan rule exists twice:** `_shared/stripe.ts` (`planOfInvoice`, `planOfDescription`) and `admin-stripe`'s own copy
+  (one-file MCP deploy). Change both together and tell the admin-dashboard session. Both now store charge metadata as
+  `{ ...payment_intent.metadata, ...charge.metadata }` (admin-stripe v7).
 - `stripe-webhook` v7 sets `stripe_charges.plan` and `.invoice` by the cockpit sync's rule: charge/payment metadata →
   invoice found through `/v1/invoice_payments` (first subscription payment = its plan, `subscription_cycle` = `renewal`)
   → charge description. Subscription charges have no `charge.invoice` or metadata on this API version. Tested: a new
