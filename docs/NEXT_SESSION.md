@@ -44,7 +44,7 @@ Background reports: `docs/PHASE0_REPORT.md`, `docs/PHASE1_REPORT.md`, `docs/CLAY
    - Owner inputs needed: Play Console / App Store Connect products, RevenueCat or Stripe accounts, prices.
 2. **Booking-email ingestion test.** 14 fixtures in `supabase/tests/fixtures/booking-emails.json`, ready-to-send
    `.eml` files in `supabase/tests/emails/`, and runner `scripts/test-email-ingest.mjs`. The owner's import address
-   is `6370bcb1@bookings.sillytraveltool.com`.
+   is `6370bcb1@bookings.sillytraveltool.com` (babar54). **Test with machinemisha@gmail.com → `391fa86a@…`.**
    - A send-capable Gmail connector is now available.
    - The owner earlier asked for these emails to be sent from their Gmail. Confirm before sending; it adds a test
      trip with 14 bookings to their real account.

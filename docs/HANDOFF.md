@@ -33,13 +33,23 @@ Built per `docs/MULTI_CITY_PLAN.md`, all five phases. Proof: `docs/screenshots/m
   (was v25 = `de58425` source). Both boot (unsigned/unauth requests get 401).
 - **Demo:** `?demo&flagship=<0-18>` = Seattle → Madrid → Granada → Seville → Barcelona → Berlin → Dresden → Munich →
   night train → Rome → Seattle, on that trip day. Demo geocoding: `src/dev/demoGeo.js`.
-- **Not verified live:** end-to-end with real AI on a real email/file (needs a signed-in session or sending the
-  fixture emails to the owner's inbox: owner to OK). Free-plan limits for files = same as emails (paywall task).
+- Free-plan limits for files = same as emails (paywall task).
 - **Loyalty by email (owner request):** a statement / membership email forwarded to the inbox adds or updates the
   card in Loyalty (matched by member number, else program; tier, points + as-of date, expiry); newsletters are
   ignored instead of becoming bookings. `receive-booking-email` v37. **Passport flag** on the passport card
   (`src/components/shared/Flag.jsx`, flagcdn.com, added to the CSP `img-src` in `public/.htaccess`). Program logos:
   dropped (owner).
+- **Email safety (live test, 2026-10-23):** emails arriving together are filed one at a time per traveller
+  (`take_ingest_lock`), trip dates only grow (`widen_trip`) — migration `20261022210000`. The same reservation again is
+  skipped; a changed one (same confirmation + service) is updated in place with a note; a cancellation marks it
+  "Cancelled · …". The webhook answers Resend at once and files in the background (`EdgeRuntime.waitUntil`); a
+  retried delivery (same Svix id, table `ingest_seen`) is skipped — slow answers had made Resend resend emails.
+  `receive-booking-email` v40. **Live test 2026-10-23 (machinemisha):** 14 fixture emails sent at once → one trip,
+  14 bookings, Apr 10–20; identical re-forward skipped; change email updated the Hoxton (check-out 15 Apr, £916).
+  Test data deleted. Known: with no home city on the profile, the trip may keep "Trip to <home city>" until the
+  app renames it from its stops.
+- **Test accounts:** testing uses **machinemisha@gmail.com** (STT inbox `391fa86a@bookings.sillytraveltool.com`).
+  `6370bcb1@…` is the babar54 account — don't send test emails there.
 - **Open:** stop editing sheet (manual stops), per-leg travellers, Today's day buckets for bookings still use each
   booking's own zone (unchanged rule).
 

@@ -12,7 +12,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 //   {8-char-token}@bookings.sillytraveltool.com
 // ============================================================
 
-import { CORS, err, ingestEmail } from './ingest.ts'
+import { CORS, ok, err, ingestEmail } from './ingest.ts'
 
 // Files worth reading: PDFs, images over 20 KB (not logos or signatures), CSV / Excel sheets; two at most, 6 MB each.
 const READABLE = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif)|text\/(csv|plain|tab-separated-values)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)$/
@@ -187,9 +187,28 @@ Deno.serve(async (req) => {
     }
 
     // Attachments (itinerary PDFs, screenshots, spreadsheets): the webhook only lists them; fetch the files
-    const attachments = await fetchAttachments((rawBody?.data ?? rawBody)?.email_id, payload.attachments)
-    if (!bodyText && !attachments.length) return err('No email body in webhook payload')
-    return await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments })
+    // Each delivery once: Resend retries a webhook it thinks timed out, with the same Svix message id
+    const deliveryId = req.headers.get('svix-id') || (rawBody?.data ?? rawBody)?.email_id
+    if (deliveryId) {
+      const { error: seenErr } = await supabase.from('ingest_seen').insert({ delivery_id: String(deliveryId).slice(0, 200) })
+      if (seenErr?.code === '23505') {
+        console.log(`↩️ Delivery ${deliveryId} already handled`)
+        return ok({ success: true, duplicate_delivery: true })
+      }
+    }
+
+    // Answer Resend at once and file in the background: filing waits its turn behind the traveller's other emails,
+    // and a slow answer makes Resend send the email again
+    const work = (async () => {
+      const attachments = await fetchAttachments((rawBody?.data ?? rawBody)?.email_id, payload.attachments)
+      if (!bodyText && !attachments.length) { console.warn('No email body or readable attachment'); return }
+      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments })
+      console.log(`📨 Filed: ${res.status} ${(await res.text()).slice(0, 300)}`)
+    })().catch(e => console.error('receive-booking-email background error:', e))
+    // @ts-ignore EdgeRuntime is provided by Supabase Edge Functions
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) EdgeRuntime.waitUntil(work)
+    else await work
+    return ok({ success: true, accepted: true })
   } catch (e: any) {
     console.error('receive-booking-email error:', e)
     return err(e.message || 'Unexpected error', 500)
