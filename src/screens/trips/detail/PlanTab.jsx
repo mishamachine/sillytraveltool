@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { useAuthStore, useTripsStore } from '../../../store'
 import { parseLocalDate } from '../../../lib/dates'
 import { sortByStart, bookingDay, bookingKind, bookingMeta, hasClockTime, bookingTime, bookingArrival, bookingZone, zoneHint } from '../../../lib/trips'
-import { Card, ListRow, IconButton, Button, Section, Text, Stack, Icon, EmptyState, Skeleton, IconTile, category } from '../../../ui'
+import { Card, ListRow, IconButton, Button, Section, Text, Stack, Icon, EmptyState, Skeleton, IconTile, Chip, category } from '../../../ui'
 import ImportSheet from '../ImportSheet'
 import InboxHint from '../InboxHint'
 import AddBookingSheet from './AddBookingSheet'
@@ -35,11 +35,53 @@ function trailingFor(item, tz) {
   )
 }
 
+// Saved ideas by kind, in this order; a group with nothing in it is not shown
+const IDEA_GROUPS = [
+  { id: 'food', label: 'Restaurants', has: c => c === 'food' },
+  { id: 'event', label: 'Events', has: c => c === 'event' },
+  { id: 'sight', label: 'Sights and museums', has: c => c === 'sight' || c === 'museum' },
+  { id: 'other', label: 'Other', has: () => true },
+]
+function groupIdeas(ideas) {
+  const groups = IDEA_GROUPS.map(g => ({ ...g, items: [] }))
+  ideas.forEach(i => groups.find(g => g.has(i.category)).items.push(i))
+  return groups.filter(g => g.items.length)
+}
+
+/** Header of the Booked / Ideas blocks: a tile, a title and a line, so status reads without colour. */
+function BlockHead({ icon, tone, title, note, id }) {
+  return (
+    <div className="detail-block-head">
+      <IconTile icon={icon} tone={tone} size="sm" />
+      <Stack gap={0} grow>
+        <Text variant="card-title" as="h2" id={id}>{title}</Text>
+        {note && <Text variant="caption" tone="muted" as="p">{note}</Text>}
+      </Stack>
+    </div>
+  )
+}
+
+function IdeaRow({ item, onOpen }) {
+  const cat = ACTIVITY_CATEGORIES[item.category] || ACTIVITY_CATEGORIES.note
+  return (
+    <ListRow className="detail-idea" icon={cat.icon} tone="neutral" title={item.title} meta={item.location_address || cat.label}
+      trailing={<Chip tone="neutral" className="detail-idea__chip">Not booked</Chip>} onClick={() => onOpen(item)}
+      aria-label={`${item.title}, idea, not booked yet`} />
+  )
+}
+
+// A confirmed booking: its confirmation reference (or "Booked") behind a check, before the usual details
+function bookedMeta(item, extra) {
+  const ref = item.confirmation_number ? `Conf. ${item.confirmation_number}` : 'Booked'
+  return (
+    <span className="detail-booked">
+      <Icon name="check" size={14} strokeWidth={2.5} className="tone-success" />
+      <span>{[ref, extra].filter(Boolean).join(' · ')}</span>
+    </span>
+  )
+}
+
 function ItemRow({ item, tz, currentUserId, readOnly, onOpen, onToggle }) {
-  if (item._kind === 'activity' && item.is_idea) {
-    const cat = ACTIVITY_CATEGORIES[item.category] || ACTIVITY_CATEGORIES.note
-    return <ListRow icon={cat.icon} tone={cat.tone} title={item.title} meta={item.location_address || cat.label} chevron onClick={() => onOpen(item)} />
-  }
   if (item._kind === 'activity') {
     const cat = ACTIVITY_CATEGORIES[item.category] || ACTIVITY_CATEGORIES.note
     return (
@@ -63,7 +105,7 @@ function ItemRow({ item, tz, currentUserId, readOnly, onOpen, onToggle }) {
   const meta = [otherPassenger ? (item.passenger_name || 'Other passenger') : null, bookingMeta(item)].filter(Boolean).join(' · ')
   return (
     <ListRow className={otherPassenger ? 'detail-other' : undefined} icon={cat.icon} tone={cat.tone} title={item.title}
-      meta={meta || undefined} trailing={trailingFor(item, tz)} onClick={() => onOpen(item)} />
+      meta={bookedMeta(item, meta)} trailing={trailingFor(item, tz)} onClick={() => onOpen(item)} />
   )
 }
 
@@ -75,7 +117,7 @@ function StandaloneCard({ item, ...rest }) {
         <IconTile icon={cat.icon} tone={cat.tone} size="md" />
         <Stack gap={1} grow>
           <Text variant="card-title" as="span">{item.title}</Text>
-          {bookingMeta(item) && <Text variant="caption" tone="muted" as="span">{bookingMeta(item)}</Text>}
+          <Text variant="caption" tone="muted" as="span">{bookedMeta(item, bookingMeta(item))}</Text>
         </Stack>
         {trailingFor(item, rest.tz)}
       </Stack>
@@ -110,6 +152,7 @@ export default function PlanTab({ trip, readOnly }) {
   ], tz)
   // Shortlisted from the guide / HONK, not booked yet
   const ideas = activities.filter(a => a.trip_id === trip.id && a.is_idea).map(a => ({ ...a, _kind: 'activity' }))
+  const bookingCount = items.filter(i => i._kind === 'booking').length
   const byDay = {}
   const unscheduled = []
   items.forEach(item => {
@@ -151,17 +194,16 @@ export default function PlanTab({ trip, readOnly }) {
         </Stack>
       )}
 
-      {ideas.length > 0 && (
-        <Section title="Trip ideas" action={<Text variant="micro" tone="muted">Not booked yet</Text>}>
-          <DayBlock items={ideas} {...rowProps} />
-        </Section>
-      )}
-
       {!loadingDetail && items.length === 0 && ideas.length === 0 && (
         <EmptyState goose="worried" title="Nothing planned yet"
           action={!readOnly && <Button variant="primary" size="lg" block icon="plus" onClick={() => setSheet('add')}>Add to plan</Button>}>
           {readOnly ? 'This trip has no bookings saved.' : 'Forward a confirmation to your Goose inbox, paste it, or add it by hand.'}
         </EmptyState>
+      )}
+
+      {items.length > 0 && (
+        <BlockHead icon="check-circle" tone="success" title="Booked" id="plan-booked"
+          note={bookingCount ? `${bookingCount} confirmed${items.length > bookingCount ? ', plus your plans and notes' : ''}` : 'Your plans and notes'} />
       )}
 
       {Object.entries(byDay).map(([d, dayItems]) => (
@@ -174,6 +216,20 @@ export default function PlanTab({ trip, readOnly }) {
         <Section title="No date yet">
           <DayBlock items={unscheduled} {...rowProps} />
         </Section>
+      )}
+
+      {ideas.length > 0 && (
+        <section className="detail-ideas-block" aria-labelledby="plan-ideas">
+          <BlockHead icon="lightbulb" tone="neutral" title="Ideas, not booked yet" id="plan-ideas"
+            note={readOnly ? 'Saved from the guide' : 'Saved from the guide. Tap one to confirm a visit.'} />
+          {groupIdeas(ideas).map(g => (
+            <Section key={g.id} title={g.label}>
+              <Card variant="group" className="detail-ideas">
+                {g.items.map(item => <IdeaRow key={item.id} item={item} onOpen={rowProps.onOpen} />)}
+              </Card>
+            </Section>
+          ))}
+        </section>
       )}
 
       {!readOnly && items.length > 0 && (
