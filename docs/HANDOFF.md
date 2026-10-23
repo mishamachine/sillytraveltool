@@ -1,7 +1,7 @@
 # STT Handoff — 2026-10-21
 
 
-## Update — Stripe web billing (2026-10-23, branch `feat/stripe-web-billing`)
+## Update — Stripe web billing (2026-10-23, branch `feat/stripe-web-billing`, PR #1; full notes: `docs/STRIPE_BILLING.md`)
 - **Web buys First Class straight through Stripe** (owner decision: no RevenueCat on the web; apps still use store
   billing later). Page **/upgrade/** (own Vite entry like /redeem/, website only): sign in → Yearly $14.99 or Founders
   lifetime $29.99 → Stripe-hosted Checkout (promotion codes allowed, so cockpit discount codes work) → back to
