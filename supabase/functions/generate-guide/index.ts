@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, GUIDE_QUOTA_MESSAGE } from '../_shared/gemini.ts'
-import { geocode, searchText, type Place } from '../_shared/google.ts'
+import { geocode, searchText, withGoogleScope, setGoogleUser, type Place } from '../_shared/google.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -240,7 +240,7 @@ Use real events and festivals that actually happen in ${city}, ${country}.`
   throw new Error(`Unknown section: ${section}`)
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withGoogleScope(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
@@ -251,6 +251,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!)
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
+    setGoogleUser(user.id)
 
     const raw = await req.json()
     const city = cap(raw.city, 80), country = cap(raw.country, 80), section = cap(raw.section || 'overview', 40)
@@ -355,4 +356,4 @@ Deno.serve(async (req) => {
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS })
   }
-})
+}))

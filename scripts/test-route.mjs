@@ -70,4 +70,14 @@ t('undated trip has no stops; no bookings falls back to the destination', async 
   assert.deepEqual(await deriveStops({ ...trip, start_date: null }, bookings, ctx), [])
   assert.equal(placeOn(trip, day(5), [], []).city, 'Madrid')
 })
+// Airports are named after the city they serve, not their own town (Heathrow sits in Hounslow, JFK in Queens)
+{
+  const geo = { 'LHR airport': { city: 'Hounslow', country: 'United Kingdom', country_code: 'GB', lat: 51.47, lng: -0.45 },
+    'JFK airport': { city: 'Queens County', country: 'United States', country_code: 'US', lat: 40.64, lng: -73.78 } }
+  const legs2 = await tripLegs([{ type: 'flight', departure_airport: 'JFK', arrival_airport: 'LHR', departure_time: '2027-04-10T23:00:00Z', arrival_time: '2027-04-11T10:00:00Z' }],
+    { resolve: async q => geo[q] || null })
+  t('airport cities: JFK → New York, LHR → London', () => {
+    assert.equal(legs2[0].dep.city, 'New York'); assert.equal(legs2[0].arr.city, 'London'); assert.equal(legs2[0].arr.country_code, 'GB')
+  })
+}
 console.log(`\n${n} passed`)

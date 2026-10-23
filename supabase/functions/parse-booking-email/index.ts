@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
-import { attachPlace } from '../_shared/google.ts'
+import { attachPlace, withGoogleScope, setGoogleUser } from '../_shared/google.ts'
 import { fixConnectingLegs, pickDestination, readItinerary } from '../_shared/itinerary.ts'
 
 const CORS = {
@@ -9,7 +9,7 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withGoogleScope(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!)
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
+    setGoogleUser(user.id)
 
     // { emailText } (pasted text or a spreadsheet as text) or { file: { name, mime, data: base64 }, transcribe }
     const body = await req.json()
@@ -68,4 +69,4 @@ Deno.serve(async (req) => {
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS })
   }
-})
+}))

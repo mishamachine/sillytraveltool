@@ -3,7 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 // Stripe for the owner cockpit (docs/ADMIN_PLAN.md, Money). Admin only: the caller's own session must pass
 // admin_guard (admins row + Google sign-in). Needs the secret STRIPE_SECRET_KEY (a restricted key is enough:
 // read customers, subscriptions, charges, invoices, checkout sessions, coupons, promotion codes; write coupons and
-// promotion codes). POST { action, ... }:
+// promotion codes; read balance and balance transactions for the Money statement). POST { action, ... }:
 //   status                       → { configured, livemode, sync }
 //   sync { force? }              → copies Stripe objects into stripe_* tables (at most every 2 minutes unless force)
 //   code_push { id }             → creates the Stripe coupon + promotion code for a discount code in promo_codes
@@ -68,30 +68,56 @@ const promoFrom = (o: Obj) => {
 async function sync(admin: any) {
   // Members by email, for customers without metadata.user_id
   const emails = new Map<string, string>()
+  const known = new Set<string>()
   for (let page = 1; page < 50; page++) {
     const { data } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
-    for (const u of data?.users || []) if (u.email) emails.set(u.email.toLowerCase(), u.id)
+    for (const u of data?.users || []) { known.add(u.id); if (u.email) emails.set(u.email.toLowerCase(), u.id) }
     if (!data?.users || data.users.length < 1000) break
   }
-  const [customers, subs, charges, sessions, invoices, promos] = await Promise.all([
+  const [customers, subs, charges, sessions, invoices, promos, invoicePayments] = await Promise.all([
     listAll('customers'),
     listAll('subscriptions', { status: 'all' }),
-    listAll('charges'),
+    // Payment intents expanded: our checkout keeps plan, trigger, platform and code in their metadata
+    listAll('charges', { 'expand[]': 'data.payment_intent' }),
     listAll('checkout/sessions'),
     listAll('invoices'),
     listAll('promotion_codes'),
+    // Newer API versions link a payment to its invoice only here (charge.invoice is gone); older ones don't have it
+    listAll('invoice_payments').catch(() => []),
+  ])
+  // Stripe's ledger (gross, fees, refunds, payouts) for Money → Statement; a key without that permission keeps the rest working
+  let ledgerError: string | null = null
+  const [ledger, balance] = await Promise.all([
+    listAll('balance_transactions').catch((e) => { ledgerError = (e as Error).message; return [] as Obj[] }),
+    stripe('GET', 'balance').catch((e) => { ledgerError ||= (e as Error).message; return null }),
   ])
   const userOf = new Map<string, string | null>()
   const customerRows = customers.map((c) => {
-    const uid = c.metadata?.user_id || c.metadata?.supabase_user_id || (c.email && emails.get(c.email.toLowerCase())) || null
+    // A user_id in metadata only counts if that account still exists (test or removed accounts would break the save)
+    const meta = [c.metadata?.user_id, c.metadata?.supabase_user_id].find((x: string) => x && known.has(x))
+    const uid = meta || (c.email && emails.get(c.email.toLowerCase())) || null
     userOf.set(c.id, uid)
     return { id: c.id, livemode: c.livemode, email: c.email, user_id: uid, name: c.name, country: c.address?.country ?? null,
       created: ts(c.created), delinquent: !!c.delinquent, metadata: c.metadata || {}, synced_at: new Date().toISOString() }
   })
-  const uid = (o: Obj) => o.metadata?.user_id || o.client_reference_id || userOf.get(idOf(o.customer)) || null
+  const uid = (o: Obj) => [o.metadata?.user_id, o.client_reference_id].find((x: string) => x && known.has(x)) || userOf.get(idOf(o.customer)) || null
   // Checkout sessions carry the plan in metadata; charges inherit it through the payment intent
   const planByIntent = new Map<string, string>()
   for (const s of sessions) if (s.payment_intent && s.metadata?.plan) planByIntent.set(idOf(s.payment_intent), s.metadata.plan)
+  // Subscription payments: payment → invoice → plan. First payment = its plan (yearly), later ones = renewal.
+  const invoiceById = new Map(invoices.map((i) => [i.id, i]))
+  const invoiceByIntent = new Map<string, string>()
+  for (const p of invoicePayments) if (p.payment?.payment_intent) invoiceByIntent.set(idOf(p.payment.payment_intent), idOf(p.invoice))
+  const invoiceOf = (c: Obj) => idOf(c.invoice) || invoiceByIntent.get(idOf(c.payment_intent)) || null
+  const planOfInvoice = (id: string | null) => {
+    const i = id && invoiceById.get(id)
+    if (!i) return null
+    const sub = i.parent?.subscription_details || (i.subscription ? { subscription: i.subscription } : null)
+    if (!sub) return null
+    if (i.billing_reason === 'subscription_cycle') return 'renewal'
+    const line = i.lines?.data?.find((l: Obj) => l.metadata?.plan) || i.lines?.data?.[0]
+    return sub.metadata?.plan || line?.metadata?.plan || (line?.price?.recurring?.interval === 'month' ? 'monthly' : 'yearly')
+  }
 
   const rows = {
     stripe_customers: customerRows,
@@ -100,15 +126,16 @@ async function sync(admin: any) {
       return { id: s.id, livemode: s.livemode, customer: idOf(s.customer), user_id: uid(s), status: s.status,
         price_id: item?.price?.id ?? null, lookup_key: item?.price?.lookup_key ?? null, amount: item?.price?.unit_amount ?? null,
         currency: item?.price?.currency ?? s.currency ?? null, interval: item?.price?.recurring?.interval ?? null,
-        current_period_end: ts(s.current_period_end ?? item?.current_period_end), cancel_at_period_end: !!s.cancel_at_period_end,
+        current_period_end: ts(s.current_period_end ?? item?.current_period_end), cancel_at_period_end: !!(s.cancel_at_period_end || s.cancel_at),
         canceled_at: ts(s.canceled_at), ended_at: ts(s.ended_at), promotion_code: promoFrom(s), created: ts(s.created),
         metadata: s.metadata || {}, synced_at: new Date().toISOString() }
     }),
-    stripe_charges: charges.map((c) => ({
+    stripe_charges: charges.map((c) => ({ ...c, metadata: { ...(typeof c.payment_intent === 'object' ? c.payment_intent?.metadata : null), ...(c.metadata || {}) } })).map((c) => ({
       id: c.id, livemode: c.livemode, customer: idOf(c.customer), user_id: uid(c), amount: c.amount, amount_refunded: c.amount_refunded,
       currency: c.currency, status: c.status, paid: !!c.paid, refunded: !!c.refunded, disputed: !!c.disputed, failure_code: c.failure_code,
-      plan: c.metadata?.plan || planByIntent.get(idOf(c.payment_intent)) || (c.invoice ? 'subscription' : 'one_time'),
-      invoice: idOf(c.invoice), payment_intent: idOf(c.payment_intent), created: ts(c.created), metadata: c.metadata || {}, synced_at: new Date().toISOString(),
+      plan: c.metadata?.plan || planByIntent.get(idOf(c.payment_intent)) || planOfInvoice(invoiceOf(c))
+        || (/^subscription creation/i.test(c.description || '') ? 'yearly' : /^subscription/i.test(c.description || '') ? 'renewal' : 'one_time'),
+      invoice: invoiceOf(c), payment_intent: idOf(c.payment_intent), created: ts(c.created), metadata: c.metadata || {}, synced_at: new Date().toISOString(),
     })),
     stripe_checkouts: sessions.map((s) => ({
       id: s.id, livemode: s.livemode, customer: idOf(s.customer), user_id: uid(s), mode: s.mode, status: s.status,
@@ -120,6 +147,11 @@ async function sync(admin: any) {
       user_id: uid(i), status: i.status, amount_paid: i.amount_paid,
       amount_discount: (i.total_discount_amounts || []).reduce((n: number, d: Obj) => n + (d.amount || 0), 0),
       currency: i.currency, promotion_code: promoFrom(i), billing_reason: i.billing_reason, created: ts(i.created), synced_at: new Date().toISOString(),
+    })),
+    stripe_balance_txns: ledger.map((t) => ({
+      id: t.id, livemode: t.livemode ?? LIVE, type: t.type, reporting_category: t.reporting_category, amount: t.amount, fee: t.fee, net: t.net,
+      currency: t.currency, fee_details: t.fee_details || [], description: t.description, source: idOf(t.source), status: t.status,
+      created: ts(t.created), available_on: ts(t.available_on), synced_at: new Date().toISOString(),
     })),
     stripe_promotion_codes: promos.map((p) => {
       const coupon = p.coupon ?? p.promotion?.coupon ?? {}
@@ -136,6 +168,11 @@ async function sync(admin: any) {
       const { error } = await admin.from(table).upsert(list.slice(i, i + 500))
       if (error) throw new Error(`${table}: ${error.message}`)
     }
+  }
+  if (ledgerError) counts.ledger_error = ledgerError.slice(0, 200) as any
+  if (balance) {
+    const sum = (list: Obj[] = []) => list.filter((x) => x.currency === 'usd').reduce((n, x) => n + (x.amount || 0), 0)
+    await admin.from('stripe_sync').update({ balance: { available: sum(balance.available), pending: sum(balance.pending), currency: 'usd', at: new Date().toISOString() } }).eq('id', 1)
   }
   // Codes made in the cockpit find their Stripe twin by code text
   for (const p of rows.stripe_promotion_codes) {

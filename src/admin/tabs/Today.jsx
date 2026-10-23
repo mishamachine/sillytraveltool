@@ -9,7 +9,7 @@ export default function Today({ filters, go, view }) {
   const pulse = useLoad(() => api.pulse(filters), [filters])
   const needs = useLoad(() => api.needsYou(), [filters.tick])
   const p = pulse.data
-  const range = filters.days === 1 ? 'today' : `last ${filters.days} days`
+  const range = filters.label
 
   return (
     <div className="a-grid">
