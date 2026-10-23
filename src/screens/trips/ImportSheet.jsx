@@ -255,7 +255,8 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
               )
             })}
           </Card>
-          {ultimateDest?.city && (
+          {/* Only for a ticket of legs (YVR → LAX → NRT); a whole itinerary has no single destination */}
+          {ultimateDest?.city && parsedBookings.every(b => b.type === 'flight' || b.type === 'transport') && (
             <Text variant="caption" tone="muted" align="center">
               Final destination: {ultimateDest.city}{ultimateDest.airport_code ? ` (${ultimateDest.airport_code})` : ''}
             </Text>

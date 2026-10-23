@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import { useTripsStore, useUIStore, useCollabStore } from '../../store'
+import { useTripsStore, useUIStore, useCollabStore, useAuthStore } from '../../store'
 import { parseLocalDate, daysBetween } from '../../lib/dates'
 import { fetchWithTimeout } from '../../lib/http'
 import { tripPhase, tripDay, nightsLabel, plural, sortByStart, bookingStart, bookingTime, hasClockTime, tripToday, tripDates, isUndated, compareTripStart } from '../../lib/trips'
@@ -13,8 +13,8 @@ import {
 import InboxHint, { useCopyInbox, InboxAddress } from './InboxHint'
 
 // Fetch climate normals from Open-Meteo (free, no API key)
-// Uses monthly aggregates — tiny payload vs 30yr daily
-async function fetchClimateForecast(lat, lon, startDate, endDate) {
+// The archive API has no monthly aggregates, so average the daily highs and lows of the trip's months
+async function fetchClimateForecast(lat, lon, startDate, endDate, unit = 'celsius') {
   try {
     const start = parseLocalDate(startDate)
     const end = parseLocalDate(endDate)
@@ -24,20 +24,15 @@ async function fetchClimateForecast(lat, lon, startDate, endDate) {
     while (d <= end) { months.add(d.getMonth()); d.setMonth(d.getMonth() + 1) }
     months.add(end.getMonth())
 
-    // Use a 3-year window around trip month to get monthly averages — tiny payload
-    const tripYear = start.getFullYear()
-    const currentYear = new Date().getFullYear()
-    // Cap refEnd to last complete year — archive API only has data up to ~2 months ago
-    const archiveEndYear = Math.min(tripYear + 1, currentYear - 1)
-    const refStart = `${Math.min(tripYear - 1, archiveEndYear - 1)}-01-01`
-    const refEnd   = `${archiveEndYear}-12-31`
-    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${refStart}&end_date=${refEnd}&monthly=temperature_2m_max,temperature_2m_min&timezone=auto`
+    // The last two complete years (the archive lags by a few days)
+    const lastYear = new Date().getFullYear() - 1
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${lastYear - 1}-01-01&end_date=${lastYear}-12-31&daily=temperature_2m_max,temperature_2m_min&temperature_unit=${unit}&timezone=auto`
     const res = await fetchWithTimeout(url)
     if (!res.ok) return null
     const data = await res.json()
-    const times = data.monthly?.time || []
-    const highs = data.monthly?.temperature_2m_max || []
-    const lows  = data.monthly?.temperature_2m_min || []
+    const times = data.daily?.time || []
+    const highs = data.daily?.temperature_2m_max || []
+    const lows  = data.daily?.temperature_2m_min || []
 
     const matchingHighs = [], matchingLows = []
     times.forEach((dateStr, i) => {
@@ -148,16 +143,18 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
   const { pendingInvites, respondToInvite } = useCollabStore()
   const { address, copied, copy } = useCopyInbox()
   const [climateMap, setClimateMap] = useState({})
+  const tempUnit = useAuthStore(s => (s.profile?.temp_unit === 'F' ? 'fahrenheit' : 'celsius'))
+  const climateKey = trip => `${trip.id}:${tempUnit}`
 
-  // Climate normals for upcoming trips, once per trip
+  // Climate normals for upcoming trips, once per trip and temperature unit
   useEffect(() => {
-    const relevant = trips.filter(t => tripPhase(t) === 'upcoming' && t.destination_city && t.start_date && !(t.id in climateMap))
+    const relevant = trips.filter(t => tripPhase(t) === 'upcoming' && t.destination_city && t.start_date && !(climateKey(t) in climateMap))
     if (!relevant.length) return
     Promise.all(relevant.map(async (trip) => {
       const c = await tripCoords(trip)
-      return [trip.id, c ? await fetchClimateForecast(c.lat, c.lon, trip.start_date, trip.end_date) : null]
+      return [climateKey(trip), c ? await fetchClimateForecast(c.lat, c.lon, trip.start_date, trip.end_date, tempUnit) : null]
     })).then(results => setClimateMap(prev => ({ ...prev, ...Object.fromEntries(results) })))
-  }, [trips.length]) // re-run only when trip count changes
+  }, [trips.length, tempUnit]) // re-run only when trip count or unit changes
 
   const byStart = [...trips].sort(compareTripStart)
   const active = byStart.filter(t => tripPhase(t) === 'active')
@@ -219,7 +216,7 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
 
       {upcoming.length > 0 && (
         <Section title="Upcoming">
-          {upcoming.map(trip => <UpcomingCard key={trip.id} trip={trip} climate={climateMap[trip.id]} onOpen={setActiveTrip} />)}
+          {upcoming.map(trip => <UpcomingCard key={trip.id} trip={trip} climate={climateMap[climateKey(trip)]} onOpen={setActiveTrip} />)}
         </Section>
       )}
 

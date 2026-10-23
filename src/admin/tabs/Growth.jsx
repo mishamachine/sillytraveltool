@@ -20,7 +20,7 @@ export default function Growth({ filters, go }) {
 
   return (
     <div className="a-grid">
-      <Card title="Funnel" icon="filter" className="a-span-7" subtitle={`members who joined in the last ${filters.days} days`}
+      <Card title="Funnel" icon="filter" className="a-span-7" subtitle={`members who joined ${filters.label.startsWith('last') || filters.label === 'today' ? filters.label : `in ${filters.label}`}`}
         actions={<ExportButton name="funnel" rows={steps.map(([step, n]) => ({ step, members: n }))} />}>
         <ol className="a-funnel">
           {steps.map(([name, n], i) => (

@@ -23,7 +23,30 @@ export function dayIn(value, tz) {
   } catch { return s.slice(0, 10) }
 }
 
+// Airports whose own town isn't the city they serve (geocoding "LHR airport" gives Hounslow, "JFK airport" Queens County)
+const AIRPORT_CITY = {
+  LHR: 'London', LGW: 'London', STN: 'London', LTN: 'London', LCY: 'London', CDG: 'Paris', ORY: 'Paris', BVA: 'Paris',
+  BER: 'Berlin', MUC: 'Munich', FRA: 'Frankfurt', DUS: 'Düsseldorf', HAM: 'Hamburg', AMS: 'Amsterdam', BRU: 'Brussels',
+  CRL: 'Brussels', ZRH: 'Zurich', GVA: 'Geneva', VIE: 'Vienna', FCO: 'Rome', CIA: 'Rome', MXP: 'Milan', LIN: 'Milan',
+  BGY: 'Milan', VCE: 'Venice', NAP: 'Naples', MAD: 'Madrid', BCN: 'Barcelona', AGP: 'Málaga', LIS: 'Lisbon', OPO: 'Porto',
+  DUB: 'Dublin', EDI: 'Edinburgh', MAN: 'Manchester', CPH: 'Copenhagen', ARN: 'Stockholm', OSL: 'Oslo', HEL: 'Helsinki',
+  KEF: 'Reykjavík', ATH: 'Athens', IST: 'Istanbul', SAW: 'Istanbul', PRG: 'Prague', BUD: 'Budapest', WAW: 'Warsaw',
+  DXB: 'Dubai', DOH: 'Doha', JFK: 'New York', LGA: 'New York', EWR: 'New York', BOS: 'Boston', IAD: 'Washington',
+  DCA: 'Washington', ORD: 'Chicago', MDW: 'Chicago', LAX: 'Los Angeles', SFO: 'San Francisco', OAK: 'Oakland',
+  SJC: 'San Jose', SEA: 'Seattle', PDX: 'Portland', DEN: 'Denver', ATL: 'Atlanta', DFW: 'Dallas', IAH: 'Houston',
+  MIA: 'Miami', FLL: 'Fort Lauderdale', MCO: 'Orlando', LAS: 'Las Vegas', PHX: 'Phoenix', MSP: 'Minneapolis',
+  YYZ: 'Toronto', YVR: 'Vancouver', YUL: 'Montreal', MEX: 'Mexico City', CUN: 'Cancún', NRT: 'Tokyo', HND: 'Tokyo',
+  KIX: 'Osaka', ICN: 'Seoul', PEK: 'Beijing', PKX: 'Beijing', PVG: 'Shanghai', HKG: 'Hong Kong', SIN: 'Singapore',
+  BKK: 'Bangkok', DMK: 'Bangkok', KUL: 'Kuala Lumpur', SYD: 'Sydney', MEL: 'Melbourne', AKL: 'Auckland',
+  DEL: 'Delhi', BOM: 'Mumbai', GRU: 'São Paulo', EZE: 'Buenos Aires', BOG: 'Bogotá', LIM: 'Lima', CPT: 'Cape Town',
+  JNB: 'Johannesburg', CAI: 'Cairo', CMN: 'Casablanca', RAK: 'Marrakesh', TLV: 'Tel Aviv',
+}
+
 const isLeg = b => b.type === 'flight' || (b.type === 'transport' && !!b.arrival_airport && b.arrival_airport !== b.departure_airport)
+const servedCity = (b, side, place) => {
+  const code = b.type === 'flight' && String(b[side] || '').trim().toUpperCase()
+  return place && code && AIRPORT_CITY[code] ? { ...place, city: AIRPORT_CITY[code] } : place
+}
 const legQuery = (b, side) => (b[side] ? `${b[side]}${b.type === 'flight' && /^[A-Z]{3}$/i.test(String(b[side]).trim()) ? ' airport' : ''}` : null)
 const near = (a, b, km = SAME_KM) => !!(a && b && distanceKm(a, b) <= km)
 
@@ -37,7 +60,8 @@ export async function tripLegs(bookings, { resolve: resolveIn }) {
   await Promise.all(bookings.filter(isLeg).flatMap(b => [resolve(legQuery(b, 'departure_airport')), resolve(legQuery(b, 'arrival_airport'))]))
   const legs = []
   for (const b of bookings.filter(isLeg)) {
-    const [dep, arr] = await Promise.all([resolve(legQuery(b, 'departure_airport')), resolve(legQuery(b, 'arrival_airport'))])
+    const [dep, arr] = (await Promise.all([resolve(legQuery(b, 'departure_airport')), resolve(legQuery(b, 'arrival_airport'))]))
+      .map((p, i) => servedCity(b, i ? 'arrival_airport' : 'departure_airport', p))
     const depDay = dayIn(b.departure_time, b.departure_tz)
     if (!depDay) continue
     legs.push({

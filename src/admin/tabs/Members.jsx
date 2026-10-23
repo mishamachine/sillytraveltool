@@ -6,19 +6,23 @@ import { Card, Table, Badge, Loading, ErrorNote, useLoad, ExportButton, Segmente
 import MemberPanel from './MemberPanel'
 import EmailComposer from './EmailComposer'
 import EmailsView from './EmailsView'
+import Cohorts, { CohortEditor } from './Cohorts'
 import { money } from './StripePanel'
 
 // Segment filters that live in the URL (#seg_affluence=Premium) and come from admin_insight_rows
 const SEGMENTS = [
   ['traveller_type', 'Traveller type'], ['affluence', 'Affluence'], ['trip_style', 'Trip style'], ['planning_style', 'Planning'],
-  ['persona', 'Uses STT as'], ['channel', 'Books through'], ['region', 'Regions'], ['source', 'Came from'], ['platform', 'Platform'],
+  ['persona', 'Uses STT as'], ['channel', 'Books through'], ['region', 'Regions'], ['country', 'Where they are'], ['main_platform', 'Main platform'],
+  ['platform_mix', 'Platform mix'], ['source', 'Came from'],
 ]
+const country = (cc) => { if (!cc) return null; try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(cc) } catch { return cc } }
 const AFF_TONE = { Value: 'neutral', Comfort: 'info', Premium: 'accent', Luxury: 'ok' }
 const healthTone = (h) => (h >= 60 ? 'ok' : h >= 30 ? 'info' : h >= 10 ? 'warn' : 'neutral')
 
 export default function Members({ filters, view, go, role }) {
   const [search, setSearch] = useState('')
   const [composing, setComposing] = useState(false)
+  const [saving, setSaving] = useState(null)
   const mode = view.mode || 'list'
   const list = useLoad(() => api.membersPlus(search, filters), [filters, search])
   const audience = useLoad(() => (mode === 'audience' ? api.audience(filters) : null), [filters, mode])
@@ -32,7 +36,9 @@ export default function Members({ filters, view, go, role }) {
   const pickSeg = (k, v) => go({ mode: 'list', [`seg_${k}`]: view[`seg_${k}`] === v ? null : v })
 
   const cols = [
-    { key: 'name', label: 'Member', render: m => <div className="a-who"><strong>{m.name || '—'}</strong><span>{m.email}</span></div>, sortValue: m => (m.name || m.email || '').toLowerCase() },
+    { key: 'name', label: 'Member', render: m => <div className="a-who"><strong>{m.name || '—'}{m.is_me && <> <Badge tone="info">You</Badge></>}</strong><span>{m.email}</span></div>, sortValue: m => (m.name || m.email || '').toLowerCase() },
+    { key: 'country', label: 'Where', render: m => m.country ? <div className="a-who" title={`From ${m.location_from}: ${m.tz}`}><strong>{country(m.country)}</strong>{m.area && <span>{m.area} area</span>}</div> : '—', sortValue: m => m.country || '' },
+    { key: 'platforms', label: 'Platforms', render: m => (m.platforms || []).length ? <span>{m.platforms.map((p, i) => i === 0 ? <strong key={p}>{p}</strong> : <span key={p} className="a-muted">, {p}</span>)}</span> : '—', sortValue: m => m.main_platform || '' },
     { key: 'stage', label: 'Trip stage', render: m => <Badge tone={stageTone(m.stage)}>{STAGE_LABEL[m.stage] || m.stage}</Badge> },
     { key: 'health', label: 'Health', num: true, render: m => <Badge tone={healthTone(m.health)}>{m.health ?? '—'}</Badge> },
     { key: 'next_trip', label: 'Next trip', render: m => fmtDate(m.next_trip) },
@@ -53,7 +59,7 @@ export default function Members({ filters, view, go, role }) {
     <div className="a-grid">
       <Card title="Trip cycle" icon="compass" className="a-span-12"
         subtitle="Between trips is healthy. Lapsed means quieter than this member's own rhythm."
-        actions={<Segmented size="sm" options={[['list', 'Members'], ['audience', 'Audience'], ['emails', 'Emails']]} value={mode} onChange={(m) => go({ mode: m === 'list' ? null : m })} />}>
+        actions={<Segmented size="sm" options={[['list', 'Members'], ['cohorts', 'Cohorts'], ['audience', 'Audience'], ['emails', 'Emails']]} value={mode} onChange={(m) => go({ mode: m === 'list' ? null : m })} />}>
         <div className="a-stages">
           <button className={`a-stage ${!view.stage ? 'is-on' : ''}`} onClick={() => go({ stage: null })}>
             <span className="a-stage__n">{all.length}</span><span>Everyone</span>
@@ -66,7 +72,7 @@ export default function Members({ filters, view, go, role }) {
         </div>
       </Card>
 
-      {mode === 'emails' ? <EmailsView role={role} go={go} /> : mode === 'audience' ? <Audience a={audience} pick={pickSeg} view={view} /> : (
+      {mode === 'cohorts' ? <Cohorts role={role} go={go} filters={filters} /> : mode === 'emails' ? <EmailsView role={role} go={go} /> : mode === 'audience' ? <Audience a={audience} pick={pickSeg} view={view} /> : (
         <Card title="Members" icon="users" className="a-span-12" subtitle={`${rows.length} shown`}
           actions={<>
             <div className="a-search"><Icon name="search" size={16} />
@@ -78,6 +84,10 @@ export default function Members({ filters, view, go, role }) {
               <option value="">Any status</option>
               {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+            {role !== 'analyst' && <select className="a-select a-select--sm" value="" aria-label="Save as cohort" onChange={e => {
+              const rules = Object.fromEntries([['stage', view.stage], ['plan', view.plan], ['status', view.status], ...SEGMENTS.map(([k]) => [k === 'region' ? 'region' : k, view[`seg_${k}`]]), ['search', search || null], ['include_internal', !filters.excludeInternal || null]].filter(([, v]) => v))
+              setSaving(e.target.value === 'fixed' ? { kind: 'fixed', member_ids: rows.map(m => m.id), name: '' } : { kind: 'rules', rules, name: '' })
+            }}><option value="" disabled>Save as cohort</option><option value="rules">These filters (updates itself)</option><option value="fixed">These {rows.length} people (fixed list)</option></select>}
             {role !== 'analyst' && <button className="a-btn a-btn--ghost a-btn--sm" disabled={!rows.length || rows.length > 200} onClick={() => setComposing(true)}
               title={rows.length > 200 ? 'Filter to 200 or fewer' : undefined}><Icon name="mail" size={16} /> Email these {rows.length}</button>}
             <ExportButton name="members" rows={rows.map(({ tags, regions, ...m }) => ({ ...m, tags: (tags || []).join(' '), regions: (regions || []).join(' ') }))} />
@@ -97,6 +107,7 @@ export default function Members({ filters, view, go, role }) {
         </Card>
       )}
 
+      {saving && <CohortEditor c={saving} onClose={() => setSaving(null)} onSaved={() => { setSaving(null); go({ mode: 'cohorts' }) }} />}
       {composing && <EmailComposer to={{ userIds: rows.map(m => m.id), label: `${rows.length} member${rows.length === 1 ? '' : 's'}` }}
         template={view.stage === 'just_back' ? 'recap' : view.stage === 'lapsed' ? 'win_back' : view.stage === 'new' ? 'welcome' : undefined}
         role={role} onClose={() => setComposing(false)} />}
@@ -121,6 +132,8 @@ function Audience({ a, pick, view }) {
           <Stat label="Premium or luxury" value={d.premium_or_better_pct != null ? `${d.premium_or_better_pct}%` : '—'} hint={`of ${d.affluence_known} with enough booking data`} />
           <Stat label="Paying" value={d.paying} hint={d.lifetime_value ? `${money(d.lifetime_value)} paid` : null} />
           <Stat label="Average health" value={d.avg_health ?? '—'} hint="0–100" />
+          <Stat label="On more than one platform" value={d.multi_platform ?? 0} />
+          <Stat label="Location known" value={d.located ?? 0} hint="from time zone or billing" />
         </div>
         {!!d.offers_off && <p className="a-hint">{d.offers_off} member{d.offers_off === 1 ? ' has' : 's have'} turned off tailored offers and {d.offers_off === 1 ? 'is' : 'are'} left out of these numbers.</p>}
         {d.members < 30 && <p className="a-hint">Small numbers: read these as people, not percentages. Click any bar to see those members.</p>}
@@ -128,7 +141,7 @@ function Audience({ a, pick, view }) {
       {SEGMENTS.map(([k, label]) => (
         <Card key={k} title={label} className="a-span-4 a-card--compact">
           <BarList rows={(d.dist?.[k] || []).map(x => ({
-            label: k === 'stage' ? STAGE_LABEL[x.value] || x.value : x.value, value: x.n,
+            label: k === 'stage' ? STAGE_LABEL[x.value] || x.value : k === 'country' && x.value !== 'Not known yet' ? country(x.value) : x.value, value: x.n,
             onClick: x.value === 'Not known yet' && k === 'region' ? undefined : () => pick(k, x.value),
             sub: view[`seg_${k}`] === x.value ? '· filtered' : null,
           }))} />

@@ -167,11 +167,12 @@ export const useTripsStore = create((set, get) => ({
       }
       const withStops = t => (t.id === tripId ? { ...t, trip_stops: rows } : t)
       set(state => ({ trips: state.trips.map(withStops), activeTrip: state.activeTrip && withStops(state.activeTrip) }))
-      // A trip still named the way it was started ("Trip to Madrid") takes its name from its stops
-      // ("Spain, Germany & Italy") once it has more than one; a name the traveller typed is never changed
+      // A trip still named the way it was started ("Trip to Madrid"), or named by its earlier stops, takes its name
+      // from its stops ("Spain, Germany & Italy") once it has more than one; a name the traveller typed is never changed
       const { nameFromStops } = await import('../lib/stops')
       const name = nameFromStops(next)
-      if (name && /[,&]/.test(name) && trip.title === `Trip to ${trip.destination_city}` && trip.owner_id === useAuthStore.getState().user?.id) {
+      const autoNamed = trip.title === `Trip to ${trip.destination_city}` || (saved.length && trip.title === nameFromStops(saved))
+      if (name && /[,&]/.test(name) && name !== trip.title && autoNamed && trip.owner_id === useAuthStore.getState().user?.id) {
         await get().updateTrip(tripId, { title: name })
       }
     } catch (e) { console.warn('refreshStops', e?.message || e) }

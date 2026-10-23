@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
-import { geocode, searchText, routeOne, type Place } from '../_shared/google.ts'
+import { geocode, searchText, routeOne, withGoogleScope, setGoogleUser, type Place } from '../_shared/google.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -86,7 +86,7 @@ Return ONLY JSON:
 Never invent facts that contradict the data.`
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withGoogleScope(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
@@ -97,6 +97,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!)
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return json({ error: 'Unauthorized' }, 401)
+    setGoogleUser(user.id)
 
     const raw = await req.json()
     const city = cap(raw.city, 80), country = cap(raw.country, 80), mood = cap(raw.mood, 60)
@@ -198,4 +199,4 @@ Return ONLY a valid JSON object with no markdown, no explanation:
   } catch (e) {
     return json({ error: (e as Error).message }, 500)
   }
-})
+}))

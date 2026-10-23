@@ -21,10 +21,84 @@
   are not yet checked on it.
 - **iOS:** Xcode is not installed (only Command Line Tools), there is no `ios/` folder, and `@capacitor/ios` isn't in
   `package.json`. This Mac is Intel (i7-9750H, macOS 26.7.1): the App Store's Xcode 27 runs on Apple silicon only.
-- **OPEN, production:** Supabase auth emails fail. Auth log 2026-10-23 19:56Z on `/otp`: `550 The sillytraveltool.com
-  domain is not verified` (Resend SMTP). Magic links, password resets and sign-up confirmations don't send. Fix in
-  Resend (verify sillytraveltool.com, DNS at Hostinger) or point Supabase SMTP's sender at a verified domain.
+- **FIXED, production (2026-10-23):** Supabase auth emails failed (`550 The sillytraveltool.com domain is not verified`):
+  Supabase SMTP sent from `noreply@sillytraveltool.com`, but Resend (free plan, one domain) only has
+  `bookings.sillytraveltool.com` verified. Sender is now `noreply@bookings.sillytraveltool.com` (Auth → SMTP); a magic
+  link to machinemisha was delivered. The templates are still Supabase's defaults ("Your Magic Link").
+- **Emulator check (machinemisha, 0.21.0):** emailed trip → "United Kingdom, France & Portugal", route strip, stop
+  headers, booking times in local zones; import sheet shows Handwritten locked (First Class); XLSX upload → 11 bookings,
+  one trip, 8 stops. Today per stop not checkable (no trip in progress). Test trips deleted afterwards.
+- **Bugs found, fixed in `10bf844`:** (1) rename-from-stops now re-runs while the title is still the one the stops
+  gave it (was stuck on "Madrid & Granada"); (2) airports named after the city they serve (`AIRPORT_CITY` in
+  `_shared/route.js`: LHR London, BER Berlin, JFK New York, SEA Seattle…); (3) Plan cards show the confirmation once;
+  (4) "Final destination" only for a ticket of legs. The clipped import buttons looked like an emulator drawing glitch
+  (normal flex row in code), not changed; (5) Android `versionName` now reads `package.json` (bump the version there);
+  (6) connecting-flight emails: the email prompt returns `more_legs` and each leg is filed (live as
+  receive-booking-email **v45**, verified byte-for-byte; live test filed DL 263 LIS→JFK and DL 416 JFK→SFO with local
+  zones). The function's version numbers jump by two per MCP deploy (logs show v42 and v43 starting a minute apart).
+- **Website deployed from main `be14c3b` (2026-10-23, owner OK, includes the cockpit work):** backup
+  `~/backups/stt-202610232156-pre-main.tar.gz`; dry run showed no deletions outside `assets/`; /, /admin/, /redeem/,
+  /unsubscribe/, /privacy/, /terms/ all 200; live index identical to the build. Earlier the same day a deploy of
+  `fd8b93c` + fixes deleted /admin, /redeem, /unsubscribe (rsync `--delete`) and was rolled back within ~3 minutes:
+  always read the dry run (`-n -i`) for deletions outside `assets/` before the real sync.
+- **Fixed:** the Trips list climate hint asked Open-Meteo's archive for `monthly=` data (400). It now averages the
+  `daily=` highs and lows of the trip's months over the last two complete years, in the user's °C/°F.
+- **Android:** debug APK versionCode 4 (versionName 0.20.0 from package.json) built from `fd8b93c` + fixes and installed;
+  the emulator (Intel host) is too slow to finish loading even with `-gpu swiftshader_indirect`, so it is not rechecked
+  on device. Not uploaded.
 
+
+## Update — Money → Statement: gross, fees, net, exact AI cost (2026-10-23, commits b62f2af, a8ccd8a)
+- **Statement card (top of Money, `admin_financials(from, to)`, migrations `20261024000000_financials` +
+  `20261024000100_cost_rows_switchover`):** Stripe gross → refunds → disputes → Stripe fee lines → net, from Stripe's
+  ledger (`stripe_balance_txns`, synced by admin-stripe v8+ with `balance_transactions` + `GET /v1/balance`), then AI,
+  guides, Google, Supabase, hosting → profit. Sandbox check: $59.97 − $29.99 − $2.63 fees = $27.35 net = Stripe pending.
+  Placeholders (shown as "Not connected / Not tracked yet"): App Store + Google Play revenue and fees, Google Cloud's
+  actual bill, Resend. Cash card: payouts, Stripe available/pending, discounts given, DeepSeek balance.
+- **AI priced from tokens:** `_shared/usage.ts` (request scope: member + feature, `serviceRpc`, `logAiCall`);
+  `_shared/gemini.ts` logs provider, model and tokens of every answered DeepSeek/Gemini call → `log_ai_call` →
+  `ai_calls` (priced with `cost_rates.ai_prices` per million tokens, editable in Controls). `checkAiQuota` sets the
+  member. Days before logging keep the flat per-call estimate; the switchover day uses the higher of the two.
+  DeepSeek answers as model `deepseek-flash` (priced with deepseek-chat rates until the owner sets its own).
+  Real cost is ~10× under the old flat estimate (a booking parse ≈ $0.0004).
+- **DeepSeek balance:** cost-alert v2 saves `GET api.deepseek.com/user/balance` hourly → `provider_balances`
+  ($19.79 at first read); the statement compares balance drop with the token-priced total.
+- **Redeployed from b62f2af:** generate-phrases v22, generate-checklist v20, admin-experiment-ai v2, goosey-discover v22,
+  generate-guide v34, parse-booking-email v30, receive-booking-email v47 (byte-identical), admin-stripe v8 (then v9 by
+  the billing session, ledger code included), cost-alert v2. places and resolve-timezone were not redeployed after
+  the `google.ts` refactor (same behaviour; their live bundles still hold the older equivalent code).
+- **Google's actual bill — later (owner):** Cloud Billing → BigQuery export (dataset `stt_billing`), a service account
+  with BigQuery Data Viewer + Job User, then Supabase secrets `GCP_BILLING_SA` (JSON key) and `GCP_BILLING_TABLE`.
+  Nothing reads them yet; the reader is the next step once they exist.
+
+## Update — Money → Costs and Controls (2026-10-23, commits 64b4814, 85b616d)
+- **Settings (live, migration `20261023190000_costs_controls`):** `app_settings` (key, value jsonb): `founders_offer`
+  {active}, `free_limits` {upcoming_trips, reservations_per_trip, email_imports}, `ai_limits` {ai_daily 100, guide_daily
+  40}, `google_limits` {per_user_daily 5000}, `kill` {ai_paused, google_paused}, `cost_alert` {daily_usd 10, flag_ai 300,
+  flag_guide 150, flag_google 1500, last_sent_day}, `cost_rates` (AI call, guide section, Google per endpoint, Supabase +
+  hosting monthly). `public_settings()` (anon) returns only founders_offer + free_limits, for the paywall (billing
+  session told). `admin_settings()` / owner-only `admin_setting_set(key, patch)` (merges, validates, audited).
+- **AI enforcement without redeploys:** `consume_ai_quota` returns false when `kill.ai_paused`, and `ai_limits` override
+  the limit the functions pass.
+- **Google counted:** every billed call in `_shared/google.ts` (`call()`, static maps) and `_shared/timezones.ts`
+  (time zone, geocode) goes through `allowGoogle(endpoint)` → `consume_api_call` → `api_usage` (day, user, endpoint);
+  false when Google is paused or the member hit the daily cap (callers fall back; fails open on errors). The member comes
+  from `withGoogleScope` (AsyncLocalStorage per request) + `setGoogleUser`. Redeployed from 64b4814: places v9,
+  resolve-timezone v8, goosey-discover v21, generate-guide v33, parse-booking-email v29, receive-booking-email v46
+  (byte-identical to the local bundle); each tested live with the owner's session (counts landed on babar54).
+- **Costs (`admin_costs(from, to, exclude_internal)`):** estimated spend per day (AI, guides, Google), per active and
+  paying member, margin vs Stripe gross − refunds − all costs (fixed costs prorated), top 25 members (click → member page),
+  Google by endpoint, usage flags. Estimates ignore Google's monthly free usage.
+- **Controls card (Money tab):** kill switches and founders switch (confirm with last-24h impact), free/AI/Google limits,
+  alert levels, cost rates, "Send a test alert". Analysts see read-only.
+- **Alerts:** Needs you gets "spend today over $X", "kill switch on" and per-member abuse items (`cost_needs_items()`,
+  patched into `admin_needs_you`). `cost-alert` Edge Function v1 emails the owner (Resend) at most once a day for spend
+  and once per member/day/kind for flags (`usage_flags`); pg_cron `cost-alert` at :05 every hour via pg_net with the
+  Vault secret `cost_alert_token` (no owner secret needed). Proof: cron call with a $0.10 threshold sent (Resend id
+  01a16ae4-3a99-7ca9-b39f-5e72b62a0148), second call same day didn't, wrong token 401; threshold restored to $10 and
+  last_sent_day cleared. Owner test send from the live cockpit also sent. `purge-old-costs` cron keeps 25 months.
+- **Cockpit deployed** (admin/index.html + admin-*.js/css only, from a clean worktree of 85b616d+; backup
+  `~/backups/stt-202610232236-pre-costs-admin.tar.gz`).
 
 ## Update — Stripe web billing (2026-10-23, branch `feat/stripe-web-billing`, PR #1; full notes: `docs/STRIPE_BILLING.md`)
 - **Web buys First Class straight through Stripe** (owner decision: no RevenueCat on the web; apps still use store
@@ -132,6 +206,26 @@
   suspended. Cockpit: Email button on member pages, "Do it" on the next best action, "Email these N" on any filtered
   list (≤200), Members → Emails (templates, send log), status changes email the member notice, former members "Email
   them". Not tested with a real send (needs the owner's Google session); open/click tracking not built.
+- **Date windows + experiments (2026-10-23):** top bar picks Today / 7 / 30 / 90 days, a calendar Day, Week (Mon–Sun) or
+  Month with back/forward arrows, or a Custom range (`src/admin/DateWindow.jsx`, in the URL hash: range, at, from, to).
+  Experiments (migration `20261023170000`): `experiments` table (design, variants, baseline + lift, ICE, queue_position,
+  status draft → queued → running/paused → done, result/decision/learnings, design_chat), `experiment_traffic()` (daily
+  people per surface, last 28 days), owner-only save/status/reorder/delete. `admin-experiment-ai` v1: Goose designs
+  with the owner (DeepSeek → Gemini), told our traffic and the computed sample size (`_shared/experimentMath.js`,
+  two-proportion test, alpha .05, power .8; never AI-guessed). Experiments tab: Live, Queue (reorder, order by ICE,
+  "can run alongside" check: same surface = waits, same metric + overlapping audience = caution), Drafts, Archive.
+  Assigning people to versions (useVariant + exposure) is the next step; "running" is a manual record until then.
+- **Assignment, cohorts, locations (2026-10-23, migrations `20261023180000_tz_country`, `20261023180100_assignment_cohorts_locations`):**
+  experiments get `metric_event` and a key on start; `my_experiments()` gives each signed-in member a stable version
+  (md5 hash of key + user, traffic share and weights), `experiment_exposed(key)` marks when it's shown, readout counts
+  exposed members who did the metric event afterwards (cockpit shows rate, lift, chance-best). App hook:
+  `useVariant(key)` / `exposeVariant(key)` in `src/lib/experiments.js` (not used by any screen yet: each test's UI
+  change is built per test). Cohorts: `cohorts` (rules or fixed list), `member_matches()`, nightly `snapshot-cohorts`
+  pg_cron → `cohort_snapshots`; Members → Cohorts (create, preview count, track, members, email, fixed-list add/remove),
+  "Save as cohort" on any filtered list. `member_rows_plus()` adds country (time zone of the first session via
+  `tz_country`, else profile zone, else Stripe billing country), area, platforms ordered by sessions (main first),
+  platform mix; Members columns + Audience cards. The signed-in admin always shows in Members ("You") and the rail
+  links to your member page.
 - **TO DO SOON (owner, 2026-10-23):** the privacy page and Terms show the owner's **home address** (402 Grandey Way NE,
   Renton). Fine for now; replace it with a PO box or virtual business address soon, in `public/privacy/` and `public/terms/`.
 - **Not done yet:** in-app Owner view (Profile files belong to the user-guide session),
