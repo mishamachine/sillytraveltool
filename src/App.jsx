@@ -1,6 +1,7 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { useAuthStore, useUIStore, useTripsStore, useCollabStore } from './store'
-import { supabase } from './lib/supabase'
+import { supabase, isDemo } from './lib/supabase'
+import { demoParams } from './dev/demoClient'
 
 import AuthScreen from './screens/AuthScreen'
 import BottomNav from './components/layout/BottomNav'
@@ -77,8 +78,12 @@ export default function App() {
 
   // The member's plan (First Class or free) for locks, Settings and the paywall
   useEffect(() => {
-    if (user) usePlanStore.getState().load()
-    else usePlanStore.getState().clear()
+    if (!user) { usePlanStore.getState().clear(); return }
+    usePlanStore.getState().load().then(() => {
+      // Demo screenshots (?demo&paywall=<trigger>): open the paywall at launch
+      const trigger = isDemo && demoParams().get('paywall')
+      if (trigger) usePlanStore.getState().openPaywall(trigger)
+    })
   }, [user?.id])
 
   // One-time onboarding (Goose inbox + location) for new accounts. Accounts older than a day

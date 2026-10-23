@@ -9,6 +9,8 @@
 //   ?demo&signedout=1     no session (auth screen)
 //   ?demo&plan=first_class  signed in with First Class (default: free)
 //   ?demo&limits=1        new trips and reservations hit the free-plan limit (paywall)
+//   ?demo&paywall=settings  opens the First Class paywall at launch (cloud device screenshots)
+// App builds have no address bar: VITE_DEMO_PARAMS="limits=1&paywall=settings" sets the same options at build time.
 import { buildFixtures, DEMO_USER } from './fixtures'
 
 // Set up by createDemoClient(); nothing runs at import time, so production bundles drop this file.
@@ -123,8 +125,13 @@ async function invoke(name, opts = {}) {
   return { data: handler ? handler(body) : { success: true }, error: null }
 }
 
+/** Demo options from the address bar, plus VITE_DEMO_PARAMS for app builds. */
+export function demoParams() {
+  return new URLSearchParams(`${location.search.replace(/^\?/, '')}&${import.meta.env.VITE_DEMO_PARAMS || ''}`)
+}
+
 export function createDemoClient() {
-  const params = new URLSearchParams(location.search)
+  const params = demoParams()
   FAIL = new Set((params.get('fail') || '').split(',').filter(Boolean))
   SLOW = params.has('slow')
   PLAN = params.get('plan') === 'first_class' ? 'first_class' : 'free'
