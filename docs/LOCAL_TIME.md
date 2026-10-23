@@ -3,7 +3,8 @@
 **Every booking and reservation is shown in the local time of the place where it happens, never the phone's.**
 A flight leaves at the time printed for the departure airport and lands at the time printed for the arrival
 airport. Hotels, restaurants and tickets use the venue's clock. Today, "Day 4 of 10" and "next up in 1h 20m" follow
-the destination, so nothing shifts when you plan from home or your phone changes time zone mid-trip.
+where you are on the trip (today's stop, else the destination), so nothing shifts when you plan from home or your phone
+changes time zone mid-trip.
 
 ## Data model (migration `20261021220000_local_time_zones.sql`, live)
 
@@ -33,7 +34,10 @@ the destination, so nothing shifts when you plan from home or your phone changes
 - Display a booking's time with `bookingTime` / `bookingArrival` / `dateTimeIn` in its own zone; never `format(new Date(...))`.
 - A zone name ("Spain Time") appears next to a time whenever the place's clock differs from the phone's; the booking
   detail sheet always names it.
-- "Today" for a trip is `tripToday(trip)` / `todayAtTrip(trip)`, the destination's date.
+- "Today" for a trip is `tripToday(trip)` / `todayAtTrip(trip)`: the date in **today's stop's zone** (owner sign-off
+  22 Oct 2026, multi-city build). A Spain → Germany trip counts its Berlin days in Berlin's date; a single-city trip
+  is unchanged (the destination's date). Stops come from `trip_stops` (`docs/MULTI_CITY_PLAN.md`); without stops it
+  falls back to `destination_tz`. `tripZoneToday(trip)` is that zone, used by Today for its day buckets.
 - Rows saved before zones existed (no `departure_tz`) were fixed by the backfill on 21 Oct 2026
   (`docs/LOCAL_TIME_BACKFILL.md`); the device-zone fallback remains for any row without zones.
 

@@ -5,6 +5,7 @@
 //   ?demo&fail=guide,ai   Edge Functions in the list fail (guide, ai = all AI, checklist, honk, phrases)
 //   ?demo&slow=1          Edge Functions take 60s (loading states)
 //   ?demo&empty=1         no trips (empty state)
+//   ?demo&flagship=9      the multi-city flagship trip (Seattle → Spain → Germany → Rome), on trip day 9
 //   ?demo&signedout=1     no session (auth screen)
 import { buildFixtures, DEMO_USER } from './fixtures'
 
@@ -23,6 +24,7 @@ function embed(table, row, select) {
   if (table === 'trips') {
     if (select.includes('bookings(')) out.bookings = db.bookings.filter(b => b.trip_id === row.id)
     if (select.includes('trip_activities(')) out.trip_activities = db.trip_activities.filter(a => a.trip_id === row.id)
+    if (select.includes('trip_stops(')) out.trip_stops = (db.trip_stops || []).filter(s => s.trip_id === row.id)
   }
   if (table === 'trip_collaborators' && select.includes('trips(')) out.trips = db.trips.find(t => t.id === row.trip_id) || null
   return out
@@ -118,7 +120,7 @@ export function createDemoClient() {
   const params = new URLSearchParams(location.search)
   FAIL = new Set((params.get('fail') || '').split(',').filter(Boolean))
   SLOW = params.has('slow')
-  db = buildFixtures({ empty: params.has('empty') })
+  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship') })
   session = params.has('signedout') ? null : {
     access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
   }

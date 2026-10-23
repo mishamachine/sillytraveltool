@@ -2,6 +2,7 @@
 // Today view, countdowns and recaps always have something to show.
 import { DEMO_FUNCTIONS } from './fixtureFunctions'
 import { wallToInstant, partsIn } from '../lib/localTime'
+import { flagshipTrip } from './fixtures/flagship'
 
 export const DEMO_USER = {
   id: '00000000-0000-4000-8000-00000000d3e0',
@@ -24,7 +25,7 @@ function at(offset, hh, mm = 0, tz = MAD) {
   return wallToInstant(`${day(offset)}T${pad(hh)}:${pad(mm)}`, tz).toISOString()
 }
 
-export function buildFixtures({ empty = false } = {}) {
+export function buildFixtures({ empty = false, flagship = null } = {}) {
   const U = DEMO_USER.id
   const next = partsIn(Date.now() + 80 * 60000, MAD) // Alhambra entry, 1h 20m from now in Granada
 
@@ -65,6 +66,15 @@ export function buildFixtures({ empty = false } = {}) {
   const VENUE_TZ = { 'trip-spain': MAD, 'trip-japan': TYO, 'trip-lisbon': LIS, 'trip-nyc': NYC }
   bookings.forEach(x => { if (!x.departure_time) x.local_tz = VENUE_TZ[x.trip_id] })
 
+  // ?demo&flagship=<day>: the multi-city flagship trip in place of the Spain trip, on that trip day
+  if (!empty && flagship != null) {
+    const offset = Math.max(0, Math.min(18, Number(flagship) || 0))
+    const fs = flagshipTrip({ owner: U, day: n => day(n - offset), wall: (n, hhmm, tz) => wallToInstant(`${day(n - offset)}T${hhmm}`, tz).toISOString() })
+    trips.splice(trips.findIndex(t => t.id === 'trip-spain'), 1, fs.trip)
+    for (let i = bookings.length - 1; i >= 0; i--) if (bookings[i].trip_id === 'trip-spain') bookings.splice(i, 1)
+    bookings.push(...fs.bookings)
+  }
+
   const trip_activities = empty ? [] : [
     { id: 'a1', trip_id: 'trip-spain', created_by: U, title: 'Sunset · Mirador San Nicolás', category: 'sight', date: day(0), time: '19:45:00', is_completed: false, source: 'guide' },
     { id: 'a2', trip_id: 'trip-spain', created_by: U, title: 'Tapas crawl in Calle Navas', category: 'food', date: day(2), is_completed: false, source: 'goosey' },
@@ -75,7 +85,7 @@ export function buildFixtures({ empty = false } = {}) {
   ]
 
   return {
-    trips, bookings, trip_activities, trip_collaborators,
+    trips, bookings, trip_activities, trip_collaborators, trip_stops: [],
     user_profiles: [{ id: U, display_name: 'Sam Rivera', avatar_url: null, home_currency: 'USD', passport_country: 'US', home_city: 'Seattle', temp_unit: 'C', booking_email_token: '6f1c2a9e', created_at: '2025-11-02T10:00:00Z' }],
     user_stats: [{ user_id: U, countries_visited: 6, trips_completed: 5, trips_created: 7, total_flights: 14, days_abroad: 61, restaurants_added: 8, museums_visited: 4, continents_visited: 3, goose_score: 1240 }],
     user_badges: [

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore, useTripsStore } from '../../store'
-import { findCurrentOrNextTrip } from '../../lib/dates'
+import { currentPlace } from '../../lib/stops'
 import { currencyForCountry } from '../../lib/currencies'
 import { Card, IconButton, SegmentedControl, Banner, Text, Stack, Field } from '../../ui'
 import { formatMoney } from './CurrencyTool'
@@ -10,8 +10,7 @@ const PRESETS = ['10', '15', '18', '20']
 export default function TipTool() {
   const profile = useAuthStore(s => s.profile)
   const trips = useTripsStore(s => s.trips)
-  const trip = findCurrentOrNextTrip(trips).trip
-  const currency = currencyForCountry(trip?.destination_country_code) || profile?.home_currency || 'USD'
+  const currency = currencyForCountry(currentPlace(trips)?.country_code) || profile?.home_currency || 'USD'
 
   const [bill, setBill] = useState('50')
   const [tipPct, setTipPct] = useState(18)

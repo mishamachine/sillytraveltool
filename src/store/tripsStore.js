@@ -4,9 +4,11 @@ import { useAuthStore } from './authStore'
 import { useUIStore } from './uiStore'
 import { checkAndAwardBadges } from './authStore'
 import { compareTripStart, isUndated, bookingDates } from '../lib/trips'
-import { daysBetween } from '../lib/dates'
+import { daysBetween, findCurrentOrNextTrip } from '../lib/dates'
 import { pgQuote } from '../lib/postgrest'
 import { track } from '../lib/analytics'
+
+const stopRuns = new Map() // tripId → { timer, chain }: see refreshStops
 
 export const useTripsStore = create((set, get) => ({
   trips: [], activeTrip: null, loading: false, error: null,
@@ -19,7 +21,7 @@ export const useTripsStore = create((set, get) => ({
       if (!user) { set({ loading: false }); return }
 
       const { data: ownedTrips, error: ownedErr } = await supabase.from('trips')
-        .select(`*, bookings(id, type, title, departure_time, check_in_date), trip_activities(id, title, date, is_completed)`)
+        .select(`*, bookings(id, type, title, departure_time, check_in_date), trip_activities(id, title, date, is_completed), trip_stops(*)`)
         .eq('owner_id', user.id)
         .order('start_date', { ascending: true })
       if (ownedErr) throw ownedErr
@@ -54,7 +56,7 @@ export const useTripsStore = create((set, get) => ({
         const sharedIds = collabRows.map(r => r.trip_id).filter(id => !ownedIds.includes(id))
         if (sharedIds.length > 0) {
           const { data: sharedTripData } = await supabase.from('trips')
-            .select(`*, bookings(id, type, title, departure_time, check_in_date), trip_activities(id, title, date, is_completed)`)
+            .select(`*, bookings(id, type, title, departure_time, check_in_date), trip_activities(id, title, date, is_completed), trip_stops(*)`)
             .in('id', sharedIds)
 
           const { data: sharedCollabData } = await supabase
@@ -83,6 +85,10 @@ export const useTripsStore = create((set, get) => ({
         .sort(compareTripStart)
 
       set({ trips: allTrips })
+      // Stops of the trip you're on (or the next one): Today, the header and the tools read them, and an emailed
+      // booking may have changed them since they were saved
+      const current = findCurrentOrNextTrip(allTrips).trip
+      if (current && current._myRole !== 'viewer') get().refreshStops(current.id)
 
       // Restore activeTrip if one was open before refresh
       try {
@@ -123,6 +129,44 @@ export const useTripsStore = create((set, get) => ({
     const open = get().activeTrip
     if (open && open.id !== tripId) { set({ loadingDetail: false }); return }
     set({ bookings: bookings || [], activities: activities || [], loadingDetail: false })
+    get().refreshStops(tripId, bookings || [])
+  },
+
+  /**
+   * Re-derive a trip's stops from all its bookings (src/lib/stops.js) and save them when they changed. Stops the
+   * traveller edited by hand (source 'manual') are kept as they are. Best-effort and quiet: a failure leaves the
+   * saved stops.
+   */
+  refreshStops: (tripId, bookingsIn) => {
+    // Several bookings saved in a row (an import) make one refresh, and refreshes of a trip never overlap
+    const r = stopRuns.get(tripId) || { timer: null, chain: Promise.resolve() }
+    stopRuns.set(tripId, r)
+    clearTimeout(r.timer)
+    return new Promise(resolve => {
+      r.timer = setTimeout(() => { r.chain = r.chain.then(() => get()._refreshStops(tripId, bookingsIn)).then(resolve) }, 400)
+    })
+  },
+
+  _refreshStops: async (tripId, bookingsIn) => {
+    try {
+      const trip = get().trips.find(t => t.id === tripId)
+      if (!trip || trip._myRole === 'viewer') return
+      const saved = trip.trip_stops || []
+      if (saved.some(s => s.source === 'manual')) return
+      const bookings = bookingsIn || (await supabase.from('bookings').select('*').eq('trip_id', tripId)).data || []
+      const { computeStops, stopsChanged, homePoint } = await import('../lib/stops')
+      const next = await computeStops(trip, bookings, { home: await homePoint(useAuthStore.getState().profile) })
+      if (!stopsChanged(saved, next)) return
+      await supabase.from('trip_stops').delete().eq('trip_id', tripId).eq('source', 'derived')
+      let rows = []
+      if (next.length) {
+        const { data, error } = await supabase.from('trip_stops').insert(next.map(s => ({ ...s, trip_id: tripId, source: 'derived' }))).select()
+        if (error) throw error
+        rows = data || []
+      }
+      const withStops = t => (t.id === tripId ? { ...t, trip_stops: rows } : t)
+      set(state => ({ trips: state.trips.map(withStops), activeTrip: state.activeTrip && withStops(state.activeTrip) }))
+    } catch (e) { console.warn('refreshStops', e?.message || e) }
   },
 
   // via: 'form' | 'import' | 'one_tap' (analytics only)
@@ -155,10 +199,12 @@ export const useTripsStore = create((set, get) => ({
     const { data, error } = await supabase.from('trips')
       .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
     if (error) throw error
+    // Keep what was loaded with the trip (collaborators, stops) and take the saved fields
     set(state => ({
-      trips: state.trips.map(t => t.id === id ? data : t),
-      activeTrip: state.activeTrip?.id === id ? data : state.activeTrip
+      trips: state.trips.map(t => t.id === id ? { ...t, ...data } : t),
+      activeTrip: state.activeTrip?.id === id ? { ...state.activeTrip, ...data } : state.activeTrip
     }))
+    if ('start_date' in updates || 'end_date' in updates) get().refreshStops(id)
     if (updates.status === 'completed') {
       try {
         const { data: { user } } = await supabase.auth.getUser()
@@ -210,8 +256,11 @@ export const useTripsStore = create((set, get) => ({
     const ids = bookings.map(b => b.id)
     const { error } = await supabase.from('bookings').update({ trip_id: toTripId }).in('id', ids)
     if (error) throw error
+    const fromTrip = bookings[0]?.trip_id
     set(state => ({ bookings: state.bookings.filter(b => !ids.includes(b.id)) }))
     track('booking_moved', { count: ids.length })
+    if (fromTrip) get().refreshStops(fromTrip)
+    get().refreshStops(toTripId)
     await get().fillDatesIfUndated(toTripId, bookings.map(b => ({ ...b, trip_id: toTripId })))
   },
 
@@ -222,6 +271,7 @@ export const useTripsStore = create((set, get) => ({
       .insert({ ...bookingData, trip_id: tripId, created_by: user.id }).select().single()
     if (error) throw error
     if (fillDates) await get().fillDatesIfUndated(tripId, [data])
+    get().refreshStops(tripId, get().activeTrip?.id === tripId ? [...get().bookings, data] : undefined)
     track('booking_added', { type: bookingData.type || null, source: bookingData.source === 'email_import' ? 'email_import' : via })
     set(state => ({ bookings: [...state.bookings, data].sort((a, b) => {
       const da = a.departure_time || (a.check_in_date ? a.check_in_date + 'T12:00:00' : null) || '9999'
@@ -243,6 +293,7 @@ export const useTripsStore = create((set, get) => ({
     if (error) throw error
     track('booking_edited', { type: data?.type || null })
     set(state => ({ bookings: state.bookings.map(b => b.id === id ? data : b) }))
+    if (data?.trip_id) get().refreshStops(data.trip_id, get().activeTrip?.id === data.trip_id ? get().bookings : undefined)
     return data
   },
 
@@ -251,7 +302,9 @@ export const useTripsStore = create((set, get) => ({
     const { error } = await supabase.from('bookings').delete().eq('id', id)
     if (error) throw error
     track('booking_deleted', { type })
+    const tripId = get().bookings.find(b => b.id === id)?.trip_id
     set(state => ({ bookings: state.bookings.filter(b => b.id !== id) }))
+    if (tripId) get().refreshStops(tripId, get().activeTrip?.id === tripId ? get().bookings : undefined)
   },
 
   // ACTIVITIES

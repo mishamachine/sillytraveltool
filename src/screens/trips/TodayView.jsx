@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { format, addDays } from 'date-fns'
 import { useTripsStore, useUIStore, useAuthStore } from '../../store'
-import { parseLocalDate } from '../../lib/dates'
+import { parseLocalDate, tripZoneToday } from '../../lib/dates'
+import { tripPlace, computeLegs } from '../../lib/stops'
 import { weekdayIn } from '../../lib/localTime'
 import {
   tripDay, tripToday, sortByStart, bookingStart, bookingDay, bookingTime, bookingZone, zoneHint, bookingKind, bookingMeta,
@@ -57,21 +58,32 @@ export default function TodayView({ trip, onShowAll }) {
   const [weather, setWeather] = useState(null)
   const [now, setNow] = useState(() => new Date())
   const [detail, setDetail] = useState(null)
+  const [legs, setLegs] = useState([])
 
   // The store holds one trip's bookings: only load ours when no other trip is open on top
   const overlayOpen = !!activeTrip
   useEffect(() => { if (!overlayOpen) fetchTripDetail(trip.id) }, [trip.id, overlayOpen])
+  // Where you are today: today's stop, or "Madrid → Granada" on a travel day (legs make the moment exact)
+  const tripBookings = bookings.filter(b => b.trip_id === trip.id)
   useEffect(() => {
     let alive = true
-    tripCoords(trip).then(c => c && fetchTodayWeather(c.lat, c.lon, tempUnit)).then(w => { if (alive && w) setWeather(w) })
+    computeLegs(tripBookings).then(l => { if (alive) setLegs(l) })
     return () => { alive = false }
-  }, [trip.id, tempUnit])
+  }, [trip.id, tripBookings.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  const here = tripPlace(trip, { legs, now: now.getTime() })
+  const hereKey = here.lat != null ? `${Number(here.lat).toFixed(2)},${Number(here.lng).toFixed(2)}` : ''
+  useEffect(() => {
+    let alive = true
+    const coords = here.lat != null ? Promise.resolve({ lat: Number(here.lat), lon: Number(here.lng) }) : tripCoords(trip)
+    coords.then(c => c && fetchTodayWeather(c.lat, c.lon, tempUnit)).then(w => { if (alive && w) setWeather(w) })
+    return () => { alive = false }
+  }, [trip.id, tempUnit, hereKey]) // eslint-disable-line react-hooks/exhaustive-deps
   // Keep "in 1h 20m" honest
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t) }, [])
 
-  // Days are the destination's days, not the phone's
+  // Days are the days where you are on the trip (today's stop), not the phone's
   useTripZone(trip)
-  const tz = trip.destination_tz
+  const tz = tripZoneToday(trip)
   const today = tripToday(trip)
   const tomorrow = format(addDays(parseLocalDate(today), 1), 'yyyy-MM-dd')
   const items = sortByStart([
@@ -90,8 +102,8 @@ export default function TodayView({ trip, onShowAll }) {
   return (
     <Screen gap={4} labelledBy="today-title">
       <ScreenHeader
-        overline={`Day ${n} of ${total} · ${weekdayIn(now, tz)}`}
-        title={trip.destination_city}
+        overline={`Day ${n} of ${total} · ${weekdayIn(now, tz)}${here.kind === 'travel' && here.inTransit ? ' · On the way' : ''}`}
+        title={here.label || trip.destination_city}
         titleId="today-title"
         actions={(
           <>

@@ -5,10 +5,11 @@ import { useTripZone } from '../useTripZone'
 import { PlacePhoto } from '../../../components/shared/PlaceMedia'
 import { tripPhase, tripDay, nightsLabel, plural, tripDates, isUndated } from '../../../lib/trips'
 import { daysBetween, todayAtTrip } from '../../../lib/dates'
+import { tripPlace, routeCities } from '../../../lib/stops'
 import { ScreenHeader, IconButton, Button, Sheet, Card, ListRow, Text, Stack, Chip } from '../../../ui'
 import TravelersSheet from './TravelersSheet'
 
-// LIVE CLOCK — local time at the destination (trip.destination_tz)
+// LIVE CLOCK — local time where you are on the trip (today's stop), else at the destination
 function useLocalTime(timezone) {
   const [time, setTime] = useState('')
   useEffect(() => {
@@ -34,9 +35,11 @@ export default function TripHeader({ trip, readOnly }) {
   const openTripForm = useUIStore(s => s.openTripForm)
   const [showTravelers, setShowTravelers] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
-  const localTime = useLocalTime(useTripZone(trip))
-
+  const destZone = useTripZone(trip)
   const phase = tripPhase(trip)
+  const here = phase === 'active' ? tripPlace(trip) : null
+  const localTime = useLocalTime(here?.tz || destZone)
+  const clockCity = here?.city || trip.destination_city
   const { n, total } = tripDay(trip)
   const undated = isUndated(trip)
   const away = undated ? null : daysBetween(todayAtTrip(trip), trip.start_date)
@@ -45,7 +48,9 @@ export default function TripHeader({ trip, readOnly }) {
     : undated ? 'Planning'
     : phase === 'upcoming' ? (away === 1 ? 'Tomorrow' : `In ${plural(away, 'day')}`)
     : 'Completed'
-  const meta = [tripDates(trip), nightsLabel(trip), trip.destination_country].filter(Boolean).join(' · ')
+  // A multi-city trip says how many stops instead of the one country
+  const stopCount = routeCities(trip.trip_stops || []).filter(s => s.kind === 'stay').length
+  const meta = [tripDates(trip), nightsLabel(trip), stopCount > 1 ? plural(stopCount, 'stop') : trip.destination_country].filter(Boolean).join(' · ')
 
   return (
     <>
@@ -61,7 +66,7 @@ export default function TripHeader({ trip, readOnly }) {
         <Stack row gap={2} wrap className="detail-status">
           <Chip tone={phase === 'active' ? 'accent' : phase === 'upcoming' ? 'info' : phase === 'past' ? 'success' : 'neutral'}
             icon={phase === 'past' ? 'check' : undefined}>{status}</Chip>
-          {localTime && <Text variant="micro" tone="muted" as="span">{localTime} in {trip.destination_city}</Text>}
+          {localTime && <Text variant="micro" tone="muted" as="span">{localTime} in {clockCity}</Text>}
           {undated && !readOnly && !trip._isShared && (
             <Chip icon="calendar" onClick={() => openTripForm(trip)}>Add dates</Chip>
           )}

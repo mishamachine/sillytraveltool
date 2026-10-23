@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore, useTripsStore } from '../../store'
-import { findCurrentOrNextTrip } from '../../lib/dates'
+import { currentPlace } from '../../lib/stops'
 import { currencyForCountry } from '../../lib/currencies'
 import { fetchWithTimeout } from '../../lib/http'
 import { track } from '../../lib/analytics'
@@ -55,7 +55,7 @@ export default function CurrencyTool() {
   const homeCurrency = profile?.home_currency || 'USD'
 
   // Default "from": current/next trip's destination currency, else home currency
-  const destCurrency = currencyForCountry(findCurrentOrNextTrip(trips).trip?.destination_country_code)
+  const destCurrency = currencyForCountry(currentPlace(trips)?.country_code)
   const defaultFrom = destCurrency || homeCurrency
   const defaultTo = defaultFrom !== homeCurrency ? homeCurrency : (TOP_PAIRS[homeCurrency] || TOP_PAIRS['USD'])[0]
 

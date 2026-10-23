@@ -5,6 +5,7 @@ import { parseLocalDate, daysBetween } from '../../lib/dates'
 import { fetchWithTimeout } from '../../lib/http'
 import { tripPhase, tripDay, nightsLabel, plural, sortByStart, bookingStart, bookingTime, hasClockTime, tripToday, tripDates, isUndated, compareTripStart } from '../../lib/trips'
 import { tripCoords } from '../../lib/weather'
+import { tripPlace, routeCities } from '../../lib/stops'
 import {
   Screen, ScreenHeader, Section, Button, IconButton, Card, ListRow, Chip, Text, Overline, Stack, Icon,
   ProgressBar, EmptyState, Skeleton, Banner,
@@ -75,7 +76,7 @@ function OnTheRoadCard({ trip, onOpen }) {
         <Icon name="arrow-right" size={20} className="tone-inverse-muted" />
       </Stack>
       <Stack gap={1}>
-        <Text variant="h2" tone="inverse" as="h3">{trip.destination_country || trip.destination_city}</Text>
+        <Text variant="h2" tone="inverse" as="h3">{tripPlace(trip).label || trip.destination_country || trip.destination_city}</Text>
         <Text variant="body" tone="inverse-muted">{trip.title} · {tripDates(trip)}</Text>
       </Stack>
       <ProgressBar value={n / total} inverse label={`Day ${n} of ${total}`} />
@@ -102,7 +103,8 @@ function UpcomingCard({ trip, climate, onOpen, live = false }) {
   const undated = isUndated(trip)
   const days = undated ? null : daysBetween(tripToday(trip), trip.start_date)
   const count = trip.bookings?.length || 0
-  const meta = [tripDates(trip), nightsLabel(trip), count ? plural(count, 'booking') : null,
+  const stops = routeCities(trip.trip_stops || []).filter(s => s.kind === 'stay').length
+  const meta = [tripDates(trip), nightsLabel(trip), stops > 1 ? plural(stops, 'stop') : count ? plural(count, 'booking') : null,
     climate ? `${climate.avgLow}–${climate.avgHigh}°` : null].filter(Boolean).join(' · ')
   const people = travelersOf(trip)
   const day = live ? tripDay(trip) : null

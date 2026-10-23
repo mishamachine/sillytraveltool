@@ -127,7 +127,6 @@ function GuideHome({ setHonkMood, setMode }) {
   const overviewLoading = !!loadingSections.overview
   const overviewFailed = !overviewLoading && !!g.guideError && !g.sections.overview
 
-  const tripCities = g.upcomingTrips.filter((t, i, arr) => arr.findIndex(x => x.destination_city === t.destination_city) === i)
   const loadingCopy = g.lastSectionFromCache ? 'Sections appear as they\'re ready.' : 'Sections appear as they\'re ready, usually under 10 seconds.'
 
   // ── Section detail ───────────────────────────────
@@ -199,10 +198,11 @@ function GuideHome({ setHonkMood, setMode }) {
       <ScreenHeader title="Explore" titleId="explore-title">
         <CityAutocomplete label="Search a city" hideLabel icon="search" placeholder={destination ? `${destination.city}, ${destination.country}` : 'Search a city'}
           onSelect={g.selectCity} />
-        {tripCities.length > 0 && (
-          <div className="c-chip-row explore-chips" role="group" aria-label="Your trips">
-            {tripCities.map(t => (
-              <Chip key={t.id} icon="trips" selected={destination?.city === t.destination_city} onClick={() => g.selectTrip(t)}>{t.destination_city}</Chip>
+        {g.cityChips.length > 0 && (
+          <div className="c-chip-row explore-chips" role="group" aria-label="Your trip's cities">
+            {g.cityChips.map(c => (
+              <Chip key={c.key} icon="trips" selected={destination?.city === c.city}
+                onClick={() => g.setDestination({ city: c.city, country: c.country, country_code: c.country_code })}>{c.city}</Chip>
             ))}
           </div>
         )}

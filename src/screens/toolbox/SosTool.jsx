@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuthStore, useTripsStore } from '../../store'
-import { findCurrentOrNextTrip } from '../../lib/dates'
+import { currentPlace } from '../../lib/stops'
 import { getCurrentPosition, reverseGeocodeCountry } from '../../lib/geo'
 import { nearby, embassy as findEmbassy, geocode, distanceM } from '../../lib/places'
 import { safeUrl } from '../../lib/safeUrl'
@@ -223,9 +223,11 @@ export default function SosTool({ onTitle }) {
   const current = useCurrentCountry()
 
   // Priority: device location → active/next trip country → passport country → default
-  const { trip: destinationTrip, isLive: hasLiveTrip } = findCurrentOrNextTrip(trips)
-  const activeTrip = hasLiveTrip ? destinationTrip : null
-  const nextTrip = hasLiveTrip ? null : destinationTrip
+  // The trip's place: today's stop on a trip in progress, else where the next trip starts
+  const cp = currentPlace(trips)
+  const destinationTrip = cp ? { destination_country_code: cp.country_code, destination_country: cp.country, destination_city: cp.city } : null
+  const activeTrip = cp?.isLive ? destinationTrip : null
+  const nextTrip = cp && !cp.isLive ? destinationTrip : null
   const locCountry = current.status === 'found' ? current.loc : null
   const locPoint = locCountry?.lat != null ? { lat: locCountry.lat, lng: locCountry.lng } : null
   const source = locCountry ? 'location'

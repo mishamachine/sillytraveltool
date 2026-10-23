@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { reverseGeocodeCountry } from '../../../lib/geo'
 import { useTripsStore } from '../../../store'
+import { tripPlace, currentPlace } from '../../../lib/stops'
+import { tripPhase } from '../../../lib/trips'
 import { track } from '../../../lib/analytics'
 import {
   Card, ListRow, Button, IconButton, Chip, Sheet, Text, Stack, Section, Loading, ErrorState, EmptyState, LinkButton, Overline, Icon, Field,
@@ -80,7 +82,7 @@ const readFrom = () => { try { return JSON.parse(localStorage.getItem(FROM_KEY))
 const readTexts = () => { try { return JSON.parse(localStorage.getItem(TEXT_KEY)) || {} } catch { return {} } }
 
 export default function TranslateTool() {
-  const { activeTrip } = useTripsStore()
+  const { activeTrip, trips } = useTripsStore()
   const [activeCategory, setActiveCategory] = useState('greetings')
   const [phrases, setPhrases] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -95,9 +97,12 @@ export default function TranslateTool() {
   const [showBig, setShowBig] = useState(null) // the phrase shown full screen
   const [speakingIdx, setSpeakingIdx] = useState(null)
 
-  const tripLang = activeTrip?.destination_country_code
-    ? COUNTRY_TO_LANGUAGE[activeTrip.destination_country_code]
-    : null
+  // The language where you are on the trip: today's stop of the open (or live) trip, else its destination
+  const live = currentPlace(trips)
+  const tripHere = activeTrip
+    ? (tripPhase(activeTrip) === 'active' ? tripPlace(activeTrip) : { city: activeTrip.destination_city, country_code: activeTrip.destination_country_code })
+    : live?.isLive ? live : null
+  const tripLang = tripHere?.country_code ? COUNTRY_TO_LANGUAGE[tripHere.country_code] : null
 
   const [geoLang, setGeoLang] = useState(null)
   const [selectedLang, setSelectedLang] = useState(null)
@@ -266,8 +271,8 @@ export default function TranslateTool() {
           {currentLang ? currentLang.name : 'Choose a language'}
         </button>
       </Stack>
-      {currentLang && autoLang && currentLang.code === autoLang.code && activeTrip?.destination_city && (
-        <Text variant="micro" tone="muted">Picked for your trip to {activeTrip.destination_city}</Text>
+      {currentLang && autoLang && currentLang.code === autoLang.code && tripHere?.city && (
+        <Text variant="micro" tone="muted">Picked for {tripHere.city}</Text>
       )}
 
       {!currentLang && (

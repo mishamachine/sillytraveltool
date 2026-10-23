@@ -5,6 +5,7 @@
  * in timezones west of UTC. These helpers parse date-only strings as LOCAL dates.
  */
 import { isValidZone, todayIn } from './localTime'
+import { zoneOn } from '../../supabase/functions/_shared/route.js'
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
 
@@ -39,9 +40,24 @@ export function daysBetween(a, b) {
   return Math.round((ub - ua) / 86400000)
 }
 
-/** Today at the trip's destination (its destination_tz), else on the phone. */
+/**
+ * Today where the traveller is on the trip: the date in today's stop's zone (Berlin on the Berlin days of a
+ * Spain-Germany trip), else the destination's (destination_tz), else the phone's. Stops come with the trip
+ * (trip.trip_stops); booking times always stay in their own zones (docs/LOCAL_TIME.md).
+ */
 export function todayAtTrip(trip) {
-  return isValidZone(trip?.destination_tz) ? todayIn(trip.destination_tz) : todayLocalISO()
+  if (!isValidZone(trip?.destination_tz)) return todayLocalISO()
+  const d0 = todayIn(trip.destination_tz)
+  const zone = trip.trip_stops?.length ? zoneOn(trip.trip_stops, d0) : null
+  if (!isValidZone(zone) || zone === trip.destination_tz) return d0
+  const d1 = todayIn(zone)
+  return zoneOn(trip.trip_stops, d1) === zone ? d1 : d0
+}
+
+/** The zone that governs a trip's "today": today's stop's, else the destination's. */
+export function tripZoneToday(trip) {
+  const zone = trip?.trip_stops?.length ? zoneOn(trip.trip_stops, todayAtTrip(trip)) : null
+  return isValidZone(zone) ? zone : trip?.destination_tz || null
 }
 
 /** A trip is completed when end_date < today at the destination and it isn't cancelled. */

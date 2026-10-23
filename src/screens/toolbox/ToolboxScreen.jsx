@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useUIStore, useTripsStore, useAuthStore } from '../../store'
-import { findCurrentOrNextTrip } from '../../lib/dates'
+import { currentPlace } from '../../lib/stops'
 import { currencyForCountry } from '../../lib/currencies'
 import { track } from '../../lib/analytics'
 import { Screen, ScreenHeader, Card, IconTile, Text, Stack, Icon } from '../../ui'
@@ -22,9 +22,11 @@ const TOOLS = {
 function Hub({ open }) {
   const trips = useTripsStore(s => s.trips)
   const profile = useAuthStore(s => s.profile)
-  const { trip, isLive } = findCurrentOrNextTrip(trips)
-  const place = trip?.destination_country || trip?.destination_city
-  const from = currencyForCountry(trip?.destination_country_code) || profile?.home_currency || 'USD'
+  // Where you are on the trip (today's stop), else where the next trip starts
+  const cp = currentPlace(trips)
+  const isLive = cp?.isLive
+  const place = cp ? `${cp.country || cp.city}${cp.stop ? ` · stop ${cp.stop.n} of ${cp.stop.of}` : ''}` : null
+  const from = currencyForCountry(cp?.country_code) || profile?.home_currency || 'USD'
   const home = profile?.home_currency || 'USD'
 
   return (
