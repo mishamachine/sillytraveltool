@@ -27,8 +27,8 @@
   with the same parameters through the Stripe API) and the `/upgrade/` page signed in; the page goes live with the
   next website deploy.
 - **`/upgrade/` is on the live site** (21:17, added on top of the main deploy; backup `stt-202610232117-pre-upgrade`).
-  Returning visitors' service worker still serves the app there until live `sw.js` skips `/upgrade/` (owner OK needed,
-  or the next full deploy after PR #1 merges). Signed-in end-to-end test waits on the owner signing in as machinemisha.
+  Live `sw.js` patched to skip `/upgrade/`. **Full deploys from main delete `/upgrade/` until PR #1 merges** (happened
+  once at 21:22, restored). Google sign-in now always shows the account chooser (`prompt: 'select_account'`). Signed-in end-to-end test waits on the owner signing in as machinemisha.
 - **Plans for approval** (owner wants paywall on web, iOS and Android): `docs/STRIPE_BILLING.md` → "Plans for approval"
   A (one PaywallSheet everywhere; web → Stripe, apps → StoreKit / Play Billing via RevenueCat) and B (server limits
   behind a kill switch until every platform can pay).

@@ -55,6 +55,14 @@ Analytics (`track()`): `paywall_view {trigger, store}`, `purchase_started {plan,
   - portal config `bpc_1UTdLhR315zoHnpnVGMVz3v6` (cancel at period end with reasons, card update, invoices, email/address)
   - webhook `we_1UTo8yR315zoHnpnfvqgc3qn` → `/functions/v1/stripe-webhook`, 18 events. Its signing secret is under
     Developers → **Workbench → Webhooks** (not Settings).
+- **Sign-in fixes (2026-10-23, owner report: Google signed straight into the last account):** every Google button
+  (app, `/upgrade/`, `/redeem/`, cockpit) passes `prompt: 'select_account'`, so Google always shows its account
+  chooser; `/upgrade/` and `/redeem/` show "Not you? Use another account" (local sign-out). Upgrade + redeem pages are
+  live; the app and cockpit buttons ship with the next full deploy.
+- **Live `sw.js` patched (owner OK, 21:27):** `upgrade` added to its skip list (backup `~/backups/sw-pre-upgrade.js`);
+  verified a returning browser now gets the page. **Another session's full deploy at 21:22 deleted two of the page's
+  files** (rsync `--delete` from a main build without `/upgrade/`); restored. Until PR #1 is in main, any full deploy
+  breaks `/upgrade/` again: merge PR #1 first, or re-upload `dist/upgrade/` + its assets after each deploy.
 - **Website (2026-10-23 21:17, owner OK):** `/upgrade/` added **on top of** the live site (only `upgrade/index.html` +
   4 new assets uploaded, no `--delete`; the rest is the 19:53 deploy from main). Backup:
   `~/backups/stt-202610232117-pre-upgrade.tar.gz`. **Catch:** the live `sw.js` (built from main before PR #1) doesn't skip
@@ -139,8 +147,9 @@ only adding past a limit is blocked.
   - `trips` BEFORE INSERT / UPDATE OF start_date, end_date: free owner with 2 upcoming dated trips
     (`end_date >= current_date`, status `planning|active`) → `raise exception 'upgrade:trips'`. Undated trips don't count.
   - `bookings` BEFORE INSERT: reservations (`restaurant`, `activity`, `other`; flights, hotels, transport don't count)
-    ≥ 5 on a free owner's trip → `upgrade:reservations`. **Owner to confirm:** do "ideas" use `other`? If so, they need
-    their own flag to stay exempt.
+    ≥ 5 on a free owner's trip → `upgrade:reservations`. **Owner (2026-10-23): trip ideas without a confirmed
+    reservation never count.** Ideas are rows in `activities` (`is_idea`), not `bookings`, so only confirming an idea
+    ("Confirm a visit" → a booking) can hit the limit; that moment opens the paywall.
   - `app_config.free_limits_on` kill switch (default **off**).
 - **Email import (`receive-booking-email`):** count the account's imported emails; the 6th+ is parsed and saved with
   a new `bookings.locked` flag, the app shows "New email received, free limit reached", and a reply goes only to the

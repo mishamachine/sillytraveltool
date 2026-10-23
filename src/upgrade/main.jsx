@@ -61,7 +61,7 @@ function Upgrade() {
     if (!message && err?.context?.json) message = (await err.context.json().catch(() => null))?.error
     setError(message || 'Goose couldn’t reach payments. Try again in a moment.')
   }
-  const google = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } })
+  const google = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href, queryParams: { prompt: 'select_account' } } })
 
   useEffect(() => { if (plan && plan.plan !== 'first_class' && !paid) track('paywall_view', { trigger: context.trigger, store: 'stripe' }) }, [plan?.plan])
 
@@ -82,6 +82,7 @@ function Upgrade() {
         ) : !plan ? <p className="a-gate__text">Checking your plan…</p> : (
           <>
             <p className="a-gate__text">Signed in as {session.user.email}.</p>
+            <button className="a-link" onClick={() => supabase.auth.signOut({ scope: 'local' })}>Not you? Use another account</button>
             {waiting && !firstClass && <div className="a-callout" role="status">Payment received. Goose is unlocking First Class…</div>}
             {paid && !waiting && !firstClass && <div className="a-callout a-callout--warn" role="status">Your payment went through, but First Class isn’t showing yet. Refresh in a minute; if it still isn’t there, email hello@sillytraveltool.com.</div>}
             {firstClass ? (
