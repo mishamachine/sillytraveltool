@@ -108,7 +108,7 @@ function Cockpit({ me }) {
         ))}
         <div className="a-rail__foot">
           <button className="a-rail__item" onClick={() => setCmdOpen(true)} title="Search and actions (Cmd K)"><Icon name="search" size={20} /><span>Search <kbd>⌘K</kbd></span></button>
-          <div className="a-rail__me" title={me.email}><span>{me.email}</span><small>{me.role}</small></div>
+          <button className="a-rail__me" title="Your member page" onClick={() => go({ tab: 'members', member: me.id })}><span>{me.email}</span><small>{me.role} · your member page</small></button>
           <button className="a-rail__item" onClick={me.signOut}><Icon name="sign-out" size={20} /><span>Sign out</span></button>
         </div>
       </nav>

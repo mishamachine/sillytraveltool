@@ -110,6 +110,17 @@
   two-proportion test, alpha .05, power .8; never AI-guessed). Experiments tab: Live, Queue (reorder, order by ICE,
   "can run alongside" check: same surface = waits, same metric + overlapping audience = caution), Drafts, Archive.
   Assigning people to versions (useVariant + exposure) is the next step; "running" is a manual record until then.
+- **Assignment, cohorts, locations (2026-10-23, migrations `20261023180000_tz_country`, `20261023180100_assignment_cohorts_locations`):**
+  experiments get `metric_event` and a key on start; `my_experiments()` gives each signed-in member a stable version
+  (md5 hash of key + user, traffic share and weights), `experiment_exposed(key)` marks when it's shown, readout counts
+  exposed members who did the metric event afterwards (cockpit shows rate, lift, chance-best). App hook:
+  `useVariant(key)` / `exposeVariant(key)` in `src/lib/experiments.js` (not used by any screen yet: each test's UI
+  change is built per test). Cohorts: `cohorts` (rules or fixed list), `member_matches()`, nightly `snapshot-cohorts`
+  pg_cron → `cohort_snapshots`; Members → Cohorts (create, preview count, track, members, email, fixed-list add/remove),
+  "Save as cohort" on any filtered list. `member_rows_plus()` adds country (time zone of the first session via
+  `tz_country`, else profile zone, else Stripe billing country), area, platforms ordered by sessions (main first),
+  platform mix; Members columns + Audience cards. The signed-in admin always shows in Members ("You") and the rail
+  links to your member page.
 - **TO DO SOON (owner, 2026-10-23):** the privacy page and Terms show the owner's **home address** (402 Grandey Way NE,
   Renton). Fine for now; replace it with a PO box or virtual business address soon, in `public/privacy/` and `public/terms/`.
 - **Not done yet:** in-app Owner view (Profile files belong to the user-guide session),

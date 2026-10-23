@@ -23,7 +23,10 @@ const insights = (m, i = Number(m.id.slice(-2))) => ({ ...m, traveller_type: ['S
   trip_style: ['Short breaks', 'Multi-city', 'Long trips', 'Mixed'][i % 4], planning_style: ['Early planner', 'Planner', 'Last-minute'][i % 3],
   persona: ['Organiser', 'Explorer', 'Linguist', 'Group planner'][i % 4], channel: ['Direct', 'Booking.com', 'Forwarded email', 'Expedia group'][i % 4],
   regions: [['Europe'], ['Asia', 'Europe'], ['Americas']][i % 3], trips_per_year: (i % 5) + 0.5, avg_trip_days: 4 + (i % 9), lead_days: 10 + i * 4,
-  health: (i * 13) % 100, lifetime_value: i % 6 === 0 ? 2999 : null,
+  health: (i * 13) % 100, lifetime_value: i % 6 === 0 ? 2999 : null, is_me: i === 0,
+  country: ['US', 'GB', 'PT', 'CA', 'DE', null][i % 6], area: ['Los Angeles', 'London', 'Lisbon', 'Toronto', 'Berlin', ''][i % 6], location_from: 'first session', tz: 'America/Los_Angeles',
+  platforms: [['web', 'android'], ['android'], ['web'], ['ios', 'web'], ['web (installed)', 'android'], []][i % 6], main_platform: [['web'], ['android'], ['web'], ['ios'], ['web (installed)'], [null]][i % 6][0],
+  platform_mix: ['android + web', 'android', 'web', 'ios + web', 'android + web', ''][i % 6], offers: true, emails_ok: i % 3 === 0,
   next_action: ['Send a trip recap and the First Class offer', 'Check their bookings imported cleanly before they leave', 'Win-back: inspiration for their next trip', null][i % 4] })
 const series = (n, f) => Array.from({ length: n }, (_, i) => ({ day: d10(i - n + 1), ...f(i) }))
 
@@ -93,7 +96,7 @@ export default async function demo(name, args) {
         .map(([value, n]) => ({ value, n })).sort((x, y) => y.n - x.n)
       return { members: rows.length, with_trips: 14, avg_trips_per_year: 2.6, avg_trip_days: 7.4, avg_lead_days: 41, avg_health: 46,
         premium_or_better_pct: 38, affluence_known: 13, paying: 3, lifetime_value: 8997,
-        dist: Object.fromEntries(['traveller_type', 'affluence', 'trip_style', 'planning_style', 'persona', 'channel', 'region', 'source', 'platform'].map(k => [k, dist(k)])) }
+        dist: Object.fromEntries(['traveller_type', 'affluence', 'trip_style', 'planning_style', 'persona', 'channel', 'region', 'source', 'country', 'main_platform', 'platform_mix'].map(k => [k, dist(k)])), multi_platform: 9, located: 15 }
     }
     case 'admin_context': return { sessions: 160, dist: { os: [{ value: 'ios', n: 70 }, { value: 'android', n: 41 }, { value: 'mac', n: 30 }, { value: 'windows', n: 19 }],
       display: [{ value: 'browser', n: 90 }, { value: 'app', n: 41 }, { value: 'installed', n: 29 }], screen: [{ value: 'phone', n: 118 }, { value: 'desktop', n: 42 }],
@@ -114,7 +117,7 @@ export default async function demo(name, args) {
     case 'email:send': return { sent: 11, failed: 0, skipped: 2 }
     case 'admin_experiments': return { traffic: { paywall: 18, paywall_estimated: true, pricing: 4, onboarding: 6, trip_planning: 22, explore: 15, email: 7, other: 30, website: null, website_note: 'needs GA4 visits (build step 3)', active: 30, signups: 6 },
       experiments: [
-        { id: 'x1', name: 'Founders badge on the paywall', status: 'running', surface: 'paywall', audience: 'everyone', hypothesis: 'If the paywall shows a "Founders, limited time" badge, more people buy lifetime, because scarcity makes the offer feel time-bound.', primary_metric: 'paywall → purchase rate', guardrail: 'refund rate', baseline_rate: 0.04, min_effect: 0.6, traffic_share: 1, variants: [{ key: 'control', name: 'Today', weight: 50 }, { key: 'b', name: 'Founders badge', weight: 50 }], started_at: day(-9), ice_impact: 7, ice_confidence: 6, ice_ease: 9 },
+        { id: 'x1', key: 'founders_badge_on_the_paywall_1a2b', metric_event: 'purchase_completed', name: 'Founders badge on the paywall', status: 'running', surface: 'paywall', audience: 'everyone', hypothesis: 'If the paywall shows a "Founders, limited time" badge, more people buy lifetime, because scarcity makes the offer feel time-bound.', primary_metric: 'paywall → purchase rate', guardrail: 'refund rate', baseline_rate: 0.04, min_effect: 0.6, traffic_share: 1, variants: [{ key: 'control', name: 'Today', weight: 50 }, { key: 'b', name: 'Founders badge', weight: 50 }], started_at: day(-9), ice_impact: 7, ice_confidence: 6, ice_ease: 9 },
         { id: 'x2', name: 'Recap email with a share card', status: 'queued', queue_position: 1, surface: 'email', audience: 'just back', hypothesis: 'If the recap email includes a share card, more members share their trip, because it is one tap.', primary_metric: 'recap shares', guardrail: 'unsubscribes', baseline_rate: 0.08, min_effect: 0.5, traffic_share: 1, variants: [{ key: 'control', name: 'Plain recap', weight: 50 }, { key: 'b', name: 'With share card', weight: 50 }], ice_impact: 5, ice_confidence: 5, ice_ease: 8 },
         { id: 'x3', name: 'Yearly first on the paywall', status: 'queued', queue_position: 2, surface: 'paywall', audience: 'everyone', hypothesis: 'If yearly is shown first, more people pick yearly.', primary_metric: 'paywall → purchase rate', guardrail: 'refunds', baseline_rate: 0.04, min_effect: 0.5, traffic_share: 1, variants: [{ key: 'control', name: 'Lifetime first', weight: 50 }, { key: 'b', name: 'Yearly first', weight: 50 }], ice_impact: 6, ice_confidence: 4, ice_ease: 9 },
         { id: 'x4', name: 'Onboarding: forward one email first', status: 'draft', surface: 'onboarding', audience: 'new members', updated_at: day(-1), variants: [] },
@@ -123,6 +126,15 @@ export default async function demo(name, args) {
     case 'experiment:ai': return { reply: args.messages?.length ? 'Good. Who should see it: everyone who opens the paywall, or only free members who just hit the trip limit? And what share buys today, roughly?' : 'Hi! What would you like more people to do? For example: upgrade after hitting a limit, finish their first trip, or come back after a trip.',
       draft: args.messages?.length ? { name: 'Upgrade prompt after the trip limit', surface: 'paywall', primary_metric: 'paywall → purchase rate', guardrail: '7-day retention', baseline_rate: 0.04, min_effect: 0.5 } : {}, done: false }
     case 'admin_experiment_save': return 'x9'
+    case 'admin_cohorts': return [
+      { id: 'c1', name: 'Premium travellers just back', kind: 'rules', rules: { affluence: 'Premium', stage: 'just_back' }, fixed_count: 0, created_at: day(-20),
+        now: { size: 6, active_7d: 4, paying: 2, emails_ok: 3, avg_health: 58 }, history: series(20, i => ({ size: 2 + Math.floor(i / 5), active_7d: 1, paying: 1 })) },
+      { id: 'c2', name: 'Beta testers', kind: 'fixed', rules: {}, fixed_count: 8, created_at: day(-40), now: { size: 8, active_7d: 5, paying: 3, emails_ok: 6, avg_health: 64 }, history: [] },
+    ]
+    case 'admin_cohort_members': return members.slice(0, 6).map(insights)
+    case 'admin_cohort_preview': return { size: 7, emails_ok: 3 }
+    case 'admin_cohort_save': return 'c9'
+    case 'admin_experiment_readout': return { metric_event: 'purchase_completed', variants: [{ variant: 'control', assigned: 64, exposed: 51, converted: 2 }, { variant: 'b', assigned: 61, exposed: 49, converted: 5 }] }
     case 'stripe:status': return { configured: true, livemode: false, sync: { last_sync: day(-0.01), ok: true } }
     case 'stripe:sync': return { skipped: true }
     case 'stripe:code_push': return { promo: 'promo_demo' }

@@ -12,6 +12,56 @@ const SURFACES = [['paywall', 'Paywall'], ['pricing', 'Pricing / checkout'], ['w
   ['trip_planning', 'Trip planning'], ['explore', 'Explore (guides, HONK)'], ['email', 'Email'], ['other', 'Other']]
 const SURFACE = Object.fromEntries(SURFACES)
 const MAX_DAYS = 42
+// What counts as a conversion: an app event after the person saw their version
+const METRICS = [['purchase_completed', 'Bought First Class'], ['paywall_view', 'Opened the paywall'], ['trip_created', 'Created a trip'],
+  ['booking_added', 'Added a booking'], ['import_saved', 'Imported bookings'], ['guide_viewed', 'Read a guide'], ['honk_used', 'Used HONK'],
+  ['invite_accepted', 'Accepted an invite'], ['session_start', 'Came back (new session)']]
+
+// Chance a version beats control: normal approximation of the two Beta posteriors (uniform prior)
+function chanceToBeat(a, b) {
+  if (!a.exposed || !b.exposed) return null
+  const m = (x) => (x.converted + 1) / (x.exposed + 2)
+  const v = (x) => m(x) * (1 - m(x)) / (x.exposed + 3)
+  const z = (m(b) - m(a)) / Math.sqrt(v(a) + v(b))
+  // Standard normal CDF (Abramowitz-Stegun)
+  const t = 1 / (1 + 0.2316419 * Math.abs(z))
+  const d = 0.3989423 * Math.exp(-z * z / 2)
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))))
+  return z > 0 ? 1 - p : p
+}
+
+function Readout({ exp }) {
+  const r = useLoad(() => api.experimentReadout(exp.id), [exp.id])
+  if (!r.data) return <Loading label="Reading results…" />
+  const rows = r.data.variants || []
+  const control = rows[0]
+  return (
+    <div className="a-readout">
+      <table className="a-table">
+        <thead><tr><th>Version</th><th className="is-num">In test</th><th className="is-num">Saw it</th><th className="is-num">Converted</th><th className="is-num">Rate</th><th className="is-num">vs control</th><th className="is-num">Chance best</th></tr></thead>
+        <tbody>
+          {rows.map((v, i) => {
+            const rate = v.exposed ? v.converted / v.exposed : null
+            const base = control?.exposed ? control.converted / control.exposed : null
+            const lift = i && rate != null && base ? (rate - base) / base : null
+            const p = i ? chanceToBeat(control, v) : null
+            return (
+              <tr key={v.variant}>
+                <td>{(exp.variants || []).find(x => x.key === v.variant)?.name || v.variant}</td>
+                <td className="is-num">{num(v.assigned)}</td><td className="is-num">{num(v.exposed)}</td><td className="is-num">{num(v.converted)}</td>
+                <td className="is-num">{rate == null ? '—' : `${(rate * 100).toFixed(1)}%`}</td>
+                <td className="is-num">{lift == null ? '—' : `${lift > 0 ? '+' : ''}${Math.round(lift * 100)}%`}</td>
+                <td className="is-num">{p == null ? '—' : <Badge tone={p > 0.95 ? 'ok' : p < 0.05 ? 'danger' : 'neutral'}>{Math.round(p * 100)}%</Badge>}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className="a-hint">Converted = {METRICS.find(m => m[0] === r.data.metric_event)?.[1] || r.data.metric_event || 'no metric event set'} after seeing their version. Owner and test accounts are left out.
+        Above 95% "chance best" with the planned number of people is a result; before that it's noise.</p>
+    </div>
+  )
+}
 const ice = (e) => (e.ice_impact && e.ice_confidence && e.ice_ease ? Math.round(((e.ice_impact + e.ice_confidence + e.ice_ease) / 3) * 10) / 10 : null)
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 const overlapAudience = (a, b) => !a || !b || /everyone|all/i.test(a) || /everyone|all/i.test(b) || norm(a) === norm(b)
@@ -77,7 +127,8 @@ export default function Experiments({ role }) {
                     <p className="a-small">{e.hypothesis}</p>
                     <p className="a-small">Primary: {e.primary_metric || '—'} · Guardrail: {e.guardrail || '—'} · {e.audience}</p>
                     <div className="a-exp__bar"><Sized vars={{ '--fill': `${n.days ? Math.min(100, Math.round((ran / n.days) * 100)) : 0}%` }} /></div>
-                    <p className="a-hint">Day {ran}{n.days ? ` of about ${n.days}` : ''} · started {fmtDate(e.started_at)}</p>
+                    <p className="a-hint">Day {ran}{n.days ? ` of about ${n.days}` : ''} · started {fmtDate(e.started_at)} · key <code>{e.key}</code></p>
+                    <Readout exp={e} />
                   </div>
                   {isOwner && <div className="a-exp__actions">
                     {e.status === 'running' ? <button className="a-btn a-btn--sm" onClick={() => status(e, 'paused')}>Pause</button> : <button className="a-btn a-btn--sm" onClick={() => status(e, 'running')}>Resume</button>}
@@ -89,7 +140,8 @@ export default function Experiments({ role }) {
             })}
           </div>
         )}
-        <p className="a-hint">Assigning people to versions and measuring them automatically is the next build step. Until then, start a test here when you switch it on, and record the result when it ends.</p>
+        <p className="a-hint">Starting a test gives it a key. Signed-in members get a fixed version for it (in the app: <code>useVariant('key')</code> from src/lib/experiments.js), counted once they actually see it.
+          Each version's screen change is built in the app; the cockpit splits people, counts exposures and conversions, and reads out the result.</p>
       </Card>
 
       <Card title="Queue" icon="list" className="a-span-12" subtitle="runs top to bottom"
@@ -117,7 +169,7 @@ export default function Experiments({ role }) {
                     <button className="a-icon-btn a-icon-btn--sm" onClick={() => move(i, 'top')} disabled={i === 0} aria-label="Move to top" title="Move to top"><Icon name="arrow-up-right" size={16} /></button>
                     <button className="a-icon-btn a-icon-btn--sm" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"><Icon name="chevron-up" size={16} /></button>
                     <button className="a-icon-btn a-icon-btn--sm" onClick={() => move(i, 1)} disabled={i === queued.length - 1} aria-label="Move down"><Icon name="chevron-down" size={16} /></button>
-                    <button className="a-btn a-btn--sm" onClick={() => status(e, 'running')} disabled={blocked} title={blocked ? 'Clashes with a live test' : undefined}>Start</button>
+                    <button className="a-btn a-btn--sm" onClick={() => status(e, 'running')} disabled={blocked || !e.metric_event} title={blocked ? 'Clashes with a live test' : !e.metric_event ? 'Choose what counts as converted first' : undefined}>Start</button>
                     <button className="a-btn a-btn--ghost a-btn--sm" onClick={() => setDesigning(e)}>Edit</button>
                   </div>}
                 </li>
@@ -163,7 +215,7 @@ export default function Experiments({ role }) {
   )
 }
 
-const EMPTY = { name: '', hypothesis: '', surface: 'paywall', audience: 'everyone', primary_metric: '', guardrail: '', baseline_rate: '', min_effect: '',
+const EMPTY = { metric_event: '', name: '', hypothesis: '', surface: 'paywall', audience: 'everyone', primary_metric: '', guardrail: '', baseline_rate: '', min_effect: '',
   traffic_share: 1, variants: [{ key: 'control', name: 'Control (today)', weight: 50, description: '' }, { key: 'b', name: 'Variant B', weight: 50, description: '' }],
   ice_impact: '', ice_confidence: '', ice_ease: '' }
 
@@ -237,6 +289,11 @@ function Designer({ exp, traffic, live, readOnly, onClose, onSaved }) {
             <Field label="Where"><select className={hl('surface')} value={d.surface} onChange={set('surface')} disabled={readOnly}>{SURFACES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
             <Field label="Who"><input className={hl('audience')} value={d.audience} onChange={set('audience')} disabled={readOnly} placeholder="free members who hit the trip limit" /></Field>
             <Field label="Primary metric"><input className={hl('primary_metric')} value={d.primary_metric || ''} onChange={set('primary_metric')} disabled={readOnly} placeholder="paywall → purchase rate" /></Field>
+            <Field label="Counts as converted" hint="The app event measured after people see their version">
+              <select className={hl('metric_event')} value={d.metric_event || ''} onChange={set('metric_event')} disabled={readOnly}>
+                <option value="">Choose…</option>{METRICS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </Field>
             <Field label="Guardrail"><input className={hl('guardrail')} value={d.guardrail || ''} onChange={set('guardrail')} disabled={readOnly} placeholder="refunds, 7-day retention" /></Field>
           </div>
           <Field label="Versions">
@@ -289,7 +346,7 @@ function Designer({ exp, traffic, live, readOnly, onClose, onSaved }) {
 // Only the saved fields, with numbers as numbers
 function clean(d) {
   const out = {}
-  for (const k of ['name', 'hypothesis', 'surface', 'audience', 'primary_metric', 'guardrail', 'variants', 'traffic_share']) out[k] = d[k]
+  for (const k of ['name', 'hypothesis', 'surface', 'audience', 'primary_metric', 'guardrail', 'variants', 'traffic_share', 'metric_event']) out[k] = d[k]
   for (const k of ['baseline_rate', 'min_effect']) out[k] = d[k] === '' || d[k] == null ? null : Number(d[k])
   for (const k of ['ice_impact', 'ice_confidence', 'ice_ease']) out[k] = d[k] === '' || d[k] == null ? null : Math.max(1, Math.min(10, Math.round(Number(d[k]))))
   return out

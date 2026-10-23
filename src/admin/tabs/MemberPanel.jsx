@@ -100,7 +100,10 @@ function Overview({ d, canAct, role, changed, email }) {
   const [tags, setTags] = useState(d.tags.join(', '))
   const [saving, setSaving] = useState(false)
   const fares = Object.entries(d.fares || {})
-  const ins = useLoad(() => api.memberInsights(d.id), [d.id]).data
+  const insights = useLoad(() => api.memberInsights(d.id), [d.id]).data
+  const plus = useLoad(() => api.membersPlus(d.id, { excludeInternal: false }), [d.id]).data?.find(m => m.id === d.id)
+  const ins = insights && { ...insights, ...(plus ? { country: plus.country, area: plus.area, location_from: plus.location_from, platforms: plus.platforms } : {}) }
+  const cohorts = useLoad(() => api.cohorts(), [])
   const saveTags = async () => {
     setSaving(true)
     try { await api.setTags(d.id, tags.split(',').map(t => t.trim()).filter(Boolean)); changed() } finally { setSaving(false) }
@@ -131,6 +134,8 @@ function Overview({ d, canAct, role, changed, email }) {
             ['Plans ahead', ins.lead_days != null ? `${ins.lead_days} days (${ins.planning_style})` : null], ['Trip style', ins.trip_style],
             ['Regions', (ins.regions || []).join(', ') || null], ['Books through', ins.channel], ['Uses STT as', ins.persona],
             ['Affluence', ins.affluence ? `${ins.affluence} (${ins.affluence_signals} signal${ins.affluence_signals === 1 ? '' : 's'})` : 'Not enough booking data'],
+            ['Where', ins.country ? `${(() => { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(ins.country) } catch { return ins.country } })()}${ins.area ? ` (${ins.area} area, from ${ins.location_from})` : ''}` : 'Not known yet'],
+            ['Platforms', (ins.platforms || []).length ? ins.platforms.join(', ') + ' (main first)' : null],
             ['Last 30 days', `${ins.active_days_30} days active · ${ins.sessions_30} sessions${ins.active_min_30 ? ` · ${ins.active_min_30} min` : ''}`],
             ['Paid so far', ins.lifetime_value ? `$${(ins.lifetime_value / 100).toFixed(2)}` : '—'],
           ]} />
@@ -170,6 +175,17 @@ function Overview({ d, canAct, role, changed, email }) {
           ['Authenticator', d.account?.mfa ? 'On' : 'Off'], ['Member ID', <code key="id">{d.id}</code>],
         ]} />
       </section>
+      {canAct && !!(cohorts.data || []).filter(c => c.kind === 'fixed').length && (
+        <section>
+          <h3>Fixed cohorts</h3>
+          <div className="a-chips">
+            {cohorts.data.filter(c => c.kind === 'fixed').map(c => (
+              <button key={c.id} className="a-chip" onClick={() => api.cohortMember(c.id, d.id, true).then(() => cohorts.reload())}>+ {c.name}</button>
+            ))}
+          </div>
+          <p className="a-hint">Adds them to that list. Remove people from a fixed cohort's page.</p>
+        </section>
+      )}
       {canAct && (
         <section>
           <h3>Tags</h3>
