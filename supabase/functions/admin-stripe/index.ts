@@ -74,13 +74,15 @@ async function sync(admin: any) {
     for (const u of data?.users || []) { known.add(u.id); if (u.email) emails.set(u.email.toLowerCase(), u.id) }
     if (!data?.users || data.users.length < 1000) break
   }
-  const [customers, subs, charges, sessions, invoices, promos] = await Promise.all([
+  const [customers, subs, charges, sessions, invoices, promos, invoicePayments] = await Promise.all([
     listAll('customers'),
     listAll('subscriptions', { status: 'all' }),
     listAll('charges'),
     listAll('checkout/sessions'),
     listAll('invoices'),
     listAll('promotion_codes'),
+    // Newer API versions link a payment to its invoice only here (charge.invoice is gone); older ones don't have it
+    listAll('invoice_payments').catch(() => []),
   ])
   const userOf = new Map<string, string | null>()
   const customerRows = customers.map((c) => {
@@ -95,6 +97,20 @@ async function sync(admin: any) {
   // Checkout sessions carry the plan in metadata; charges inherit it through the payment intent
   const planByIntent = new Map<string, string>()
   for (const s of sessions) if (s.payment_intent && s.metadata?.plan) planByIntent.set(idOf(s.payment_intent), s.metadata.plan)
+  // Subscription payments: payment → invoice → plan. First payment = its plan (yearly), later ones = renewal.
+  const invoiceById = new Map(invoices.map((i) => [i.id, i]))
+  const invoiceByIntent = new Map<string, string>()
+  for (const p of invoicePayments) if (p.payment?.payment_intent) invoiceByIntent.set(idOf(p.payment.payment_intent), idOf(p.invoice))
+  const invoiceOf = (c: Obj) => idOf(c.invoice) || invoiceByIntent.get(idOf(c.payment_intent)) || null
+  const planOfInvoice = (id: string | null) => {
+    const i = id && invoiceById.get(id)
+    if (!i) return null
+    const sub = i.parent?.subscription_details || (i.subscription ? { subscription: i.subscription } : null)
+    if (!sub) return null
+    if (i.billing_reason === 'subscription_cycle') return 'renewal'
+    const line = i.lines?.data?.find((l: Obj) => l.metadata?.plan) || i.lines?.data?.[0]
+    return sub.metadata?.plan || line?.metadata?.plan || (line?.price?.recurring?.interval === 'month' ? 'monthly' : 'yearly')
+  }
 
   const rows = {
     stripe_customers: customerRows,
@@ -110,8 +126,9 @@ async function sync(admin: any) {
     stripe_charges: charges.map((c) => ({
       id: c.id, livemode: c.livemode, customer: idOf(c.customer), user_id: uid(c), amount: c.amount, amount_refunded: c.amount_refunded,
       currency: c.currency, status: c.status, paid: !!c.paid, refunded: !!c.refunded, disputed: !!c.disputed, failure_code: c.failure_code,
-      plan: c.metadata?.plan || planByIntent.get(idOf(c.payment_intent)) || (c.invoice ? 'subscription' : 'one_time'),
-      invoice: idOf(c.invoice), payment_intent: idOf(c.payment_intent), created: ts(c.created), metadata: c.metadata || {}, synced_at: new Date().toISOString(),
+      plan: c.metadata?.plan || planByIntent.get(idOf(c.payment_intent)) || planOfInvoice(invoiceOf(c))
+        || (/^subscription creation/i.test(c.description || '') ? 'yearly' : /^subscription/i.test(c.description || '') ? 'renewal' : 'one_time'),
+      invoice: invoiceOf(c), payment_intent: idOf(c.payment_intent), created: ts(c.created), metadata: c.metadata || {}, synced_at: new Date().toISOString(),
     })),
     stripe_checkouts: sessions.map((s) => ({
       id: s.id, livemode: s.livemode, customer: idOf(s.customer), user_id: uid(s), mode: s.mode, status: s.status,

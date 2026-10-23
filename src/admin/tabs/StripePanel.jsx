@@ -60,7 +60,7 @@ export default function StripePanel({ filters, go }) {
             <Table rows={d.payments} onRow={p => p.user_id && go({ tab: 'members', member: p.user_id })} empty="No payments yet." cols={[
               { key: 'created', label: 'When', render: p => fmtDate(p.created, true), sortValue: p => p.created },
               { key: 'email', label: 'Member', render: p => p.email || '—' },
-              { key: 'plan', label: 'For', render: p => ({ lifetime: 'Lifetime', yearly: 'Yearly', subscription: 'Renewal', one_time: 'One-time' }[p.plan] || p.plan) },
+              { key: 'plan', label: 'For', render: p => ({ lifetime: 'Lifetime', yearly: 'Yearly', monthly: 'Monthly', renewal: 'Renewal', subscription: 'Subscription', one_time: 'One-time' }[p.plan] || p.plan) },
               { key: 'amount', label: 'Amount', num: true, render: p => money(p.amount, p.currency) },
               { key: 'status', label: 'Status', render: p => p.refunded ? <Badge>Refunded</Badge> : p.status === 'succeeded' ? <Badge tone="ok">Paid</Badge> : <Badge tone="danger">{p.failure || p.status}</Badge> },
             ]} />
