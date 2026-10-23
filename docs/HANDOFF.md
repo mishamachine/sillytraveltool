@@ -71,6 +71,15 @@
   offers (`user_profiles.tailored_offers`); `purge-old-usage` pg_cron job deletes usage events, code attempts and function
   errors older than 25 months, nightly 03:17 UTC. Deployed 2026-10-23 19:32 (backup `stt-202610231932-pre-privacy.tar.gz`); operator name and
   address filled in on privacy and terms (backup `stt-202610231936-legal-pages.tar.gz`).
+- **Fresh start + Stripe metadata (2026-10-23):** `former_members` holds the name and email of every account except
+  babar54@gmail.com and machinemisha@gmail.com (13 saved, marketing_consent 'unknown'). The owner removes those accounts
+  with System → Former members → Start fresh (owner-only `admin_fresh_start('START FRESH')`; dry-run tested and rolled
+  back: 13 removed, owner's 5 trips kept). `recompute_user_stats` skips deleted users (account deletion used to fail).
+  Stripe objects' full `metadata` jsonb is stored (migration `20261023140000`, admin-stripe v3); web billing
+  (branch feat/stripe-web-billing) sets user_id, plan, price_key, platform, app_version, trigger, code, utm_*, experiment,
+  variant on checkout, subscription and payment intent.
+- **TO DO SOON (owner, 2026-10-23):** the privacy page and Terms show the owner's **home address** (402 Grandey Way NE,
+  Renton). Fine for now; replace it with a PO box or virtual business address soon, in `public/privacy/` and `public/terms/`.
 - **Not done yet:** in-app Owner view (Profile files belong to the user-guide session),
   function_errors writes from Edge Functions, exposure events, GA4/social/briefs/experiments (later steps).
 

@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { api } from '../api'
-import { Card, Stat, Table, Loading, ErrorNote, useLoad, ExportButton, fmtDate, ago } from '../ui'
+import { Card, Stat, Table, Loading, ErrorNote, useLoad, ExportButton, Modal, Field, fmtDate, ago } from '../ui'
 
-export default function System({ filters, go }) {
+export default function System({ filters, go, role }) {
   const s = useLoad(() => api.system(filters), [filters])
   const d = s.data
   if (s.error) return <ErrorNote error={s.error} onRetry={s.reload} />
@@ -35,6 +36,8 @@ export default function System({ filters, go }) {
         <p className="a-hint">Owner: everything. Support: notes, warnings, up to 30 days of First Class, suspensions up to 7 days. Analyst: read-only, emails masked.</p>
       </Card>
 
+      <FormerMembers role={role} />
+
       <Card title="Audit log" icon="clipboard" className="a-span-12" subtitle="every admin action, newest first" actions={<ExportButton name="audit" rows={d.audit} />}>
         <Table rowKey={(a, i) => i} rows={d.audit} empty="No admin actions yet." onRow={a => a.target && go({ tab: 'members', member: a.target })} cols={[
           { key: 'ts', label: 'When', render: a => fmtDate(a.ts, true), sortValue: a => a.ts },
@@ -44,5 +47,66 @@ export default function System({ filters, go }) {
         ]} />
       </Card>
     </div>
+  )
+}
+
+// Fresh start (owner, 2026-10-23): keep only the owner's accounts, save everyone else's name and email first
+function FormerMembers({ role }) {
+  const former = useLoad(() => api.formerMembers(), [])
+  const [open, setOpen] = useState(false)
+  return (
+    <Card title="Former members" icon="mail" className="a-span-12" subtitle="names and emails kept for later notes, after a fresh start"
+      actions={<>
+        <ExportButton name="former-members" rows={former.data} />
+        {role === 'owner' && <button className="a-btn a-btn--danger a-btn--sm" onClick={() => setOpen(true)}>Start fresh…</button>}
+      </>}>
+      <ErrorNote error={former.error} onRetry={former.reload} />
+      {!former.data ? <Loading /> : (
+        <Table rowKey={f => f.email} rows={former.data} empty="Nobody saved yet." cols={[
+          { key: 'name', label: 'Name', render: f => f.name || '—' }, { key: 'email', label: 'Email' },
+          { key: 'joined', label: 'Joined', render: f => fmtDate(f.joined), sortValue: f => f.joined },
+          { key: 'last_seen', label: 'Last seen', render: f => ago(f.last_seen), sortValue: f => f.last_seen || '' },
+          { key: 'trips', label: 'Trips', num: true }, { key: 'was_internal', label: 'Test account', render: f => f.was_internal ? 'Yes' : '' },
+          { key: 'marketing_consent', label: 'Marketing consent', render: f => f.marketing_consent === 'unknown' ? 'Not given' : f.marketing_consent },
+        ]} />
+      )}
+      <p className="a-hint">You can write to them about the relaunch. Marketing emails need their consent first in the EU, UK and Canada.</p>
+      {open && <FreshStart onClose={() => setOpen(false)} onDone={former.reload} />}
+    </Card>
+  )
+}
+
+function FreshStart({ onClose, onDone }) {
+  const preview = useLoad(() => api.freshStartPreview(), [])
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+  const p = preview.data
+  const run = async () => {
+    setBusy(true); setError(null)
+    try { setResult(await api.freshStart(confirm)); onDone() } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+  return (
+    <Modal wide title="Start fresh" onClose={onClose}
+      footer={result ? <button className="a-btn a-btn--primary" onClick={onClose}>Done</button> : <>
+        <button className="a-btn a-btn--ghost" onClick={onClose}>Cancel</button>
+        <button className="a-btn a-btn--danger" onClick={run} disabled={busy || confirm !== 'START FRESH' || !p?.remove?.length}>{busy ? 'Removing…' : `Remove ${p?.remove?.length ?? ''} accounts`}</button>
+      </>}>
+      {result ? <p>{result.removed} accounts removed. {result.saved} names and emails are saved under Former members.</p> : !p ? <Loading /> : (
+        <div className="a-form">
+          <p><strong>This can't be undone.</strong> Each account below is deleted with its trips, bookings, documents, loyalty cards,
+            stats and activity. Your Supabase plan has no backups. Names and emails are saved first. Anything they added to a trip
+            you keep moves to you.</p>
+          <p>Kept: {(p.keep || []).join(', ')}</p>
+          <Table rowKey={x => x.email} rows={p.remove} cols={[
+            { key: 'email', label: 'Removed' }, { key: 'trips', label: 'Trips', num: true }, { key: 'bookings', label: 'Bookings', num: true },
+            { key: 'saved', label: 'Email saved', render: x => x.saved ? 'Yes' : 'Will be saved' },
+          ]} />
+          <Field label="Type START FRESH to confirm"><input value={confirm} onChange={e => setConfirm(e.target.value.toUpperCase())} /></Field>
+          {error && <p className="a-field__error">{error}</p>}
+        </div>
+      )}
+    </Modal>
   )
 }

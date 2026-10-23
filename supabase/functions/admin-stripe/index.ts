@@ -86,7 +86,7 @@ async function sync(admin: any) {
     const uid = c.metadata?.user_id || c.metadata?.supabase_user_id || (c.email && emails.get(c.email.toLowerCase())) || null
     userOf.set(c.id, uid)
     return { id: c.id, livemode: c.livemode, email: c.email, user_id: uid, name: c.name, country: c.address?.country ?? null,
-      created: ts(c.created), delinquent: !!c.delinquent, synced_at: new Date().toISOString() }
+      created: ts(c.created), delinquent: !!c.delinquent, metadata: c.metadata || {}, synced_at: new Date().toISOString() }
   })
   const uid = (o: Obj) => o.metadata?.user_id || o.client_reference_id || userOf.get(idOf(o.customer)) || null
   // Checkout sessions carry the plan in metadata; charges inherit it through the payment intent
@@ -102,18 +102,18 @@ async function sync(admin: any) {
         currency: item?.price?.currency ?? s.currency ?? null, interval: item?.price?.recurring?.interval ?? null,
         current_period_end: ts(s.current_period_end ?? item?.current_period_end), cancel_at_period_end: !!s.cancel_at_period_end,
         canceled_at: ts(s.canceled_at), ended_at: ts(s.ended_at), promotion_code: promoFrom(s), created: ts(s.created),
-        synced_at: new Date().toISOString() }
+        metadata: s.metadata || {}, synced_at: new Date().toISOString() }
     }),
     stripe_charges: charges.map((c) => ({
       id: c.id, livemode: c.livemode, customer: idOf(c.customer), user_id: uid(c), amount: c.amount, amount_refunded: c.amount_refunded,
       currency: c.currency, status: c.status, paid: !!c.paid, refunded: !!c.refunded, disputed: !!c.disputed, failure_code: c.failure_code,
       plan: c.metadata?.plan || planByIntent.get(idOf(c.payment_intent)) || (c.invoice ? 'subscription' : 'one_time'),
-      invoice: idOf(c.invoice), payment_intent: idOf(c.payment_intent), created: ts(c.created), synced_at: new Date().toISOString(),
+      invoice: idOf(c.invoice), payment_intent: idOf(c.payment_intent), created: ts(c.created), metadata: c.metadata || {}, synced_at: new Date().toISOString(),
     })),
     stripe_checkouts: sessions.map((s) => ({
       id: s.id, livemode: s.livemode, customer: idOf(s.customer), user_id: uid(s), mode: s.mode, status: s.status,
       payment_status: s.payment_status, amount_total: s.amount_total, amount_discount: s.total_details?.amount_discount ?? 0,
-      currency: s.currency, promotion_code: promoFrom(s), plan: s.metadata?.plan ?? null, created: ts(s.created), synced_at: new Date().toISOString(),
+      currency: s.currency, promotion_code: promoFrom(s), plan: s.metadata?.plan ?? null, created: ts(s.created), metadata: s.metadata || {}, synced_at: new Date().toISOString(),
     })),
     stripe_invoices: invoices.map((i) => ({
       id: i.id, livemode: i.livemode, customer: idOf(i.customer), subscription: idOf(i.subscription ?? i.parent?.subscription_details?.subscription),

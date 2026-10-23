@@ -81,5 +81,8 @@ export const api = {
   endRedemption: (id, reason) => rpc('admin_end_redemption', { p_redemption: id, p_reason: reason }),
   usage: (f) => rpc('admin_usage', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),
   context: (f) => rpc('admin_context', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),
+  freshStartPreview: () => rpc('admin_fresh_start_preview'),
+  freshStart: (confirm) => rpc('admin_fresh_start', { p_confirm: confirm }),
+  formerMembers: () => rpc('admin_former_members'),
   system: (f) => rpc('admin_system', { p_from: f.from, p_to: f.to }),
 }
