@@ -55,7 +55,7 @@ const shot = async (name) => { await sleep(700); execSync(`adb exec-out screenca
 // Page helpers: find by visible text, click, wait, set React inputs
 await js(`
   window.__t = {
-    byText: (t, sel = 'button, a, [role=button], [role=radio]') => [...document.querySelectorAll(sel)].find(e => e.innerText?.trim().startsWith(t)),
+    byText: (t, sel = 'button, a, [role=button], [role=radio]') => [...document.querySelectorAll(sel)].find(e => e.innerText?.trim().startsWith(t) || e.getAttribute('aria-label') === t),
     has: (t) => document.body.innerText.includes(t),
     set: (el, v) => { const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value'); d.set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })) },
   }; return true`)
@@ -84,6 +84,7 @@ try {
   await shot('03-paywall')
   await js(`document.querySelector('.paywall__plans')?.scrollIntoView({ block: 'start' }); return true`)
   await click('Founders offer', '[role=radio]')
+  await sleep(500)
   check('founders plan selectable', await js(`return __t.byText('Founders offer', '[role=radio]')?.getAttribute('aria-checked') === 'true'`))
   await shot('04-paywall-plans')
   await js(`document.querySelector('.c-sheet [aria-label="Close"]')?.click(); return true`)
