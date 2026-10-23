@@ -41,9 +41,8 @@
   /unsubscribe/, /privacy/, /terms/ all 200; live index identical to the build. Earlier the same day a deploy of
   `fd8b93c` + fixes deleted /admin, /redeem, /unsubscribe (rsync `--delete`) and was rolled back within ~3 minutes:
   always read the dry run (`-n -i`) for deletions outside `assets/` before the real sync.
-- **Open (pre-existing, from `b498969`):** `TripList.jsx` asks Open-Meteo's archive API for `monthly=` temperatures,
-  which it rejects (400, "Cannot initialize ForecastVariableMonthly"), so the Trips list climate hint never loads.
-  Use `daily=` and average per month.
+- **Fixed:** the Trips list climate hint asked Open-Meteo's archive for `monthly=` data (400). It now averages the
+  `daily=` highs and lows of the trip's months over the last two complete years, in the user's °C/°F.
 - **Android:** debug APK versionCode 4 (versionName 0.20.0 from package.json) built from `fd8b93c` + fixes and installed;
   the emulator (Intel host) is too slow to finish loading even with `-gpu swiftshader_indirect`, so it is not rechecked
   on device. Not uploaded.
