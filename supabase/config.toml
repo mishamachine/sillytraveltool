@@ -67,3 +67,6 @@ verify_jwt = false
 
 [functions.cost-alert]
 verify_jwt = false
+
+[functions.store-webhook]
+verify_jwt = false

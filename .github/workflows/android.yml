@@ -1,0 +1,70 @@
+# Android: build a demo APK and run it in an emulator on a GitHub Linux runner, drive it, screenshot.
+# Shared emulators on the owner's Mac collide between sessions, so app checks run here instead.
+# The APK is a demo build (VITE_DEMO=1: signed in with fixture data, no network account, no secrets);
+# VITE_DEMO_PARAMS=limits=1 makes new trips hit the free-plan limit so the paywall flow can be checked.
+# Results: the android-emulator-shots artifact (screenshots + results.json).
+name: Android emulator
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/first-class-paywall]
+    paths: [src/**, android/**, package.json, package-lock.json, scripts/android-emu-shots.mjs, .github/workflows/android.yml]
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM (hardware-accelerated emulator)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Web build (native, demo) + cap sync android
+        env:
+          VITE_SUPABASE_URL: https://demo.invalid
+          VITE_SUPABASE_ANON_KEY: demo
+          VITE_DEMO: '1'
+          VITE_DEMO_PARAMS: limits=1
+        run: npx vite build --mode native && npx cap sync android
+
+      - name: Build debug APK
+        run: cd android && ./gradlew assembleDebug --no-daemon -q
+
+      - name: Emulator run
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: node scripts/android-emu-shots.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-emulator-shots
+          path: shots
+          retention-days: 7
