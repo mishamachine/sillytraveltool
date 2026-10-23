@@ -85,6 +85,11 @@ API with the same parameters), the signed-in `/upgrade/` page, the portal sessio
 card / 3DS (`4000 0000 0000 0002`, `4000 0025 0000 3155`), and `past_due` grace.
 
 ## Gotchas
+- `stripe-webhook` v7 sets `stripe_charges.plan` and `.invoice` by the cockpit sync's rule: charge/payment metadata →
+  invoice found through `/v1/invoice_payments` (first subscription payment = its plan, `subscription_cycle` = `renewal`)
+  → charge description. Subscription charges have no `charge.invoice` or metadata on this API version. Tested: a new
+  yearly charge came in as `plan=yearly` with its invoice. The restricted key needs read access to invoices, which
+  covers invoice payments.
 - `stripe-webhook` v6 only trusts a `metadata.user_id` / `client_reference_id` that matches an existing account
   (`existing()`), like the cockpit sync. A removed member's id used to break the `stripe_*` foreign keys and make
   Stripe retry for days. Tested: unknown id → row saved with `user_id` null. Sandbox test customer

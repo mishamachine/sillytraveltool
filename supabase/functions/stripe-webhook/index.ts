@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { makeStripe, verifyStripeSignature, idOf, customerRow, subscriptionRow, chargeRow, checkoutRow, invoiceRow, invoiceSubscription } from '../_shared/stripe.ts'
+import { makeStripe, verifyStripeSignature, idOf, customerRow, subscriptionRow, chargeRow, checkoutRow, invoiceRow, invoiceSubscription, planOfInvoice, planOfDescription } from '../_shared/stripe.ts'
 
 // Stripe → Supabase for web billing. Verifies the Stripe-Signature header (STRIPE_WEBHOOK_SECRET), then re-fetches
 // each object from the API rather than trusting the payload (events can arrive late or out of order) and upserts it
@@ -41,12 +41,20 @@ async function syncSubscription(admin: any, id: string) {
   await put(admin, 'stripe_subscriptions', subscriptionRow(s, await userFor(admin, s)))
 }
 
-// Lifetime purchases are charges with plan 'lifetime'; the plan rides on the payment intent's metadata
+// Lifetime purchases are charges with plan 'lifetime' (the plan rides on the payment intent's metadata). Subscription
+// charges have no invoice link or metadata on this API version, so the invoice is found through invoice_payments.
 async function syncCharge(admin: any, id: string) {
   const c = await stripe('GET', `charges/${id}`, { expand: ['payment_intent'] })
   const pi = typeof c.payment_intent === 'object' ? c.payment_intent : null
   const uid = await existing(admin, c.metadata?.user_id) || await existing(admin, pi?.metadata?.user_id) || await userFor(admin, c)
-  await put(admin, 'stripe_charges', { ...chargeRow(c, uid, pi?.metadata?.plan || null), payment_intent: idOf(c.payment_intent),
+  let invoice = idOf(c.invoice)
+  if (!invoice && pi) {
+    const r = await stripe('GET', 'invoice_payments', { payment: { type: 'payment_intent', payment_intent: pi.id }, limit: 1 })
+    invoice = idOf(r.data?.[0]?.invoice)
+  }
+  const plan = c.metadata?.plan || pi?.metadata?.plan || (invoice ? planOfInvoice(await stripe('GET', `invoices/${invoice}`)) : null)
+    || planOfDescription(c.description)
+  await put(admin, 'stripe_charges', { ...chargeRow(c, uid, plan), invoice, payment_intent: idOf(c.payment_intent),
     metadata: { ...(pi?.metadata || {}), ...(c.metadata || {}) } })
 }
 

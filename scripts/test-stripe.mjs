@@ -1,7 +1,7 @@
 // Checks the Stripe helpers used by billing + stripe-webhook: webhook signature checks and form encoding.
 // Run: node scripts/test-stripe.mjs
 import { createHmac } from 'node:crypto'
-import { verifyStripeSignature, form, subscriptionRow, invoiceSubscription } from '../supabase/functions/_shared/stripe.ts'
+import { verifyStripeSignature, form, subscriptionRow, invoiceSubscription, planOfInvoice, planOfDescription } from '../supabase/functions/_shared/stripe.ts'
 
 let failed = 0
 const check = (name, ok) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`); if (!ok) failed++ }
@@ -32,6 +32,16 @@ check('subscription period end from item', sub.current_period_end === new Date((
 check('subscription lookup key + user', sub.lookup_key === 'stt_first_class_yearly' && sub.user_id === 'u1')
 check('invoice subscription (new shape)', invoiceSubscription({ parent: { subscription_details: { subscription: 'sub_1' } } }) === 'sub_1')
 check('invoice subscription (old shape)', invoiceSubscription({ subscription: 'sub_2' }) === 'sub_2')
+
+// Charge plan: same rule as the cockpit sync
+const subInvoice = (reason, meta = {}) => ({ billing_reason: reason, parent: { subscription_details: { subscription: 'sub_1', metadata: meta } },
+  lines: { data: [{ price: { recurring: { interval: 'year' } } }] } })
+check('first subscription invoice → its plan', planOfInvoice(subInvoice('subscription_create', { plan: 'yearly' })) === 'yearly')
+check('renewal invoice → renewal', planOfInvoice(subInvoice('subscription_cycle', { plan: 'yearly' })) === 'renewal')
+check('no plan metadata → interval', planOfInvoice(subInvoice('subscription_create')) === 'yearly')
+check('one-off invoice → no answer', planOfInvoice({ billing_reason: 'manual', lines: { data: [] } }) === null)
+check('description fallbacks', planOfDescription('Subscription creation') === 'yearly' && planOfDescription('Subscription update') === 'renewal'
+  && planOfDescription(null) === 'one_time')
 
 console.log(failed ? `\n${failed} failed` : '\nall passed')
 process.exit(failed ? 1 : 0)
