@@ -1,0 +1,145 @@
+#!/usr/bin/env node
+// Offline replay of the 14 booking-email fixtures through receive-booking-email/ingest.ts: the AI, Google and the
+// database are faked, so this checks trip matching only (dates + distance, extend, fold), in order and shuffled.
+//   node scripts/test-email-match-sim.mjs
+import { build } from 'esbuild'
+import { readFileSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import assert from 'node:assert/strict'
+
+const root = new URL('..', import.meta.url).pathname
+const fixtures = JSON.parse(readFileSync(`${root}supabase/tests/fixtures/booking-emails.json`, 'utf8')).emails
+
+// What the AI returns for each fixture (times as printed, local)
+const PARSED = {
+  '01-flight-united-sfo-lhr': { type: 'flight', title: 'Flight to London', confirmation_number: 'K7QW2M', flight_number: 'UA 901', departure_airport: 'SFO', arrival_airport: 'LHR', departure_time: '2027-04-10T16:25', arrival_time: '2027-04-11T10:45', destination_city: 'London' },
+  '02-hotel-hoxton-london': { type: 'hotel', title: 'The Hoxton, Shoreditch', confirmation_number: '4471.902.385', hotel_name: 'The Hoxton, Shoreditch', hotel_address: '81 Great Eastern Street, London', check_in_date: '2027-04-11', check_out_date: '2027-04-14', destination_city: 'London' },
+  '03-museum-british-museum': { type: 'activity', title: 'Silk Roads', confirmation_number: 'BM-20391847', venue_name: 'British Museum', venue_address: 'Great Russell Street, London', activity_date: '2027-04-12', activity_time: '11:00', destination_city: 'London' },
+  '04-restaurant-opentable-dishoom': { type: 'restaurant', title: 'Dinner at Dishoom', confirmation_number: '182930475', venue_name: 'Dishoom Shoreditch', venue_address: '7 Boundary Street, London', activity_date: '2027-04-12', activity_time: '19:30', destination_city: 'London' },
+  '05-train-eurostar-london-paris': { type: 'transport', transport_mode: 'train', title: 'Eurostar to Paris', confirmation_number: 'QHT8XL', flight_number: '9014', departure_airport: 'London St Pancras International', arrival_airport: 'Paris Gare du Nord', departure_time: '2027-04-14T08:01', arrival_time: '2027-04-14T11:20', destination_city: 'Paris' },
+  '06-hotel-airbnb-paris': { type: 'hotel', title: 'Bright loft in Le Marais', hotel_name: 'Bright loft in Le Marais', hotel_address: 'Le Marais, Paris', check_in_date: '2027-04-14', check_out_date: '2027-04-17', destination_city: 'Paris' },
+  '07-museum-louvre': { type: 'activity', title: 'Louvre', confirmation_number: 'LV-7720193', venue_name: 'Musée du Louvre', activity_date: '2027-04-15', activity_time: '09:30', destination_city: 'Paris' },
+  '08-restaurant-thefork-septime': { type: 'restaurant', title: 'Dinner at Septime', confirmation_number: 'TF-55821904', venue_name: 'Septime', activity_date: '2027-04-16', activity_time: '19:45', destination_city: 'Paris' },
+  '09-flight-tap-paris-lisbon': { type: 'flight', title: 'Flight to Lisbon', confirmation_number: 'ZR4N7P', flight_number: 'TP 433', departure_airport: 'CDG', arrival_airport: 'LIS', departure_time: '2027-04-17T10:10', arrival_time: '2027-04-17T11:45', destination_city: 'Lisbon' },
+  '10-hotel-expedia-lisbon': { type: 'hotel', title: 'Memmo Alfama', confirmation_number: '72649180133', hotel_name: 'Memmo Alfama', check_in_date: '2027-04-17', check_out_date: '2027-04-20', destination_city: 'Lisbon' },
+  '11-restaurant-sevenrooms-belcanto': { type: 'restaurant', title: 'Dinner at Belcanto', confirmation_number: '7RX-339104', venue_name: 'Belcanto', activity_date: '2027-04-18', activity_time: '20:30', destination_city: 'Lisbon' },
+  '12-activity-getyourguide-fado': { type: 'activity', title: 'Fado Show', confirmation_number: 'GYG-K93LX2HQ', venue_name: 'Fado in Alfama', activity_date: '2027-04-19', activity_time: '21:00', destination_city: 'Lisbon' },
+  '13-car-hertz-lisbon': { type: 'transport', transport_mode: 'car', title: 'Hertz rental', confirmation_number: 'H8812047563', departure_airport: 'Lisbon Airport', arrival_airport: 'Lisbon Airport', departure_time: '2027-04-18T09:00', arrival_time: '2027-04-19T18:00', destination_city: 'Lisbon' },
+  '14-flight-delta-multileg-home': { type: 'flight', title: 'Flight home', confirmation_number: 'GV5T2K', flight_number: 'DL 167', departure_airport: 'LIS', arrival_airport: 'SFO', departure_time: '2027-04-20T11:30', arrival_time: '2027-04-20T19:05', destination_city: 'San Francisco' },
+}
+
+// Fake geography: first keyword found in the query wins
+const GEO = [
+  ['sfo', 37.62, -122.38, 'San Francisco', 'US'], ['san francisco', 37.77, -122.42, 'San Francisco', 'US'],
+  ['lhr', 51.47, -0.45, 'London', 'GB'], ['st pancras', 51.53, -0.13, 'London', 'GB'], ['london', 51.51, -0.13, 'London', 'GB'],
+  ['hoxton', 51.53, -0.08, 'London', 'GB'], ['british museum', 51.52, -0.13, 'London', 'GB'], ['dishoom', 51.52, -0.08, 'London', 'GB'],
+  ['gare du nord', 48.88, 2.36, 'Paris', 'FR'], ['cdg', 49.01, 2.55, 'Paris', 'FR'], ['paris', 48.86, 2.35, 'Paris', 'FR'],
+  ['marais', 48.86, 2.36, 'Paris', 'FR'], ['louvre', 48.86, 2.34, 'Paris', 'FR'], ['septime', 48.85, 2.38, 'Paris', 'FR'],
+  ['lis', 38.77, -9.13, 'Lisbon', 'PT'], ['lisbon', 38.72, -9.14, 'Lisbon', 'PT'], ['memmo', 38.71, -9.13, 'Lisbon', 'PT'],
+  ['belcanto', 38.71, -9.14, 'Lisbon', 'PT'], ['fado', 38.71, -9.13, 'Lisbon', 'PT'],
+]
+const lookup = q => { const s = q.toLowerCase(); const g = GEO.find(([k]) => s.includes(k)); return g && { lat: g[1], lng: g[2], city: g[3], cc: g[4] } }
+
+// ── Minimal in-memory Supabase ──
+function makeDb() {
+  const tables = { trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [] }
+  let seq = 0
+  function q(table) {
+    const filters = []; let op = 'select', payload = null, single = false, lim = Infinity
+    const rows = () => tables[table].filter(r => filters.every(f => f(r)))
+    const api = {
+      select() { return api }, order() { return api },
+      eq(k, v) { filters.push(r => String(r[k]) === String(v)); return api },
+      neq(k, v) { filters.push(r => String(r[k]) !== String(v)); return api },
+      in(k, vs) { filters.push(r => vs.includes(r[k])); return api },
+      is(k, v) { filters.push(r => (r[k] ?? null) === v); return api },
+      limit(n) { lim = n; return api },
+      single() { single = true; return api }, maybeSingle() { single = true; return api },
+      insert(p) { op = 'insert'; payload = p; return api },
+      update(p) { op = 'update'; payload = p; return api },
+      delete() { op = 'delete'; return api },
+      upsert(p) { op = 'upsert'; payload = p; return api },
+      then(res, rej) {
+        try {
+          let data
+          if (op === 'insert') { const row = { id: `${table}-${++seq}`, ...payload }; tables[table].push(row); data = single ? row : [row] }
+          else if (op === 'update') { rows().forEach(r => Object.assign(r, payload)); data = null }
+          else if (op === 'delete') { const keep = tables[table].filter(r => !filters.every(f => f(r))); tables[table] = keep; data = null }
+          else if (op === 'upsert') { tables[table].push(payload); data = null }
+          else { const r = rows().slice(0, lim).map(x => ({ ...x })); data = single ? r[0] ?? null : r }
+          res({ data, error: null })
+        } catch (e) { rej(e) }
+      },
+    }
+    return api
+  }
+  return { tables, from: q }
+}
+
+// ── Fake network: AI, geocoding, places, time zones ──
+let current = null
+globalThis.Deno = { env: { get: k => ({ GOOGLE_MAPS_SERVER_KEY: 'fake', DEEPSEEK_API_KEY: 'fake', SUPABASE_URL: 'http://db' })[k] } }
+globalThis.fetch = async (url, init = {}) => {
+  const u = String(url), json = b => new Response(JSON.stringify(b), { status: 200 })
+  if (u.includes('consume_ai_quota')) return json(true)
+  if (u.includes('deepseek')) return json({ choices: [{ message: { content: JSON.stringify(PARSED[current]) } }] })
+  if (u.includes('geocode/json')) {
+    const g = lookup(decodeURIComponent(new URL(u).searchParams.get('address') || ''))
+    return json(g ? { status: 'OK', results: [{ geometry: { location: { lat: g.lat, lng: g.lng } }, address_components: [{ types: ['locality'], long_name: g.city }, { types: ['country'], long_name: g.cc, short_name: g.cc }], formatted_address: g.city }] } : { status: 'ZERO_RESULTS' })
+  }
+  if (u.includes('places:searchText')) {
+    const g = lookup(JSON.parse(init.body).textQuery)
+    return json({ places: g ? [{ id: `pl_${g.lat}_${g.lng}_xxxxxxxx`, displayName: { text: 'Place' }, formattedAddress: `${g.city} address long enough`, location: { latitude: g.lat, longitude: g.lng } }] : [] })
+  }
+  if (u.includes('timezone/json')) return json({ status: 'OK', timeZoneId: 'Europe/London' })
+  return new Response('{}', { status: 404 })
+}
+
+const dir = mkdtempSync(join(tmpdir(), 'stt-sim-'))
+await build({ entryPoints: [`${root}supabase/functions/receive-booking-email/ingest.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/ingest.mjs`, logLevel: 'error' })
+const { ingestEmail } = await import(`${dir}/ingest.mjs`)
+
+async function replay(order, label, { home_city = null } = {}) {
+  const db = makeDb()
+  const profile = { id: 'u1', home_city }
+  for (const id of order) {
+    const f = fixtures.find(x => x.id === id)
+    current = id
+    const res = await ingestEmail(db, profile, { subject: f.subject, fromAddress: f.from, bodyText: f.text, GEMINI_API_KEY: '' })
+    const out = await res.json()
+    assert.ok(out.success, `${id}: ${out.error}`)
+  }
+  const trips = db.tables.trips
+  const t = trips[0]
+  console.log(`${label}: ${trips.length} trip(s): ${trips.map(x => `${x.title} ${x.start_date}→${x.end_date} (${db.tables.bookings.filter(b => b.trip_id === x.id).length})`).join('; ')}`)
+  assert.equal(trips.length, 1, `${label}: expected one trip`)
+  assert.equal(db.tables.bookings.length, 14)
+  assert.ok(db.tables.bookings.every(b => b.trip_id === t.id))
+  assert.equal(t.start_date, '2027-04-10'); assert.equal(t.end_date, '2027-04-20')
+  return db
+}
+
+const ids = fixtures.map(f => f.id)
+await replay(ids, 'in order')
+await replay([...ids].reverse(), 'reversed')
+// Deterministic shuffles
+let seed = 7
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+for (let i = 0; i < 5; i++) await replay([...ids].sort(() => rnd() - 0.5), `shuffle ${i + 1}`)
+// With a home city: the flight home must not start a "Trip to San Francisco"
+await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home flight first, home=San Francisco', { home_city: 'San Francisco' })
+
+// Re-forwarding a flight doesn't duplicate it
+{
+  const db = await replay(ids, 'then re-forward 3 emails')
+  for (const id of ['01-flight-united-sfo-lhr', '05-train-eurostar-london-paris', '02-hotel-hoxton-london']) {
+    current = id
+    const f = fixtures.find(x => x.id === id)
+    const out = await (await ingestEmail(db, { id: 'u1' }, { subject: f.subject, fromAddress: f.from, bodyText: f.text, GEMINI_API_KEY: '' })).json()
+    assert.equal(out.duplicate, true, `${id} should be a duplicate`)
+  }
+  assert.equal(db.tables.bookings.length, 14)
+  console.log('re-forwarded flight, train and hotel: no duplicates')
+}
+console.log('\nall replays: one trip, 14 bookings, 10–20 Apr')
