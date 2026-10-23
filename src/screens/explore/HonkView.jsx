@@ -13,8 +13,9 @@ import { reverseGeocode } from '../../lib/places'
 import { PlacePhoto, GoogleRating, OpenNow, GoogleAttribution, InkWait } from '../../components/shared/PlaceMedia'
 import GetThereSheet from '../../components/shared/GetThereSheet'
 import IdeaSheet from './IdeaSheet'
-import { saveIdea, needsNewTrip } from './saveIdea'
-import NewTripNameSheet from '../../components/shared/NewTripNameSheet'
+import { tripsForPlace, saveIdeaTo, moveIdea, createTripAndSave } from './saveIdea'
+import { suggestForPlace } from '../../lib/tripPick'
+import TripPickerSheet from '../../components/shared/TripPickerSheet'
 import { useTripsStore, useIdeasStore, tripForCity } from '../../store'
 
 export const MOODS = [
@@ -85,7 +86,7 @@ export default function HonkView({ initialMood = null, onBack }) {
   const [getThere, setGetThere] = useState(false)
   const [ideaOpen, setIdeaOpen] = useState(false)
   const [toast, setToast] = useState(null)
-  const say = msg => { setToast(msg); setTimeout(() => setToast(null), 2600) }
+  const say = (msg, change) => { setToast({ msg, change }); setTimeout(() => setToast(null), change ? 5000 : 2600) }
   const autoRan = useRef(false)
 
   // Effective location: GPS city if available, else manual selection
@@ -93,26 +94,36 @@ export default function HonkView({ initialMood = null, onBack }) {
   const effectiveCountry = geo.city ? geo.country : (manualCity?.country || '')
   const effectiveCountryCode = geo.city ? geo.countryCode : (manualCity?.country_code || '')
 
-  // Save the spot to the trip for this city (or start one), same as the guide
+  // Save the spot to the trip that fits by dates and distance (or pick / start one), same as the guide
   const trips = useTripsStore(s => s.trips)
-  const honkTrip = tripForCity(trips, effectiveCity)
+  const here = result?.lat != null ? { lat: Number(result.lat), lng: Number(result.lng) } : geo.coords ? { lat: geo.coords.latitude, lng: geo.coords.longitude } : null
+  const honkTrip = (here && suggestForPlace(trips, here)?.trip) || tripForCity(trips, effectiveCity)
   const { load: loadIdeas, statusFor } = useIdeasStore()
   useIdeasStore(s => s.byTrip[honkTrip?.id])
   useEffect(() => { if (honkTrip?.id) loadIdeas(honkTrip.id) }, [honkTrip?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const honkStatus = result && honkTrip ? statusFor(honkTrip.id, result) : null
   const honkKind = /restaurant|cafe|bar|food|bakery|eat/i.test(result?.type || '') ? 'restaurant' : 'attraction'
   const honkDest = { city: effectiveCity, country: effectiveCountry, country_code: effectiveCountryCode }
-  const [naming, setNaming] = useState(false) // no trip for this city yet: the traveller names it first
+  const [pickFor, setPickFor] = useState(null) // { ranked, point, from?: { tripId, idea } }: the "Save to" picker
   const saveHonk = async () => {
     if (honkStatus) { setIdeaOpen(true); return }
-    if (needsNewTrip(honkDest)) { setNaming(true); return }
     try {
-      const { trip } = await saveIdea(honkDest, result, honkKind, 'goosey')
-      say(`Saved to ${trip.title} ideas`)
+      const { suggested, ranked, point } = await tripsForPlace(honkDest, result)
+      if (!suggested) { setPickFor({ ranked, point }); return }
+      const idea = await saveIdeaTo(suggested.trip, result, honkKind, 'goosey')
+      say(`Saved to ${suggested.trip.title} ideas`, () => setPickFor({ ranked, point, from: { tripId: suggested.trip.id, idea } }))
     } catch { say('Couldn\'t save it. Check your connection.') }
   }
+  const pickTrip = async (trip) => {
+    const { from } = pickFor
+    if (from?.tripId === trip.id) return
+    await (from ? moveIdea(from.tripId, from.idea, trip, result, honkKind, 'goosey') : saveIdeaTo(trip, result, honkKind, 'goosey'))
+    say(`Saved to ${trip.title} ideas`)
+  }
   const createAndSave = async (title) => {
-    const { trip } = await saveIdea(honkDest, result, honkKind, 'goosey', { title })
+    const { from, point } = pickFor
+    const trip = await createTripAndSave(honkDest, result, honkKind, 'goosey', { title, point })
+    if (from?.idea) await useIdeasStore.getState().removeIdea(from.tripId, from.idea.id)
     say(`Saved to your new trip, ${trip.title}`)
   }
 
@@ -252,9 +263,11 @@ export default function HonkView({ initialMood = null, onBack }) {
           {result.place_id && <GoogleAttribution />}
           <AiDisclosure city={effectiveCity} what="HONK" />
           {getThere && <GetThereSheet place={result} countryCode={effectiveCountryCode} onClose={() => setGetThere(false)} />}
-          {naming && <NewTripNameSheet city={effectiveCity} onCreate={createAndSave} onClose={() => setNaming(false)} />}
+          {pickFor && <TripPickerSheet title={pickFor.from ? 'Move to' : 'Save to'} subtitle={result.name} ranked={pickFor.ranked} city={effectiveCity}
+            onPick={pickTrip} onCreate={createAndSave} onClose={() => setPickFor(null)} />}
           {ideaOpen && honkTrip && <IdeaSheet item={result} kind={honkKind} status={honkStatus} trip={honkTrip} onSaved={say} onClose={() => setIdeaOpen(false)} />}
-          {toast && <Toast icon="check" title={toast} />}
+          {toast && <Toast icon="check" title={toast.msg}
+            action={toast.change && <Button size="sm" variant="secondary" onClick={() => { toast.change(); setToast(null) }}>Change</Button>} />}
         </>
       )}
     </Screen>

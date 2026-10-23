@@ -4,6 +4,7 @@ import { useAuthStore } from './authStore'
 import { useUIStore } from './uiStore'
 import { checkAndAwardBadges } from './authStore'
 import { compareTripStart, isUndated, bookingDates } from '../lib/trips'
+import { daysBetween } from '../lib/dates'
 import { pgQuote } from '../lib/postgrest'
 import { track } from '../lib/analytics'
 
@@ -180,18 +181,38 @@ export const useTripsStore = create((set, get) => ({
   // BOOKINGS
   /**
    * Keep the trip's dates in step with its bookings, so a planning trip and the bookings that confirm it never
-   * conflict: an undated trip takes the bookings' dates, and a dated one widens to cover a booking outside them
-   * (the return flight added after the outbound one).
+   * conflict: an undated trip takes the bookings' dates, and a dated one widens by a day on its own (the
+   * overnight flight home). A booking further outside asks first (datePrompt → OutsideDatesSheet): extend the
+   * trip, move the booking to another trip, or start a new one.
    */
   fillDatesIfUndated: async (tripId, bookings) => {
     const trip = get().trips.find(t => t.id === tripId) || (get().activeTrip?.id === tripId ? get().activeTrip : null)
     if (!trip) return
     const dates = bookings.flatMap(bookingDates).sort()
     if (!dates.length) return
-    const start = isUndated(trip) || dates[0] < trip.start_date ? dates[0] : trip.start_date
-    const end = isUndated(trip) || dates[dates.length - 1] > trip.end_date ? dates[dates.length - 1] : trip.end_date
+    const first = dates[0], last = dates[dates.length - 1]
+    const start = isUndated(trip) || first < trip.start_date ? first : trip.start_date
+    const end = isUndated(trip) || last > trip.end_date ? last : trip.end_date
     if (start === trip.start_date && end === trip.end_date) return
+    const over = isUndated(trip) ? 0 : Math.max(daysBetween(start, trip.start_date), daysBetween(trip.end_date, end))
+    if (over > 1) {
+      set({ datePrompt: { tripId, widen: { start_date: start, end_date: end }, span: { start: first, end: last }, bookings } })
+      return
+    }
     try { await get().updateTrip(tripId, { start_date: start, end_date: end }) } catch { /* best-effort */ }
+  },
+
+  datePrompt: null,
+  clearDatePrompt: () => set({ datePrompt: null }),
+
+  /** Move bookings to another trip (the outside-dates prompt), then fit that trip's dates to them. */
+  moveBookings: async (bookings, toTripId) => {
+    const ids = bookings.map(b => b.id)
+    const { error } = await supabase.from('bookings').update({ trip_id: toTripId }).in('id', ids)
+    if (error) throw error
+    set(state => ({ bookings: state.bookings.filter(b => !ids.includes(b.id)) }))
+    track('booking_moved', { count: ids.length })
+    await get().fillDatesIfUndated(toTripId, bookings.map(b => ({ ...b, trip_id: toTripId })))
   },
 
   // via (analytics only): 'manual' | 'paste_import' | 'idea'; email-inbox bookings say so in bookingData.source

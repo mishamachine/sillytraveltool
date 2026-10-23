@@ -9,8 +9,9 @@ import { useCityGuide, TAB_SECTIONS } from './useCityGuide'
 import { GUIDE_SECTIONS, KnowSection, EatSection, SeeSection, MoveSection, EventsSection } from './GuideSections'
 import HonkView, { MOODS } from './HonkView'
 import IdeaSheet from './IdeaSheet'
-import { saveIdea, needsNewTrip } from './saveIdea'
-import NewTripNameSheet from '../../components/shared/NewTripNameSheet'
+import { tripsForPlace, placePoint, saveIdeaTo, moveIdea, createTripAndSave } from './saveIdea'
+import { suggestForPlace } from '../../lib/tripPick'
+import TripPickerSheet from '../../components/shared/TripPickerSheet'
 import GetThereSheet from '../../components/shared/GetThereSheet'
 import AiDisclosure from './AiDisclosure'
 import './explore.css'
@@ -72,7 +73,7 @@ export default function ExploreScreen() {
 function GuideHome({ setHonkMood, setMode }) {
   const [open, setOpen] = useState(false)
   const [ideaFor, setIdeaFor] = useState(null) // { item, kind, status }
-  const [nameFor, setNameFor] = useState(null) // { item, kind }: the first save for a city asks the new trip's name
+  const [pickFor, setPickFor] = useState(null) // { item, kind, ranked, point, from?: { tripId, idea } }: the "Save to" picker
   const [getThere, setGetThere] = useState(null)
   const [toast, setToast] = useState(null)
   const g = useCityGuide(open)
@@ -80,30 +81,47 @@ function GuideHome({ setHonkMood, setMode }) {
   const loadingSections = useGuideStore(s => s.loadingSections)
   useBackHandler(open, () => setOpen(false))
 
-  // Trip ideas: the guide belongs to the trip for this city (if there is one) and shows what's shortlisted or booked
+  // Trip ideas: the guide belongs to the trip that fits this city by dates and distance (the trip you're on,
+  // else one passing nearby), else the trip named for it; it shows what's shortlisted or booked there
   const trips = useTripsStore(s => s.trips)
-  const cityTrip = tripForCity(trips, destination?.city)
+  const [cityPoint, setCityPoint] = useState(null)
+  useEffect(() => {
+    let live = true
+    setCityPoint(null)
+    if (destination?.city) placePoint(destination, null).then(p => { if (live) setCityPoint(p) })
+    return () => { live = false }
+  }, [destination?.city]) // eslint-disable-line react-hooks/exhaustive-deps
+  const cityTrip = (cityPoint && suggestForPlace(trips, cityPoint)?.trip) || tripForCity(trips, destination?.city)
   const { load: loadIdeas, statusFor } = useIdeasStore()
   const openTripForm = useUIStore(s => s.openTripForm)
   useIdeasStore(s => s.byTrip[cityTrip?.id]) // re-render when this trip's ideas change
   useEffect(() => { if (cityTrip?.id) loadIdeas(cityTrip.id) }, [cityTrip?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const statusOf = item => (cityTrip ? statusFor(cityTrip.id, item) : null)
-  const say = (msg, trip) => { setToast({ msg, trip }); setTimeout(() => setToast(null), trip ? 5000 : 2600) }
+  const say = (msg, trip, change) => { setToast({ msg, trip, change }); setTimeout(() => setToast(null), trip || change ? 5000 : 2600) }
 
   const openSection = (id) => { g.setGuideTab(id); setOpen(true) }
-  // One tap saves to the city's trip; with no trip there yet, the traveller names the new one first.
-  // Saved or booked places open the idea sheet.
+  // One tap saves to the trip that fits by dates and distance, with "Change" to pick another; with no fit, the
+  // "Save to" picker asks (any trip, or a new one). Saved or booked places open the idea sheet.
   const handleAddToTrip = async (item, kind) => {
     const status = statusOf(item)
     if (status) { setIdeaFor({ item, kind, status }); return }
-    if (needsNewTrip(destination)) { setNameFor({ item, kind }); return }
     try {
-      const { trip } = await saveIdea(destination, item, kind)
-      say(`Saved to ${trip.title} ideas`)
+      const { suggested, ranked, point } = await tripsForPlace(destination, item)
+      if (!suggested) { setPickFor({ item, kind, ranked, point }); return }
+      const idea = await saveIdeaTo(suggested.trip, item, kind)
+      say(`Saved to ${suggested.trip.title} ideas`, null, () => setPickFor({ item, kind, ranked, point, from: { tripId: suggested.trip.id, idea } }))
     } catch { say('Couldn\'t save it. Check your connection.') }
   }
+  const pickTrip = async (trip) => {
+    const { item, kind, from } = pickFor
+    if (from?.tripId === trip.id) return
+    await (from ? moveIdea(from.tripId, from.idea, trip, item, kind) : saveIdeaTo(trip, item, kind))
+    say(`Saved to ${trip.title} ideas`)
+  }
   const createAndSave = async (title) => {
-    const { trip } = await saveIdea(destination, nameFor.item, nameFor.kind, 'guide', { title })
+    const { item, kind, from, point } = pickFor
+    const trip = await createTripAndSave(destination, item, kind, 'guide', { title, point })
+    if (from?.idea) await useIdeasStore.getState().removeIdea(from.tripId, from.idea.id)
     say(`Saved to your new trip, ${trip.title}`, trip)
   }
   const overviewLoading = !!loadingSections.overview
@@ -163,11 +181,13 @@ function GuideHome({ setHonkMood, setMode }) {
         )}
 
         {ideaFor && cityTrip && <IdeaSheet {...ideaFor} trip={cityTrip} onSaved={say} onClose={() => setIdeaFor(null)} />}
-        {nameFor && <NewTripNameSheet city={destination.city} onCreate={createAndSave} onClose={() => setNameFor(null)} />}
+        {pickFor && <TripPickerSheet title={pickFor.from ? 'Move to' : 'Save to'} subtitle={pickFor.item?.name} ranked={pickFor.ranked} city={destination.city}
+          onPick={pickTrip} onCreate={createAndSave} onClose={() => setPickFor(null)} />}
         {getThere && <GetThereSheet place={getThere} countryCode={destination.country_code} onClose={() => setGetThere(null)} />}
         {toast && (
           <Toast icon="check" title={toast.msg}
-            action={toast.trip && <Button size="sm" variant="secondary" onClick={() => { openTripForm(toast.trip); setToast(null) }}>Add dates</Button>} />
+            action={toast.trip ? <Button size="sm" variant="secondary" onClick={() => { openTripForm(toast.trip); setToast(null) }}>Add dates</Button>
+              : toast.change ? <Button size="sm" variant="secondary" onClick={() => { toast.change(); setToast(null) }}>Change</Button> : null} />
         )}
       </Screen>
     )

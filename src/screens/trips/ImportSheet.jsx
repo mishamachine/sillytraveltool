@@ -1,60 +1,36 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { useTripsStore } from '../../store'
-import { parseLocalDate } from '../../lib/dates'
+import { parseLocalDate, todayLocalISO } from '../../lib/dates'
+import { bestTrip } from '../../../supabase/functions/_shared/tripMatch.js'
+import { editableTrips, withCoords } from '../../lib/tripPick'
 import { parseBookingEmail } from '../../lib/gemini'
 import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import { track, errorReason } from '../../lib/analytics'
-import { formatRange, bookingKind, bookingMeta, tripDates, isUndated, suggestTripName } from '../../lib/trips'
+import { bookingKind, bookingMeta, tripDates, suggestTripName, bookingDates } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
 import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, category } from '../../ui'
 
 // ── Client-side trip matcher ──────────────────────────────
-// Requires BOTH city match AND date range overlap. No match → null (→ "Create New Trip").
-function matchTrip(trips, ultimateDestination, bookings) {
-  if (!trips?.length) return null
-
-  const allBookings = Array.isArray(bookings) ? bookings : [bookings]
-  const departureDates = allBookings
-    .map(b => b.departure_time || b.check_in_date || b.activity_date)
-    .filter(Boolean)
-    .map(d => parseLocalDate(d))
-    .filter(d => !isNaN(d.getTime()))
-  const arrivalDates = allBookings
-    .map(b => b.arrival_time || b.check_out_date)
-    .filter(Boolean)
-    .map(d => parseLocalDate(d))
-    .filter(d => !isNaN(d.getTime()))
-
-  const bookingStart = departureDates.length ? new Date(Math.min(...departureDates)) : null
-  const bookingEnd   = arrivalDates.length   ? new Date(Math.max(...arrivalDates))   : bookingStart
-  const destCity = (ultimateDestination?.city || '').toLowerCase().trim()
-
-  // Dated trips must overlap the bookings; an undated (planning) trip for the city is the fallback, and takes their dates
-  const candidates = trips.filter(t => t.status !== 'cancelled').sort((a, b) => Number(isUndated(a)) - Number(isUndated(b)))
-  for (const trip of candidates) {
-    const tripCity = (trip.destination_city || '').toLowerCase().trim()
-    const cityWords = tripCity.split(/\s+/).filter(w => w.length >= 3)
-    const cityMatch = destCity && tripCity && (
-      destCity.includes(tripCity) || tripCity.includes(destCity) ||
-      cityWords.some(w => destCity.includes(w))
-    )
-    if (!cityMatch) continue
-
-    if (bookingStart && !isUndated(trip)) {
-      const tripStart = parseLocalDate(trip.start_date)
-      const tripEnd   = parseLocalDate(trip.end_date)
-      tripStart.setDate(tripStart.getDate() - 7)
-      tripEnd.setDate(tripEnd.getDate() + 7)
-      if (!(bookingStart <= tripEnd && (bookingEnd || bookingStart) >= tripStart)) continue
-    }
-
-    return trip
+// Same rule as email import (supabase/functions/_shared/tripMatch.js): the trip whose dates the itinerary overlaps
+// (nearest first), or one within 3 days on its route, or an undated trip nearby. Never the city name alone.
+// No match → null (→ "Create new trip").
+async function matchTrip(trips, ultimateDestination, bookings) {
+  const candidates = await withCoords(editableTrips(trips))
+  if (!candidates.length) return null
+  const dates = bookings.flatMap(bookingDates).sort()
+  const points = []
+  const add = g => { if (g?.lat != null) points.push({ lat: Number(g.lat), lng: Number(g.lng) }) }
+  for (const b of bookings.slice(0, 8)) {
+    if (b.place_lat != null && b.place_lng != null) add({ lat: b.place_lat, lng: b.place_lng })
+    else if (b.arrival_airport) add(await geocode(`${b.arrival_airport}${b.type === 'flight' ? ' airport' : ''}`).catch(() => null))
   }
-
-  return null // Never auto-select; no confident match
+  if (ultimateDestination?.city) add(await geocode(ultimateDestination.city).catch(() => null))
+  const withStops = candidates.map(t => ({ ...t, points: (t.trip_stops || []).map(s => ({ lat: s.lat, lng: s.lng })) }))
+  const top = bestTrip(withStops, { start: dates[0] || null, end: dates[dates.length - 1] || null, points }, { today: todayLocalISO() })
+  return top ? candidates.find(t => t.id === top.trip.id) : null
 }
 
 // "Wed, Apr 1 · 13:05 · Pacific Time": as printed on the confirmation, in the place's own zone
@@ -123,7 +99,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       setParsedBookings(bookings)
       setUltimateDest(dest)
       setNewCity(null); setNewPlace(null)
-      const match = fixedTrip || matchTrip(trips, dest, bookings)
+      const match = fixedTrip || await matchTrip(trips, dest, bookings)
       setMatched(match)
       setSelectedTripId(match?.id || null)
       setStep('preview')

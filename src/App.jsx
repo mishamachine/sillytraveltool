@@ -5,6 +5,7 @@ import { supabase } from './lib/supabase'
 import AuthScreen from './screens/AuthScreen'
 import BottomNav from './components/layout/BottomNav'
 import ErrorBoundary from './components/shared/ErrorBoundary'
+import OutsideDatesSheet from './components/shared/OutsideDatesSheet'
 
 import { useVisibilityRestore } from './hooks/useVisibilityRestore'
 import { initDeepLinks } from './native/deepLinks'
@@ -194,6 +195,7 @@ export default function App() {
           <TripForm />
         </Suspense>
       )}
+      <OutsideDatesSheet />
       {inviteToast && (
         <Toast position="top" icon="users" title="You joined the trip">{inviteToast.tripName} is now in your trips</Toast>
       )}

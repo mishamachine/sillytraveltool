@@ -53,7 +53,8 @@ class Query {
   lt(k, v) { this.filters.push(r => r[k] < v); return this }
   lte(k, v) { this.filters.push(r => r[k] <= v); return this }
   ilike(k, v) { const re = new RegExp('^' + String(v).replace(/%/g, '.*') + '$', 'i'); this.filters.push(r => re.test(r[k] || '')); return this }
-  is(k, v) { this.filters.push(r => r[k] === v); return this }
+  is(k, v) { this.filters.push(r => (r[k] ?? null) === v); return this }
+  not(k, op, v) { const f = op === 'is' ? r => (r[k] ?? null) !== v : op === 'eq' ? r => r[k] !== v : () => true; this.filters.push(f); return this }
   or() { return this }
   match(obj) { Object.entries(obj).forEach(([k, v]) => this.eq(k, v)); return this }
   order(k, { ascending = true } = {}) { this.orderBy = { k, ascending }; return this }
