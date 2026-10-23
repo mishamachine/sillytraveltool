@@ -1,6 +1,25 @@
 # STT Handoff — 2026-10-21
 
 
+## Update — Stripe web billing (2026-10-23, branch `feat/stripe-web-billing`)
+- **Web buys First Class straight through Stripe** (owner decision: no RevenueCat on the web; apps still use store
+  billing later). Page **/upgrade/** (own Vite entry like /redeem/, website only): sign in → Yearly $14.99 or Founders
+  lifetime $29.99 → Stripe-hosted Checkout (promotion codes allowed, so cockpit discount codes work) → back to
+  `/upgrade/?paid=…`, which polls `my_entitlement()` until First Class shows. **Manage billing** opens the Stripe
+  customer portal (cancel at period end, card, invoices).
+- **Functions:** `billing` (POST `{action:'checkout', plan}` / `{action:'portal'}`, signed-in caller, one Stripe customer
+  per member tagged `metadata.user_id`, refuses a second purchase) and `stripe-webhook` (checks Stripe-Signature,
+  re-fetches each object, upserts the cockpit's `stripe_*` tables). Helpers + row mappers: `_shared/stripe.ts`
+  (same columns as admin-stripe's sync). Tests: `node scripts/test-stripe.mjs`.
+- **Migration `20261023140000_stripe_web_billing`:** `stripe_first_class(user)`; `entitlement()` counts Stripe rows only
+  in the site's current mode (`stripe_sync.livemode`, set by the webhook), so sandbox purchases stop counting at go-live;
+  `my_entitlement()` adds `web {lifetime, subscription, customer}`.
+- **Stripe sandbox:** product `stt_first_class`, prices `stt_first_class_yearly` / `stt_first_class_lifetime_founding`,
+  portal configuration `bpc_1UTdLhR315zoHnpnVGMVz3v6`, webhook `we_1UTo8yR315zoHnpnfvqgc3qn` →
+  `/functions/v1/stripe-webhook` (18 events). Tax: threshold monitoring only (no registrations yet).
+- **Not done:** in-app paywall screens (PAYWALL_PLAN section 6), server-side First Class limits, Play/App Store billing,
+  `subscription_status` analytics from the webhook, admin-stripe reusing `_shared/stripe.ts`.
+
 ## Update — owner cockpit, build step 1 (2026-10-23, plan: `docs/ADMIN_PLAN.md`)
 - **/admin/** (own Vite entry `admin/index.html`, bundle `src/admin/`, never in the app or native build or the service
   worker precache). Sign-in (existing session on the same origin, Google or magic link) → **authenticator (TOTP) set-up,
