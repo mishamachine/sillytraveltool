@@ -85,6 +85,9 @@ API with the same parameters), the signed-in `/upgrade/` page, the portal sessio
 card / 3DS (`4000 0000 0000 0002`, `4000 0025 0000 3155`), and `past_due` grace.
 
 ## Gotchas
+- **Portal cancel with flexible billing** sets `cancel_at` (= period end) and leaves `cancel_at_period_end` false.
+  `subscriptionRow` counts either as canceling (`stripe-webhook` v8). `admin-stripe` has its own mapper and was asked
+  to do the same; until it does, its sync can flip the row back to not canceling.
 - **The charge plan rule exists twice:** `_shared/stripe.ts` (`planOfInvoice`, `planOfDescription`) and `admin-stripe`'s own copy
   (one-file MCP deploy). Change both together and tell the admin-dashboard session. Both now store charge metadata as
   `{ ...payment_intent.metadata, ...charge.metadata }` (admin-stripe v7).
