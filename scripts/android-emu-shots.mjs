@@ -97,7 +97,7 @@ try {
   check('new trip form opens', await waitText('Who’s going') || await waitText("Who's going"))
   await js(`__t.set(document.querySelector('[role=dialog] input[role=combobox], [role=dialog] input'), 'Paris'); return true`)
   let picked = false
-  for (let i = 0; i < 40 && !picked; i++) { await sleep(250); picked = await js(`const o = [...document.querySelectorAll('[role=option], [role=listbox] *')].find(e => /Paris/.test(e.innerText || '')); if (!o) return false; o.click(); return true`) }
+  for (let i = 0; i < 40 && !picked; i++) { await sleep(250); picked = await js(`const o = [...document.querySelectorAll('[role=option] button')].find(e => /Paris/.test(e.innerText || '')); if (!o) return false; o.click(); return true`) }
   await js(`const [d, r] = document.querySelectorAll('[role=dialog] input[type=date]'); __t.set(d, '2026-12-01'); __t.set(r, '2026-12-05'); return true`)
   await click('Add trip')
   check('trip limit opens the paywall', await waitText('You have 2 upcoming trips'), picked ? '' : '(city suggestion not picked)')
