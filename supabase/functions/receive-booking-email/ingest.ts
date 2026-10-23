@@ -272,10 +272,14 @@ Return this JSON structure (use null for any field not found):
 "seat_number": null,
 "ticket_quantity": null,
 "party_size": null,
-"transport_mode": null
+"transport_mode": null,
+"more_legs": []
 }
 
 Rules:
+- A flight or train with connections (e.g. LIS -> JFK -> SFO): the FIRST leg goes in the main fields, and every later
+  leg goes in "more_legs" in order, each an object with title ("JFK -> SFO"), flight_number, departure_airport,
+  arrival_airport, departure_time, arrival_time, seat_number. Otherwise "more_legs" is [].
 - email_kind: "loyalty" for a loyalty, frequent-flyer or hotel-rewards statement, welcome or membership email that has
   no new reservation in it; then fill "loyalty" (program_name e.g. "Iberia Plus", member_number as printed, tier e.g.
   "Gold", points_balance a whole number, points_as_of = statement date YYYY-MM-DD, expiry_date YYYY-MM-DD) and leave
@@ -338,8 +342,20 @@ activity_time, ticket_quantity
     return ok({ success: true, ignored: true })
   }
   delete parsed.email_kind; delete parsed.loyalty
+  // Connecting legs share the booking's reference, airline and traveller; each is filed as its own booking
+  const more = (Array.isArray(parsed.more_legs) ? parsed.more_legs : []).filter((l: any) => l && typeof l === 'object').slice(0, 6)
+  delete parsed.more_legs
+  const shared = { type: parsed.type, confirmation_number: parsed.confirmation_number, airline: parsed.airline, transport_mode: parsed.transport_mode,
+    passenger_name: parsed.passenger_name, flight_class: parsed.flight_class, change_type: parsed.change_type, currency: parsed.currency }
   const filed = await fileBooking(supabase, profile, tripList, parsed)
-  return filed.error ? err(filed.error, filed.status || 500) : ok(filed)
+  if (filed.error || !more.length) return filed.error ? err(filed.error, filed.status || 500) : ok(filed)
+  const legs = [filed]
+  for (const l of more) {
+    const leg = { ...shared, ...l, destination_city: l.destination_city || l.arrival_airport || null }
+    leg.title = leg.title || [l.departure_airport, l.arrival_airport].filter(Boolean).join(' -> ')
+    legs.push(await fileBooking(supabase, profile, tripList, leg))
+  }
+  return ok({ ...filed, legs: legs.map(r => ({ booking_id: r.booking_id, trip_id: r.trip_id, duplicate: r.duplicate, error: r.error })) })
 }
 
 /** Match one parsed booking to a trip (extend, fold or create one) and insert it. Updates `trips` in place. */
