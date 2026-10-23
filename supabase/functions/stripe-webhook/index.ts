@@ -37,7 +37,8 @@ async function syncCharge(admin: any, id: string) {
   const c = await stripe('GET', `charges/${id}`, { expand: ['payment_intent'] })
   const pi = typeof c.payment_intent === 'object' ? c.payment_intent : null
   const uid = c.metadata?.user_id || pi?.metadata?.user_id || await userFor(admin, c)
-  await put(admin, 'stripe_charges', { ...chargeRow(c, uid, pi?.metadata?.plan || null), payment_intent: idOf(c.payment_intent) })
+  await put(admin, 'stripe_charges', { ...chargeRow(c, uid, pi?.metadata?.plan || null), payment_intent: idOf(c.payment_intent),
+    metadata: { ...(pi?.metadata || {}), ...(c.metadata || {}) } })
 }
 
 async function handle(admin: any, event: Obj) {
