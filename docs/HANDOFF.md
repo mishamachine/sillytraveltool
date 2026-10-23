@@ -101,6 +101,15 @@
   suspended. Cockpit: Email button on member pages, "Do it" on the next best action, "Email these N" on any filtered
   list (≤200), Members → Emails (templates, send log), status changes email the member notice, former members "Email
   them". Not tested with a real send (needs the owner's Google session); open/click tracking not built.
+- **Date windows + experiments (2026-10-23):** top bar picks Today / 7 / 30 / 90 days, a calendar Day, Week (Mon–Sun) or
+  Month with back/forward arrows, or a Custom range (`src/admin/DateWindow.jsx`, in the URL hash: range, at, from, to).
+  Experiments (migration `20261023170000`): `experiments` table (design, variants, baseline + lift, ICE, queue_position,
+  status draft → queued → running/paused → done, result/decision/learnings, design_chat), `experiment_traffic()` (daily
+  people per surface, last 28 days), owner-only save/status/reorder/delete. `admin-experiment-ai` v1: Goose designs
+  with the owner (DeepSeek → Gemini), told our traffic and the computed sample size (`_shared/experimentMath.js`,
+  two-proportion test, alpha .05, power .8; never AI-guessed). Experiments tab: Live, Queue (reorder, order by ICE,
+  "can run alongside" check: same surface = waits, same metric + overlapping audience = caution), Drafts, Archive.
+  Assigning people to versions (useVariant + exposure) is the next step; "running" is a manual record until then.
 - **TO DO SOON (owner, 2026-10-23):** the privacy page and Terms show the owner's **home address** (402 Grandey Way NE,
   Renton). Fine for now; replace it with a PO box or virtual business address soon, in `public/privacy/` and `public/terms/`.
 - **Not done yet:** in-app Owner view (Profile files belong to the user-guide session),

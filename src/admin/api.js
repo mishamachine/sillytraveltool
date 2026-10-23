@@ -50,7 +50,24 @@ async function emailFn(action, body = {}) {
   return data
 }
 
+async function experimentAI(body) {
+  if (demo) return demo('experiment:ai', body)
+  const { data, error } = await supabase.functions.invoke('admin-experiment-ai', { body })
+  if (error) {
+    let message = error.message
+    try { message = (await error.context.json()).error || message } catch { /* not JSON */ }
+    throw new Error(message)
+  }
+  return data
+}
+
 export const api = {
+  experiments: () => rpc('admin_experiments'),
+  experimentSave: (p) => rpc('admin_experiment_save', { p }),
+  experimentStatus: (id, status) => rpc('admin_experiment_status', { p_id: id, p_status: status }),
+  experimentReorder: (ids) => rpc('admin_experiment_reorder', { p_ids: ids }),
+  experimentDelete: (id) => rpc('admin_experiment_delete', { p_id: id }),
+  experimentAI,
   emailPreview: (b) => emailFn('preview', b),
   emailCheck: (b) => emailFn('check', b),
   emailSend: (b) => emailFn('send', b),

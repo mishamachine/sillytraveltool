@@ -136,7 +136,8 @@ textarea { resize: vertical; }
 .a-stack { display: flex; flex-direction: column; gap: 22px; }
 .a-stack h3 { font-size: 0.95rem; margin-bottom: 8px; }
 
-.a-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; background: var(--surface-sunken); color: var(--ink-secondary); text-transform: capitalize; }
+.a-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; background: var(--surface-sunken); color: var(--ink-secondary); }
+.a-badge::first-letter { text-transform: uppercase; }
 .a-badge--ok { background: var(--success-soft); color: var(--success); }
 .a-badge--warn { background: color-mix(in srgb, var(--weather-sun) 18%, var(--surface-card)); color: var(--ink); }
 .a-badge--danger { background: var(--danger-soft); color: var(--danger); }
@@ -304,3 +305,37 @@ textarea { resize: vertical; }
 .a-email-preview table { width: 100%; } .a-email-preview td { padding: 10px !important; }
 .a-check--wrap { white-space: normal; align-items: flex-start; line-height: 1.4; }
 @media (max-width: 760px) { .a-compose { grid-template-columns: 1fr; } }
+
+/* ── Date window ── */
+.a-window { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.a-window__label { font-size: 0.8rem; font-weight: 600; color: var(--accent); padding: 0 4px; }
+.a-icon-btn--sm { width: 28px; height: 28px; }
+input[type="date"].a-select { width: auto; }
+
+/* ── Experiments ── */
+.a-exp-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.a-exp { display: flex; gap: 12px; align-items: flex-start; background: var(--surface-page); border-radius: var(--radius-md); padding: 12px 14px; }
+.a-exp--compact { align-items: center; cursor: pointer; } .a-exp--compact:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.a-exp--live { box-shadow: inset 3px 0 0 var(--success); }
+.a-exp__pos { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; color: var(--accent); min-width: 22px; }
+.a-exp__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.a-exp__title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.a-exp__actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.a-exp__bar { height: 6px; background: var(--surface-sunken); border-radius: 99px; overflow: hidden; margin-top: 6px; max-width: 360px; }
+.a-exp__bar span { display: block; height: 100%; width: var(--fill, 0); background: var(--success); }
+.a-designer { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 20px; }
+.a-modal--wide:has(.a-designer) { width: min(1100px, 100%); }
+.a-chat { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.a-chat__log { background: var(--surface-page); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 8px; height: 52vh; overflow-y: auto; }
+.a-chat__msg { max-width: 88%; padding: 9px 12px; border-radius: 14px; font-size: 0.875rem; line-height: 1.45; white-space: pre-wrap; }
+.a-chat__msg--goose { background: var(--surface-card); align-self: flex-start; border-bottom-left-radius: 4px; }
+.a-chat__msg--owner { background: var(--accent-soft); color: var(--ink); align-self: flex-end; border-bottom-right-radius: 4px; }
+.a-chat__input { display: flex; gap: 8px; align-items: flex-end; }
+.a-chat__input textarea { flex: 1; min-height: 44px; padding: 8px 10px; border-radius: var(--radius-sm); border: 0; background: var(--surface-page); box-shadow: var(--shadow-field), inset 0 0 0 1px var(--line); }
+.a-variants { display: flex; flex-direction: column; gap: 6px; }
+.a-variant { display: grid; grid-template-columns: 1fr 1.6fr 64px; gap: 6px; }
+.a-variant input { min-height: 34px; padding: 4px 8px; border-radius: var(--radius-sm); border: 0; background: var(--surface-page); box-shadow: inset 0 0 0 1px var(--line); }
+.a-form--3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.a-field--fresh, .a-variants.a-field--fresh { box-shadow: inset 0 0 0 2px var(--accent) !important; transition: box-shadow 1s; }
+.a-impact--warn { box-shadow: inset 0 0 0 1px var(--danger); }
+@media (max-width: 900px) { .a-designer { grid-template-columns: 1fr; } .a-chat__log { height: 36vh; } }

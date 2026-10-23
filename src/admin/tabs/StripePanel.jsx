@@ -41,7 +41,7 @@ export default function StripePanel({ filters, go }) {
             <div className="a-stats">
               <Stat label="Yearly revenue run rate" value={money(d.arr)} hint={`${d.active_subscriptions} active yearly`} />
               <Stat label="Founders lifetime sold" value={d.lifetime_sold} hint={`${d.lifetime_sold_period} in this period`} />
-              <Stat label="Gross revenue" value={money(d.gross)} hint={`last ${filters.days} days`} />
+              <Stat label="Gross revenue" value={money(d.gross)} hint={filters.label} />
               <Stat label="Refunded" value={money(d.refunded)} invert />
               <Stat label="Discounts given" value={money(d.discounts)} />
               <Stat label="Checkout conversion" value={conv == null ? '—' : `${conv}%`} hint={`${d.checkout_completed} of ${d.checkout_started}`} />

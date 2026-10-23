@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../ui/icons/Icon'
 import Gate from './Gate'
-import { Segmented, ago } from './ui'
+import { ago } from './ui'
 import CommandBar from './CommandBar'
+import DateWindow, { windowOf } from './DateWindow'
 import Today from './tabs/Today'
 import Members from './tabs/Members'
 import Product from './tabs/Product'
@@ -21,7 +22,6 @@ export const TABS = [
   { id: 'system', label: 'System', icon: 'settings', el: System },
 ]
 
-const RANGES = [['1', 'Today'], ['7', '7 days'], ['30', '30 days'], ['90', '90 days']]
 const CADENCE = [[30000, 'Live 30 s'], [300000, '5 min'], [3600000, 'Hourly'], [0, 'Paused']]
 
 // View state lives in the URL hash so any view can be bookmarked: #tab=members&member=<id>&range=30&internal=0
@@ -35,7 +35,6 @@ function writeHash(state) {
   history.replaceState(null, '', `#${p.toString()}`)
 }
 
-const isoDay = (d) => d.toISOString().slice(0, 10)
 
 function read(key, fallback) {
   try { return localStorage.getItem(key) ?? fallback } catch { return fallback }
@@ -65,17 +64,13 @@ function Cockpit({ me }) {
 
   useEffect(() => writeHash(view), [view])
   useEffect(() => {
-    const onHash = () => setView(v => ({ tab: 'today', range: v.range, internal: v.internal, ...readHash() }))
+    const onHash = () => setView(v => ({ tab: 'today', range: v.range, at: v.at, from: v.from, to: v.to, internal: v.internal, ...readHash() }))
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
-  const filters = useMemo(() => {
-    const days = Number(view.range) || 30
-    const to = new Date()
-    const from = new Date(Date.now() - (days - 1) * 86400000)
-    return { from: isoDay(from), to: isoDay(to), days, excludeInternal: view.internal !== '1', tick }
-  }, [view.range, view.internal, tick])
+  const filters = useMemo(() => ({ ...windowOf(view), excludeInternal: view.internal !== '1', tick }),
+    [view.range, view.at, view.from, view.to, view.internal, tick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(() => { setTick(t => t + 1); setUpdated(Date.now()) }, [])
   useEffect(() => {
@@ -122,7 +117,7 @@ function Cockpit({ me }) {
         <header className="a-topbar">
           <h1>{TABS.find(t => t.id === view.tab)?.label}</h1>
           <div className="a-topbar__controls">
-            <Segmented size="sm" options={RANGES} value={view.range} onChange={(range) => go({ range })} />
+            <DateWindow view={view} go={go} />
             <label className="a-check" title="Owner and test accounts are left out by default">
               <input type="checkbox" checked={view.internal !== '1'} onChange={e => go({ internal: e.target.checked ? '0' : '1' })} />
               Exclude internal
