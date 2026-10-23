@@ -7,7 +7,7 @@ import { makeStripe, customerRow } from '../_shared/stripe.ts'
 //   portal                                  → { url } of the Stripe customer portal (cancel, card, invoices)
 // Access is granted by stripe-webhook writing stripe_subscriptions / stripe_charges, which entitlement() reads.
 // Secrets: STRIPE_SECRET_KEY (restricted key: write customers, checkout sessions, portal sessions; read prices,
-// subscriptions), APP_URL.
+// promotion codes, subscriptions), APP_URL.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -21,6 +21,12 @@ const SITE = (Deno.env.get('APP_URL') || 'https://sillytraveltool.com').replace(
 // Local dev servers may return there instead of the live site (test keys only)
 const DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/
 const PRICES: Record<string, string> = { yearly: 'stt_first_class_yearly', lifetime: 'stt_first_class_lifetime_founding' }
+
+// A metadata-safe short code (Stripe allows 500 chars; the cockpit wants ≤ 40, letters, digits and _ . : + -)
+function shortCode(v: unknown) {
+  if (v == null) return undefined
+  return String(v).trim().replace(/[^\w.:+-]/g, '_').slice(0, 40) || undefined
+}
 
 async function priceId(lookupKey: string) {
   const r = await stripe('GET', 'prices', { lookup_keys: [lookupKey], active: true, limit: 1 })
@@ -62,7 +68,27 @@ Deno.serve(async (req) => {
       const { data: owned } = await admin.rpc('stripe_first_class', { p_user: user.id })
       if (owned) return json({ error: 'You already have First Class.', code: 'already' }, 409)
 
-      const meta = { user_id: user.id, plan }
+      // Discount codes from the cockpit live in Stripe as promotion codes with the same text. A code passed in is
+      // pre-applied; otherwise the Checkout page offers a code box (Stripe allows one or the other).
+      const codeText = shortCode(b.code)?.toUpperCase()
+      const promo = codeText ? (await stripe('GET', 'promotion_codes', { code: codeText, active: true, limit: 1 })).data?.[0] : null
+      const { data: utm } = await admin.from('member_attribution').select('utm_source, utm_medium, utm_campaign').eq('user_id', user.id).maybeSingle()
+
+      // Metadata spec from the owner cockpit (admin-stripe sync): short codes only, nothing personal
+      const meta = {
+        user_id: user.id,
+        plan,
+        price_key: PRICES[plan],
+        platform: 'web',
+        app_version: shortCode(b.app_version),
+        trigger: shortCode(b.trigger),
+        code: promo ? codeText : undefined,
+        utm_source: shortCode(utm?.utm_source),
+        utm_medium: shortCode(utm?.utm_medium),
+        utm_campaign: shortCode(utm?.utm_campaign),
+        experiment: shortCode(b.experiment),
+        variant: shortCode(b.variant),
+      }
       const session = await stripe('POST', 'checkout/sessions', {
         mode: plan === 'lifetime' ? 'payment' : 'subscription',
         customer: await customerFor(admin, user),
@@ -70,8 +96,7 @@ Deno.serve(async (req) => {
         line_items: [{ price: await priceId(PRICES[plan]), quantity: 1 }],
         success_url: `${back}?paid={CHECKOUT_SESSION_ID}`,
         cancel_url: back,
-        // Discount codes from the cockpit live in Stripe as promotion codes with the same text
-        allow_promotion_codes: true,
+        ...(promo ? { discounts: [{ promotion_code: promo.id }] } : { allow_promotion_codes: true }),
         metadata: meta,
         ...(plan === 'lifetime'
           ? { payment_intent_data: { metadata: meta }, invoice_creation: { enabled: true } }

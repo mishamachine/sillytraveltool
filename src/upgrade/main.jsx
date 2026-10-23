@@ -9,6 +9,14 @@ import '../admin/admin.css'
 // customer portal (docs/PAYWALL_PLAN.md). Website only: inside the apps, Apple and Google require their own billing.
 // The billing Edge Function makes the Stripe pages; stripe-webhook unlocks First Class once Stripe confirms payment.
 
+// What opened this page, for the checkout's metadata (cockpit analysis): /upgrade/?from=limit_trips&code=GOOSE30
+const query = new URLSearchParams(location.search)
+const context = {
+  trigger: query.get('from') || 'direct',
+  code: query.get('code') || undefined,
+  app_version: import.meta.env.VITE_APP_VERSION,
+}
+
 const fmt = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
 
 function Upgrade() {
@@ -42,7 +50,10 @@ function Upgrade() {
   const go = async (action, extra = {}) => {
     setBusy(extra.plan || action)
     setError(null)
-    if (action === 'checkout') track('purchase_started', { plan: extra.plan, store: 'stripe' })
+    if (action === 'checkout') {
+      track('purchase_started', { plan: extra.plan, store: 'stripe', trigger: context.trigger })
+      extra = { ...extra, ...context }
+    }
     const { data, error: err } = await supabase.functions.invoke('billing', { body: { action, ...extra } })
     if (data?.url) { location.href = data.url; return }
     setBusy(null)
@@ -52,7 +63,7 @@ function Upgrade() {
   }
   const google = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } })
 
-  useEffect(() => { if (plan && plan.plan !== 'first_class' && !paid) track('paywall_view', { trigger: 'web' }) }, [plan?.plan])
+  useEffect(() => { if (plan && plan.plan !== 'first_class' && !paid) track('paywall_view', { trigger: context.trigger, store: 'stripe' }) }, [plan?.plan])
 
   const web = plan?.web
   const firstClass = plan?.plan === 'first_class'
