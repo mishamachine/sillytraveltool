@@ -1,9 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { useAuthStore, useTripsStore } from '../../../store'
 import { parseLocalDate } from '../../../lib/dates'
 import { sortByStart, bookingDay, bookingKind, bookingMeta, hasClockTime, bookingTime, bookingArrival, bookingZone, zoneHint } from '../../../lib/trips'
-import { Card, ListRow, IconButton, Button, Section, Text, Stack, Icon, EmptyState, Skeleton, IconTile, Chip, category } from '../../../ui'
+import { Card, ListRow, IconButton, Button, Section, Text, Stack, Icon, EmptyState, Skeleton, IconTile, Chip, Banner, category } from '../../../ui'
+import RouteStrip from './RouteStrip'
+import { tripPlace, computeLegs } from '../../../lib/stops'
+import { planConflicts } from '../../../lib/conflicts'
+import { distanceKm, NEAR_KM } from '../../../../supabase/functions/_shared/tripMatch.js'
+import { formatRange, plural } from '../../../lib/trips'
 import ImportSheet from '../ImportSheet'
 import InboxHint from '../InboxHint'
 import AddBookingSheet from './AddBookingSheet'
@@ -46,6 +51,44 @@ function groupIdeas(ideas) {
   const groups = IDEA_GROUPS.map(g => ({ ...g, items: [] }))
   ideas.forEach(i => groups.find(g => g.has(i.category)).items.push(i))
   return groups.filter(g => g.items.length)
+}
+
+/** The stop a plan day belongs to: where you sleep that night (the arrival stop on a travel day), else home. */
+function stopFor(stops, d) {
+  return stops.find(s => s.nights > 0 && (s.kind === 'stay' || s.kind === 'home') && d >= s.start_date && d < s.end_date) ||
+    stops.find(s => s.kind === 'home' && s.start_date === d) ||
+    stops.find(s => (s.kind === 'stay' || s.kind === 'home') && s.end_date === d) || null
+}
+
+/** Header of a stop on a multi-city trip: "Granada · 2 nights · Nov 14 – 16". The route strip scrolls here. */
+function StopHead({ stop }) {
+  const meta = stop.kind === 'home'
+    ? 'Home'
+    : [plural(stop.nights, 'night'), formatRange(stop.start_date, stop.end_date)].join(' · ')
+  return (
+    <div className="detail-stop" id={`stop-${stop.position}`}>
+      <span className="detail-stop__title">
+        <Icon name={stop.kind === 'home' ? 'pin' : 'stay'} size={18} className="tone-accent" />
+        <Text variant="title" as="h3">{stop.city}</Text>
+      </span>
+      <Text variant="caption" tone="muted">{meta}</Text>
+    </div>
+  )
+}
+
+/** Ideas grouped by the stop they're near (within NEAR_KM), the rest under "Anywhere on this trip". */
+function ideasByStop(ideas, stops) {
+  const stays = stops.filter(s => s.kind === 'stay' && s.lat != null)
+  const groups = stays.map(s => ({ stop: s, items: [] }))
+  const anywhere = []
+  for (const i of ideas) {
+    const p = i.location_lat != null ? { lat: Number(i.location_lat), lng: Number(i.location_lng) } : null
+    const best = p && groups.map(g => ({ g, km: distanceKm(p, { lat: Number(g.stop.lat), lng: Number(g.stop.lng) }) })).sort((a, b) => a.km - b.km)[0]
+    if (best && best.km <= NEAR_KM) best.g.items.push(i); else anywhere.push(i)
+  }
+  const out = groups.filter(g => g.items.length).map(g => ({ id: `stop-${g.stop.position}`, label: g.stop.city, items: g.items }))
+  if (anywhere.length) out.push({ id: 'anywhere', label: out.length ? 'Anywhere on this trip' : null, items: anywhere })
+  return out
 }
 
 /** Header of the Booked / Ideas blocks: a tile, a title and a line, so status reads without colour. */
@@ -138,11 +181,40 @@ function DayBlock({ items, ...rowProps }) {
     : <Card key={`g${i}`} variant="group">{b.group.map(item => <ItemRow key={item.id} item={item} {...rowProps} />)}</Card>)
 }
 
+/**
+ * Booked days under their stops, in order. A stop with nothing booked still gets its header (the route strip
+ * scrolls to it).
+ */
+function planByStop(byDay, stops, dayTitle, rowProps) {
+  const entries = Object.keys(byDay).map(d => ({ d, stop: stopFor(stops, d) }))
+  const used = new Set(entries.map(e => e.stop?.position))
+  for (const s of stops) {
+    if ((s.kind === 'stay' || s.kind === 'home') && !used.has(s.position)) entries.push({ d: s.start_date, stop: s, empty: true })
+  }
+  entries.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.empty === b.empty ? (a.stop?.position ?? 0) - (b.stop?.position ?? 0) : a.empty ? -1 : 1))
+  let last = null
+  return entries.map(e => {
+    const head = e.stop && e.stop.position !== last ? <StopHead stop={e.stop} /> : null
+    if (e.stop) last = e.stop.position
+    if (e.empty) return <div key={`empty-${e.stop.position}`}>{head}<Text variant="caption" tone="muted">Nothing booked here yet</Text></div>
+    return (
+      <div key={e.d}>
+        {head}
+        <Section title={dayTitle(e.d)}>
+          <DayBlock items={byDay[e.d]} {...rowProps} />
+        </Section>
+      </div>
+    )
+  })
+}
+
 export default function PlanTab({ trip, readOnly }) {
   const { bookings, activities, createBooking, updateBooking, deleteBooking, createActivity, toggleActivity, deleteActivity, fillDatesIfUndated, loadingDetail, fetchTrips } = useTripsStore()
   const { user } = useAuthStore()
   const currentUserId = user?.id
   const [sheet, setSheet] = useState(null) // 'add' | 'paste' | 'plan' | { type, mode } | { detail }
+  const [legs, setLegs] = useState([])
+  const [hiddenWarnings, setHiddenWarnings] = useState(false)
 
   const tz = trip.destination_tz
   const items = sortByStart([
@@ -153,6 +225,18 @@ export default function PlanTab({ trip, readOnly }) {
   // Shortlisted from the guide / HONK, not booked yet
   const ideas = activities.filter(a => a.trip_id === trip.id && a.is_idea).map(a => ({ ...a, _kind: 'activity' }))
   const bookingCount = items.filter(i => i._kind === 'booking').length
+
+  // Multi-city: the route, a header per stop, travel days named "Madrid → Granada", and checks that never block
+  const tripBookings = bookings.filter(b => b.trip_id === trip.id)
+  useEffect(() => {
+    let alive = true
+    computeLegs(tripBookings).then(l => { if (alive) setLegs(l) })
+    return () => { alive = false }
+  }, [trip.id, tripBookings.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  const stops = [...(trip.trip_stops || [])].sort((a, b) => a.position - b.position)
+  const multi = stops.filter(s => s.kind === 'stay').length >= 2
+  const warnings = readOnly ? [] : planConflicts(trip, tripBookings)
+
   const byDay = {}
   const unscheduled = []
   items.forEach(item => {
@@ -201,12 +285,27 @@ export default function PlanTab({ trip, readOnly }) {
         </EmptyState>
       )}
 
+      {multi && <RouteStrip stops={stops} />}
+
+      {warnings.length > 0 && !hiddenWarnings && (
+        <Banner tone="accent" icon="alert-triangle" className="detail-warnings" role="status" onDismiss={() => setHiddenWarnings(true)}
+          title={warnings.length === 1 ? warnings[0].title : `${warnings.length} things to check`}>
+          {warnings.length === 1 ? warnings[0].detail : (
+            <ul>{warnings.map(w => <li key={w.id}><strong>{w.title}.</strong> {w.detail}</li>)}</ul>
+          )}
+        </Banner>
+      )}
+
       {items.length > 0 && (
         <BlockHead icon="check-circle" tone="success" title="Booked" id="plan-booked"
           note={bookingCount ? `${bookingCount} confirmed${items.length > bookingCount ? ', plus your plans and notes' : ''}` : 'Your plans and notes'} />
       )}
 
-      {Object.entries(byDay).map(([d, dayItems]) => (
+      {multi ? planByStop(byDay, stops, (d) => {
+        const p = tripPlace(trip, { date: d, legs, now: null })
+        const where = p.kind === 'travel' ? ` · ${p.label}` : p.kind === 'day_trip' ? ` · Day trip to ${p.city}` : ''
+        return `${format(parseLocalDate(d), 'EEE · MMM d')}${where}`
+      }, rowProps) : Object.entries(byDay).map(([d, dayItems]) => (
         <Section key={d} title={format(parseLocalDate(d), 'EEE · MMM d')}>
           <DayBlock items={dayItems} {...rowProps} />
         </Section>
@@ -222,12 +321,17 @@ export default function PlanTab({ trip, readOnly }) {
         <section className="detail-ideas-block" aria-labelledby="plan-ideas">
           <BlockHead icon="lightbulb" tone="neutral" title="Ideas, not booked yet" id="plan-ideas"
             note={readOnly ? 'Saved from the guide' : 'Saved from the guide. Tap one to confirm a visit.'} />
-          {groupIdeas(ideas).map(g => (
-            <Section key={g.id} title={g.label}>
-              <Card variant="group" className="detail-ideas">
-                {g.items.map(item => <IdeaRow key={item.id} item={item} onOpen={rowProps.onOpen} />)}
-              </Card>
-            </Section>
+          {(multi ? ideasByStop(ideas, stops) : [{ id: 'all', label: null, items: ideas }]).map(stopGroup => (
+            <Stack key={stopGroup.id} gap={3}>
+              {stopGroup.label && <Text variant="title" as="h3">{stopGroup.label}</Text>}
+              {groupIdeas(stopGroup.items).map(g => (
+                <Section key={g.id} title={g.label}>
+                  <Card variant="group" className="detail-ideas">
+                    {g.items.map(item => <IdeaRow key={item.id} item={item} onOpen={rowProps.onOpen} />)}
+                  </Card>
+                </Section>
+              ))}
+            </Stack>
           ))}
         </section>
       )}

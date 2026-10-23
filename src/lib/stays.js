@@ -40,6 +40,8 @@ export async function tripStops(trip, bookings = []) {
  * to end. Days not in a stop belong to the trip's own city.
  */
 export async function tripSegments(trip, bookings = []) {
+  const fromStops = segmentsFromStops(trip)
+  if (fromStops) return fromStops
   const home = await tripCoords(trip)
   const stops = await tripStops(trip, bookings)
   if (!home && !stops.length) return []
@@ -55,4 +57,29 @@ export async function tripSegments(trip, bookings = []) {
     else segments.push({ city: place.city, country: place.country, lat: place.lat, lon: place.lon, start: d, end: d })
   }
   return segments
+}
+
+/**
+ * Segments from the trip's saved stops (trip_stops, derived from all bookings: trains and flights too, not only
+ * hotels). A night on board belongs to where it arrives. Null when the trip has no stops yet.
+ */
+function segmentsFromStops(trip) {
+  const stops = (trip?.trip_stops || []).filter(s => s.nights > 0 && s.lat != null && s.kind !== 'day_trip')
+  if (!stops.length || isUndated(trip)) return null
+  const day = (d, n) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
+  const sorted = [...stops].sort((a, b) => a.position - b.position)
+  const at = d => {
+    const s = sorted.find(x => d >= x.start_date && d < x.end_date) || sorted.find(x => x.end_date === d)
+    if (s?.kind !== 'transit') return s
+    return sorted.find(x => x.position > s.position && x.kind !== 'transit') || s
+  }
+  const segments = []
+  for (let d = trip.start_date; d <= trip.end_date; d = day(d, 1)) {
+    const s = at(d)
+    if (!s) continue
+    const last = segments[segments.length - 1]
+    if (last && last.city === s.city && last.end === day(d, -1)) last.end = d
+    else segments.push({ city: s.city, country: s.country, lat: Number(s.lat), lon: Number(s.lng), start: d, end: d })
+  }
+  return segments.length ? segments : null
 }

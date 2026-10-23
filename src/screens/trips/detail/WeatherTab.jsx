@@ -115,7 +115,7 @@ export default function WeatherTab({ trip }) {
     }
     run()
     return () => { alive = false }
-  }, [trip.id, trip.destination_city, trip.destination_lat, trip.destination_lng, trip.start_date, trip.end_date, unit, attempt, staysKey])
+  }, [trip.id, trip.destination_city, trip.destination_lat, trip.destination_lng, trip.start_date, trip.end_date, unit, attempt, staysKey, (trip.trip_stops || []).map(x => `${x.city}${x.start_date}`).join()])
 
   if (isUndated(trip)) {
     return <EmptyState goose="happy" title="Add dates to see the weather">Goose shows the forecast, or typical weather for your dates, once the trip has them.</EmptyState>
