@@ -17,6 +17,15 @@
 - **Stripe sandbox:** product `stt_first_class`, prices `stt_first_class_yearly` / `stt_first_class_lifetime_founding`,
   portal configuration `bpc_1UTdLhR315zoHnpnVGMVz3v6`, webhook `we_1UTo8yR315zoHnpnfvqgc3qn` →
   `/functions/v1/stripe-webhook` (18 events). Tax: threshold monitoring only (no registrations yet).
+- **Live (2026-10-23):** migration applied, `billing` v3 + `stripe-webhook` v5 deployed (MCP; verify_jwt off). Secrets
+  STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET set (sandbox). Checkout metadata follows the cockpit spec (user_id, plan,
+  price_key, platform, app_version, trigger from `/upgrade/?from=`, code from `?code=` (pre-applied), first-touch UTM,
+  experiment, variant); the webhook writes each object's metadata jsonb (charges merge their payment intent's).
+- **Sandbox test (machinemisha):** yearly $14.99 via hosted Checkout + test card → `first_class` until 2027-10-23;
+  cancel at period end → still First Class, `canceling`; cancel now → `free`; lifetime $29.99 → `first_class`;
+  refund → `free`. Not tested end to end: the `billing` function itself from a signed-in browser (sessions were made
+  with the same parameters through the Stripe API) and the `/upgrade/` page signed in; the page goes live with the
+  next website deploy.
 - **Not done:** in-app paywall screens (PAYWALL_PLAN section 6), server-side First Class limits, Play/App Store billing,
   `subscription_status` analytics from the webhook, admin-stripe reusing `_shared/stripe.ts`.
 
