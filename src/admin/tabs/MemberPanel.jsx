@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import EmailComposer from './EmailComposer'
 import Icon from '../../ui/icons/Icon'
 import { api } from '../api'
 import { Badge, Loading, ErrorNote, useLoad, Modal, Field, Segmented, Table, download, ago, fmtDate, num, minutes,
@@ -32,6 +33,7 @@ const SECTIONS = [['overview', 'Overview'], ['membership', 'Membership'], ['stat
 export default function MemberPanel({ id, role, onClose, onChanged }) {
   const m = useLoad(() => api.member(id), [id])
   const [section, setSection] = useState('overview')
+  const [emailing, setEmailing] = useState(null)
   const changed = () => { m.reload(); onChanged?.() }
   const canAct = role !== 'analyst'
 
@@ -62,14 +64,17 @@ export default function MemberPanel({ id, role, onClose, onChanged }) {
               </div>
             </div>
           ) : <span />}
-          <button className="a-icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={20} /></button>
+          <div className="a-row">
+            {d && canAct && <button className="a-btn a-btn--sm" onClick={() => setEmailing({})}><Icon name="mail" size={16} /> Email</button>}
+            <button className="a-icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={20} /></button>
+          </div>
         </header>
         {d && <Segmented options={SECTIONS} value={section} onChange={setSection} />}
         <div className="a-panel__body">
           <ErrorNote error={m.error} onRetry={m.reload} />
           {!d ? <Loading label="Opening the file…" /> : (
             <>
-              {section === 'overview' && <Overview d={d} canAct={canAct} role={role} changed={changed} />}
+              {section === 'overview' && <Overview d={d} canAct={canAct} role={role} changed={changed} email={(template) => setEmailing({ template })} />}
               {section === 'membership' && <Membership d={d} canAct={canAct} changed={changed} />}
               {section === 'status' && <Status d={d} canAct={canAct} role={role} changed={changed} />}
               {section === 'notes' && <Notes d={d} canAct={canAct} changed={changed} />}
@@ -78,6 +83,8 @@ export default function MemberPanel({ id, role, onClose, onChanged }) {
           )}
         </div>
       </aside>
+      {emailing && d && <EmailComposer to={{ userIds: [d.id], label: d.name || d.email }} template={emailing.template} role={role}
+        onClose={() => setEmailing(null)} onSent={changed} />}
     </div>
   )
 }
@@ -86,7 +93,10 @@ function Facts({ rows }) {
   return <dl className="a-facts">{rows.filter(Boolean).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v ?? '—'}</dd></div>)}</dl>
 }
 
-function Overview({ d, canAct, role, changed }) {
+// Next best action → the template that carries it out
+const ACTION_TEMPLATE = [[/recap/i, 'recap'], [/win-back/i, 'win_back'], [/welcome|nudge/i, 'welcome'], [/First Class offer/i, 'first_class']]
+
+function Overview({ d, canAct, role, changed, email }) {
   const [tags, setTags] = useState(d.tags.join(', '))
   const [saving, setSaving] = useState(false)
   const fares = Object.entries(d.fares || {})
@@ -108,7 +118,14 @@ function Overview({ d, canAct, role, changed }) {
             <h3>Traveller profile</h3>
             <Badge tone={ins.health >= 60 ? 'ok' : ins.health >= 30 ? 'info' : 'warn'}>Health {ins.health}</Badge>
           </div>
-          {ins.next_action && <p className="a-insight__action"><Icon name="lightbulb" size={16} /> {ins.next_action}</p>}
+          {ins.next_action && (
+            <div className="a-row a-row--between a-insight__action">
+              <span><Icon name="lightbulb" size={16} /> {ins.next_action}</span>
+              {canAct && ACTION_TEMPLATE.find(([re]) => re.test(ins.next_action)) && (
+                <button className="a-btn a-btn--sm" onClick={() => email(ACTION_TEMPLATE.find(([re]) => re.test(ins.next_action))[1])}><Icon name="mail" size={16} /> Do it</button>
+              )}
+            </div>
+          )}
           <Facts rows={[
             ['Travels as', ins.traveller_type], ['Trips a year', ins.trips_per_year], ['Typical trip', ins.avg_trip_days ? `${ins.avg_trip_days} days` : null],
             ['Plans ahead', ins.lead_days != null ? `${ins.lead_days} days (${ins.planning_style})` : null], ['Trip style', ins.trip_style],
@@ -315,6 +332,7 @@ function StatusModal({ d, role, onClose, onDone }) {
   const [note, setNote] = useState('')
   const [message, setMessage] = useState(MESSAGES.warning)
   const [confirmText, setConfirmText] = useState('')
+  const [sendEmail, setSendEmail] = useState(true)
   const impact = useLoad(() => api.statusImpact(d.id), [d.id])
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -329,6 +347,8 @@ function StatusModal({ d, role, onClose, onDone }) {
     setBusy(true); setError(null)
     try {
       await api.setStatus(d.id, { level, reason, note, message, endsAt: endsAt?.toISOString() })
+      // The member's email still works even when suspended or banned: notices go out as account emails
+      if (sendEmail && message.trim()) await api.emailSend({ template_key: `notice_${level}`, user_ids: [d.id], message }).catch(e => alert(`Status saved, but the email failed: ${e.message}`))
       onDone(); onClose()
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
@@ -360,10 +380,10 @@ function StatusModal({ d, role, onClose, onDone }) {
           <select value={reason} onChange={e => setReason(e.target.value)}>{MOD_REASONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </Field>
         <Field label="Internal note" hint="What happened and what you saw. Only admins see this."><textarea rows={2} value={note} onChange={e => setNote(e.target.value)} maxLength={2000} /></Field>
-        <Field label="Message to the member" hint="Saved with the record. Automatic emails come with the next build step; for now copy it and send it from your inbox.">
+        <Field label="Message to the member" hint="Saved with the record and, if ticked below, emailed to them as an account notice (sent even if they didn't opt in to marketing).">
           <textarea rows={4} value={message} onChange={e => setMessage(e.target.value)} maxLength={2000} />
         </Field>
-        <button className="a-btn a-btn--ghost a-btn--sm" onClick={() => navigator.clipboard?.writeText(message)}><Icon name="copy" size={16} /> Copy message</button>
+        <label className="a-check"><input type="checkbox" checked={sendEmail} onChange={e => setSendEmail(e.target.checked)} /> Email this message to {d.email}</label>
 
         <div className="a-impact">
           <h3>What this touches</h3>

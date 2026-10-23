@@ -154,6 +154,8 @@ export default function SettingsView({ onBack, onDelete }) {
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
           <Switch label="Tailored offers" description="Use the kind of trips you plan to pick offers and tips that fit. Off keeps your trips out of it."
             checked={profile?.tailored_offers !== false} onChange={on => updateProfile({ tailored_offers: on }).catch(() => {})} />
+          <Switch label="Travel tips by email" description="Now and then: trip recaps, ideas for your next trip and offers. Unsubscribe from any email."
+            checked={!!profile?.marketing_emails} onChange={on => updateProfile({ marketing_emails: on, marketing_emails_at: new Date().toISOString() }).catch(() => {})} />
           <ExternalRow href="https://sillytraveltool.com/privacy/" title="Privacy Policy" />
           <ExternalRow href="https://sillytraveltool.com/terms/" title="Terms of Service" />
           <ListRow title="Delete account" meta="Erase your trips, documents and score" danger chevron onClick={onDelete} />

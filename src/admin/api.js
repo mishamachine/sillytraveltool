@@ -39,7 +39,24 @@ async function stripeFn(action, body = {}) {
   return data
 }
 
+async function emailFn(action, body = {}) {
+  if (demo) return demo(`email:${action}`, body)
+  const { data, error } = await supabase.functions.invoke('admin-email', { body: { action, ...body } })
+  if (error) {
+    let message = error.message
+    try { message = (await error.context.json()).error || message } catch { /* not JSON */ }
+    throw new Error(message)
+  }
+  return data
+}
+
 export const api = {
+  emailPreview: (b) => emailFn('preview', b),
+  emailCheck: (b) => emailFn('check', b),
+  emailSend: (b) => emailFn('send', b),
+  emailTemplates: () => rpc('admin_email_templates'),
+  emailTemplateSave: (p) => rpc('admin_email_template_save', { p }),
+  emailLog: (userId) => rpc('admin_email_log', { p_user: userId || null }),
   stripeStatus: () => stripeFn('status'),
   stripeSync: (force) => stripeFn('sync', { force: !!force }),
   stripePushCode: (id) => stripeFn('code_push', { id }),

@@ -100,6 +100,18 @@ export default async function demo(name, args) {
       return_gap: [{ value: 'Within a week', n: 80 }, { value: 'Same day', n: 50 }, { value: 'First session on device', n: 30 }],
       lang: [{ value: 'en-US', n: 100 }, { value: 'en-GB', n: 30 }, { value: 'es-ES', n: 20 }], tz: [{ value: 'America/Los_Angeles', n: 60 }, { value: 'Europe/London', n: 40 }],
       theme: [{ value: 'light', n: 110 }, { value: 'dark', n: 50 }], net: [{ value: '4g', n: 140 }, { value: '3g', n: 20 }] } }
+    case 'admin_email_templates': return [
+      { key: 'recap', name: 'Trip recap (just back)', kind: 'marketing', subject: 'Welcome back from {{last_trip_city}}', body: 'Hi {{first_name}},\n\nWelcome home from {{last_trip_city}}. {{last_trip_days}} days, all in one place.\n\nYour recap is ready in the app.', cta_label: 'See your recap', cta_url: '{{app_url}}', updated_at: day(-1) },
+      { key: 'win_back', name: 'Win-back (lapsed)', kind: 'marketing', subject: 'Where to next, {{first_name}}?', body: 'Hi {{first_name}},\n\nIt has been a while.', cta_label: 'Start a trip', cta_url: '{{app_url}}', updated_at: day(-1) },
+      { key: 'welcome', name: 'Welcome note (new member)', kind: 'service', subject: 'Welcome to Silly Travel Tool', body: 'Hi {{first_name}},\n\nThanks for signing up.', cta_label: 'Open the app', cta_url: '{{app_url}}', updated_at: day(-1) },
+      { key: 'notice_warning', name: 'Account warning', kind: 'service', subject: 'About your Silly Travel Tool account', body: '{{message}}', updated_at: day(-1) },
+    ]
+    case 'admin_email_log': return { opted_in: 7, members: 18, sent_30d: 12, by_template: { recap: 5, welcome: 6, notice_warning: 1 },
+      sends: members.slice(0, 6).map((m, i) => ({ id: i, user_id: m.id, email: m.email, template: ['recap', 'welcome', 'win_back'][i % 3], kind: 'marketing',
+        subject: 'Welcome back from Lisbon', status: i === 4 ? 'skipped' : 'sent', reason: i === 4 ? "Hasn't opted in to emails" : null, campaign: i < 3 ? 'recap_oct' : null, created_at: day(-i) })) }
+    case 'email:check': return { kind: 'marketing', eligible: Math.max(1, (args.user_ids?.length || 13) - 2), skipped: [{ email: 'jade@example.com', reason: "Hasn't opted in to emails" }, { email: 'ivan@example.com', reason: 'Unsubscribed' }] }
+    case 'email:preview': return { kind: 'marketing', subject: 'Welcome back from Lisbon', html: '<table><tr><td style="background:#FFFDF9;border-radius:22px;padding:24px"><p style="margin:0 0 16px;font-size:16px;color:#2A2520">Hi Ana,</p><p style="margin:0 0 16px;font-size:16px;color:#2A2520">Welcome home from Lisbon. 7 days, all in one place.</p><p><a style="display:inline-block;background:#B24A17;color:#FFFDF9;padding:12px 22px;border-radius:14px;text-decoration:none;font-weight:600">See your recap</a></p></td></tr></table>' }
+    case 'email:send': return { sent: 11, failed: 0, skipped: 2 }
     case 'stripe:status': return { configured: true, livemode: false, sync: { last_sync: day(-0.01), ok: true } }
     case 'stripe:sync': return { skipped: true }
     case 'stripe:code_push': return { promo: 'promo_demo' }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api'
+import EmailComposer from './EmailComposer'
 import { Card, Stat, Table, Loading, ErrorNote, useLoad, ExportButton, Modal, Field, fmtDate, ago } from '../ui'
 
 export default function System({ filters, go, role }) {
@@ -54,10 +55,12 @@ export default function System({ filters, go, role }) {
 function FormerMembers({ role }) {
   const former = useLoad(() => api.formerMembers(), [])
   const [open, setOpen] = useState(false)
+  const [emailing, setEmailing] = useState(false)
   return (
     <Card title="Former members" icon="mail" className="a-span-12" subtitle="names and emails kept for later notes, after a fresh start"
       actions={<>
         <ExportButton name="former-members" rows={former.data} />
+        {role === 'owner' && !!former.data?.length && <button className="a-btn a-btn--ghost a-btn--sm" onClick={() => setEmailing(true)}>Email them</button>}
         {role === 'owner' && <button className="a-btn a-btn--danger a-btn--sm" onClick={() => setOpen(true)}>Start fresh…</button>}
       </>}>
       <ErrorNote error={former.error} onRetry={former.reload} />
@@ -72,6 +75,7 @@ function FormerMembers({ role }) {
       )}
       <p className="a-hint">You can write to them about the relaunch. Marketing emails need their consent first in the EU, UK and Canada.</p>
       {open && <FreshStart onClose={() => setOpen(false)} onDone={former.reload} />}
+      {emailing && <EmailComposer to={{ formerAll: true, label: 'former members' }} template="relaunch" role={role} onClose={() => setEmailing(false)} />}
     </Card>
   )
 }

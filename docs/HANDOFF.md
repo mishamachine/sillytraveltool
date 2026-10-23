@@ -81,6 +81,16 @@
   Stripe objects' full `metadata` jsonb is stored (migration `20261023140000`, admin-stripe v3); web billing
   (branch feat/stripe-web-billing) sets user_id, plan, price_key, platform, app_version, trigger, code, utm_*, experiment,
   variant on checkout, subscription and payment intent.
+- **Member emails (2026-10-23):** `admin-email` v1 (Resend batch, from goose@bookings.sillytraveltool.com, reply-to
+  hello@sillytraveltool.com; template rendering in `_shared/emailTemplate.js`, tested by `node scripts/test-email-template.mjs`)
+  and `email-unsubscribe` v1 (RFC 8058 one-click POST; GET redirects to `/unsubscribe/?t=`). Migration
+  `20261023160000_member_emails`: `user_profiles.marketing_emails` (Settings → Travel tips by email, off by default) +
+  `email_token`, `email_templates` (9 seeded: recap, win_back, welcome, first_class, relaunch, notice_*), `email_sends`
+  log, `email_unsubscribe(token)` (anon). Rules: account notices (service) to any member; marketing owner-only, opted-in
+  members only, former members only with consent or the owner's per-send confirmation, never the unsubscribed or
+  suspended. Cockpit: Email button on member pages, "Do it" on the next best action, "Email these N" on any filtered
+  list (≤200), Members → Emails (templates, send log), status changes email the member notice, former members "Email
+  them". Not tested with a real send (needs the owner's Google session); open/click tracking not built.
 - **TO DO SOON (owner, 2026-10-23):** the privacy page and Terms show the owner's **home address** (402 Grandey Way NE,
   Renton). Fine for now; replace it with a PO box or virtual business address soon, in `public/privacy/` and `public/terms/`.
 - **Not done yet:** in-app Owner view (Profile files belong to the user-guide session),

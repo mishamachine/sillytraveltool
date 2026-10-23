@@ -49,3 +49,9 @@ verify_jwt = false
 
 [functions.admin-stripe]
 verify_jwt = false
+
+[functions.admin-email]
+verify_jwt = false
+
+[functions.email-unsubscribe]
+verify_jwt = false

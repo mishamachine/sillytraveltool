@@ -4,6 +4,8 @@ import { api } from '../api'
 import { Card, Table, Badge, Loading, ErrorNote, useLoad, ExportButton, Segmented, Stat, BarList, ago, fmtDate, STAGES, STAGE_LABEL,
   STATUS_LABEL, PLAN_LABEL, statusTone, stageTone } from '../ui'
 import MemberPanel from './MemberPanel'
+import EmailComposer from './EmailComposer'
+import EmailsView from './EmailsView'
 import { money } from './StripePanel'
 
 // Segment filters that live in the URL (#seg_affluence=Premium) and come from admin_insight_rows
@@ -16,6 +18,7 @@ const healthTone = (h) => (h >= 60 ? 'ok' : h >= 30 ? 'info' : h >= 10 ? 'warn' 
 
 export default function Members({ filters, view, go, role }) {
   const [search, setSearch] = useState('')
+  const [composing, setComposing] = useState(false)
   const mode = view.mode || 'list'
   const list = useLoad(() => api.membersPlus(search, filters), [filters, search])
   const audience = useLoad(() => (mode === 'audience' ? api.audience(filters) : null), [filters, mode])
@@ -50,7 +53,7 @@ export default function Members({ filters, view, go, role }) {
     <div className="a-grid">
       <Card title="Trip cycle" icon="compass" className="a-span-12"
         subtitle="Between trips is healthy. Lapsed means quieter than this member's own rhythm."
-        actions={<Segmented size="sm" options={[['list', 'Members'], ['audience', 'Audience']]} value={mode} onChange={(m) => go({ mode: m === 'list' ? null : m })} />}>
+        actions={<Segmented size="sm" options={[['list', 'Members'], ['audience', 'Audience'], ['emails', 'Emails']]} value={mode} onChange={(m) => go({ mode: m === 'list' ? null : m })} />}>
         <div className="a-stages">
           <button className={`a-stage ${!view.stage ? 'is-on' : ''}`} onClick={() => go({ stage: null })}>
             <span className="a-stage__n">{all.length}</span><span>Everyone</span>
@@ -63,7 +66,7 @@ export default function Members({ filters, view, go, role }) {
         </div>
       </Card>
 
-      {mode === 'audience' ? <Audience a={audience} pick={pickSeg} view={view} /> : (
+      {mode === 'emails' ? <EmailsView role={role} go={go} /> : mode === 'audience' ? <Audience a={audience} pick={pickSeg} view={view} /> : (
         <Card title="Members" icon="users" className="a-span-12" subtitle={`${rows.length} shown`}
           actions={<>
             <div className="a-search"><Icon name="search" size={16} />
@@ -75,6 +78,8 @@ export default function Members({ filters, view, go, role }) {
               <option value="">Any status</option>
               {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+            {role !== 'analyst' && <button className="a-btn a-btn--ghost a-btn--sm" disabled={!rows.length || rows.length > 200} onClick={() => setComposing(true)}
+              title={rows.length > 200 ? 'Filter to 200 or fewer' : undefined}><Icon name="mail" size={16} /> Email these {rows.length}</button>}
             <ExportButton name="members" rows={rows.map(({ tags, regions, ...m }) => ({ ...m, tags: (tags || []).join(' '), regions: (regions || []).join(' ') }))} />
           </>}>
           {!!segs.length && (
@@ -92,6 +97,9 @@ export default function Members({ filters, view, go, role }) {
         </Card>
       )}
 
+      {composing && <EmailComposer to={{ userIds: rows.map(m => m.id), label: `${rows.length} member${rows.length === 1 ? '' : 's'}` }}
+        template={view.stage === 'just_back' ? 'recap' : view.stage === 'lapsed' ? 'win_back' : view.stage === 'new' ? 'welcome' : undefined}
+        role={role} onClose={() => setComposing(false)} />}
       {view.member && <MemberPanel id={view.member} role={role} onClose={() => go({ member: null })} onChanged={list.reload} />}
     </div>
   )
