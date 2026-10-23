@@ -5,6 +5,14 @@ import { geminiFetch, checkAiQuota } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
 import { attachPlace, geocode, cached } from '../_shared/google.ts'
 import { bestTrip, wallSpan, distanceKm, gapDays, routeKm, NEAR_KM, EDGE_DAYS } from '../_shared/tripMatch.js'
+import { readItinerary, VISION_TYPES } from '../_shared/itinerary.ts'
+import { sheetToText } from '../_shared/sheet.js'
+
+const toBase64 = (bytes: Uint8Array) => {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(bin)
+}
 
 export const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -108,7 +116,10 @@ async function foldNeighbour(admin: any, trip: any, trips: any[], ends: { dep: P
 export async function ingestEmail(
   supabase: any,
   profile: { id: string, home_city?: string | null },
-  { subject, fromAddress, bodyText, GEMINI_API_KEY }: { subject: string, fromAddress: string, bodyText: string, GEMINI_API_KEY: string },
+  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [] }: {
+    subject: string, fromAddress: string, bodyText: string, GEMINI_API_KEY: string,
+    attachments?: { name: string, mime: string, bytes: Uint8Array }[],
+  },
 ): Promise<Response> {
   const userId = profile.id
 
@@ -123,6 +134,28 @@ export async function ingestEmail(
     .select('id, title, destination_city, destination_country, destination_country_code, destination_tz, destination_lat, destination_lng, start_date, end_date, status')
     .eq('owner_id', userId)
     .order('start_date', { ascending: true })
+
+  const tripList: any[] = trips || []
+
+  // ── 4b. Attachments first: an itinerary PDF, a screenshot or a spreadsheet can hold a whole trip ──
+  const fromFiles: any[] = []
+  for (const a of attachments) {
+    const sheet = await sheetToText(a.bytes, { name: a.name, mime: a.mime }).catch(() => null)
+    if (sheet == null && !VISION_TYPES.test(a.mime)) continue
+    if (fromFiles.length && !(await checkAiQuota(userId))) break
+    const read = await readItinerary(GEMINI_API_KEY, sheet != null
+      ? { text: `Spreadsheet itinerary (${a.name}):\n${sheet}`.slice(0, 20000) }
+      : { file: { mime: a.mime, data: toBase64(a.bytes) } })
+    if (read.result?.bookings?.length) fromFiles.push(...read.result.bookings)
+    else console.warn(`attachment ${a.name}: ${read.error || 'no bookings'}`)
+  }
+  if (fromFiles.length) {
+    const results: any[] = []
+    for (const parsed of fromFiles.slice(0, 40)) results.push(await fileBooking(supabase, profile, tripList, parsed))
+    const saved = results.filter(r => r.booking_id && !r.duplicate).length
+    console.log(`📎 ${saved} of ${results.length} bookings from attachments for user ${userId}`)
+    return ok({ success: true, from_attachments: true, count: saved, bookings: results, trip_ids: [...new Set(results.map(r => r.trip_id).filter(Boolean))] })
+  }
 
   // ── 5. Parse email via Gemini ─────────────────────────────
   const emailContext = [
@@ -216,9 +249,16 @@ activity_time, ticket_quantity
     return err('Could not parse Gemini response as JSON', 502)
   }
 
+  const filed = await fileBooking(supabase, profile, tripList, parsed)
+  return filed.error ? err(filed.error, filed.status || 500) : ok(filed)
+}
+
+/** Match one parsed booking to a trip (extend, fold or create one) and insert it. Updates `trips` in place. */
+async function fileBooking(supabase: any, profile: { id: string, home_city?: string | null }, trips: any[], parsed: any): Promise<Record<string, any>> {
+  const userId = profile.id
   // ── 5b. The same confirmation forwarded again: keep the booking we already have ──
   // Hotels, tickets and tables only: an outbound and return flight share one confirmation number
-  const tripIds = (trips || []).map((t: any) => t.id)
+  const tripIds = trips.map((t: any) => t.id)
   if (tripIds.length && parsed.title && !parsed.departure_time) {
     const dateKeys: [string, unknown][] = [['check_in_date', parsed.check_in_date], ['activity_date', parsed.activity_date]]
     let q = supabase.from('bookings').select('id, trip_id').in('trip_id', tripIds).eq('created_by', userId)
@@ -229,7 +269,7 @@ activity_time, ticket_quantity
     const dupe = dupes?.[0]
     if (dupe) {
       console.log(`↩️ Duplicate email for user ${userId}: booking ${dupe.id} already exists`)
-      return ok({ success: true, duplicate: true, booking_id: dupe.id, trip_id: dupe.trip_id })
+      return { success: true, duplicate: true, booking_id: dupe.id, trip_id: dupe.trip_id }
     }
   }
 
@@ -243,7 +283,7 @@ activity_time, ticket_quantity
       const { data: dupes } = await q.limit(1)
       if (dupes?.[0]) {
         console.log(`↩️ Duplicate leg for user ${userId}: booking ${dupes[0].id} already exists`)
-        return ok({ success: true, duplicate: true, booking_id: dupes[0].id, trip_id: dupes[0].trip_id })
+        return { success: true, duplicate: true, booking_id: dupes[0].id, trip_id: dupes[0].trip_id }
       }
     }
   }
@@ -259,7 +299,7 @@ activity_time, ticket_quantity
   const away = [ends.dep, ends.arr, ends.at].filter(p => p && !nearHome(p, home)) as Pt[]
   const item = { start: span?.start || null, end: span?.end || null, points: away.length ? away : [ends.dep, ends.arr, ends.at].filter(Boolean) }
   const today = new Date().toISOString().slice(0, 10)
-  const candidates = (trips || []).filter((t: any) => t.status !== 'cancelled' &&
+  const candidates = trips.filter((t: any) => t.status !== 'cancelled' &&
     (!t.start_date || !item.start || gapDays(t, item) <= EDGE_DAYS))
   for (const t of candidates) await loadTripPoints(supabase, t, home)
   const match = bestTrip(candidates, item, { today })
@@ -276,7 +316,9 @@ activity_time, ticket_quantity
     // A flight home with no trip to join: the trip is where it leaves from
     const homeward = MOVES.has(parsed.type) && nearHome(ends.arr, home) && parsed.departure_airport
     const geoTrip = homeward ? await geo(supabase, legPlace(parsed, 'departure_airport'))
-      : parsed.destination_city ? await geo(supabase, parsed.destination_city) : null
+      : parsed.destination_city ? await geo(supabase, parsed.destination_city)
+      : MOVES.has(parsed.type) ? await geo(supabase, legPlace(parsed, 'arrival_airport'))
+      : await geo(supabase, parsed.hotel_address || parsed.venue_address)
     const tripCity = geoTrip?.city || (homeward ? parsed.departure_airport : parsed.destination_city)
     // No date in the email: an undated trip ("Dates to be decided"), never today's date, which made a
     // one-day trip "in progress" and took over the Trips tab
@@ -305,6 +347,7 @@ activity_time, ticket_quantity
       console.error(`❌ Trip auto-create failed for user ${userId}:`, tripErr.message, tripErr.code, tripErr.details)
     } else if (newTrip) {
       matchedTrip = newTrip
+      trips.push(newTrip)
       console.log(`🆕 Created new trip for user ${userId}: ${newTrip.id} → ${tripCity}`)
     }
   }
@@ -312,7 +355,8 @@ activity_time, ticket_quantity
   // A train or flight that joins this trip to another emailed one: they're one journey
   let foldedTripId: string | null = null
   if (matchedTrip?.start_date && MOVES.has(parsed.type)) {
-    foldedTripId = await foldNeighbour(supabase, matchedTrip, (trips || []).filter((t: any) => t.id !== matchedTrip.id), ends, home)
+    foldedTripId = await foldNeighbour(supabase, matchedTrip, trips.filter((t: any) => t.id !== matchedTrip.id), ends, home)
+    if (foldedTripId) trips.splice(trips.findIndex((t: any) => t.id === foldedTripId), 1)
   }
 
   // ── 6b. Local time: attach the place's zone to each time, then convert to instants ──
@@ -375,12 +419,12 @@ activity_time, ticket_quantity
 
   if (insertErr) {
     console.error('Booking insert error:', insertErr)
-    return err(`Database insert failed: ${insertErr.message}`, 500)
+    return { error: `Database insert failed: ${insertErr.message}`, status: 500 }
   }
 
   console.log(`✅ Booking created for user ${userId}: ${booking.id} → trip ${matchedTrip?.id || 'unassigned'}`)
 
-  return ok({
+  return {
     success: true,
     booking_id: booking.id,
     trip_id: matchedTrip?.id || null,
@@ -389,6 +433,6 @@ activity_time, ticket_quantity
     folded_trip_id: foldedTripId,
     booking_type: parsed.type,
     booking_title: parsed.title,
-  })
+  }
 
 }

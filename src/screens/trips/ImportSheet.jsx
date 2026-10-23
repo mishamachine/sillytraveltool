@@ -1,17 +1,18 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { format } from 'date-fns'
 import { useTripsStore } from '../../store'
 import { parseLocalDate, todayLocalISO } from '../../lib/dates'
 import { bestTrip } from '../../../supabase/functions/_shared/tripMatch.js'
 import { editableTrips, withCoords } from '../../lib/tripPick'
-import { parseBookingEmail } from '../../lib/gemini'
+import { parseBookingEmail, parseBookingFile } from '../../lib/gemini'
+import { hasFirstClass, FIRST_CLASS_FEATURES } from '../../lib/firstClass'
 import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import { track, errorReason } from '../../lib/analytics'
 import { bookingKind, bookingMeta, tripDates, suggestTripName, bookingDates } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
-import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, category } from '../../ui'
+import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, Chip, category } from '../../ui'
 
 // ── Client-side trip matcher ──────────────────────────────
 // Same rule as email import (supabase/functions/_shared/tripMatch.js): the trip whose dates the itinerary overlaps
@@ -87,13 +88,38 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
   const [newCity, setNewCity] = useState(null)       // typed destination (null = Goose's pick)
   const [newPlace, setNewPlace] = useState(null)     // picked from city search
   const [creatingTrip, setCreatingTrip] = useState(false)
+  const [source, setSource] = useState(null) // { name, kind: 'pdf' | 'image' | 'sheet' | 'handwritten' } when reading a file
+  const [readText, setReadText] = useState(null) // what the AI read from a photo, shown before saving
+  const [locked, setLocked] = useState(null)
+  const fileRef = useRef(null)
+  const handRef = useRef(null)
+
+  const fileKind = (f) => (/\.(csv|tsv|xlsx)$/i.test(f.name) || /csv|spreadsheetml/.test(f.type) ? 'sheet' : /pdf/.test(f.type) ? 'pdf' : 'image')
+  const handleFile = async (file, { handwritten = false } = {}) => {
+    if (!file) return
+    if (file.size > 6 * 1024 * 1024) { setError('That file is too big. Up to 6 MB, or paste the text instead.'); return }
+    const kind = handwritten ? 'handwritten' : fileKind(file)
+    setSource({ name: file.name, kind })
+    track('import_file', { kind }, 'trips')
+    await read(() => parseBookingFile(file, { transcribe: handwritten }))
+  }
+  const pickHandwritten = () => {
+    if (!hasFirstClass()) { setLocked(FIRST_CLASS_FEATURES.handwritten_import); track('first_class_locked', { feature: 'handwritten_import' }, 'trips'); return }
+    handRef.current?.click()
+  }
 
   const handleParse = async () => {
     if (!text.trim()) return
-    setLoading(true); setError(null)
+    setSource(null)
+    await read(() => parseBookingEmail(text))
+  }
+
+  const read = async (fetchResult) => {
+    setLoading(true); setError(null); setReadText(null); setLocked(null)
     try {
-      const result = await parseBookingEmail(text)
-      // result shape: { bookings: [...], ultimate_destination: { city, airport_code } }
+      const result = await fetchResult()
+      // result shape: { bookings: [...], ultimate_destination: { city, airport_code }, read_text? }
+      setReadText(typeof result.read_text === 'string' && result.read_text.trim() ? result.read_text : null)
       const bookings = Array.isArray(result.bookings) ? result.bookings : [result]
       const dest = result.ultimate_destination || null
       setParsedBookings(bookings)
@@ -182,7 +208,9 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       {error && <Banner tone="danger" icon="alert-circle" title="That didn't work" role="alert">{error}</Banner>}
 
       {step === 'paste' && (loading ? (
-        <Loading title="Goose is reading your confirmation">Times, places and confirmation numbers, usually under 15 seconds.</Loading>
+        <Loading title={source ? `Goose is reading ${source.name}` : 'Goose is reading your confirmation'}>
+          {source ? 'Every page and row: times, places and confirmation numbers. A long itinerary can take up to a minute.' : 'Times, places and confirmation numbers, usually under 15 seconds.'}
+        </Loading>
       ) : (
         <>
           <Text variant="body" tone="secondary">
@@ -192,11 +220,29 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
             placeholder="Paste the email or booking text here" />
           <Text variant="micro" tone="muted">Read by Goose (AI). Check the details before saving.</Text>
           <Button variant="primary" size="lg" block icon="sparkles" onClick={handleParse} disabled={!text.trim()}>Read it</Button>
+          <Card variant="group" aria-label="Or import a file">
+            <ListRow icon="file" title="Upload a file" meta="PDF itinerary, screenshot, photo, or a CSV / Excel sheet" chevron
+              onClick={() => fileRef.current?.click()} />
+            <ListRow icon="edit" title="Handwritten agenda" meta="A photo of your plan on paper" chevron
+              trailing={<Chip tone="accent" icon={hasFirstClass() ? undefined : 'lock'}>First Class</Chip>} onClick={pickHandwritten} />
+          </Card>
+          {locked && <Banner tone="info" icon="lock" role="status" onDismiss={() => setLocked(null)}>{locked}</Banner>}
+          <input ref={fileRef} type="file" hidden accept=".pdf,.csv,.tsv,.xlsx,image/*,application/pdf,text/csv"
+            onChange={e => { handleFile(e.target.files?.[0]); e.target.value = '' }} />
+          <input ref={handRef} type="file" hidden accept="image/*" capture="environment"
+            onChange={e => { handleFile(e.target.files?.[0], { handwritten: true }); e.target.value = '' }} />
         </>
       ))}
 
       {step === 'preview' && n > 0 && (
         <>
+          {readText && (
+            <Card variant="raised" aria-label="What Goose read">
+              <Text variant="overline" tone="accent" as="p">What Goose read{source?.name ? ` from ${source.name}` : ''}</Text>
+              <Text variant="body" as="pre" className="import-read">{readText}</Text>
+              <Text variant="micro" tone="muted">Check it against your page. Anything marked [?] wasn't legible: fix it after saving.</Text>
+            </Card>
+          )}
           <Card variant="group">
             {parsedBookings.map((b, i) => {
               const cat = category(bookingKind(b))
@@ -237,7 +283,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
               </Stack>
             </Card>
           )}
-          <Button variant="ghost" icon="arrow-left" onClick={() => setStep('paste')}>Paste again</Button>
+          <Button variant="ghost" icon="arrow-left" onClick={() => setStep('paste')}>{source ? 'Try another file' : 'Paste again'}</Button>
         </>
       )}
 

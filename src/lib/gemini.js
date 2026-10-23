@@ -110,10 +110,24 @@ export async function parseBookingEmail(emailText) {
 }
 
 /**
+ * Read an itinerary file: a PDF, a screenshot or a photo (read by the AI's vision), or a spreadsheet (turned into
+ * text here first). transcribe: also return what was read (read_text), shown before saving.
+ */
+export async function parseBookingFile(file, { transcribe = false } = {}) {
+  const { sheetToText } = await import('../../supabase/functions/_shared/sheet.js')
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const sheet = await sheetToText(bytes, { name: file.name, mime: file.type })
+  if (sheet != null) return invokeFunction('parse-booking-email', { emailText: `Spreadsheet itinerary (${file.name}):\n${sheet}`.slice(0, 20000) }, 45000)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return invokeFunction('parse-booking-email', { file: { name: file.name, mime: file.type || 'application/octet-stream', data: btoa(bin) }, transcribe }, 75000)
+}
+
+/**
  * Generate AI-powered packing checklist
  */
 export async function generateChecklist(trip, bookings, weatherContext, stops = []) {
   return invokeFunction('generate-checklist', { trip, bookings, weatherContext, stops }, 45000)
 }
 
-export default { generateGuideContent, generatePhrases, gooseyDiscover, parseBookingEmail, generateChecklist }
+export default { generateGuideContent, generatePhrases, gooseyDiscover, parseBookingEmail, parseBookingFile, generateChecklist }

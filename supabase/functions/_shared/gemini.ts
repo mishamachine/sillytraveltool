@@ -61,7 +61,7 @@ async function deepseekFetch(key: string, body: Record<string, any>, timeoutMs: 
   }
 }
 
-async function geminiDirect(
+export async function geminiDirect(
   apiKey: string,
   body: Record<string, any>,
   { timeoutMs = 25000 }: { timeoutMs?: number } = {},

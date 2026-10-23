@@ -25,3 +25,6 @@
 
 /* Next-up buttons share the row, and stack once large text makes them too narrow */
 .today-action { flex: 1 1 8.5rem; }
+
+/* Import: what the AI read from a photo, before saving */
+.import-read { white-space: pre-wrap; font-family: inherit; margin: 0; max-height: 220px; overflow: auto; }

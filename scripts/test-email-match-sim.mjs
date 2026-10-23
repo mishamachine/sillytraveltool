@@ -29,6 +29,14 @@ const PARSED = {
   '14-flight-delta-multileg-home': { type: 'flight', title: 'Flight home', confirmation_number: 'GV5T2K', flight_number: 'DL 167', departure_airport: 'LIS', arrival_airport: 'SFO', departure_time: '2027-04-20T11:30', arrival_time: '2027-04-20T19:05', destination_city: 'San Francisco' },
 }
 
+// What the AI reads from the flagship spreadsheet (supabase/tests/files/flagship-itinerary.xlsx), first rows
+const SHEET_BOOKINGS = [
+  { type: 'flight', title: 'SEA -> MAD', flight_number: 'IB 6852', confirmation_number: 'K7Q2LM', departure_airport: 'SEA', arrival_airport: 'MAD', departure_time: '2026-11-10T13:05', arrival_time: '2026-11-11T08:40', destination_city: 'Madrid' },
+  { type: 'hotel', title: 'Hotel Urban Letras', hotel_name: 'Hotel Urban Letras', hotel_address: 'Madrid', check_in_date: '2026-11-11', check_out_date: '2026-11-14', confirmation_number: '58213377', destination_city: 'Madrid' },
+  { type: 'transport', transport_mode: 'train', title: 'Madrid -> Granada', flight_number: 'AVE', confirmation_number: 'RNF8812', departure_airport: 'Madrid Atocha', arrival_airport: 'Granada', departure_time: '2026-11-14T07:05', arrival_time: '2026-11-14T10:25', destination_city: 'Granada' },
+  { type: 'hotel', title: 'Casa Morisca', hotel_name: 'Casa Morisca', hotel_address: 'Granada', check_in_date: '2026-11-14', check_out_date: '2026-11-16', confirmation_number: 'CM-3310', destination_city: 'Granada' },
+]
+
 // Fake geography: first keyword found in the query wins
 const GEO = [
   ['sfo', 37.62, -122.38, 'San Francisco', 'US'], ['san francisco', 37.77, -122.42, 'San Francisco', 'US'],
@@ -36,6 +44,10 @@ const GEO = [
   ['hoxton', 51.53, -0.08, 'London', 'GB'], ['british museum', 51.52, -0.13, 'London', 'GB'], ['dishoom', 51.52, -0.08, 'London', 'GB'],
   ['gare du nord', 48.88, 2.36, 'Paris', 'FR'], ['cdg', 49.01, 2.55, 'Paris', 'FR'], ['paris', 48.86, 2.35, 'Paris', 'FR'],
   ['marais', 48.86, 2.36, 'Paris', 'FR'], ['louvre', 48.86, 2.34, 'Paris', 'FR'], ['septime', 48.85, 2.38, 'Paris', 'FR'],
+  ['madrid', 40.42, -3.70, 'Madrid', 'ES'], ['mad airport', 40.47, -3.57, 'Madrid', 'ES'], ['atocha', 40.41, -3.69, 'Madrid', 'ES'],
+  ['granada', 37.18, -3.60, 'Granada', 'ES'], ['sea airport', 47.45, -122.31, 'Seattle', 'US'],
+  ['madrid', 40.42, -3.70, 'Madrid', 'ES'], ['mad airport', 40.47, -3.57, 'Madrid', 'ES'], ['atocha', 40.41, -3.69, 'Madrid', 'ES'],
+  ['granada', 37.18, -3.60, 'Granada', 'ES'], ['sea airport', 47.45, -122.31, 'Seattle', 'US'],
   ['lis', 38.77, -9.13, 'Lisbon', 'PT'], ['lisbon', 38.72, -9.14, 'Lisbon', 'PT'], ['memmo', 38.71, -9.13, 'Lisbon', 'PT'],
   ['belcanto', 38.71, -9.14, 'Lisbon', 'PT'], ['fado', 38.71, -9.13, 'Lisbon', 'PT'],
 ]
@@ -83,7 +95,11 @@ globalThis.Deno = { env: { get: k => ({ GOOGLE_MAPS_SERVER_KEY: 'fake', DEEPSEEK
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), json = b => new Response(JSON.stringify(b), { status: 200 })
   if (u.includes('consume_ai_quota')) return json(true)
-  if (u.includes('deepseek')) return json({ choices: [{ message: { content: JSON.stringify(PARSED[current]) } }] })
+  if (u.includes('deepseek')) {
+    const prompt = JSON.parse(init.body).messages[0].content
+    const answer = prompt.includes('Spreadsheet itinerary') ? { bookings: SHEET_BOOKINGS } : PARSED[current]
+    return json({ choices: [{ message: { content: JSON.stringify(answer) } }] })
+  }
   if (u.includes('geocode/json')) {
     const g = lookup(decodeURIComponent(new URL(u).searchParams.get('address') || ''))
     return json(g ? { status: 'OK', results: [{ geometry: { location: { lat: g.lat, lng: g.lng } }, address_components: [{ types: ['locality'], long_name: g.city }, { types: ['country'], long_name: g.cc, short_name: g.cc }], formatted_address: g.city }] } : { status: 'ZERO_RESULTS' })
@@ -137,9 +153,20 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     current = id
     const f = fixtures.find(x => x.id === id)
     const out = await (await ingestEmail(db, { id: 'u1' }, { subject: f.subject, fromAddress: f.from, bodyText: f.text, GEMINI_API_KEY: '' })).json()
-    assert.equal(out.duplicate, true, `${id} should be a duplicate`)
+    assert.equal(out.duplicate, true, `${id} should be a duplicate: ${JSON.stringify(out)}`)
   }
   assert.equal(db.tables.bookings.length, 14)
   console.log('re-forwarded flight, train and hotel: no duplicates')
 }
-console.log('\nall replays: one trip, 14 bookings, 10–20 Apr')
+// An emailed spreadsheet itinerary: every row filed, one trip
+{
+  const db = makeDb()
+  const bytes = new Uint8Array(readFileSync(`${root}supabase/tests/files/flagship-itinerary.xlsx`))
+  current = null
+  const out = await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 'Our trip', fromAddress: 'me', bodyText: 'see attached', GEMINI_API_KEY: '',
+    attachments: [{ name: 'flagship-itinerary.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes }] })).json()
+  assert.equal(out.from_attachments, true); assert.equal(out.count, 4)
+  assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].start_date, '2026-11-10'); assert.equal(db.tables.trips[0].end_date, '2026-11-16')
+  console.log(`spreadsheet attachment: ${out.count} bookings → 1 trip ${db.tables.trips[0].start_date}→${db.tables.trips[0].end_date}`)
+}
+console.log('\nall replays: one trip, 14 bookings, 10–20 Apr; attachments filed')
