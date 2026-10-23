@@ -242,3 +242,22 @@ sessions own live changes there; it only matters once the switch is on). Reply e
   refuses lifetime with 410 `offer_ended`). Demo: `?demo&founders=off`.
 - **Still two places:** turning enforcement on is `billing_settings.free_limits_on` (off). It could move into
   `app_settings.free_limits` as an `enabled` flag with a Controls toggle; that's the cockpit session's call.
+
+## Signed-in end-to-end test on the live /upgrade/ page (2026-10-23, sandbox, machinemisha)
+Owner typed Stripe's test cards (Claude can't enter card numbers on the live site); Claude drove the rest and checked SQL.
+| Step | Result |
+|---|---|
+| `billing` checkout from a signed-in browser | OK: hosted Checkout, Sandbox badge, email prefilled, metadata trigger/platform/app_version |
+| Declined card `4000 0000 0000 0002` | Refused; `stripe_charges` row `failed / card_declined`, plan stays `free` |
+| Yearly with `4242…` | `first_class`, page "renewing October 23, 2027" |
+| Cancel in the portal | **Bug:** Stripe (flexible billing) sets `cancel_at`, not `cancel_at_period_end`, so the row says not canceling and the page still says "renewing". Access is right. Sent to the Stripe session (owns `_shared/stripe.ts` / stripe-webhook); admin-stripe likely has the same gap |
+| Cancel now (API) | `free` within a second |
+| `?code=stttest50` (lower case) + founders offer | Code matched and pre-applied: $29.99 → $14.99 (`amount_discount` 1500); charge metadata `code=STTTEST50`, `trigger=email_test` |
+| 3D Secure `4000 0025 0000 3155` | Approved in Stripe's test window; checkout sat on "Processing" for ~30 s, then `/upgrade/?paid=…` → "First Class for life" |
+| Refund (API) | `free` |
+- Test data left in the sandbox: subscription `sub_1UTrcxR315zoHnpnbBRRBlhV` (canceled), lifetime charge refunded, coupon
+  `Rp1saObx` + promotion code `STTTEST50` (active; this Stripe connection can't switch codes off; capped at 3 uses,
+  1 used). Archive it in the Stripe dashboard if wanted.
+- Small copy note for `/upgrade/`: with a `?code=` link the page still says "Have a discount code? Enter it on the
+  payment page."
+- Checkout also offers Cash App Pay, Klarna and Bank ("$5 back") by Stripe default; owner may turn some off.
