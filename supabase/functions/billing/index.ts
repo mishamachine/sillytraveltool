@@ -64,6 +64,11 @@ Deno.serve(async (req) => {
     if (b.action === 'checkout') {
       const plan = b.plan
       if (!PRICES[plan]) return json({ error: 'Unknown plan' }, 400)
+      // The founders lifetime offer ends when the owner turns it off (app_settings founders_offer, via public_settings)
+      if (plan === 'lifetime') {
+        const { data: settings } = await admin.rpc('public_settings')
+        if (settings?.founders_offer?.active === false) return json({ error: 'The founders offer has ended.', code: 'offer_ended' }, 410)
+      }
       // Already paying on the web: send them to manage it instead of charging twice
       const { data: owned } = await admin.rpc('stripe_first_class', { p_user: user.id })
       if (owned) return json({ error: 'You already have First Class.', code: 'already' }, 409)

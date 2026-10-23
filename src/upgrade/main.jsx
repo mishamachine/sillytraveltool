@@ -26,6 +26,9 @@ function Upgrade() {
   const [error, setError] = useState(null)
   const [paid] = useState(() => !!new URLSearchParams(location.search).get('paid'))
   const [waiting, setWaiting] = useState(paid)
+  // The owner ends the founders lifetime offer in /admin → Money → Controls (app_settings founders_offer)
+  const [founders, setFounders] = useState(true)
+  useEffect(() => { supabase.rpc('public_settings').then(({ data }) => { if (data?.founders_offer?.active === false) setFounders(false) }) }, [])
 
   const loadPlan = () => supabase.rpc('my_entitlement').then(({ data }) => { setPlan(data); return data })
   useEffect(() => {
@@ -98,7 +101,7 @@ function Upgrade() {
               <>
                 <p className="a-gate__text">Unlimited trips, reservations and email import, and every past trip kept. We keep STT as affordable as we can so more people travel, well informed and organised. Your subscription keeps the lights on (and the dog fed).</p>
                 <button className="a-btn a-btn--primary a-btn--block" disabled={!!busy} onClick={() => go('checkout', { plan: 'yearly' })}>{busy === 'yearly' ? 'Opening checkout…' : 'First Class yearly · $14.99 / year'}</button>
-                <button className="a-btn a-btn--block" disabled={!!busy} onClick={() => go('checkout', { plan: 'lifetime' })}>{busy === 'lifetime' ? 'Opening checkout…' : 'Founders offer · $29.99 once, for life'}</button>
+                {founders && <button className="a-btn a-btn--block" disabled={!!busy} onClick={() => go('checkout', { plan: 'lifetime' })}>{busy === 'lifetime' ? 'Opening checkout…' : 'Founders offer · $29.99 once, for life'}</button>}
                 <p className="a-hint">Secure payment by Stripe. Have a discount code? Enter it on the payment page. Cancel any time; you keep First Class to the end of the year you paid for.</p>
                 {web?.customer && <button className="a-btn a-btn--ghost a-btn--block" disabled={!!busy} onClick={() => go('portal')}>Billing history</button>}
               </>
