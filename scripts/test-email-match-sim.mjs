@@ -89,7 +89,18 @@ function makeDb() {
     }
     return api
   }
-  return { tables, from: q }
+  // RPCs the ingest uses: dates only grow; the per-user lock is always free here
+  const rpc = async (name, args) => {
+    if (name === 'widen_trip') {
+      const t = tables.trips.find(x => x.id === args.p_trip)
+      if (!t) return { data: [], error: null }
+      t.start_date = !t.start_date || args.p_start < t.start_date ? args.p_start : t.start_date
+      t.end_date = !t.end_date || args.p_end > t.end_date ? args.p_end : t.end_date
+      return { data: [{ start_date: t.start_date, end_date: t.end_date }], error: null }
+    }
+    return { data: name === 'take_ingest_lock' ? true : null, error: null }
+  }
+  return { tables, from: q, rpc }
 }
 
 // ── Fake network: AI, geocoding, places, time zones ──
@@ -160,6 +171,27 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   }
   assert.equal(db.tables.bookings.length, 14)
   console.log('re-forwarded flight, train and hotel: no duplicates')
+  // A change email: the hotel now checks out a day later (same booking number) → updated in place, not a 15th booking
+  PARSED['02b-hotel-change'] = { ...PARSED['02-hotel-hoxton-london'], change_type: 'change', check_out_date: '2027-04-15' }
+  current = '02b-hotel-change'
+  let out = await (await ingestEmail(db, { id: 'u1' }, { subject: 'Your booking has changed', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  assert.equal(out.updated, true, JSON.stringify(out)); assert.deepEqual(out.changed, ['check_out_date'])
+  assert.equal(db.tables.bookings.length, 14)
+  assert.equal(db.tables.bookings.find(b => b.confirmation_number === '4471.902.385').check_out_date, '2027-04-15')
+  // A flight time change: same flight, new departure time → updated
+  PARSED['01b-flight-change'] = { ...PARSED['01-flight-united-sfo-lhr'], change_type: 'change', departure_time: '2027-04-10T17:10', arrival_time: '2027-04-11T11:30' }
+  current = '01b-flight-change'
+  out = await (await ingestEmail(db, { id: 'u1' }, { subject: 'Schedule change', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  assert.equal(out.updated, true, JSON.stringify(out)); assert.ok(out.changed.includes('departure_time'))
+  assert.equal(db.tables.bookings.length, 14)
+  // A cancellation: marked, not deleted
+  PARSED['11b-cancel'] = { ...PARSED['11-restaurant-sevenrooms-belcanto'], change_type: 'cancellation' }
+  current = '11b-cancel'
+  out = await (await ingestEmail(db, { id: 'u1' }, { subject: 'Reservation cancelled', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  assert.equal(out.cancelled, true)
+  assert.match(db.tables.bookings.find(b => b.confirmation_number === '7RX-339104').title, /^Cancelled · /)
+  assert.equal(db.tables.bookings.length, 14)
+  console.log('change emails: hotel check-out and flight time updated in place; cancellation marked; still 14 bookings')
 }
 // An emailed spreadsheet itinerary: every row filed, one trip
 {

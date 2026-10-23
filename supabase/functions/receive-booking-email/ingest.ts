@@ -104,16 +104,45 @@ async function foldNeighbour(admin: any, trip: any, trips: any[], ends: { dep: P
     const start = other.start_date < trip.start_date ? other.start_date : trip.start_date
     const end = other.end_date > trip.end_date ? other.end_date : trip.end_date
     await admin.from('bookings').update({ trip_id: trip.id }).eq('trip_id', other.id)
-    await admin.from('trips').update({ start_date: start, end_date: end }).eq('id', trip.id)
     await admin.from('trips').delete().eq('id', other.id)
-    trip.start_date = start; trip.end_date = end
+    Object.assign(trip, await widenTrip(admin, trip.id, start, end) || { start_date: start, end_date: end })
     console.log(`🔗 Folded trip ${other.id} into ${trip.id}`)
     return other.id
   }
   return null
 }
 
-export async function ingestEmail(
+/**
+ * A trip's dates only grow, in one statement (public.widen_trip), so emails filed at the same moment can't undo each
+ * other's widening. Returns the trip's dates after the change, or null when the call failed.
+ */
+async function widenTrip(admin: any, tripId: string, start: string, end: string) {
+  const { data, error } = await admin.rpc('widen_trip', { p_trip: tripId, p_start: start, p_end: end })
+  if (error) { console.warn('widen_trip failed', error.message); return null }
+  const row = Array.isArray(data) ? data[0] : data
+  return row ? { start_date: row.start_date, end_date: row.end_date } : null
+}
+
+/**
+ * One email per traveller at a time (public.take_ingest_lock): several confirmations forwarded together are filed in
+ * turn, so they extend one trip instead of each starting their own. Waits up to a minute, then goes ahead anyway.
+ */
+export async function ingestEmail(supabase: any, profile: { id: string, home_city?: string | null }, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
+  let locked = false
+  for (let i = 0; i < 40 && !locked; i++) {
+    const { data, error } = await supabase.rpc('take_ingest_lock', { p_user: profile.id, p_seconds: 90 })
+    if (error) { console.warn('ingest lock unavailable', error.message); break }
+    locked = data === true
+    if (!locked) await new Promise(r => setTimeout(r, 1500))
+  }
+  try {
+    return await ingestOne(supabase, profile, input)
+  } finally {
+    if (locked) await supabase.rpc('release_ingest_lock', { p_user: profile.id })
+  }
+}
+
+async function ingestOne(
   supabase: any,
   profile: { id: string, home_city?: string | null },
   { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [] }: {
@@ -173,6 +202,7 @@ ${emailContext}
 Return this JSON structure (use null for any field not found):
 {
 "email_kind": "booking|loyalty|other",
+"change_type": "new|change|cancellation",
 "loyalty": { "program_name": null, "member_number": null, "member_name": null, "tier": null, "points_balance": null, "points_as_of": null, "expiry_date": null },
 "type": "flight|hotel|activity|transport|restaurant|other",
 "title": "short descriptive title e.g. 'Flight to Tokyo' or 'Hilton Tokyo Check-in'",
@@ -210,6 +240,8 @@ Rules:
   no new reservation in it; then fill "loyalty" (program_name e.g. "Iberia Plus", member_number as printed, tier e.g.
   "Gold", points_balance a whole number, points_as_of = statement date YYYY-MM-DD, expiry_date YYYY-MM-DD) and leave
   the booking fields null. "booking" for a reservation or ticket. "other" for anything else.
+- change_type: "change" when the email updates an existing reservation (new date, time, room, seat, guests, schedule
+  change), "cancellation" when it cancels one, else "new". Always give the booking details as they are NOW.
 - departure_time and arrival_time: the LOCAL time exactly as printed on the confirmation, as YYYY-MM-DDTHH:MM with NO time zone or offset. The departure time is local to the departure airport/station, the arrival time local to the arrival airport/station. Never convert between time zones. Date only (YYYY-MM-DD) if no time is printed.
 - activity_time: local time exactly as printed, HH:MM 24h.
 - departure_airport / arrival_airport for flights: the 3-letter IATA code when shown (e.g. MAD), otherwise the airport name
@@ -276,6 +308,9 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   // ── 5b. The same confirmation forwarded again: keep the booking we already have ──
   // Hotels, tickets and tables only: an outbound and return flight share one confirmation number
   const tripIds = trips.map((t: any) => t.id)
+  const same = await sameReservation(supabase, userId, tripIds, parsed, id => trips.find((t: any) => t.id === id)?.destination_tz || null)
+  if (same) return same
+  delete parsed.change_type
   if (tripIds.length && parsed.title && !parsed.departure_time) {
     const dateKeys: [string, unknown][] = [['check_in_date', parsed.check_in_date], ['activity_date', parsed.activity_date]]
     let q = supabase.from('bookings').select('id, trip_id').in('trip_id', tripIds).eq('created_by', userId)
@@ -323,8 +358,7 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   let matchedTrip: any = match?.trip || null
 
   if (matchedTrip && match?.widen) {
-    await supabase.from('trips').update(match.widen).eq('id', matchedTrip.id)
-    Object.assign(matchedTrip, match.widen)
+    Object.assign(matchedTrip, await widenTrip(supabase, matchedTrip.id, match.widen.start_date, match.widen.end_date) || match.widen)
     console.log(`📅 Trip ${matchedTrip.id} now ${match.widen.start_date} → ${match.widen.end_date} (${match.fit})`)
   }
 
@@ -386,38 +420,7 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
 
   // ── 7. Sanitize booking fields ────────────────────────────
   // Only real bookings columns — a field Gemini invents must not break the insert
-  const BOOKING_COLUMNS = new Set([
-    'type', 'title', 'confirmation_number', 'flight_number', 'airline', 'departure_airport',
-    'arrival_airport', 'departure_time', 'arrival_time', 'flight_class', 'hotel_name', 'hotel_address',
-    'check_in_date', 'check_out_date', 'room_type', 'activity_date', 'activity_time', 'venue_name',
-    'venue_address', 'price', 'currency', 'booking_url', 'notes', 'passenger_name', 'seat_number',
-    'ticket_quantity', 'party_size', 'transport_mode', 'departure_tz', 'arrival_tz', 'local_tz',
-    'place_id', 'place_lat', 'place_lng',
-  ])
-  const BOOKING_TYPES = ['flight', 'hotel', 'activity', 'transport', 'restaurant', 'other']
-  if (!BOOKING_TYPES.includes(parsed.type)) parsed.type = 'other'
-  for (const k of ['ticket_quantity', 'party_size']) {
-    const n = parseInt(String(parsed[k] ?? ''), 10)
-    parsed[k] = Number.isFinite(n) && n > 0 && n <= 50 ? n : null
-  }
-
-  const sanitized: Record<string, any> = {}
-  for (const [k, v] of Object.entries(parsed)) {
-    if (!BOOKING_COLUMNS.has(k)) continue  // destination_city etc. are matching hints only
-    if (v === '' || v === undefined || v === null) {
-      sanitized[k] = null
-    } else if ((k === 'departure_time' || k === 'arrival_time') && typeof v === 'string') {
-      try {
-        const d = new Date(v)
-        sanitized[k] = isNaN(d.getTime()) ? null : d.toISOString()
-      } catch { sanitized[k] = null }
-    } else if (k === 'price' && v !== null) {
-      const p = parseFloat(String(v))
-      sanitized[k] = isNaN(p) ? null : p
-    } else {
-      sanitized[k] = v
-    }
-  }
+  const sanitized = sanitizeBooking(parsed)
 
   // ── 8. Insert booking ─────────────────────────────────────
   const bookingRow = {
@@ -452,6 +455,99 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
     booking_title: parsed.title,
   }
 
+}
+
+// Only real bookings columns — a field the AI invents must not break the insert
+function sanitizeBooking(parsed: Record<string, any>): Record<string, any> {
+  const BOOKING_COLUMNS = new Set([
+    'type', 'title', 'confirmation_number', 'flight_number', 'airline', 'departure_airport',
+    'arrival_airport', 'departure_time', 'arrival_time', 'flight_class', 'hotel_name', 'hotel_address',
+    'check_in_date', 'check_out_date', 'room_type', 'activity_date', 'activity_time', 'venue_name',
+    'venue_address', 'price', 'currency', 'booking_url', 'notes', 'passenger_name', 'seat_number',
+    'ticket_quantity', 'party_size', 'transport_mode', 'departure_tz', 'arrival_tz', 'local_tz',
+    'place_id', 'place_lat', 'place_lng',
+  ])
+  const BOOKING_TYPES = ['flight', 'hotel', 'activity', 'transport', 'restaurant', 'other']
+  if (!BOOKING_TYPES.includes(parsed.type)) parsed.type = 'other'
+  for (const k of ['ticket_quantity', 'party_size']) {
+    const n = parseInt(String(parsed[k] ?? ''), 10)
+    parsed[k] = Number.isFinite(n) && n > 0 && n <= 50 ? n : null
+  }
+
+  const sanitized: Record<string, any> = {}
+  for (const [k, v] of Object.entries(parsed)) {
+    if (!BOOKING_COLUMNS.has(k)) continue  // destination_city etc. are matching hints only
+    if (v === '' || v === undefined || v === null) {
+      sanitized[k] = null
+    } else if ((k === 'departure_time' || k === 'arrival_time') && typeof v === 'string') {
+      try {
+        const d = new Date(v)
+        sanitized[k] = isNaN(d.getTime()) ? null : d.toISOString()
+      } catch { sanitized[k] = null }
+    } else if (k === 'price' && v !== null) {
+      const p = parseFloat(String(v))
+      sanitized[k] = isNaN(p) ? null : p
+    } else {
+      sanitized[k] = v
+    }
+  }
+  return sanitized
+}
+
+// What makes a reservation itself (not just its paperwork): if one of these differs, the email changed it
+const CHANGE_FIELDS = ['departure_time', 'arrival_time', 'departure_airport', 'arrival_airport', 'flight_number', 'check_in_date',
+  'check_out_date', 'activity_date', 'activity_time', 'hotel_name', 'venue_name', 'room_type', 'party_size', 'ticket_quantity',
+  'seat_number', 'flight_class', 'price']
+const sameValue = (k: string, a: unknown, b: unknown) => {
+  if (a == null || b == null || a === '' || b === '') return true // a detail missing from one email isn't a change
+  if (k === 'departure_time' || k === 'arrival_time') return Date.parse(String(a)) === Date.parse(String(b))
+  if (k === 'activity_time') return String(a).slice(0, 5) === String(b).slice(0, 5)
+  if (k === 'price') return Math.abs(Number(a) - Number(b)) < 0.01
+  return String(a).trim().toLowerCase() === String(b).trim().toLowerCase()
+}
+const normRef = (v: unknown) => String(v ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase()
+
+/**
+ * The same reservation forwarded again, changed or cancelled: same confirmation number and type (and, for a flight or
+ * train, the same service: outbound and return legs share a confirmation number). Returns the action taken, or null
+ * when it's a new reservation.
+ */
+async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null) {
+  const ref = normRef(parsed.confirmation_number)
+  if (!ref || !tripIds.length) return null
+  const { data: rows } = await supabase.from('bookings').select('*').in('trip_id', tripIds).eq('created_by', userId).eq('type', parsed.type)
+  const legNo = normRef(parsed.flight_number)
+  const existing = (rows || []).find((b: any) => normRef(b.confirmation_number) === ref &&
+    (!MOVES.has(parsed.type) || !legNo || !normRef(b.flight_number) || normRef(b.flight_number) === legNo))
+  if (!existing) return null
+
+  if (parsed.change_type === 'cancellation') {
+    const title = /^Cancelled · /.test(existing.title || '') ? existing.title : `Cancelled · ${existing.title || parsed.title || 'Booking'}`
+    await supabase.from('bookings').update({ title, notes: [existing.notes, `Cancelled by email on ${new Date().toISOString().slice(0, 10)}`].filter(Boolean).join('\n') }).eq('id', existing.id)
+    console.log(`🚫 Booking ${existing.id} marked cancelled for user ${userId}`)
+    return { success: true, cancelled: true, booking_id: existing.id, trip_id: existing.trip_id }
+  }
+
+  // Compare in the same terms as the saved row: local times turned into instants in each place's zone
+  const next = { ...parsed }
+  await attachZones(supabase, next, { fallbackTz: existing.local_tz || existing.departure_tz || tripTzOf(existing.trip_id), city: parsed.destination_city || '' })
+  const clean = sanitizeBooking(next)
+  const changed = CHANGE_FIELDS.filter(k => !sameValue(k, existing[k], clean[k]))
+  if (!changed.length) {
+    console.log(`↩️ Same reservation again for user ${userId}: booking ${existing.id}`)
+    return { success: true, duplicate: true, booking_id: existing.id, trip_id: existing.trip_id }
+  }
+
+  // Changed: update the booking in place, never a second copy; the trip stretches to fit if needed
+  const updates: Record<string, any> = {}
+  for (const [k, v] of Object.entries(clean)) if (v != null && k !== 'title' && k !== 'confirmation_number') updates[k] = v
+  updates.notes = [existing.notes, `Updated by email on ${new Date().toISOString().slice(0, 10)}: ${changed.join(', ').replace(/_/g, ' ')}`].filter(Boolean).join('\n')
+  const { error } = await supabase.from('bookings').update(updates).eq('id', existing.id)
+  if (error) return { error: `Booking update failed: ${error.message}`, status: 500 }
+  const span = wallSpan(parsed)
+  if (span && existing.trip_id) await widenTrip(supabase, existing.trip_id, span.start, span.end)
+  console.log(`✏️ Booking ${existing.id} updated for user ${userId}: ${changed.join(', ')}`)
+  return { success: true, updated: true, changed, booking_id: existing.id, trip_id: existing.trip_id }
 }
 
 /** Add or update a loyalty card from a statement: matched by member number, else by program name. */
