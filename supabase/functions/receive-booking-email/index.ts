@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { geminiFetch, checkAiQuota } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
-import { attachPlace } from '../_shared/google.ts'
+import { attachPlace, geocode } from '../_shared/google.ts'
 
 // ============================================================
 // receive-booking-email
@@ -89,10 +89,13 @@ async function verifySvix(secret: string, headers: Headers, rawBody: string): Pr
 function matchTrip(trips: any[], booking: any): any | null {
   if (!trips?.length) return null
 
+  // Compare calendar dates as strings, with a day of slack: `new Date('YYYY-MM-DD')` is UTC midnight, which
+  // dropped trips ending today, so a re-forwarded email made a second trip instead of joining the first
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
   const upcoming = trips.filter(t =>
     t.status !== 'cancelled' && t.status !== 'completed' &&
-    new Date(t.end_date) >= new Date()
-  ).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+    t.end_date && t.end_date >= yesterday
+  ).sort((a, b) => a.start_date < b.start_date ? -1 : 1)
 
   // (no dated upcoming trips: fall through to an undated one for the city, else auto-create)
 
@@ -333,26 +336,45 @@ Rules:
       return err('Could not parse Gemini response as JSON', 502)
     }
 
+    // ── 5b. The same confirmation forwarded again: keep the booking we already have ──
+    // Hotels, tickets and tables only: an outbound and return flight share one confirmation number
+    const tripIds = (trips || []).map((t: any) => t.id)
+    if (tripIds.length && parsed.title && !parsed.departure_time) {
+      const dateKeys: [string, unknown][] = [['check_in_date', parsed.check_in_date], ['activity_date', parsed.activity_date]]
+      let q = supabase.from('bookings').select('id, trip_id').in('trip_id', tripIds).eq('created_by', userId)
+      q = parsed.confirmation_number ? q.eq('confirmation_number', String(parsed.confirmation_number)) : q.eq('title', String(parsed.title))
+      for (const [k, v] of dateKeys) q = v ? q.eq(k, String(v)) : q.is(k, null)
+      q = q.is('departure_time', null)
+      const { data: dupes } = await q.limit(1)
+      const dupe = dupes?.[0]
+      if (dupe) {
+        console.log(`↩️ Duplicate email for user ${userId}: booking ${dupe.id} already exists`)
+        return ok({ success: true, duplicate: true, booking_id: dupe.id, trip_id: dupe.trip_id })
+      }
+    }
+
     // ── 6. Match to a trip — or create one ───────────────────
     let matchedTrip = matchTrip(trips || [], parsed)
 
     // If no match and we have enough info, create a new trip
     if (!matchedTrip && parsed.destination_city) {
       const tripCity = parsed.destination_city
+      // No date in the email: an undated trip ("Dates to be decided"), never today's date, which made a
+      // one-day trip "in progress" and took over the Trips tab
       const startDate = parsed.check_in_date || parsed.activity_date ||
-        (parsed.departure_time ? parsed.departure_time.slice(0, 10) : null) ||
-        new Date().toISOString().slice(0, 10)
-      const endDate = parsed.check_out_date ||
-        (parsed.arrival_time ? parsed.arrival_time.slice(0, 10) : null) || startDate
+        (parsed.departure_time ? parsed.departure_time.slice(0, 10) : null)
+      const endDate = startDate ? (parsed.check_out_date ||
+        (parsed.arrival_time ? parsed.arrival_time.slice(0, 10) : null) || startDate) : null
+      const geo = await geocode(tripCity).catch(() => null)
 
       const { data: newTrip, error: tripErr } = await supabase
         .from('trips')
         .insert({
           owner_id: userId,
-          title: `Trip to ${tripCity}`,
-          destination_city: tripCity,
-          destination_country: '',
-          destination_country_code: '',
+          title: `Trip to ${geo?.city || tripCity}`,
+          destination_city: geo?.city || tripCity,
+          destination_country: geo?.country || '',
+          destination_country_code: geo?.country_code || '',
           start_date: startDate,
           end_date: endDate,
           status: 'planning',
