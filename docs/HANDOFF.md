@@ -48,6 +48,29 @@
   on device. Not uploaded.
 
 
+## Update — Money → Statement: gross, fees, net, exact AI cost (2026-10-23, commits b62f2af, a8ccd8a)
+- **Statement card (top of Money, `admin_financials(from, to)`, migrations `20261024000000_financials` +
+  `20261024000100_cost_rows_switchover`):** Stripe gross → refunds → disputes → Stripe fee lines → net, from Stripe's
+  ledger (`stripe_balance_txns`, synced by admin-stripe v8+ with `balance_transactions` + `GET /v1/balance`), then AI,
+  guides, Google, Supabase, hosting → profit. Sandbox check: $59.97 − $29.99 − $2.63 fees = $27.35 net = Stripe pending.
+  Placeholders (shown as "Not connected / Not tracked yet"): App Store + Google Play revenue and fees, Google Cloud's
+  actual bill, Resend. Cash card: payouts, Stripe available/pending, discounts given, DeepSeek balance.
+- **AI priced from tokens:** `_shared/usage.ts` (request scope: member + feature, `serviceRpc`, `logAiCall`);
+  `_shared/gemini.ts` logs provider, model and tokens of every answered DeepSeek/Gemini call → `log_ai_call` →
+  `ai_calls` (priced with `cost_rates.ai_prices` per million tokens, editable in Controls). `checkAiQuota` sets the
+  member. Days before logging keep the flat per-call estimate; the switchover day uses the higher of the two.
+  DeepSeek answers as model `deepseek-flash` (priced with deepseek-chat rates until the owner sets its own).
+  Real cost is ~10× under the old flat estimate (a booking parse ≈ $0.0004).
+- **DeepSeek balance:** cost-alert v2 saves `GET api.deepseek.com/user/balance` hourly → `provider_balances`
+  ($19.79 at first read); the statement compares balance drop with the token-priced total.
+- **Redeployed from b62f2af:** generate-phrases v22, generate-checklist v20, admin-experiment-ai v2, goosey-discover v22,
+  generate-guide v34, parse-booking-email v30, receive-booking-email v47 (byte-identical), admin-stripe v8 (then v9 by
+  the billing session, ledger code included), cost-alert v2. places and resolve-timezone were not redeployed after
+  the `google.ts` refactor (same behaviour; their live bundles still hold the older equivalent code).
+- **Google's actual bill — later (owner):** Cloud Billing → BigQuery export (dataset `stt_billing`), a service account
+  with BigQuery Data Viewer + Job User, then Supabase secrets `GCP_BILLING_SA` (JSON key) and `GCP_BILLING_TABLE`.
+  Nothing reads them yet; the reader is the next step once they exist.
+
 ## Update — Money → Costs and Controls (2026-10-23, commits 64b4814, 85b616d)
 - **Settings (live, migration `20261023190000_costs_controls`):** `app_settings` (key, value jsonb): `founders_offer`
   {active}, `free_limits` {upcoming_trips, reservations_per_trip, email_imports}, `ai_limits` {ai_daily 100, guide_daily
