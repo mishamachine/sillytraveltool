@@ -1,5 +1,27 @@
 # STT Handoff — 2026-10-21
 
+## Update — multi-city shipped; emailed trips never named after home (2026-10-23)
+- **Website live** with multi-city (`fd8b93c`), built from a clean `git archive` copy so uncommitted local edits don't
+  ship (`npx vite build` there skips the help prebuild). Server backup `~/backups/stt-202610230731-pre-multicity.tar.gz`.
+  CSP has `https://flagcdn.com`; no console errors on the live site.
+- **receive-booking-email v42 (live):** `repointAutoTrip` in `ingest.ts`. After each booking, an auto-named email trip
+  whose destination is home (profile `home_city`, else where its first leg leaves from) moves to the longest hotel stay
+  away from home, else the first leg's arrival. Never when a hotel night is at the destination, never for a typed name,
+  guests or manual bookings. Sim cases added (`scripts/test-email-match-sim.mjs`). Live test on machinemisha: Delta
+  flight home sent first → "Trip to San Francisco"; after the other 13 → one trip "Trip to London", 10–20 Apr, 14
+  bookings. Backup of v40 was taken before deploying.
+- **Known bug (not fixed):** the single-email parser keeps only the first leg of a multi-leg flight email (Delta
+  LIS→JFK→SFO saved as LIS→JFK only). The attachment/itinerary path already returns every leg.
+- **Deploying Edge Functions:** the CLI isn't logged in, so v41/v42 went through the MCP as one esbuild bundle
+  (`esbuild index.ts --bundle --format=esm --platform=neutral --minify --charset=utf8 --external:'jsr:*'`) and were
+  checked byte-for-byte with `get_edge_function`. A one-time `supabase login` (or `SUPABASE_ACCESS_TOKEN`) makes this
+  `supabase functions deploy receive-booking-email --no-verify-jwt`.
+- **Android:** versionCode 3 / 0.21.0 debug APK built from the same clean copy and installed on `STT_Pixel` (not
+  uploaded). The AVD is slow to boot ("System isn't responding" twice) and was signed in as babar54, so new screens
+  are not yet checked on it.
+- **iOS:** Xcode is not installed (only Command Line Tools), there is no `ios/` folder, and `@capacitor/ios` isn't in
+  `package.json`.
+
 
 ## Update — owner cockpit, build step 1 (2026-10-23, plan: `docs/ADMIN_PLAN.md`)
 - **/admin/** (own Vite entry `admin/index.html`, bundle `src/admin/`, never in the app or native build or the service

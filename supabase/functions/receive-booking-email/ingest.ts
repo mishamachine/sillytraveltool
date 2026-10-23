@@ -113,6 +113,46 @@ async function foldNeighbour(admin: any, trip: any, trips: any[], ends: { dep: P
 }
 
 /**
+ * An auto-made trip is named after the email that started it, which can be the flight home ("Trip to San Francisco").
+ * When its destination is home (the profile's, else where the first leg leaves from), point it
+ * at the longest hotel stay away from home, else where the first leg lands. A name the traveller typed is never changed.
+ */
+async function repointAutoTrip(admin: any, trip: any, home: Pt | null) {
+  if (trip.destination_lat == null || !(await isAutoTrip(admin, trip))) return
+  const { data: rows } = await admin.from('bookings')
+    .select('type, transport_mode, departure_airport, arrival_airport, departure_time, hotel_name, hotel_address, check_in_date, check_out_date')
+    .eq('trip_id', trip.id).limit(60)
+  const legs = (rows || []).filter((b: any) => MOVES.has(b.type) && b.departure_time && b.arrival_airport && b.arrival_airport !== b.departure_airport)
+    .sort((a: any, b: any) => String(a.departure_time).localeCompare(String(b.departure_time)))
+  const pt = (g: any) => (g && g.lat != null ? { lat: Number(g.lat), lng: Number(g.lng) } : null)
+  const dest = { lat: Number(trip.destination_lat), lng: Number(trip.destination_lng) }
+  // No home city: the trip can't be "to" where its first leg leaves from, so that place is home
+  if (!home && legs.length > 1) home = pt(await geo(admin, legPlace(legs[0], 'departure_airport')))
+  if (!nearHome(dest, home)) return
+  const nights = (b: any) => (Date.parse(b.check_out_date || b.check_in_date) - Date.parse(b.check_in_date)) / 864e5
+  const hotels = (rows || []).filter((b: any) => b.type === 'hotel' && b.check_in_date && (b.hotel_address || b.hotel_name))
+    .sort((a: any, b: any) => nights(b) - nights(a) || String(a.check_in_date).localeCompare(String(b.check_in_date)))
+  const stays = [] as any[]
+  for (const h of hotels) stays.push(await geo(admin, h.hotel_address || h.hotel_name))
+  // A night booked at the destination means it's a real stop, not home
+  if (stays.some(g => nearHome(pt(g), dest))) return
+  let to: any = stays.find(g => g?.city && !nearHome(pt(g), home)) || null
+  if (!to && legs.length) {
+    const g = await geo(admin, legPlace(legs[0], 'arrival_airport'))
+    if (g?.city && !nearHome(pt(g), home)) to = g
+  }
+  if (!to) return
+  const next = {
+    title: `Trip to ${to.city}`, destination_city: to.city, destination_country: to.country || '',
+    destination_country_code: to.country_code || '', destination_lat: to.lat, destination_lng: to.lng,
+    destination_tz: await resolveZone(admin, { lat: to.lat, lng: to.lng }) || trip.destination_tz,
+  }
+  await admin.from('trips').update(next).eq('id', trip.id)
+  Object.assign(trip, next)
+  console.log(`🏷️ Trip ${trip.id} renamed: ${next.title} (was home)`)
+}
+
+/**
  * A trip's dates only grow, in one statement (public.widen_trip), so emails filed at the same moment can't undo each
  * other's widening. Returns the trip's dates after the change, or null when the call failed.
  */
@@ -443,6 +483,7 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   }
 
   console.log(`✅ Booking created for user ${userId}: ${booking.id} → trip ${matchedTrip?.id || 'unassigned'}`)
+  if (matchedTrip) await repointAutoTrip(supabase, matchedTrip, home).catch(e => console.warn('repointAutoTrip', e?.message || e))
 
   return {
     success: true,

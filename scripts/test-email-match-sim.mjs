@@ -51,7 +51,7 @@ const GEO = [
   ['granada', 37.18, -3.60, 'Granada', 'ES'], ['sea airport', 47.45, -122.31, 'Seattle', 'US'],
   ['madrid', 40.42, -3.70, 'Madrid', 'ES'], ['mad airport', 40.47, -3.57, 'Madrid', 'ES'], ['atocha', 40.41, -3.69, 'Madrid', 'ES'],
   ['granada', 37.18, -3.60, 'Granada', 'ES'], ['sea airport', 47.45, -122.31, 'Seattle', 'US'],
-  ['lis', 38.77, -9.13, 'Lisbon', 'PT'], ['lisbon', 38.72, -9.14, 'Lisbon', 'PT'], ['memmo', 38.71, -9.13, 'Lisbon', 'PT'],
+  ['jfk', 40.64, -73.78, 'New York', 'US'], ['lis', 38.77, -9.13, 'Lisbon', 'PT'], ['lisbon', 38.72, -9.14, 'Lisbon', 'PT'], ['memmo', 38.71, -9.13, 'Lisbon', 'PT'],
   ['belcanto', 38.71, -9.14, 'Lisbon', 'PT'], ['fado', 38.71, -9.13, 'Lisbon', 'PT'],
 ]
 const lookup = q => { const s = q.toLowerCase(); const g = GEO.find(([k]) => s.includes(k)); return g && { lat: g[1], lng: g[2], city: g[3], cc: g[4] } }
@@ -147,6 +147,9 @@ async function replay(order, label, { home_city = null } = {}) {
   assert.equal(db.tables.bookings.length, 14)
   assert.ok(db.tables.bookings.every(b => b.trip_id === t.id))
   assert.equal(t.start_date, '2027-04-10'); assert.equal(t.end_date, '2027-04-20')
+  // Never named after home, even when the flight home came first and there's no home city
+  assert.notEqual(t.destination_city, 'San Francisco', `${label}: trip named after home`)
+  assert.equal(t.title, `Trip to ${t.destination_city}`)
   return db
 }
 
@@ -159,6 +162,38 @@ const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
 for (let i = 0; i < 5; i++) await replay([...ids].sort(() => rnd() - 0.5), `shuffle ${i + 1}`)
 // With a home city: the flight home must not start a "Trip to San Francisco"
 await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home flight first, home=San Francisco', { home_city: 'San Francisco' })
+
+// No home city, no hotels: the flight home then the flight out → named after where the first leg lands
+{
+  const db = makeDb()
+  PARSED['14c-home-early'] = { ...PARSED['14-flight-delta-multileg-home'], departure_time: '2027-04-13T11:30', arrival_time: '2027-04-13T19:05' }
+  for (const id of ['14c-home-early', '01-flight-united-sfo-lhr']) {
+    current = id
+    const out = await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+    assert.ok(out.success, out.error)
+  }
+  assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].title, 'Trip to London')
+  console.log('flight home first, then flight out (no home city): Trip to London')
+}
+
+// As parsed live: the two-leg Delta email read as its first leg only (LIS → JFK), sent first → still not named after home
+{
+  const real = PARSED['14-flight-delta-multileg-home']
+  PARSED['14-flight-delta-multileg-home'] = { ...real, arrival_airport: 'JFK', arrival_time: '2027-04-20T14:05', destination_city: 'New York' }
+  await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home flight first, read as LIS→JFK')
+  PARSED['14-flight-delta-multileg-home'] = real
+}
+// A trip with a night at its destination keeps its name: London hotel, then the train to Paris and a night there
+{
+  const db = makeDb()
+  for (const id of ['02-hotel-hoxton-london', '05-train-eurostar-london-paris', '06-hotel-airbnb-paris']) {
+    current = id
+    const out = await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+    assert.ok(out.success, out.error)
+  }
+  assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].title, 'Trip to London')
+  console.log('London hotel + Eurostar + Paris stay: stays Trip to London')
+}
 
 // Re-forwarding a flight doesn't duplicate it
 {
