@@ -50,6 +50,12 @@ verify_jwt = false
 [functions.admin-stripe]
 verify_jwt = false
 
+[functions.billing]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
 [functions.admin-email]
 verify_jwt = false
 
@@ -60,4 +66,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.cost-alert]
+verify_jwt = false
+
+[functions.store-webhook]
 verify_jwt = false

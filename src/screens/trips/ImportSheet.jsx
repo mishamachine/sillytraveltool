@@ -5,7 +5,8 @@ import { parseLocalDate, todayLocalISO } from '../../lib/dates'
 import { bestTrip } from '../../../supabase/functions/_shared/tripMatch.js'
 import { editableTrips, withCoords } from '../../lib/tripPick'
 import { parseBookingEmail, parseBookingFile } from '../../lib/gemini'
-import { hasFirstClass, FIRST_CLASS_FEATURES } from '../../lib/firstClass'
+import { hasFirstClass } from '../../lib/firstClass'
+import { usePlanStore } from '../../store/planStore'
 import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
@@ -104,7 +105,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
     await read(() => parseBookingFile(file, { transcribe: handwritten }))
   }
   const pickHandwritten = () => {
-    if (!hasFirstClass()) { setLocked(FIRST_CLASS_FEATURES.handwritten_import); track('first_class_locked', { feature: 'handwritten_import' }, 'trips'); return }
+    if (!hasFirstClass()) { usePlanStore.getState().openPaywall('handwritten_import'); track('first_class_locked', { feature: 'handwritten_import' }, 'trips'); return }
     handRef.current?.click()
   }
 

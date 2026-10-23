@@ -31,7 +31,7 @@ function Redeem() {
     setResult(error ? { ok: false, message: 'Goose couldn’t check that code. Try again in a moment.' } : data)
     if (data?.ok) loadPlan()
   }
-  const google = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } })
+  const google = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href, queryParams: { prompt: 'select_account' } } })
 
   return (
     <div className="a-gate">
@@ -47,6 +47,7 @@ function Redeem() {
         ) : (
           <>
             <p className="a-gate__text">Signed in as {session.user.email}.{plan?.plan === 'first_class' && <> You have First Class{plan.until ? ` until ${new Date(plan.until).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}` : ' for life'}.</>}</p>
+            <button className="a-link" onClick={() => supabase.auth.signOut({ scope: 'local' })}>Not you? Use another account</button>
             <form className="a-gate__form" onSubmit={submit}>
               <input value={code} onChange={e => { setCode(e.target.value.toUpperCase()); setResult(null) }} placeholder="GOOSE30" autoCapitalize="characters"
                 autoComplete="off" spellCheck="false" maxLength={40} aria-label="Code" />

@@ -103,7 +103,8 @@ export default function AuthScreen() {
     // it returns via the app scheme and src/native/deepLinks.js finishes sign-in.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: authRedirect(), skipBrowserRedirect: isNative },
+      // select_account: Google always shows its account chooser instead of reusing the last account
+      options: { redirectTo: authRedirect(), skipBrowserRedirect: isNative, queryParams: { prompt: 'select_account' } },
     })
     if (error) setError(error.message)
     else if (isNative && data?.url) await Browser.open({ url: data.url })

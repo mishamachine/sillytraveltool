@@ -116,6 +116,47 @@
 - **Cockpit deployed** (admin/index.html + admin-*.js/css only, from a clean worktree of 85b616d+; backup
   `~/backups/stt-202610232236-pre-costs-admin.tar.gz`).
 
+## Update — Stripe web billing (2026-10-23, branch `feat/stripe-web-billing`, PR #1; full notes: `docs/STRIPE_BILLING.md`)
+- **Web buys First Class straight through Stripe** (owner decision: no RevenueCat on the web; apps still use store
+  billing later). Page **/upgrade/** (own Vite entry like /redeem/, website only): sign in → Yearly $14.99 or Founders
+  lifetime $29.99 → Stripe-hosted Checkout (promotion codes allowed, so cockpit discount codes work) → back to
+  `/upgrade/?paid=…`, which polls `my_entitlement()` until First Class shows. **Manage billing** opens the Stripe
+  customer portal (cancel at period end, card, invoices).
+- **Functions:** `billing` (POST `{action:'checkout', plan}` / `{action:'portal'}`, signed-in caller, one Stripe customer
+  per member tagged `metadata.user_id`, refuses a second purchase) and `stripe-webhook` (checks Stripe-Signature,
+  re-fetches each object, upserts the cockpit's `stripe_*` tables). Helpers + row mappers: `_shared/stripe.ts`
+  (same columns as admin-stripe's sync). Tests: `node scripts/test-stripe.mjs`.
+- **Migration `20261023140100_stripe_web_billing`:** `stripe_first_class(user)`; `entitlement()` counts Stripe rows only
+  in the site's current mode (`stripe_sync.livemode`, set by the webhook), so sandbox purchases stop counting at go-live;
+  `my_entitlement()` adds `web {lifetime, subscription, customer}`.
+- **Stripe sandbox:** product `stt_first_class`, prices `stt_first_class_yearly` / `stt_first_class_lifetime_founding`,
+  portal configuration `bpc_1UTdLhR315zoHnpnVGMVz3v6`, webhook `we_1UTo8yR315zoHnpnfvqgc3qn` →
+  `/functions/v1/stripe-webhook` (18 events). Tax: threshold monitoring only (no registrations yet).
+- **Live (2026-10-23):** migration applied, `billing` v5 (redeployed 21:1x with current `_shared/stripe.ts`) + `stripe-webhook` v5 deployed (MCP; verify_jwt off). Secrets
+  STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET set (sandbox). Checkout metadata follows the cockpit spec (user_id, plan,
+  price_key, platform, app_version, trigger from `/upgrade/?from=`, code from `?code=` (pre-applied), first-touch UTM,
+  experiment, variant); the webhook writes each object's metadata jsonb (charges merge their payment intent's).
+- **Sandbox test (machinemisha):** yearly $14.99 via hosted Checkout + test card → `first_class` until 2027-10-23;
+  cancel at period end → still First Class, `canceling`; cancel now → `free`; lifetime $29.99 → `first_class`;
+  refund → `free`. Not tested end to end: the `billing` function itself from a signed-in browser (sessions were made
+  with the same parameters through the Stripe API) and the `/upgrade/` page signed in; the page goes live with the
+  next website deploy.
+- **`/upgrade/` is on the live site** (21:17, added on top of the main deploy; backup `stt-202610232117-pre-upgrade`).
+  Live `sw.js` patched to skip `/upgrade/`. **Full deploys from main delete `/upgrade/` until PR #1 merges** (happened
+  once at 21:22, restored). Google sign-in now always shows the account chooser (`prompt: 'select_account'`). Signed-in end-to-end test waits on the owner signing in as machinemisha.
+- **Plans for approval** (owner wants paywall on web, iOS and Android): `docs/STRIPE_BILLING.md` → "Plans for approval"
+  A (one PaywallSheet everywhere; web → Stripe, apps → StoreKit / Play Billing via RevenueCat) and B (server limits
+  behind a kill switch until every platform can pay).
+- **Paywall on every platform + free limits built** (branch `feat/first-class-paywall`): PaywallSheet, Settings → Plan,
+  `store-webhook` v1, migration `first_class_everywhere` applied with limits **OFF** (`billing_settings`). Details and
+  the owner's App Store / Play / RevenueCat steps: `docs/STRIPE_BILLING.md` → "Built".
+- **Cloud device checks:** `.github/workflows/android.yml` (GitHub Linux emulator, demo APK, 8 paywall checks, all pass)
+  and the iOS session's `ios.yml` (paywall checked on the iPhone Simulator via throwaway branch `ci/paywall-iphone`).
+  Use these instead of the shared local emulator. See `docs/STRIPE_BILLING.md` → "Cloud devices".
+- **Not done:** store products + RevenueCat keys (owner), `receive-booking-email`
+  deploy, `subscription_status` analytics from the webhook, admin-stripe
+  reusing `_shared/stripe.ts`.
+
 ## Update — owner cockpit, build step 1 (2026-10-23, plan: `docs/ADMIN_PLAN.md`)
 - **/admin/** (own Vite entry `admin/index.html`, bundle `src/admin/`, never in the app or native build or the service
   worker precache). Sign-in (existing session on the same origin, Google or magic link) → **authenticator (TOTP) set-up,
