@@ -57,7 +57,11 @@
 - **Plans for approval** (owner wants paywall on web, iOS and Android): `docs/STRIPE_BILLING.md` → "Plans for approval"
   A (one PaywallSheet everywhere; web → Stripe, apps → StoreKit / Play Billing via RevenueCat) and B (server limits
   behind a kill switch until every platform can pay).
-- **Not done:** the above, Play/App Store billing, `subscription_status` analytics from the webhook, admin-stripe
+- **Paywall on every platform + free limits built** (branch `feat/first-class-paywall`): PaywallSheet, Settings → Plan,
+  `store-webhook` v1, migration `first_class_everywhere` applied with limits **OFF** (`billing_settings`). Details and
+  the owner's App Store / Play / RevenueCat steps: `docs/STRIPE_BILLING.md` → "Built".
+- **Not done:** Android emulator run of the paywall, store products + RevenueCat keys (owner), `receive-booking-email`
+  deploy, `subscription_status` analytics from the webhook, admin-stripe
   reusing `_shared/stripe.ts`.
 
 ## Update — owner cockpit, build step 1 (2026-10-23, plan: `docs/ADMIN_PLAN.md`)

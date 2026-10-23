@@ -148,7 +148,7 @@ only adding past a limit is blocked.
     (`end_date >= current_date`, status `planning|active`) → `raise exception 'upgrade:trips'`. Undated trips don't count.
   - `bookings` BEFORE INSERT: reservations (`restaurant`, `activity`, `other`; flights, hotels, transport don't count)
     ≥ 5 on a free owner's trip → `upgrade:reservations`. **Owner (2026-10-23): trip ideas without a confirmed
-    reservation never count.** Ideas are rows in `activities` (`is_idea`), not `bookings`, so only confirming an idea
+    reservation never count.** Ideas are rows in `trip_activities` (`is_idea`), not `bookings`, so only confirming an idea
     ("Confirm a visit" → a booking) can hit the limit; that moment opens the paywall.
   - `app_config.free_limits_on` kill switch (default **off**).
 - **Email import (`receive-booking-email`):** count the account's imported emails; the 6th+ is parsed and saved with
@@ -164,3 +164,50 @@ only adding past a limit is blocked.
   (the server can't tell the platform reliably).
 - **Tests:** SQL checks per limit with a free test user and machinemisha (First Class on/off), then the app on web,
   the iOS Simulator and the Android emulator showing the paywall at each limit.
+
+## Built (2026-10-23, branch `feat/first-class-paywall`, on top of PR #1; owner approved plans A and B)
+**Database** (migration `20261023170000_first_class_everywhere`, applied):
+- `store_entitlements` (one row per member, written only by `store-webhook`; members can read their own).
+  `entitlement()` = grants OR Stripe OR stores. `my_entitlement()` adds `store {store, product, expires_at, will_renew}`
+  and `limits_on`.
+- Limits: triggers `free_trip_limit` (2 upcoming dated trips) and `free_reservation_limit` (5 restaurant/activity/other
+  bookings per trip; trip owner's plan), `bookings.locked` + `email_import_locked(user)` (6th+ forwarded email).
+  Server-side inserts (email import, service role) skip the triggers. **Switch: `billing_settings.free_limits_on`,
+  OFF.** Turn on only when the apps can sell: `update billing_settings set free_limits_on = true where id = 1;`
+- Tested in one rolled-back transaction as machinemisha: 3rd trip → `upgrade:trips`; 6th reservation →
+  `upgrade:reservations`; hotel after the limit OK; First Class lifts both; switch off → no limits.
+
+**App (web, Android, iOS share it):**
+- `src/store/planStore.js`: plan from `my_entitlement()` at sign-in; `openPaywall(trigger)`; `upgradeError()` turns
+  `upgrade:<feature>` into the paywall + a calm form message (`limit_hit {feature}` analytics).
+- `src/components/shared/PaywallSheet.jsx` (+ `paywall.css`): tag logo, 4 benefits, yearly / founders cards, the
+  affordability line, renewal terms, Terms/Privacy, Restore (apps). Mounted once in `App.jsx`.
+- `src/lib/purchases.js`: web → `/upgrade/?from=<trigger>`; apps → RevenueCat (`@revenuecat/purchases-capacitor`
+  13.7.3, appUserID = Supabase user id, packages `$rc_annual` / `$rc_lifetime`). No key in the build → "First Class in
+  the app is coming soon." Never links to web checkout from the apps.
+- Settings → **Plan**: free → "Get First Class"; First Class → "Renews / Ends <date>" or "For life", and "Manage
+  subscription" (web: Stripe portal; App Store / Play purchases: the store's page; a web plan inside the apps: date only).
+- Triggers wired: trip and booking saves (`createTrip`, `updateTrip`, `createBooking`, `moveBookings`), handwritten
+  import, locked email bookings (detail sheet → paywall), Settings.
+- `hasFirstClass()` now reads the real plan (dev flags still work).
+- Demo mode: `?demo&plan=first_class`, `?demo&limits=1`.
+- Tested in the browser (demo, phone size): Settings row → paywall; new trip with limits on → paywall with the trips
+  line + form message; pay button → `/upgrade/?from=limit_trips`; First Class Settings shows renewal + Manage.
+- Android: `assembleDebug` builds with the plugin. **Not run on an emulator yet**: the only emulator was in use by the
+  multi-city session and memory was too low for a second. iOS: no Xcode on this Mac; the "iOS app via GitHub Actions
+  cloud Mac" session is setting up iOS builds.
+
+**`store-webhook`** v1 deployed (verify_jwt off; 401 without the secret). Reads the member from RevenueCat on every
+event and upserts `store_entitlements` (entitlement id `first_class`).
+**`receive-booking-email`**: repo marks the 6th+ email `locked` (via `email_import_locked`); **not deployed** (other
+sessions own live changes there; it only matters once the switch is on). Reply email to the sender: not built.
+
+**Owner to do for in-app purchases:**
+1. App Store Connect + Play Console: products `stt_first_class_yearly` (auto-renew, $14.99/yr) and
+   `stt_first_class_lifetime_founding` (non-consumable, $29.99); paid-apps agreements, tax and bank forms.
+2. RevenueCat (free under $2.5k/month): project with both apps, entitlement `first_class` on both products, an
+   offering with packages Annual + Lifetime.
+3. Keys: app builds get `VITE_REVENUECAT_ANDROID_KEY` / `VITE_REVENUECAT_IOS_KEY` (public SDK keys). Supabase secrets
+   (owner sets): `REVENUECAT_API_KEY` (secret v1 key), `REVENUECAT_WEBHOOK_SECRET`. RevenueCat webhook →
+   `https://swywrvbuswylvqlktsym.supabase.co/functions/v1/store-webhook` with that secret as the Authorization header.
+4. Then: test purchases (Play internal testing, StoreKit sandbox), deploy `receive-booking-email`, turn the switch on.

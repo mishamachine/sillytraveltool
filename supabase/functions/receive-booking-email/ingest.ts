@@ -463,12 +463,15 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   const sanitized = sanitizeBooking(parsed)
 
   // ── 8. Insert booking ─────────────────────────────────────
+  // Free plan: 5 forwarded emails; later ones are saved locked until First Class (false while the limits switch is off)
+  const { data: locked } = await supabase.rpc('email_import_locked', { p_user: userId })
   const bookingRow = {
     ...sanitized,
     trip_id: matchedTrip?.id || null,
     created_by: userId,
     source: 'email_import',
     is_shared: false,
+    locked: !!locked,
   }
 
   const { data: booking, error: insertErr } = await supabase
@@ -494,6 +497,7 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
     folded_trip_id: foldedTripId,
     booking_type: parsed.type,
     booking_title: parsed.title,
+    locked: !!locked,
   }
 
 }

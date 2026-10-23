@@ -7,6 +7,8 @@
 //   ?demo&empty=1         no trips (empty state)
 //   ?demo&flagship=9      the multi-city flagship trip (Seattle → Spain → Germany → Rome), on trip day 9
 //   ?demo&signedout=1     no session (auth screen)
+//   ?demo&plan=first_class  signed in with First Class (default: free)
+//   ?demo&limits=1        new trips and reservations hit the free-plan limit (paywall)
 import { buildFixtures, DEMO_USER } from './fixtures'
 
 // Set up by createDemoClient(); nothing runs at import time, so production bundles drop this file.
@@ -14,6 +16,8 @@ let FAIL = new Set()
 let SLOW = false
 let db = null
 let session = null
+let PLAN = 'free'
+let LIMITS = false
 const wait = (ms) => new Promise(r => setTimeout(r, ms))
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2))
 
@@ -70,6 +74,9 @@ class Query {
     const rows = db[this.table] || (db[this.table] = [])
     const match = r => this.filters.every(f => f(r))
     let data
+    if (this.op === 'insert' && LIMITS && PLAN === 'free' && (this.table === 'trips' || this.table === 'bookings')) {
+      return { data: null, error: { message: this.table === 'trips' ? 'upgrade:trips' : 'upgrade:reservations' } }
+    }
     if (this.op === 'insert' || this.op === 'upsert') {
       const list = (Array.isArray(this.payload) ? this.payload : [this.payload]).map(v => ({ id: uid(), created_at: new Date().toISOString(), ...v }))
       for (const item of list) {
@@ -120,6 +127,8 @@ export function createDemoClient() {
   const params = new URLSearchParams(location.search)
   FAIL = new Set((params.get('fail') || '').split(',').filter(Boolean))
   SLOW = params.has('slow')
+  PLAN = params.get('plan') === 'first_class' ? 'first_class' : 'free'
+  LIMITS = params.has('limits')
   db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship') })
   session = params.has('signedout') ? null : {
     access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
@@ -137,6 +146,11 @@ export function createDemoClient() {
     __demo: true,
     from: (table) => new Query(table),
     rpc: async (fn, args) => {
+      if (fn === 'my_entitlement') {
+        const fc = PLAN === 'first_class'
+        return { data: { plan: PLAN, until: fc ? new Date(Date.now() + 300 * 864e5).toISOString() : null,
+          web: { lifetime: false, subscription: fc ? { status: 'active', canceling: false } : null, customer: fc }, store: null, limits_on: LIMITS }, error: null }
+      }
       if (fn === 'reveal_document_number') return { data: db.revealed[args?.p_doc_id] || 'X1234567', error: null }
       return { data: null, error: null }
     },

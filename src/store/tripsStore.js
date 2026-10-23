@@ -7,6 +7,7 @@ import { compareTripStart, isUndated, bookingDates } from '../lib/trips'
 import { daysBetween, findCurrentOrNextTrip } from '../lib/dates'
 import { pgQuote } from '../lib/postgrest'
 import { track } from '../lib/analytics'
+import { upgradeError } from './planStore'
 
 const stopRuns = new Map() // tripId → { timer, chain }: see refreshStops
 
@@ -190,6 +191,9 @@ export const useTripsStore = create((set, get) => ({
     const { data, error } = await supabase.from('trips').insert({ ...sanitized, owner_id: user.id }).select().single()
     if (error) {
       console.error('createTrip Supabase error:', error)
+      // A free-plan limit opens the paywall (server trigger upgrade:trips)
+      const limit = upgradeError(error)
+      if (limit !== error) throw limit
       throw new Error(error.message || 'Could not create trip — check your connection and try again')
     }
     set(state => ({ trips: [...state.trips, { ...data, trip_collaborators: [] }] }))
@@ -205,7 +209,7 @@ export const useTripsStore = create((set, get) => ({
   updateTrip: async (id, updates) => {
     const { data, error } = await supabase.from('trips')
       .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
-    if (error) throw error
+    if (error) throw upgradeError(error)
     // Keep what was loaded with the trip (collaborators, stops) and take the saved fields
     set(state => ({
       trips: state.trips.map(t => t.id === id ? { ...t, ...data } : t),
@@ -262,7 +266,7 @@ export const useTripsStore = create((set, get) => ({
   moveBookings: async (bookings, toTripId) => {
     const ids = bookings.map(b => b.id)
     const { error } = await supabase.from('bookings').update({ trip_id: toTripId }).in('id', ids)
-    if (error) throw error
+    if (error) throw upgradeError(error)
     const fromTrip = bookings[0]?.trip_id
     set(state => ({ bookings: state.bookings.filter(b => !ids.includes(b.id)) }))
     track('booking_moved', { count: ids.length })
@@ -276,7 +280,7 @@ export const useTripsStore = create((set, get) => ({
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('bookings')
       .insert({ ...bookingData, trip_id: tripId, created_by: user.id }).select().single()
-    if (error) throw error
+    if (error) throw upgradeError(error)
     if (fillDates) await get().fillDatesIfUndated(tripId, [data])
     get().refreshStops(tripId, get().activeTrip?.id === tripId ? [...get().bookings, data] : undefined)
     track('booking_added', { type: bookingData.type || null, source: bookingData.source === 'email_import' ? 'email_import' : via })
