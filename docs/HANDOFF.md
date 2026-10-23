@@ -11,7 +11,7 @@
   per member tagged `metadata.user_id`, refuses a second purchase) and `stripe-webhook` (checks Stripe-Signature,
   re-fetches each object, upserts the cockpit's `stripe_*` tables). Helpers + row mappers: `_shared/stripe.ts`
   (same columns as admin-stripe's sync). Tests: `node scripts/test-stripe.mjs`.
-- **Migration `20261023140000_stripe_web_billing`:** `stripe_first_class(user)`; `entitlement()` counts Stripe rows only
+- **Migration `20261023140100_stripe_web_billing`:** `stripe_first_class(user)`; `entitlement()` counts Stripe rows only
   in the site's current mode (`stripe_sync.livemode`, set by the webhook), so sandbox purchases stop counting at go-live;
   `my_entitlement()` adds `web {lifetime, subscription, customer}`.
 - **Stripe sandbox:** product `stt_first_class`, prices `stt_first_class_yearly` / `stt_first_class_lifetime_founding`,

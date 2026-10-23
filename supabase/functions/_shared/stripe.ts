@@ -60,10 +60,10 @@ const promoFrom = (o: Obj) => {
   return idOf(o.discount?.promotion_code)
 }
 
-// Row mappers (same columns as admin-stripe's sync). `uid` is the Supabase user already worked out by the caller.
+// Row mappers (same columns as admin-stripe's sync, including each object's full metadata as jsonb). `uid` is the Supabase user already worked out by the caller.
 export function customerRow(c: Obj, uid: string | null) {
   return { id: c.id, livemode: c.livemode, email: c.email, user_id: uid, name: c.name, country: c.address?.country ?? null,
-    created: ts(c.created), delinquent: !!c.delinquent, synced_at: new Date().toISOString() }
+    created: ts(c.created), delinquent: !!c.delinquent, metadata: c.metadata || {}, synced_at: new Date().toISOString() }
 }
 
 export function subscriptionRow(s: Obj, uid: string | null) {
@@ -73,21 +73,21 @@ export function subscriptionRow(s: Obj, uid: string | null) {
     currency: item?.price?.currency ?? s.currency ?? null, interval: item?.price?.recurring?.interval ?? null,
     current_period_end: ts(s.current_period_end ?? item?.current_period_end), cancel_at_period_end: !!s.cancel_at_period_end,
     canceled_at: ts(s.canceled_at), ended_at: ts(s.ended_at), promotion_code: promoFrom(s), created: ts(s.created),
-    synced_at: new Date().toISOString() }
+    metadata: s.metadata || {}, synced_at: new Date().toISOString() }
 }
 
 export function chargeRow(c: Obj, uid: string | null, plan: string | null) {
   return { id: c.id, livemode: c.livemode, customer: idOf(c.customer), user_id: uid, amount: c.amount, amount_refunded: c.amount_refunded,
     currency: c.currency, status: c.status, paid: !!c.paid, refunded: !!c.refunded, disputed: !!c.disputed, failure_code: c.failure_code,
     plan: c.metadata?.plan || plan || (c.invoice ? 'subscription' : 'one_time'),
-    invoice: idOf(c.invoice), payment_intent: idOf(c.payment_intent), created: ts(c.created), synced_at: new Date().toISOString() }
+    invoice: idOf(c.invoice), payment_intent: idOf(c.payment_intent), created: ts(c.created), metadata: c.metadata || {}, synced_at: new Date().toISOString() }
 }
 
 export function checkoutRow(s: Obj, uid: string | null) {
   return { id: s.id, livemode: s.livemode, customer: idOf(s.customer), user_id: uid, mode: s.mode, status: s.status,
     payment_status: s.payment_status, amount_total: s.amount_total, amount_discount: s.total_details?.amount_discount ?? 0,
     currency: s.currency, promotion_code: promoFrom(s), plan: s.metadata?.plan ?? null, created: ts(s.created),
-    synced_at: new Date().toISOString() }
+    metadata: s.metadata || {}, synced_at: new Date().toISOString() }
 }
 
 export function invoiceRow(i: Obj, uid: string | null) {
