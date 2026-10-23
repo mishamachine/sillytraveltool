@@ -265,3 +265,9 @@ Owner typed Stripe's test cards (Claude can't enter card numbers on the live sit
 - Small copy note for `/upgrade/`: with a `?code=` link the page still says "Have a discount code? Enter it on the
   payment page."
 - Checkout also offers Cash App Pay, Klarna and Bank ("$5 back") by Stripe default; owner may turn some off.
+
+## Decision: RevenueCat for the apps (owner, 2026-10-23)
+Owner asked whether RevenueCat is needed; chose to keep it. Reason: free under ~$2.5k/month of app revenue, ~1% above
+(check their current pricing), and it replaces 1–2 weeks of receipt validation plus ongoing renewals, grace,
+refunds and restore work for both stores. Switching later is contained: the server only reads `store_entitlements`
+(swap `store-webhook` and the app plugin). Owner is setting up the App Store Connect and Play Console accounts.
