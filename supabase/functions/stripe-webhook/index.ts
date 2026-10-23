@@ -7,8 +7,8 @@ import { makeStripe, verifyStripeSignature, idOf, customerRow, subscriptionRow, 
 // refunded one locks it again. Retries are harmless: every write is an upsert of Stripe's current state.
 type Obj = Record<string, any>
 
-const KEY = Deno.env.get('STRIPE_SECRET_KEY') || ''
-const SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET') || ''
+const KEY = (Deno.env.get('STRIPE_SECRET_KEY') || '').trim()
+const SECRET = (Deno.env.get('STRIPE_WEBHOOK_SECRET') || '').trim()
 const stripe = makeStripe(KEY)
 
 async function userFor(admin: any, o: Obj): Promise<string | null> {

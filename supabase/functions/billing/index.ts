@@ -14,7 +14,7 @@ const CORS = {
 }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
-const KEY = Deno.env.get('STRIPE_SECRET_KEY') || ''
+const KEY = (Deno.env.get('STRIPE_SECRET_KEY') || '').trim()
 const LIVE = /^(sk|rk)_live_/.test(KEY)
 const stripe = makeStripe(KEY)
 const SITE = (Deno.env.get('APP_URL') || 'https://sillytraveltool.com').replace(/\/$/, '')
