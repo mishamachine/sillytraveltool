@@ -84,13 +84,20 @@ jobs:
           TAPS: ${{ inputs.taps }}
         run: python3 scripts/ios-sim-shots.py
 
+      - name: App log
+        if: always()
+        run: |
+          mkdir -p shots
+          xcrun simctl spawn "$UDID" log show --last 10m --style compact \
+            --predicate 'process == "App"' 2>/dev/null | grep -v -i "token" | tail -300 > shots/app.log || true
+
       # Same build on the smallest and largest iPhones: the layout must fit every screen size.
       - name: Other screen sizes
         if: always()
         env:
           DEEPLINK: ${{ github.event_name == 'workflow_dispatch' && inputs.sign_in && secrets.IOS_TEST_DEEPLINK || '' }}
         run: |
-          mkdir -p shots
+          xcrun simctl shutdown "$UDID" || true  # one simulator at a time; runners struggle with three
           xcrun simctl list devices available -j | python3 -c '
           import json, sys
           devs = [d for rt, ds in json.load(sys.stdin)["devices"].items() if "iOS" in rt for d in ds]
@@ -100,19 +107,14 @@ jobs:
           for d in (small[-1:] + big[-1:]): print(d["udid"], d["name"].replace(" ", "-"))' > sizes.txt
           cat sizes.txt
           while read -r U NAME; do
-            xcrun simctl boot "$U" && xcrun simctl bootstatus "$U" -b
+            if ! { xcrun simctl boot "$U" || { sleep 20; xcrun simctl boot "$U"; }; } || ! xcrun simctl bootstatus "$U" -b; then
+              echo "::warning::$NAME simulator did not boot; skipped"; xcrun simctl shutdown "$U" || true; continue
+            fi
             xcrun simctl status_bar "$U" override --time 9:41 --batteryState charged --batteryLevel 100
             xcrun simctl install "$U" build/Build/Products/Debug-iphonesimulator/App.app
             UDID="$U" OUT=shots PREFIX="size-$NAME-" ONLY_TRIPS=1 LAUNCH_WAIT=25 python3 scripts/ios-sim-shots.py || true
             xcrun simctl shutdown "$U"
           done < sizes.txt
-
-      - name: App log
-        if: always()
-        run: |
-          mkdir -p shots
-          xcrun simctl spawn "$UDID" log show --last 10m --style compact \
-            --predicate 'process == "App"' 2>/dev/null | grep -v -i "token" | tail -300 > shots/app.log || true
 
       - uses: actions/upload-artifact@v5
         if: always()
