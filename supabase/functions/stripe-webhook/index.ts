@@ -11,15 +11,24 @@ const KEY = (Deno.env.get('STRIPE_SECRET_KEY') || '').trim()
 const SECRET = (Deno.env.get('STRIPE_WEBHOOK_SECRET') || '').trim()
 const stripe = makeStripe(KEY)
 
+// A user id from Stripe metadata only counts if that account still exists: a removed member's id would break the
+// stripe_* foreign keys and make Stripe retry the event for days (the cockpit sync has the same check)
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+async function existing(admin: any, uid: unknown): Promise<string | null> {
+  if (typeof uid !== 'string' || !UUID.test(uid)) return null
+  const { data, error } = await admin.auth.admin.getUserById(uid)
+  return !error && data?.user ? uid : null
+}
+
 async function userFor(admin: any, o: Obj): Promise<string | null> {
-  const direct = o.metadata?.user_id || o.client_reference_id
+  const direct = await existing(admin, o.metadata?.user_id) || await existing(admin, o.client_reference_id)
   if (direct) return direct
   const customer = idOf(o.customer)
   if (!customer) return null
   const { data } = await admin.from('stripe_customers').select('user_id').eq('id', customer).maybeSingle()
   if (data?.user_id) return data.user_id
   const c = await stripe('GET', `customers/${customer}`)
-  return c.deleted ? null : c.metadata?.user_id || null
+  return c.deleted ? null : existing(admin, c.metadata?.user_id)
 }
 
 async function put(admin: any, table: string, row: Obj) {
@@ -36,7 +45,7 @@ async function syncSubscription(admin: any, id: string) {
 async function syncCharge(admin: any, id: string) {
   const c = await stripe('GET', `charges/${id}`, { expand: ['payment_intent'] })
   const pi = typeof c.payment_intent === 'object' ? c.payment_intent : null
-  const uid = c.metadata?.user_id || pi?.metadata?.user_id || await userFor(admin, c)
+  const uid = await existing(admin, c.metadata?.user_id) || await existing(admin, pi?.metadata?.user_id) || await userFor(admin, c)
   await put(admin, 'stripe_charges', { ...chargeRow(c, uid, pi?.metadata?.plan || null), payment_intent: idOf(c.payment_intent),
     metadata: { ...(pi?.metadata || {}), ...(c.metadata || {}) } })
 }
@@ -79,7 +88,7 @@ async function handle(admin: any, event: Obj) {
     case 'customer.created':
     case 'customer.updated': {
       const c = await stripe('GET', `customers/${o.id}`)
-      if (!c.deleted) await put(admin, 'stripe_customers', customerRow(c, c.metadata?.user_id || null))
+      if (!c.deleted) await put(admin, 'stripe_customers', customerRow(c, await existing(admin, c.metadata?.user_id)))
       return
     }
   }

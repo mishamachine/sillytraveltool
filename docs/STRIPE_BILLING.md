@@ -85,6 +85,10 @@ API with the same parameters), the signed-in `/upgrade/` page, the portal sessio
 card / 3DS (`4000 0000 0000 0002`, `4000 0025 0000 3155`), and `past_due` grace.
 
 ## Gotchas
+- `stripe-webhook` v6 only trusts a `metadata.user_id` / `client_reference_id` that matches an existing account
+  (`existing()`), like the cockpit sync. A removed member's id used to break the `stripe_*` foreign keys and make
+  Stripe retry for days. Tested: unknown id → row saved with `user_id` null. Sandbox test customer
+  `cus_VUq3QbTbi8wvk8` (fk-test@example.com) was left in Stripe from that test.
 - The first webhook secret saved in Supabase was wrong, so every delivery got 400 "Bad signature". Check
   `stripe-webhook` logs first if rows stop arriving. Both functions trim whitespace from the secrets.
 - Supabase MCP deploys: files go in as `source/index.ts` + `_shared/stripe.ts`, entrypoint `source/index.ts`.
