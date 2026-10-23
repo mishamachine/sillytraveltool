@@ -46,3 +46,6 @@ verify_jwt = false
 
 [functions.places]
 verify_jwt = false
+
+[functions.admin-stripe]
+verify_jwt = false

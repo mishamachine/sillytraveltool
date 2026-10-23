@@ -1,6 +1,52 @@
 # STT Handoff — 2026-10-21
 
 
+## Update — owner cockpit, build step 1 (2026-10-23, plan: `docs/ADMIN_PLAN.md`)
+- **/admin/** (own Vite entry `admin/index.html`, bundle `src/admin/`, never in the app or native build or the service
+  worker precache). Sign-in (existing session on the same origin, Google or magic link) → **authenticator (TOTP) set-up,
+  then a code each session** → 7 tabs: Today (Pulse, rule-based Needs you with done/snooze/own items), Members (trip-cycle
+  stages, list, support panel), Product (features most→least, screens, active time, errors, free vs First Class),
+  Growth (funnel from our data, sources, stages), Experiments (placeholder, step 4), Money (codes), System (function
+  errors, AI usage, admins, audit log). Filters (range, exclude internal) in the URL hash; refresh cadence; Cmd-K; CSV.
+  Dev check without signing in: `/admin/?demo` (fixtures in `src/admin/demo.js`, dev only).
+- **Database (live):** migrations `20261023100000_admin_cockpit` + `20261023100100_admin_functions`. Every `admin_*`
+  function calls `admin_guard()` = row in `admins` + JWT `aal2`. Owner seeded (babar54@gmail.com); 7 owner/test
+  accounts in `internal_members`. Tables: admin_audit, member_notes/tags, member_attribution, function_errors,
+  promo_codes, entitlement_grants (`entitlement(user)`), code_redemptions, code_attempts, member_moderation,
+  blocked_identities, admin_tasks. Tested in SQL (rolled back): MFA/non-admin refused, codes, redeem limits, ban signs out
+  + blocks AI + blocks re-sign-up (Gmail dots/+tags), lift restores.
+- **Moderation enforcement:** suspended/banned set `auth.users.banned_until` and delete sessions; restricted+ get no AI
+  (`consume_ai_quota` returns false, so the user sees the quota message) and can't invite (trigger). Member emails
+  for warnings are saved but not sent yet (copy button; Resend sending is next).
+- **Codes:** First Class codes redeem at **/redeem/** (website only; Apple/Google rules). Grants are recorded but unlock
+  nothing until the paywall reads `entitlement()`. Discount codes are stored for the paywall's checkout.
+- **Tracking:** `active_time {path, seconds}` (visible + input in last 60 s) and first-touch UTM/referrer →
+  `member_attribution` on `sign_up` (`src/lib/analytics.js`). Live once the website is redeployed.
+- **Change 2026-10-23 (owner):** no authenticator. `admin_guard` now needs an `admins` row **and a Google sign-in**
+  (JWT `amr` method `oauth`, migration `20261023120000`). Email-link or password sessions are told to continue with Google.
+- **Stripe feed** (migration `20261023120100`, function `admin-stripe` v1, verify_jwt off, checks `admin_guard` with the
+  caller's token): copies customers, subscriptions, charges, checkout sessions, invoices and promotion codes into
+  `stripe_*` tables on each cockpit refresh (at most every 2 min) or "Sync now". **Needs the secret `STRIPE_SECRET_KEY`**
+  (owner adds a restricted key; the Money tab shows the steps). Account today: sandbox "Silly Travel Tool sandbox",
+  product `stt_first_class`, prices `stt_first_class_yearly` $14.99 and `stt_first_class_lifetime_founding` $29.99.
+  `entitlement()` now also counts live Stripe subscriptions and paid charges with plan `lifetime` (checkout
+  metadata.plan). Discount codes created in the cockpit are pushed to Stripe as coupon + promotion code (same code,
+  limits, end date, first-time-only for "new members"); pause/resume/end toggle the promotion code; the code report shows
+  Stripe uses, revenue, discount given, subscriptions kept.
+- **Member insights** (migration `20261023120200`): `admin_insight_rows()` per member: traveller type, trips/yr, trip
+  length, lead time + planning style, trip style, regions (from trip time zones), booking channel (booking URL / source),
+  affluence band + score + signal list (fare tier, hotel USD/night at fixed approximate rates, room type, low-cost
+  airline, loyalty tier), persona, 30-day engagement, Stripe lifetime value, health 0-100, next best action. Members tab:
+  new columns + Audience view (distributions, click to filter, CSV). Profile: Traveller profile section.
+- **More tracking:** `session_start {lang, tz, os, display: app|installed|browser, screen, theme, net, returning,
+  days_since}` once per session (opt-out respected). Product → Devices and context (`admin_context`, migration
+  `20261023120300`). **Privacy page, Play Data safety and App Store labels need updating** for profiling + device data.
+- **Deployed 2026-10-23 08:54** from a clean worktree (HEAD fd8b93c + cockpit files only; other sessions' uncommitted work
+  not included). Backup: `~/backups/stt-202610230854-pre-cockpit.tar.gz`. Browsers with the old service worker show the
+  app at /admin once, then the cockpit after the worker updates.
+- **Not done yet:** in-app Owner view (Profile files belong to the user-guide session),
+  function_errors writes from Edge Functions, exposure events, GA4/social/briefs/experiments (later steps).
+
 ## Update — multi-city trips (2026-10-22, commits 6cdc2e9 … eafd519)
 Built per `docs/MULTI_CITY_PLAN.md`, all five phases. Proof: `docs/screenshots/multicity/`, tests in `scripts/test-*.mjs`
 (run with `node`; 12 + 10 + 6 + sheet + 7-replay email sim, all passing).

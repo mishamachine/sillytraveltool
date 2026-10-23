@@ -27,6 +27,15 @@
         "export PATH=$HOME/.local/node/bin:$PATH; VITE_GA_DEV=1 exec npx vite --port 5174 --strictPort"
       ],
       "port": 5174
+    },
+    {
+      "name": "stt-admin-dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite --port 5175 --strictPort"
+      ],
+      "port": 5175
     }
   ]
 }

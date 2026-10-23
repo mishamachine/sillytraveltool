@@ -64,6 +64,108 @@ export function setAnalyticsEnabled(on) {
 export function initAnalytics() {
   if (analyticsEnabled()) initGA()
   initErrorTracking()
+  captureFirstTouch()
+  initActiveTime()
+  setTimeout(trackSessionStart, 1500)
+}
+
+// --- session context ------------------------------------------------------------------------------------
+// Once per session: coarse device and setting codes (no identifiers, no fingerprinting detail), and how many days
+// since this device's last session. First party, covered by the Settings opt-out like every other event.
+
+function trackSessionStart() {
+  try {
+    if (sessionStorage.getItem('stt_session_started')) return
+    sessionStorage.setItem('stt_session_started', '1')
+  } catch { return }
+  const ua = navigator.userAgent || ''
+  const os = /android/i.test(ua) ? 'android' : /iphone|ipad|ipod/i.test(ua) ? 'ios' : /mac/i.test(ua) ? 'mac' : /win/i.test(ua) ? 'windows' : /linux|cros/i.test(ua) ? 'linux' : 'other'
+  const w = window.innerWidth || 0
+  let daysSince
+  try {
+    const last = Number(localStorage.getItem('stt_last_session'))
+    if (last) daysSince = Math.floor((Date.now() - last) / 86400000)
+    localStorage.setItem('stt_last_session', String(Date.now()))
+  } catch { /* storage blocked */ }
+  track('session_start', {
+    lang: (navigator.language || '').slice(0, 10),
+    tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return undefined } })(),
+    os,
+    display: getPlatform() !== 'web' ? 'app' : window.matchMedia?.('(display-mode: standalone)').matches ? 'installed' : 'browser',
+    screen: w < 600 ? 'phone' : w < 1024 ? 'tablet' : 'desktop',
+    theme: window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+    net: navigator.connection?.effectiveType,
+    returning: daysSince != null,
+    days_since: daysSince,
+  })
+}
+
+// --- first touch (UTM / referrer) ---------------------------------------------------------------------
+// Kept on the device from the first visit; saved once to `member_attribution` when the account is created.
+
+const TOUCH_KEY = 'stt_first_touch'
+
+function captureFirstTouch() {
+  try {
+    if (localStorage.getItem(TOUCH_KEY)) return
+    const q = new URLSearchParams(window.location.search)
+    const code = v => (v && /^[\w.-]{1,64}$/.test(v) ? v.toLowerCase() : null)
+    let referrer = null
+    try {
+      const host = document.referrer ? new URL(document.referrer).hostname : ''
+      if (host && !host.endsWith('sillytraveltool.com') && host !== window.location.hostname) referrer = host.slice(0, 128)
+    } catch { /* bad referrer */ }
+    localStorage.setItem(TOUCH_KEY, JSON.stringify({
+      utm_source: code(q.get('utm_source')),
+      utm_medium: code(q.get('utm_medium')),
+      utm_campaign: code(q.get('utm_campaign')),
+      referrer_domain: referrer,
+      landing_path: window.location.pathname.slice(0, 128),
+      first_seen: new Date().toISOString(),
+    }))
+  } catch { /* storage blocked */ }
+}
+
+function saveAttribution(userId) {
+  try {
+    const touch = JSON.parse(localStorage.getItem(TOUCH_KEY) || 'null')
+    if (!touch) return
+    supabase.from('member_attribution').insert({ user_id: userId, ...touch }).then(() => {}, () => {})
+  } catch { /* ignore */ }
+}
+
+// --- active time ---------------------------------------------------------------------------------------
+// Counts seconds only while the tab is visible and someone touched it in the last minute, per screen.
+// Sent as `active_time {path, seconds}` on screen change, when the app is hidden, and every 5 minutes.
+
+const TICK_S = 15
+const IDLE_MS = 60_000
+let lastInput = Date.now()
+let activePath = null
+let activeSeconds = 0
+let sinceFlush = 0
+
+function flushActiveTime() {
+  if (activeSeconds >= 1 && activePath) track('active_time', { path: activePath, seconds: activeSeconds }, activePath.split('/')[0])
+  activeSeconds = 0
+  sinceFlush = 0
+}
+
+function initActiveTime() {
+  if (typeof window === 'undefined' || initActiveTime.done) return
+  initActiveTime.done = true
+  const touch = () => { lastInput = Date.now() }
+  for (const e of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll']) window.addEventListener(e, touch, { passive: true, capture: true })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushActiveTime()
+    else touch()
+  })
+  setInterval(() => {
+    if (document.visibilityState !== 'visible' || Date.now() - lastInput > IDLE_MS || !activePath) return
+    activeSeconds += TICK_S
+    sinceFlush += TICK_S
+    if (sinceFlush >= 300) flushActiveTime()
+  }, TICK_S * 1000)
 }
 
 // --- privacy guard -----------------------------------------------------------------------------------
@@ -107,6 +209,7 @@ export function track(event, props = {}, screen) {
         const userId = data?.session?.user?.id
         gaSetUser(userId)
         if (!userId) return
+        if (event === 'sign_up') saveAttribution(userId)
         return supabase.from('analytics_events').insert({
           user_id: userId,
           session_id: getSessionId(),
@@ -127,6 +230,8 @@ export function track(event, props = {}, screen) {
 // One per screen change: GA page_view + a Supabase `screen_view` row. Path like 'trip/pack' or 'explore/honk'.
 export function screenView(path) {
   if (!path || path === lastScreen) return
+  flushActiveTime()
+  activePath = path
   lastScreen = path
   if (!analyticsEnabled()) return
   gaPageView(path)

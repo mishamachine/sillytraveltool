@@ -117,11 +117,24 @@ export default defineConfig(({ mode }) => {
             }
           }
         ],
+        // The owner cockpit (/admin/) is its own page; travellers' service workers never precache it
+        globIgnores: ['**/admin/**', '**/assets/admin-*'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal)(\/|$)/]
+        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|redeem)(\/|$)/]
       }
     })
   ].filter(Boolean),
+  // Web build: the app plus the owner cockpit (admin/index.html → /admin/) and the code redeem page (/redeem/).
+  // The native build ships the app only.
+  build: isNative ? {} : {
+    rollupOptions: {
+      input: {
+        main: new URL('./index.html', import.meta.url).pathname,
+        admin: new URL('./admin/index.html', import.meta.url).pathname,
+        redeem: new URL('./redeem/index.html', import.meta.url).pathname,
+      },
+    },
+  },
   // Several edits land at once during the Clay rebuild; errors still show in the console
   server: { hmr: { overlay: false } },
   resolve: {
