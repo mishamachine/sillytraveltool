@@ -36,11 +36,14 @@
   (6) connecting-flight emails: the email prompt returns `more_legs` and each leg is filed (live as
   receive-booking-email **v45**, verified byte-for-byte; live test filed DL 263 LIS→JFK and DL 416 JFK→SFO with local
   zones). The function's version numbers jump by two per MCP deploy (logs show v42 and v43 starting a minute apart).
-- **Website NOT redeployed with these fixes.** A deploy of `fd8b93c` + fixes was rolled back within ~3 minutes because
-  the live site had `/admin`, `/redeem`, `/unsubscribe` and other newer work from another session's deploy; the
-  rsync `--delete` removed them. The live site was restored byte-identical from `~/backups/stt-202610232133-pre-fixes.tar.gz`.
-  Next website deploy should be built from main (it has these fixes) by whoever releases the cockpit work; always read
-  the rsync dry run (`-n -i`) for deletions outside `assets/` before the real sync.
+- **Website deployed from main `be14c3b` (2026-10-23, owner OK, includes the cockpit work):** backup
+  `~/backups/stt-202610232156-pre-main.tar.gz`; dry run showed no deletions outside `assets/`; /, /admin/, /redeem/,
+  /unsubscribe/, /privacy/, /terms/ all 200; live index identical to the build. Earlier the same day a deploy of
+  `fd8b93c` + fixes deleted /admin, /redeem, /unsubscribe (rsync `--delete`) and was rolled back within ~3 minutes:
+  always read the dry run (`-n -i`) for deletions outside `assets/` before the real sync.
+- **Open (pre-existing, from `b498969`):** `TripList.jsx` asks Open-Meteo's archive API for `monthly=` temperatures,
+  which it rejects (400, "Cannot initialize ForecastVariableMonthly"), so the Trips list climate hint never loads.
+  Use `daily=` and average per month.
 - **Android:** debug APK versionCode 4 (versionName 0.20.0 from package.json) built from `fd8b93c` + fixes and installed;
   the emulator (Intel host) is too slow to finish loading even with `-gpu swiftshader_indirect`, so it is not rechecked
   on device. Not uploaded.
