@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { useTripsStore, useUIStore, useCollabStore } from '../../store'
 import { parseLocalDate, daysBetween } from '../../lib/dates'
 import { fetchWithTimeout } from '../../lib/http'
-import { tripPhase, tripDay, nightsOf, formatRange, plural, sortByStart, bookingStart, bookingTime, hasClockTime, tripToday, tripDates, isUndated, compareTripStart } from '../../lib/trips'
+import { tripPhase, tripDay, nightsLabel, plural, sortByStart, bookingStart, bookingTime, hasClockTime, tripToday, tripDates, isUndated, compareTripStart } from '../../lib/trips'
 import { tripCoords } from '../../lib/weather'
 import {
   Screen, ScreenHeader, Section, Button, IconButton, Card, ListRow, Chip, Text, Overline, Stack, Icon,
@@ -98,18 +98,20 @@ function DateTile({ iso, tone = 'info' }) {
   )
 }
 
-function UpcomingCard({ trip, climate, onOpen }) {
+function UpcomingCard({ trip, climate, onOpen, live = false }) {
   const undated = isUndated(trip)
   const days = undated ? null : daysBetween(tripToday(trip), trip.start_date)
   const count = trip.bookings?.length || 0
-  const nights = nightsOf(trip)
-  const meta = [tripDates(trip), nights != null ? plural(nights, 'night') : null, count ? plural(count, 'booking') : null,
+  const meta = [tripDates(trip), nightsLabel(trip), count ? plural(count, 'booking') : null,
     climate ? `${climate.avgLow}–${climate.avgHigh}°` : null].filter(Boolean).join(' · ')
   const people = travelersOf(trip)
+  const day = live ? tripDay(trip) : null
+  const chip = live ? (day.total > 1 ? `Day ${day.n} of ${day.total}` : 'Today')
+    : trip.status === 'cancelled' ? 'Cancelled' : undated ? 'Planning' : days === 1 ? 'Tomorrow' : `In ${plural(days, 'day')}`
   return (
     <Card onClick={() => onOpen(trip)} className="trips-upcoming">
       <Stack row gap={3} align="center">
-        <DateTile iso={trip.start_date} />
+        <DateTile iso={trip.start_date} tone={live ? 'accent' : 'info'} />
         <Stack gap={1} grow>
           <Text variant="card-title" as="h3" truncate>{trip.title}</Text>
           <Text variant="caption" tone="muted">{meta}</Text>
@@ -119,9 +121,7 @@ function UpcomingCard({ trip, climate, onOpen }) {
             </Text>
           )}
         </Stack>
-        <Chip tone={trip.status === 'cancelled' ? 'neutral' : 'info'}>
-          {trip.status === 'cancelled' ? 'Cancelled' : undated ? 'Planning' : days === 1 ? 'Tomorrow' : `In ${plural(days, 'day')}`}
-        </Chip>
+        <Chip tone={live ? 'accent' : trip.status === 'cancelled' ? 'neutral' : 'info'}>{chip}</Chip>
       </Stack>
     </Card>
   )
@@ -207,7 +207,13 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
         </>
       )}
 
-      {active.map(trip => <OnTheRoadCard key={trip.id} trip={trip} onOpen={() => onOpenToday(trip)} />)}
+      {/* One trip in progress gets the hero; several (overlapping or imported day trips) share a compact list */}
+      {active.length === 1 && <OnTheRoadCard trip={active[0]} onOpen={() => onOpenToday(active[0])} />}
+      {active.length > 1 && (
+        <Section title="On the road">
+          {active.map(trip => <UpcomingCard key={trip.id} trip={trip} live onOpen={onOpenToday} />)}
+        </Section>
+      )}
 
       {upcoming.length > 0 && (
         <Section title="Upcoming">
@@ -222,7 +228,7 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
               <ListRow key={trip.id} onClick={() => onOpenRecap(trip)}
                 leading={<span className="c-tile c-tile--md c-tile--neutral"><Icon name="flag" /></span>}
                 title={trip.title}
-                meta={`${tripDates(trip, { year: true })}${nightsOf(trip) != null ? ` · ${plural(nightsOf(trip), 'night')}` : ''}`}
+                meta={[tripDates(trip, { year: true }), nightsLabel(trip)].filter(Boolean).join(' · ')}
                 trailing={<span className="t-caption tone-accent w-600">Recap</span>} />
             ))}
           </Card>

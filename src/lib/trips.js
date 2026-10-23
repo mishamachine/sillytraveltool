@@ -53,7 +53,15 @@ export function formatRange(startISO, endISO, { year = false } = {}) {
   const left = format(s, 'MMM d')
   const right = sameMonth ? format(e, 'd') : format(e, 'MMM d')
   const y = year || s.getFullYear() !== new Date().getFullYear() ? `, ${format(e, 'yyyy')}` : ''
+  // A day trip is one date, not "Oct 22 – 22"
+  if (startISO === endISO) return `${left}${y}`
   return `${left} – ${right}${y}`
+}
+
+/** "3 nights" / "Day trip", or null for an undated trip. */
+export function nightsLabel(trip) {
+  const n = nightsOf(trip)
+  return n == null ? null : n === 0 ? 'Day trip' : plural(n, 'night')
 }
 
 export function plural(n, one, many = `${one}s`) {

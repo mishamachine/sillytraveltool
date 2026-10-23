@@ -17,7 +17,9 @@ export default function TripsScreen() {
 
   useEffect(() => { fetchTrips() }, [])
 
-  const active = trips.find(t => tripPhase(t) === 'active')
+  // Open straight onto Today only when exactly one trip is in progress; with several, the list lets you pick
+  const inProgress = trips.filter(t => tripPhase(t) === 'active')
+  const active = inProgress.length === 1 ? inProgress[0] : null
   const recapTrip = view?.recap && trips.find(t => t.id === view.recap)
   const todayTrip = view?.today ? trips.find(t => t.id === view.today) : view === null ? active : null
 

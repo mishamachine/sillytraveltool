@@ -3,7 +3,7 @@ import { useTripsStore, useUIStore } from '../../../store'
 import { timeIn } from '../../../lib/localTime'
 import { useTripZone } from '../useTripZone'
 import { PlacePhoto } from '../../../components/shared/PlaceMedia'
-import { tripPhase, tripDay, nightsOf, plural, tripDates, isUndated } from '../../../lib/trips'
+import { tripPhase, tripDay, nightsLabel, plural, tripDates, isUndated } from '../../../lib/trips'
 import { daysBetween, todayAtTrip } from '../../../lib/dates'
 import { ScreenHeader, IconButton, Button, Sheet, Card, ListRow, Text, Stack, Chip } from '../../../ui'
 import TravelersSheet from './TravelersSheet'
@@ -45,8 +45,7 @@ export default function TripHeader({ trip, readOnly }) {
     : undated ? 'Planning'
     : phase === 'upcoming' ? (away === 1 ? 'Tomorrow' : `In ${plural(away, 'day')}`)
     : 'Completed'
-  const nights = nightsOf(trip)
-  const meta = [tripDates(trip), nights != null ? plural(nights, 'night') : null, trip.destination_country].filter(Boolean).join(' · ')
+  const meta = [tripDates(trip), nightsLabel(trip), trip.destination_country].filter(Boolean).join(' · ')
 
   return (
     <>
