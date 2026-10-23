@@ -150,8 +150,10 @@ export default function SettingsView({ onBack, onDelete }) {
 
       <Section title="Privacy and about">
         <Card variant="group">
-          <Switch label="Share usage stats" description="Anonymous feature counts help us improve the app. No names, emails or trip details."
+          <Switch label="Share usage stats" description="Which features you use and your device type help us improve the app. No names, emails or trip details."
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
+          <Switch label="Tailored offers" description="Use the kind of trips you plan to pick offers and tips that fit. Off keeps your trips out of it."
+            checked={profile?.tailored_offers !== false} onChange={on => updateProfile({ tailored_offers: on }).catch(() => {})} />
           <ExternalRow href="https://sillytraveltool.com/privacy/" title="Privacy Policy" />
           <ExternalRow href="https://sillytraveltool.com/terms/" title="Terms of Service" />
           <ListRow title="Delete account" meta="Erase your trips, documents and score" danger chevron onClick={onDelete} />

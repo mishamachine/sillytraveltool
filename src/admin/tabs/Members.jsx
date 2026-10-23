@@ -41,6 +41,7 @@ export default function Members({ filters, view, go, role }) {
     { key: 'plan', label: 'Plan', render: m => <Badge tone={m.plan === 'first_class' ? 'accent' : 'neutral'}>{PLAN_LABEL[m.plan]}</Badge> },
     { key: 'lifetime_value', label: 'Paid', num: true, render: m => m.lifetime_value ? money(m.lifetime_value) : '—' },
     { key: 'status', label: 'Status', render: m => m.status === 'active' ? <span className="a-muted">Active</span> : <Badge tone={statusTone(m.status)}>{STATUS_LABEL[m.status]}</Badge> },
+    { key: 'offers', label: 'Offers', render: m => m.offers === false ? <Badge>Off</Badge> : <span className="a-muted">On</span>, sortValue: m => m.offers },
     { key: 'next_action', label: 'Next best action', render: m => <span className="a-small">{m.next_action || '—'}</span> },
     { key: 'last_seen', label: 'Last seen', render: m => ago(m.last_seen), sortValue: m => m.last_seen || '' },
   ]
@@ -113,6 +114,7 @@ function Audience({ a, pick, view }) {
           <Stat label="Paying" value={d.paying} hint={d.lifetime_value ? `${money(d.lifetime_value)} paid` : null} />
           <Stat label="Average health" value={d.avg_health ?? '—'} hint="0–100" />
         </div>
+        {!!d.offers_off && <p className="a-hint">{d.offers_off} member{d.offers_off === 1 ? ' has' : 's have'} turned off tailored offers and {d.offers_off === 1 ? 'is' : 'are'} left out of these numbers.</p>}
         {d.members < 30 && <p className="a-hint">Small numbers: read these as people, not percentages. Click any bar to see those members.</p>}
       </Card>
       {SEGMENTS.map(([k, label]) => (

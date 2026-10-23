@@ -44,6 +44,11 @@
 - **Deployed 2026-10-23 08:54** from a clean worktree (HEAD fd8b93c + cockpit files only; other sessions' uncommitted work
   not included). Backup: `~/backups/stt-202610230854-pre-cockpit.tar.gz`. Browsers with the old service worker show the
   app at /admin once, then the cockpit after the worker updates.
+- **Privacy (2026-10-23, owner sign-off, `docs/PRIVACY_UPDATE_DRAFT.md`):** policy rewritten (DeepSeek in China
+  disclosed, Google Maps, Stripe, traveller profiles, session data, account decisions, retention); Settings → Tailored
+  offers (`user_profiles.tailored_offers`); `purge-old-usage` pg_cron job deletes usage events, code attempts and function
+  errors older than 25 months, nightly 03:17 UTC. Deployed 2026-10-23 19:32 (backup `stt-202610231932-pre-privacy.tar.gz`); operator name and
+  address filled in on privacy and terms (backup `stt-202610231936-legal-pages.tar.gz`).
 - **Not done yet:** in-app Owner view (Profile files belong to the user-guide session),
   function_errors writes from Edge Functions, exposure events, GA4/social/briefs/experiments (later steps).
 
