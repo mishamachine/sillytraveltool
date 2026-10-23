@@ -6,6 +6,7 @@ tree, so native alerts and any labelled web content are found by text.
 
 env: UDID, OUT (screenshot dir), DEEPLINK (optional: signs the test account in),
      TRIP (optional: text in the trip card to open, default "Lisbon"),
+     PREFIX (file-name prefix), ONLY_TRIPS=1 (stop after the Trips screen), LAUNCH_WAIT (seconds, default 10),
      TAPS (optional: "trip=x,y;plan=x,y;back=x,y;import=x,y" in points). WKWebView content is
      often missing from the accessibility tree, so these coordinates are the fallback.
 """
@@ -16,6 +17,9 @@ OUT = os.environ.get('OUT', 'shots')
 DEEPLINK = os.environ.get('DEEPLINK', '').strip()
 TRIP = os.environ.get('TRIP', 'Lisbon')
 TAPS = dict(p.split("=") for p in os.environ.get("TAPS", "").replace(" ", "").split(";") if "=" in p)
+PREFIX = os.environ.get("PREFIX", "")
+ONLY_TRIPS = os.environ.get("ONLY_TRIPS") == "1"
+LAUNCH_WAIT = int(os.environ.get("LAUNCH_WAIT", "10"))
 BUNDLE = 'com.sillytraveltool.app'
 os.makedirs(OUT, exist_ok=True)
 
@@ -26,8 +30,8 @@ def run(*args, check=True):
 
 
 def shot(name):
-    run('xcrun', 'simctl', 'io', UDID, 'screenshot', f'{OUT}/{name}.png')
-    with open(f'{OUT}/{name}.ui.json', 'w') as f:
+    run('xcrun', 'simctl', 'io', UDID, 'screenshot', f"{OUT}/{PREFIX}{name}.png")
+    with open(f"{OUT}/{PREFIX}{name}.ui.json", 'w') as f:
         f.write(ui_raw())
 
 
@@ -81,7 +85,7 @@ def tap(text, exact=False, timeout=20, key=None):
 
 ok = True
 run('xcrun', 'simctl', 'launch', UDID, BUNDLE)
-time.sleep(10)
+time.sleep(LAUNCH_WAIT)
 shot('01-signed-out')
 
 if DEEPLINK:
@@ -91,6 +95,7 @@ if DEEPLINK:
     time.sleep(10)
     shot('02-trips')
 
+if DEEPLINK and not ONLY_TRIPS:
     ok &= tap(TRIP, timeout=8, key="trip")
     time.sleep(4)
     shot('03-trip')
