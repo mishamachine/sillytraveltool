@@ -22,7 +22,7 @@ on:
         description: "Fallback tap points (iOS points) when a label is not found: trip=x,y;plan=x,y;back=x,y;import=x,y"
         default: ""
   push:
-    branches: [claude/objective-ptolemy-052302]
+    branches: [claude/objective-ptolemy-052302, ci/paywall-iphone]
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -48,8 +48,11 @@ jobs:
 
       - name: Web build (native mode) + cap sync ios
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ github.ref_name == 'ci/paywall-iphone' && 'https://demo.invalid' || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ github.ref_name == 'ci/paywall-iphone' && 'demo' || secrets.VITE_SUPABASE_ANON_KEY }}
+          # Paywall check branch: demo build that opens the First Class paywall at launch
+          VITE_DEMO: ${{ github.ref_name == 'ci/paywall-iphone' && '1' || '' }}
+          VITE_DEMO_PARAMS: ${{ github.ref_name == 'ci/paywall-iphone' && 'limits=1&paywall=settings' || '' }}
         run: npx vite build --mode native && npx cap sync ios
 
       - name: Build for the iPhone Simulator
@@ -76,7 +79,19 @@ jobs:
       - name: Install AXe (taps by accessibility label)
         run: brew install cameroncooke/axe/axe
 
+      - name: Paywall screenshots (demo build)
+        if: github.ref_name == 'ci/paywall-iphone'
+        run: |
+          mkdir -p shots
+          xcrun simctl launch "$UDID" com.sillytraveltool.app
+          sleep 20
+          xcrun simctl io "$UDID" screenshot shots/ios-01-paywall.png
+          xcrun simctl ui "$UDID" appearance dark
+          sleep 4
+          xcrun simctl io "$UDID" screenshot shots/ios-02-paywall-dark.png
+
       - name: Launch and screenshot
+        if: github.ref_name != 'ci/paywall-iphone'
         env:
           OUT: shots
           DEEPLINK: ${{ (github.event_name == 'push' || inputs.sign_in) && secrets.IOS_TEST_DEEPLINK || '' }}
