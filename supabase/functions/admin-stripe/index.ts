@@ -77,7 +77,8 @@ async function sync(admin: any) {
   const [customers, subs, charges, sessions, invoices, promos, invoicePayments] = await Promise.all([
     listAll('customers'),
     listAll('subscriptions', { status: 'all' }),
-    listAll('charges'),
+    // Payment intents expanded: our checkout keeps plan, trigger, platform and code in their metadata
+    listAll('charges', { 'expand[]': 'data.payment_intent' }),
     listAll('checkout/sessions'),
     listAll('invoices'),
     listAll('promotion_codes'),
@@ -123,7 +124,7 @@ async function sync(admin: any) {
         canceled_at: ts(s.canceled_at), ended_at: ts(s.ended_at), promotion_code: promoFrom(s), created: ts(s.created),
         metadata: s.metadata || {}, synced_at: new Date().toISOString() }
     }),
-    stripe_charges: charges.map((c) => ({
+    stripe_charges: charges.map((c) => ({ ...c, metadata: { ...(typeof c.payment_intent === 'object' ? c.payment_intent?.metadata : null), ...(c.metadata || {}) } })).map((c) => ({
       id: c.id, livemode: c.livemode, customer: idOf(c.customer), user_id: uid(c), amount: c.amount, amount_refunded: c.amount_refunded,
       currency: c.currency, status: c.status, paid: !!c.paid, refunded: !!c.refunded, disputed: !!c.disputed, failure_code: c.failure_code,
       plan: c.metadata?.plan || planByIntent.get(idOf(c.payment_intent)) || planOfInvoice(invoiceOf(c))
