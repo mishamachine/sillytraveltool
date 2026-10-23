@@ -484,3 +484,6 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 }
 /* Fields inside a card sit on the page colour so they stay visible (both themes). */
 .c-card .c-field__box { background: var(--surface-page); }
+
+/* Country flag image (Flag.jsx) */
+.c-flag { flex-shrink: 0; border-radius: 3px; box-shadow: 0 0 0 1px var(--line); object-fit: cover; align-self: center; }

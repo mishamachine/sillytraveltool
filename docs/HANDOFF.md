@@ -35,6 +35,11 @@ Built per `docs/MULTI_CITY_PLAN.md`, all five phases. Proof: `docs/screenshots/m
   night train → Rome → Seattle, on that trip day. Demo geocoding: `src/dev/demoGeo.js`.
 - **Not verified live:** end-to-end with real AI on a real email/file (needs a signed-in session or sending the
   fixture emails to the owner's inbox: owner to OK). Free-plan limits for files = same as emails (paywall task).
+- **Loyalty by email (owner request):** a statement / membership email forwarded to the inbox adds or updates the
+  card in Loyalty (matched by member number, else program; tier, points + as-of date, expiry); newsletters are
+  ignored instead of becoming bookings. `receive-booking-email` v37. **Passport flag** on the passport card
+  (`src/components/shared/Flag.jsx`, flagcdn.com, added to the CSP `img-src` in `public/.htaccess`). Program logos:
+  dropped (owner).
 - **Open:** stop editing sheet (manual stops), per-leg travellers, Today's day buckets for bookings still use each
   booking's own zone (unchanged rule).
 

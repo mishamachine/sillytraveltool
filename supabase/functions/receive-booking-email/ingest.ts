@@ -172,6 +172,8 @@ ${emailContext}
 
 Return this JSON structure (use null for any field not found):
 {
+"email_kind": "booking|loyalty|other",
+"loyalty": { "program_name": null, "member_number": null, "member_name": null, "tier": null, "points_balance": null, "points_as_of": null, "expiry_date": null },
 "type": "flight|hotel|activity|transport|restaurant|other",
 "title": "short descriptive title e.g. 'Flight to Tokyo' or 'Hilton Tokyo Check-in'",
 "confirmation_number": null,
@@ -204,6 +206,10 @@ Return this JSON structure (use null for any field not found):
 }
 
 Rules:
+- email_kind: "loyalty" for a loyalty, frequent-flyer or hotel-rewards statement, welcome or membership email that has
+  no new reservation in it; then fill "loyalty" (program_name e.g. "Iberia Plus", member_number as printed, tier e.g.
+  "Gold", points_balance a whole number, points_as_of = statement date YYYY-MM-DD, expiry_date YYYY-MM-DD) and leave
+  the booking fields null. "booking" for a reservation or ticket. "other" for anything else.
 - departure_time and arrival_time: the LOCAL time exactly as printed on the confirmation, as YYYY-MM-DDTHH:MM with NO time zone or offset. The departure time is local to the departure airport/station, the arrival time local to the arrival airport/station. Never convert between time zones. Date only (YYYY-MM-DD) if no time is printed.
 - activity_time: local time exactly as printed, HH:MM 24h.
 - departure_airport / arrival_airport for flights: the 3-letter IATA code when shown (e.g. MAD), otherwise the airport name
@@ -249,6 +255,17 @@ activity_time, ticket_quantity
     return err('Could not parse Gemini response as JSON', 502)
   }
 
+  // A loyalty statement or membership email: file the card in the traveller's Loyalty wallet, not a booking
+  if (parsed.email_kind === 'loyalty' && parsed.loyalty?.program_name) {
+    const r = await fileLoyalty(supabase, userId, parsed.loyalty)
+    return r.error ? err(r.error, 500) : ok({ success: true, loyalty: true, ...r })
+  }
+  // Not a booking at all (newsletter, receipt without a date): nothing to file
+  if (parsed.email_kind === 'other' && !wallSpan(parsed) && !parsed.confirmation_number) {
+    console.log(`📭 Not a booking or loyalty email for user ${userId}: ignored`)
+    return ok({ success: true, ignored: true })
+  }
+  delete parsed.email_kind; delete parsed.loyalty
   const filed = await fileBooking(supabase, profile, tripList, parsed)
   return filed.error ? err(filed.error, filed.status || 500) : ok(filed)
 }
@@ -435,4 +452,35 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
     booking_title: parsed.title,
   }
 
+}
+
+/** Add or update a loyalty card from a statement: matched by member number, else by program name. */
+async function fileLoyalty(supabase: any, userId: string, l: Record<string, any>): Promise<Record<string, any>> {
+  const clean = (v: unknown) => (v == null || String(v).trim() === '' ? null : String(v).trim().slice(0, 120))
+  const digits = (v: unknown) => String(v ?? '').replace(/[^0-9A-Za-z]/g, '').toLowerCase()
+  const date = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)
+  const pts = parseInt(String(l.points_balance ?? '').replace(/[^0-9-]/g, ''), 10)
+  const program = clean(l.program_name)!
+  const fields: Record<string, any> = {
+    program_name: program,
+    ...(clean(l.member_number) ? { card_number: clean(l.member_number) } : {}),
+    ...(clean(l.member_name) ? { member_name: clean(l.member_name) } : {}),
+    ...(clean(l.tier) ? { tier: clean(l.tier) } : {}),
+    ...(Number.isFinite(pts) ? { points_balance: pts, points_updated_at: new Date(`${date(l.points_as_of) || new Date().toISOString().slice(0, 10)}T12:00:00Z`).toISOString() } : {}),
+    ...(date(l.expiry_date) ? { expiry_date: date(l.expiry_date) } : {}),
+  }
+  const { data: cards } = await supabase.from('loyalty_cards').select('id, program_name, card_number').eq('user_id', userId)
+  const num = digits(fields.card_number)
+  const same = (cards || []).find((c: any) => num && digits(c.card_number) === num) ||
+    (cards || []).find((c: any) => String(c.program_name || '').toLowerCase() === program.toLowerCase())
+  if (same) {
+    const { error } = await supabase.from('loyalty_cards').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', same.id)
+    if (error) return { error: `Loyalty update failed: ${error.message}` }
+    console.log(`💳 Loyalty card ${same.id} updated for user ${userId}`)
+    return { card_id: same.id, updated: true, program_name: program }
+  }
+  const { data, error } = await supabase.from('loyalty_cards').insert({ ...fields, user_id: userId }).select('id').single()
+  if (error) return { error: `Loyalty insert failed: ${error.message}` }
+  console.log(`💳 Loyalty card ${data.id} added for user ${userId}`)
+  return { card_id: data.id, updated: false, program_name: program }
 }

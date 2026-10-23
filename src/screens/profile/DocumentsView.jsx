@@ -4,6 +4,7 @@ import { useAuthStore, useTripsStore } from '../../store'
 import { supabase } from '../../lib/supabase'
 import { parseLocalDate, findCurrentOrNextTrip } from '../../lib/dates'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
+import Flag from '../../components/shared/Flag'
 import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, LinkButton, Banner, Sheet, Field, Text, Overline, Stack, Chip, IconTile, Skeleton, EmptyState,
 } from '../../ui'
@@ -82,7 +83,7 @@ function NumberRow({ doc, inverse = false }) {
   )
 }
 
-function PassportHero({ doc, onOpen }) {
+function PassportHero({ doc, onOpen, passportCountry }) {
   const st = expiryStatus(daysUntilExpiry(doc.expiry_date))
   return (
     <Card variant="raised" aria-labelledby={`doc-${doc.id}`}>
@@ -92,6 +93,7 @@ function PassportHero({ doc, onOpen }) {
           <Overline tone="accent" id={`doc-${doc.id}`}>Passport{doc.issuing_country ? ` · ${doc.issuing_country}` : ''}</Overline>
           <Text variant="body" weight={600} as="p">{doc.title}</Text>
         </Stack>
+        <Flag country={doc.issuing_country || passportCountry} size={22} />
         <LinkButton onClick={() => onOpen(doc)} aria-label={`${doc.title} details`}>Details</LinkButton>
       </Stack>
       {doc.document_number_last4 && <NumberRow doc={doc} />}
@@ -205,6 +207,7 @@ function DocForm({ doc, userId, onClose, onSaved }) {
 
 export default function DocumentsView({ wallet, onBack }) {
   const user = useAuthStore(s => s.user)
+  const profile = useAuthStore(s => s.profile)
   const trips = useTripsStore(s => s.trips)
   const { rows: docs, loading, remove, upsertLocal } = wallet
   const [form, setForm] = useState(null) // null | {} (new) | doc
@@ -235,7 +238,7 @@ export default function DocumentsView({ wallet, onBack }) {
         <Stack gap={3} aria-busy="true" aria-label="Loading documents">{[1, 2].map(i => <Card key={i}><Skeleton lines={2} /></Card>)}</Stack>
       ) : (
         <>
-          {passport && <PassportHero doc={passport} onOpen={setDetail} />}
+          {passport && <PassportHero doc={passport} onOpen={setDetail} passportCountry={profile?.passport_country} />}
           {validity && <Banner tone={validity.tone} icon={validity.icon}>{validity.text}</Banner>}
 
           {others.length > 0 && (

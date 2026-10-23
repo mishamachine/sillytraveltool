@@ -37,6 +37,9 @@ const SHEET_BOOKINGS = [
   { type: 'hotel', title: 'Casa Morisca', hotel_name: 'Casa Morisca', hotel_address: 'Granada', check_in_date: '2026-11-14', check_out_date: '2026-11-16', confirmation_number: 'CM-3310', destination_city: 'Granada' },
 ]
 
+// A frequent-flyer statement email
+let LOYALTY = { email_kind: 'loyalty', loyalty: { program_name: 'Iberia Plus', member_number: 'IB 55 2219 004', member_name: 'Sam Rivera', tier: 'Silver', points_balance: '18,250', points_as_of: '2026-10-01' } }
+
 // Fake geography: first keyword found in the query wins
 const GEO = [
   ['sfo', 37.62, -122.38, 'San Francisco', 'US'], ['san francisco', 37.77, -122.42, 'San Francisco', 'US'],
@@ -55,7 +58,7 @@ const lookup = q => { const s = q.toLowerCase(); const g = GEO.find(([k]) => s.i
 
 // ── Minimal in-memory Supabase ──
 function makeDb() {
-  const tables = { trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [] }
+  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [] }
   let seq = 0
   function q(table) {
     const filters = []; let op = 'select', payload = null, single = false, lim = Infinity
@@ -97,7 +100,7 @@ globalThis.fetch = async (url, init = {}) => {
   if (u.includes('consume_ai_quota')) return json(true)
   if (u.includes('deepseek')) {
     const prompt = JSON.parse(init.body).messages[0].content
-    const answer = prompt.includes('Spreadsheet itinerary') ? { bookings: SHEET_BOOKINGS } : PARSED[current]
+    const answer = prompt.includes('Spreadsheet itinerary') ? { bookings: SHEET_BOOKINGS } : current === 'loyalty' ? LOYALTY : current === 'newsletter' ? { email_kind: 'other', title: 'Deals' } : PARSED[current]
     return json({ choices: [{ message: { content: JSON.stringify(answer) } }] })
   }
   if (u.includes('geocode/json')) {
@@ -168,5 +171,18 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   assert.equal(out.from_attachments, true); assert.equal(out.count, 4)
   assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].start_date, '2026-11-10'); assert.equal(db.tables.trips[0].end_date, '2026-11-16')
   console.log(`spreadsheet attachment: ${out.count} bookings → 1 trip ${db.tables.trips[0].start_date}→${db.tables.trips[0].end_date}`)
+}
+// Loyalty statements file into the Loyalty wallet (and update the same card next time); newsletters are ignored
+{
+  const db = makeDb()
+  const send = async (id) => { current = id; return (await ingestEmail(db, { id: 'u1' }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const a = await send('loyalty')
+  assert.equal(a.loyalty, true); assert.equal(db.tables.loyalty_cards.length, 1); assert.equal(db.tables.loyalty_cards[0].points_balance, 18250)
+  LOYALTY = { email_kind: 'loyalty', loyalty: { ...LOYALTY.loyalty, member_number: 'IB552219004', tier: 'Gold', points_balance: 21000, points_as_of: '2026-11-01' } }
+  const b = await send('loyalty')
+  assert.equal(b.updated, true); assert.equal(db.tables.loyalty_cards.length, 1); assert.equal(db.tables.loyalty_cards[0].tier, 'Gold')
+  const c = await send('newsletter')
+  assert.equal(c.ignored, true); assert.equal(db.tables.bookings.length, 0); assert.equal(db.tables.trips.length, 0)
+  console.log('loyalty statement → card added, then updated (Gold, 21000 pts); newsletter ignored')
 }
 console.log('\nall replays: one trip, 14 bookings, 10–20 Apr; attachments filed')
