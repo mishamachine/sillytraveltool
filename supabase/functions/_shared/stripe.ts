@@ -100,3 +100,18 @@ export function invoiceRow(i: Obj, uid: string | null) {
 
 /** The subscription an invoice belongs to (older API versions: invoice.subscription; newer: invoice.parent). */
 export const invoiceSubscription = (i: Obj) => idOf(i.subscription ?? i.parent?.subscription_details?.subscription)
+
+// What a charge paid for, the same rule as admin-stripe's sync so both writers agree on stripe_charges.plan:
+// charge/payment metadata → its invoice (first subscription payment = the plan, later ones = renewal) → description.
+export function planOfInvoice(i: Obj | null) {
+  if (!i) return null
+  const sub = i.parent?.subscription_details || (i.subscription ? { subscription: i.subscription } : null)
+  if (!sub) return null
+  if (i.billing_reason === 'subscription_cycle') return 'renewal'
+  const line = i.lines?.data?.find((l: Obj) => l.metadata?.plan) || i.lines?.data?.[0]
+  return sub.metadata?.plan || line?.metadata?.plan || (line?.price?.recurring?.interval === 'month' ? 'monthly' : 'yearly')
+}
+
+export function planOfDescription(description?: string | null) {
+  return /^subscription creation/i.test(description || '') ? 'yearly' : /^subscription/i.test(description || '') ? 'renewal' : 'one_time'
+}
