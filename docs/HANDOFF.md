@@ -61,6 +61,8 @@
   limit highlighted, "N at the limit, M over" updates as you change the number), Save/Undo, audited.
   `admin_free_plan()` returns the histograms, free/First Class counts, paywall views and `limit_hit` events (30 days).
   The paywall branch's migration files still describe `billing_settings`: its session was told.
+- **Admins (owner request):** machinemisha@gmail.com added with the owner role (Google sign-in; audited). Both owners
+  get the cost-alert emails.
 
 ## Update — Money → Statement: gross, fees, net, exact AI cost (2026-10-23, commits b62f2af, a8ccd8a)
 - **Statement card (top of Money, `admin_financials(from, to)`, migrations `20261024000000_financials` +
