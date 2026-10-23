@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTripsStore, useUIStore, useCollabStore } from '../../store'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import { lookupZone } from '../../lib/zoneLookup'
-import { isUndated } from '../../lib/trips'
+import { isUndated, suggestTripName } from '../../lib/trips'
 import { warmGuide } from '../../store/guideStore'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import { Sheet, Field, Button, IconButton, SegmentedControl, Banner, Text, Stack, Card, IconTile, EmptyState, Switch } from '../../ui'
@@ -56,7 +56,8 @@ export default function TripForm() {
       destination_place_id: result.place_id || null,
       cover_photo: result.photo || null,
       destination_tz: result.tz || null,
-      title: f.title || result.city,
+      // Suggested name follows the destination until the traveller types their own
+      title: !f.title || f.title === suggestTripName(f.destination_city) ? suggestTripName(result.city) : f.title,
     }))
     if (result.tz) return
     // The destination's time zone drives Today, day counts and booking times
@@ -198,7 +199,7 @@ export default function TripForm() {
             )}
           </Stack>
 
-          <Field label="Trip name" placeholder="Tokyo in spring" value={form.title} onChange={e => update('title', e.target.value)} />
+          <Field label="Trip name" placeholder="Tokyo in spring" value={form.title} onChange={e => update('title', e.target.value)} onFocus={e => e.target.select()} />
 
           <div className="grid-2">
             <Field label="Depart" type="date" value={form.start_date} disabled={noDates} onChange={e => update('start_date', e.target.value)} />

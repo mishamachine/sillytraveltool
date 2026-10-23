@@ -58,6 +58,9 @@ export function formatRange(startISO, endISO, { year = false } = {}) {
   return `${left} – ${right}${y}`
 }
 
+/** "Trip to Lisbon": the name a new trip gets unless the traveller types another. */
+export const suggestTripName = (city) => (city ? `Trip to ${city}` : 'New trip')
+
 /** "3 nights" / "Day trip", or null for an undated trip. */
 export function nightsLabel(trip) {
   const n = nightsOf(trip)

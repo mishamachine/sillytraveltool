@@ -13,7 +13,8 @@ import { reverseGeocode } from '../../lib/places'
 import { PlacePhoto, GoogleRating, OpenNow, GoogleAttribution, InkWait } from '../../components/shared/PlaceMedia'
 import GetThereSheet from '../../components/shared/GetThereSheet'
 import IdeaSheet from './IdeaSheet'
-import { saveIdea } from './saveIdea'
+import { saveIdea, needsNewTrip } from './saveIdea'
+import NewTripNameSheet from '../../components/shared/NewTripNameSheet'
 import { useTripsStore, useIdeasStore, tripForCity } from '../../store'
 
 export const MOODS = [
@@ -100,12 +101,19 @@ export default function HonkView({ initialMood = null, onBack }) {
   useEffect(() => { if (honkTrip?.id) loadIdeas(honkTrip.id) }, [honkTrip?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const honkStatus = result && honkTrip ? statusFor(honkTrip.id, result) : null
   const honkKind = /restaurant|cafe|bar|food|bakery|eat/i.test(result?.type || '') ? 'restaurant' : 'attraction'
+  const honkDest = { city: effectiveCity, country: effectiveCountry, country_code: effectiveCountryCode }
+  const [naming, setNaming] = useState(false) // no trip for this city yet: the traveller names it first
   const saveHonk = async () => {
     if (honkStatus) { setIdeaOpen(true); return }
+    if (needsNewTrip(honkDest)) { setNaming(true); return }
     try {
-      const { trip, created } = await saveIdea({ city: effectiveCity, country: effectiveCountry, country_code: effectiveCountryCode }, result, honkKind, 'goosey')
-      say(created ? `Saved to your new ${effectiveCity} trip` : `Saved to ${trip.title} ideas`)
+      const { trip } = await saveIdea(honkDest, result, honkKind, 'goosey')
+      say(`Saved to ${trip.title} ideas`)
     } catch { say('Couldn\'t save it. Check your connection.') }
+  }
+  const createAndSave = async (title) => {
+    const { trip } = await saveIdea(honkDest, result, honkKind, 'goosey', { title })
+    say(`Saved to your new trip, ${trip.title}`)
   }
 
   const handleHonk = async (moodId = selectedMood) => {
@@ -244,6 +252,7 @@ export default function HonkView({ initialMood = null, onBack }) {
           {result.place_id && <GoogleAttribution />}
           <AiDisclosure city={effectiveCity} what="HONK" />
           {getThere && <GetThereSheet place={result} countryCode={effectiveCountryCode} onClose={() => setGetThere(false)} />}
+          {naming && <NewTripNameSheet city={effectiveCity} onCreate={createAndSave} onClose={() => setNaming(false)} />}
           {ideaOpen && honkTrip && <IdeaSheet item={result} kind={honkKind} status={honkStatus} trip={honkTrip} onSaved={say} onClose={() => setIdeaOpen(false)} />}
           {toast && <Toast icon="check" title={toast} />}
         </>

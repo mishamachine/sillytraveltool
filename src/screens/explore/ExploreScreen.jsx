@@ -9,7 +9,8 @@ import { useCityGuide, TAB_SECTIONS } from './useCityGuide'
 import { GUIDE_SECTIONS, KnowSection, EatSection, SeeSection, MoveSection, EventsSection } from './GuideSections'
 import HonkView, { MOODS } from './HonkView'
 import IdeaSheet from './IdeaSheet'
-import { saveIdea } from './saveIdea'
+import { saveIdea, needsNewTrip } from './saveIdea'
+import NewTripNameSheet from '../../components/shared/NewTripNameSheet'
 import GetThereSheet from '../../components/shared/GetThereSheet'
 import AiDisclosure from './AiDisclosure'
 import './explore.css'
@@ -71,6 +72,7 @@ export default function ExploreScreen() {
 function GuideHome({ setHonkMood, setMode }) {
   const [open, setOpen] = useState(false)
   const [ideaFor, setIdeaFor] = useState(null) // { item, kind, status }
+  const [nameFor, setNameFor] = useState(null) // { item, kind }: the first save for a city asks the new trip's name
   const [getThere, setGetThere] = useState(null)
   const [toast, setToast] = useState(null)
   const g = useCityGuide(open)
@@ -89,14 +91,20 @@ function GuideHome({ setHonkMood, setMode }) {
   const say = (msg, trip) => { setToast({ msg, trip }); setTimeout(() => setToast(null), trip ? 5000 : 2600) }
 
   const openSection = (id) => { g.setGuideTab(id); setOpen(true) }
-  // One tap saves to the city's trip (starting an undated one if needed); saved or booked places open the idea sheet
+  // One tap saves to the city's trip; with no trip there yet, the traveller names the new one first.
+  // Saved or booked places open the idea sheet.
   const handleAddToTrip = async (item, kind) => {
     const status = statusOf(item)
     if (status) { setIdeaFor({ item, kind, status }); return }
+    if (needsNewTrip(destination)) { setNameFor({ item, kind }); return }
     try {
-      const { trip, created } = await saveIdea(destination, item, kind)
-      say(created ? `Saved to your new ${destination.city} trip` : `Saved to ${trip.title} ideas`, created ? trip : null)
+      const { trip } = await saveIdea(destination, item, kind)
+      say(`Saved to ${trip.title} ideas`)
     } catch { say('Couldn\'t save it. Check your connection.') }
+  }
+  const createAndSave = async (title) => {
+    const { trip } = await saveIdea(destination, nameFor.item, nameFor.kind, 'guide', { title })
+    say(`Saved to your new trip, ${trip.title}`, trip)
   }
   const overviewLoading = !!loadingSections.overview
   const overviewFailed = !overviewLoading && !!g.guideError && !g.sections.overview
@@ -155,6 +163,7 @@ function GuideHome({ setHonkMood, setMode }) {
         )}
 
         {ideaFor && cityTrip && <IdeaSheet {...ideaFor} trip={cityTrip} onSaved={say} onClose={() => setIdeaFor(null)} />}
+        {nameFor && <NewTripNameSheet city={destination.city} onCreate={createAndSave} onClose={() => setNameFor(null)} />}
         {getThere && <GetThereSheet place={getThere} countryCode={destination.country_code} onClose={() => setGetThere(null)} />}
         {toast && (
           <Toast icon="check" title={toast.msg}

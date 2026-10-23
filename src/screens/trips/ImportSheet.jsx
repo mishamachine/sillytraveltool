@@ -7,7 +7,7 @@ import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import { track, errorReason } from '../../lib/analytics'
-import { formatRange, bookingKind, bookingMeta, tripDates, isUndated } from '../../lib/trips'
+import { formatRange, bookingKind, bookingMeta, tripDates, isUndated, suggestTripName } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
 import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, category } from '../../ui'
 
@@ -107,7 +107,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
   const [error, setError] = useState(null)
   const [matched, setMatched] = useState(null)
   const [selectedTripId, setSelectedTripId] = useState(null)
-  const [newTripName, setNewTripName] = useState('')
+  const [newTripName, setNewTripName] = useState(null) // null = follow the suggested name until the traveller types
   const [newCity, setNewCity] = useState(null)       // typed destination (null = Goose's pick)
   const [newPlace, setNewPlace] = useState(null)     // picked from city search
   const [creatingTrip, setCreatingTrip] = useState(false)
@@ -182,7 +182,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       const country = geo?.country || (sameAsGoose ? ultimateDest?.country : '') || ''
 
       const newTrip = await createTrip({
-        title: newTripName || `Trip to ${city}`,
+        title: newTripName?.trim() || suggestTripName(city),
         destination_city: city,
         destination_country: country,
         destination_country_code: geo?.country_code || '',
@@ -294,8 +294,8 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
           <CityAutocomplete label="Destination" value={newCity ?? fallbackCity ?? ''}
             onChange={(val) => { setNewCity(val); setNewPlace(null) }}
             onSelect={(p) => { setNewCity(p.city); setNewPlace(p) }} />
-          <Field label="Trip name (optional)" value={newTripName} onChange={e => setNewTripName(e.target.value)}
-            placeholder={`Trip to ${newPlace?.city || newCity?.trim() || fallbackCity || 'destination'}`} />
+          <Field label="Trip name" value={newTripName ?? suggestTripName(newPlace?.city || newCity?.trim() || fallbackCity)}
+            onChange={e => setNewTripName(e.target.value)} onFocus={e => e.target.select()} autoComplete="off" />
           <Stack row gap={2}>
             <Button className="grow" onClick={() => setStep('preview')}>Back</Button>
             <Button className="grow" variant="primary" loading={creatingTrip} onClick={handleCreateTrip}>
