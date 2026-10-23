@@ -50,7 +50,7 @@ function Frame({ children }) {
 function SignIn({ again, email }) {
   const [error, setError] = useState(null)
   const google = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/admin/` } })
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/admin/`, queryParams: { prompt: 'select_account' } } })
     if (error) setError(error)
   }
   return (

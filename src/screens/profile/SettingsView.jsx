@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useAuthStore, useUIStore } from '../../store'
 import { InboxAddress } from '../trips/InboxHint'
 import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
+import { usePlanStore, isFirstClass } from '../../store/planStore'
+import { manageTarget, openManage } from '../../lib/purchases'
 import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Switch, Text, Stack, Logo, LinkButton, Icon,
 } from '../../ui'
@@ -23,6 +25,38 @@ function ExternalRow({ href, title }) {
       <span className="c-row__body"><span className="c-row__title">{title}</span></span>
       <Icon name="external" size={18} className="c-row__chevron" />
     </a>
+  )
+}
+
+const fmtDate = (d) => new Date(d).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+
+// Plan row: free → opens the paywall; First Class → renewal date and, where this platform may, Manage
+function PlanSection() {
+  const { plan, openPaywall } = usePlanStore()
+  const [error, setError] = useState(null)
+  if (!plan) return null
+  if (!isFirstClass(plan)) {
+    return (
+      <Section title="Plan">
+        <Card variant="group">
+          <ListRow icon="star" title="Get First Class" meta="Unlimited trips, reservations and email import" chevron onClick={() => openPaywall('settings')} />
+        </Card>
+      </Section>
+    )
+  }
+  const sub = plan.web?.subscription
+  const renews = plan.store ? plan.store.will_renew : sub ? !sub.canceling : false
+  const line = !plan.until ? 'For life' : `${renews ? 'Renews' : 'Ends'} ${fmtDate(plan.until)}`
+  const manage = async () => { setError(null); try { await openManage(plan) } catch (e) { setError(e.message) } }
+  return (
+    <Section title="Plan">
+      <Card variant="group">
+        <ValueRow label="First Class" value={line} />
+        {sub?.status === 'past_due' && <Banner tone="danger" icon="alert-triangle">Your last payment didn’t go through. Update your card to keep First Class.</Banner>}
+        {manageTarget(plan) && <ListRow icon="card" title="Manage subscription" meta="Card, invoices, cancel" chevron onClick={manage} />}
+        {error && <Banner tone="danger" icon="alert-circle" role="alert">{error}</Banner>}
+      </Card>
+    </Section>
   )
 }
 
@@ -92,6 +126,8 @@ export default function SettingsView({ onBack, onDelete }) {
   return (
     <Screen gap={4} labelledBy="settings-title">
       <ScreenHeader onBack={onBack} backLabel="Back to profile" title="Settings" titleId="settings-title" />
+
+      <PlanSection />
 
       <Section title="Account">
         <Card variant="group">

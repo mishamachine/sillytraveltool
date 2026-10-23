@@ -6,6 +6,8 @@ In Supabase Dashboard → Settings → Edge Functions → Secrets, add:
 GEMINI_API_KEY      = your_gemini_api_key
 RESEND_API_KEY      = your_resend_api_key  
 APP_URL             = https://sillytraveltool.com
+STRIPE_SECRET_KEY   = rk_test_… (restricted key; billing, stripe-webhook, admin-stripe)
+STRIPE_WEBHOOK_SECRET = whsec_… (Stripe → Developers → Webhooks → stripe-webhook endpoint → Signing secret)
 ```
 
 ## 2. Deploy Edge Functions (run from project root)
@@ -20,6 +22,8 @@ supabase functions deploy generate-checklist
 supabase functions deploy check-badges
 supabase functions deploy send-invite
 supabase functions deploy receive-booking-email
+supabase functions deploy billing
+supabase functions deploy stripe-webhook
 ```
 
 ## 3. Supabase Dashboard
