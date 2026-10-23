@@ -4,6 +4,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 //   pg_cron, hourly: header x-cron-token = the Vault secret cost_alert_token → emails only when today's estimated
 //     AI + Google spend passed cost_alert.daily_usd (once a day) or a member crossed an abuse level (once per member/day/kind)
 //   the owner, from the cockpit: { test: true } with their session → always sends, marked as a test
+// Each run also saves DeepSeek's account balance (provider_balances), so the statement can show real DeepSeek spend.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -12,6 +13,22 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const FROM = Deno.env.get('MEMBER_EMAIL_FROM') || 'Silly Travel Tool <goose@bookings.sillytraveltool.com>'
 const COCKPIT = 'https://sillytraveltool.com/admin/'
 const KIND = { ai: 'AI calls', guide: 'guide sections', google: 'Google Maps calls' } as Record<string, string>
+
+// DeepSeek balance with the API key the AI functions already use; best-effort
+async function saveDeepseekBalance(admin: any) {
+  const key = Deno.env.get('DEEPSEEK_API_KEY')
+  if (!key) return null
+  try {
+    const res = await fetch('https://api.deepseek.com/user/balance', { headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' } })
+    if (!res.ok) { console.warn(`deepseek balance ${res.status}`); return null }
+    const d = await res.json()
+    for (const b of d.balance_infos || []) {
+      await admin.rpc('save_provider_balance', { p_provider: 'deepseek', p_currency: b.currency,
+        p_total: Number(b.total_balance), p_granted: Number(b.granted_balance), p_topped_up: Number(b.topped_up_balance) })
+    }
+    return (d.balance_infos || []).length
+  } catch (e) { console.warn('deepseek balance failed', (e as Error).message); return null }
+}
 
 const usd = (n: number) => `$${Number(n || 0).toFixed(2)}`
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))
@@ -38,9 +55,10 @@ Deno.serve(async (req) => {
       if (!test) return json({ error: 'Only test sends from the cockpit' }, 400)
     }
 
+    const balances = await saveDeepseekBalance(admin)
     const { data: run, error: runErr } = await admin.rpc('cost_alert_run', { p_test: test })
     if (runErr) return json({ error: runErr.message }, 500)
-    if (!run?.send) return json({ sent: false, today: run?.today, threshold: run?.threshold })
+    if (!run?.send) return json({ sent: false, today: run?.today, threshold: run?.threshold, balances })
     const to: string[] = run.to || []
     if (!to.length) return json({ error: 'No owner email' }, 500)
     const KEY = Deno.env.get('RESEND_API_KEY')

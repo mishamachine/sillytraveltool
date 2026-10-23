@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch } from '../_shared/gemini.ts'
+import { withRequestScope, setRequestUser } from '../_shared/usage.ts'
 import { plan } from '../_shared/experimentMath.js'
 
 // The experiment design partner in the cockpit. Owner only (admin_guard with the caller's session).
@@ -50,7 +51,7 @@ Reply with JSON only: { "reply": "your next message to the owner", "draft": { on
 from: ${FIELDS.join(', ')} }, "done": true|false }`
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withRequestScope(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   try {
     const auth = req.headers.get('Authorization')
@@ -59,6 +60,8 @@ Deno.serve(async (req) => {
     const asCaller = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } })
     const { data: role, error: guardErr } = await asCaller.rpc('admin_guard', { p_min: 'owner' })
     if (guardErr || !role) return json({ error: guardErr?.message || 'not_admin' }, 403)
+    // Logged against the owner in Money → Statement (AI by feature)
+    setRequestUser((await asCaller.auth.getUser()).data.user?.id ?? null)
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
     const b = await req.json().catch(() => ({}))
@@ -94,4 +97,4 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 500)
   }
-})
+}))

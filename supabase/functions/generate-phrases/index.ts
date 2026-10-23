@@ -1,12 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
+import { withRequestScope } from '../_shared/usage.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withRequestScope(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
@@ -114,4 +115,4 @@ Make romanizations phonetically accurate for ${meaning} speakers.`
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS })
   }
-})
+}))

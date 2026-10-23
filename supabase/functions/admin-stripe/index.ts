@@ -3,7 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 // Stripe for the owner cockpit (docs/ADMIN_PLAN.md, Money). Admin only: the caller's own session must pass
 // admin_guard (admins row + Google sign-in). Needs the secret STRIPE_SECRET_KEY (a restricted key is enough:
 // read customers, subscriptions, charges, invoices, checkout sessions, coupons, promotion codes; write coupons and
-// promotion codes). POST { action, ... }:
+// promotion codes; read balance and balance transactions for the Money statement). POST { action, ... }:
 //   status                       → { configured, livemode, sync }
 //   sync { force? }              → copies Stripe objects into stripe_* tables (at most every 2 minutes unless force)
 //   code_push { id }             → creates the Stripe coupon + promotion code for a discount code in promo_codes
@@ -85,6 +85,12 @@ async function sync(admin: any) {
     // Newer API versions link a payment to its invoice only here (charge.invoice is gone); older ones don't have it
     listAll('invoice_payments').catch(() => []),
   ])
+  // Stripe's ledger (gross, fees, refunds, payouts) for Money → Statement; a key without that permission keeps the rest working
+  let ledgerError: string | null = null
+  const [ledger, balance] = await Promise.all([
+    listAll('balance_transactions').catch((e) => { ledgerError = (e as Error).message; return [] as Obj[] }),
+    stripe('GET', 'balance').catch((e) => { ledgerError ||= (e as Error).message; return null }),
+  ])
   const userOf = new Map<string, string | null>()
   const customerRows = customers.map((c) => {
     // A user_id in metadata only counts if that account still exists (test or removed accounts would break the save)
@@ -142,6 +148,11 @@ async function sync(admin: any) {
       amount_discount: (i.total_discount_amounts || []).reduce((n: number, d: Obj) => n + (d.amount || 0), 0),
       currency: i.currency, promotion_code: promoFrom(i), billing_reason: i.billing_reason, created: ts(i.created), synced_at: new Date().toISOString(),
     })),
+    stripe_balance_txns: ledger.map((t) => ({
+      id: t.id, livemode: t.livemode ?? LIVE, type: t.type, reporting_category: t.reporting_category, amount: t.amount, fee: t.fee, net: t.net,
+      currency: t.currency, fee_details: t.fee_details || [], description: t.description, source: idOf(t.source), status: t.status,
+      created: ts(t.created), available_on: ts(t.available_on), synced_at: new Date().toISOString(),
+    })),
     stripe_promotion_codes: promos.map((p) => {
       const coupon = p.coupon ?? p.promotion?.coupon ?? {}
       return { id: p.id, livemode: p.livemode, code: p.code, coupon_id: idOf(coupon), active: !!p.active, times_redeemed: p.times_redeemed,
@@ -157,6 +168,11 @@ async function sync(admin: any) {
       const { error } = await admin.from(table).upsert(list.slice(i, i + 500))
       if (error) throw new Error(`${table}: ${error.message}`)
     }
+  }
+  if (ledgerError) counts.ledger_error = ledgerError.slice(0, 200) as any
+  if (balance) {
+    const sum = (list: Obj[] = []) => list.filter((x) => x.currency === 'usd').reduce((n, x) => n + (x.amount || 0), 0)
+    await admin.from('stripe_sync').update({ balance: { available: sum(balance.available), pending: sum(balance.pending), currency: 'usd', at: new Date().toISOString() } }).eq('id', 1)
   }
   // Codes made in the cockpit find their Stripe twin by code text
   for (const p of rows.stripe_promotion_codes) {
