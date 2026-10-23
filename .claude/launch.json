@@ -36,6 +36,15 @@
         "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite --port 5175 --strictPort"
       ],
       "port": 5175
+    },
+    {
+      "name": "stt-costs-dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=$HOME/.local/node/bin:$PATH; exec npx vite --port 5176 --strictPort"
+      ],
+      "port": 5176
     }
   ]
 }

@@ -61,6 +61,18 @@ async function experimentAI(body) {
   return data
 }
 
+// cost-alert sends the owner's spend email; from the cockpit only as a test (it checks admin_guard('owner'))
+async function costAlertTest() {
+  if (demo) return demo('cost:test')
+  const { data, error } = await supabase.functions.invoke('cost-alert', { body: { test: true } })
+  if (error) {
+    let message = error.message
+    try { message = (await error.context.json()).error || message } catch { /* not JSON */ }
+    throw new Error(MESSAGES[message] || message)
+  }
+  return data
+}
+
 export const api = {
   experiments: () => rpc('admin_experiments'),
   experimentSave: (p) => rpc('admin_experiment_save', { p }),
@@ -125,4 +137,8 @@ export const api = {
   freshStart: (confirm) => rpc('admin_fresh_start', { p_confirm: confirm }),
   formerMembers: () => rpc('admin_former_members'),
   system: (f) => rpc('admin_system', { p_from: f.from, p_to: f.to }),
+  costs: (f) => rpc('admin_costs', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),
+  settings: () => rpc('admin_settings'),
+  settingSet: (key, value) => rpc('admin_setting_set', { p_key: key, p_value: value }),
+  costAlertTest,
 }

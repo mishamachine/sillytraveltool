@@ -28,6 +28,16 @@ const insights = (m, i = Number(m.id.slice(-2))) => ({ ...m, traveller_type: ['S
   platforms: [['web', 'android'], ['android'], ['web'], ['ios', 'web'], ['web (installed)', 'android'], []][i % 6], main_platform: [['web'], ['android'], ['web'], ['ios'], ['web (installed)'], [null]][i % 6][0],
   platform_mix: ['android + web', 'android', 'web', 'ios + web', 'android + web', ''][i % 6], offers: true, emails_ok: i % 3 === 0,
   next_action: ['Send a trip recap and the First Class offer', 'Check their bookings imported cleanly before they leave', 'Win-back: inspiration for their next trip', null][i % 4] })
+const demoSettings = {
+  founders_offer: { active: true, _updated_at: day(-1) },
+  free_limits: { upcoming_trips: 2, reservations_per_trip: 5, email_imports: 5, _updated_at: day(-1) },
+  ai_limits: { ai_daily: 100, guide_daily: 40, _updated_at: day(-1) },
+  google_limits: { per_user_daily: 5000, _updated_at: day(-1) },
+  kill: { ai_paused: false, google_paused: false, _updated_at: day(-1) },
+  cost_alert: { daily_usd: 10, flag_ai: 300, flag_guide: 150, flag_google: 1500, last_sent_day: d10(-3), _updated_at: day(-1) },
+  cost_rates: { ai_call: 0.0015, guide_section: 0.004, supabase_monthly: 25, hosting_monthly: 4, _updated_at: day(-1),
+    google: { autocomplete: 0.00283, place_details: 0.017, text_search: 0.032, nearby: 0.032, photo: 0.007, routes: 0.005, geocode: 0.005, timezone: 0.005, static_map: 0.002, other: 0.005 } },
+}
 const series = (n, f) => Array.from({ length: n }, (_, i) => ({ day: d10(i - n + 1), ...f(i) }))
 
 const codes = [
@@ -78,6 +88,7 @@ export default async function demo(name, args) {
         series: series(n, i => ({ signups: (i * 7) % 4, active: 8 + ((i * 5) % 9), bookings: (i * 3) % 7, errors: i % 5 === 0 ? 2 : 0 })) }
     }
     case 'admin_needs_you': return { items: [
+      { key: 'cost_day:x', priority: 1, tab: 'money', title: 'AI + Google spend today is about $12.40', detail: 'Over your $10.00 alert level. Money → Costs shows who and what; the kill switches are in Controls.' },
       { key: 'errors:x', priority: 1, tab: 'product', title: '9 errors in the last 24 hours', detail: 'About 2.1 a day is normal. Open Product to see which screens and versions.' },
       { key: 'welcome:x', priority: 2, tab: 'members', filter: 'new', title: '14 new members this week', detail: 'Say hello while it\'s fresh. A personal note from the founder converts better than any campaign.' },
       { key: 'just_back:x', priority: 2, tab: 'members', filter: 'just_back', title: '5 members are just back from a trip', detail: 'Best moment for a recap, a share ask or the First Class offer.' },
@@ -169,6 +180,27 @@ export default async function demo(name, args) {
         { action: 'code.create', target: null, email: null, detail: { count: 50, batch: 'PARTNER-20261020-0910' }, ts: day(-3) }],
       admins: [{ email: 'owner@example.com', role: 'owner', added_at: day(-1) }],
     }
+    case 'admin_costs': return {
+      days: 30, variable: 4.82, variable_all: 6.1, fixed: 29, total: 33.82, ai_usd: 1.94, guide_usd: 0.88, google_usd: 2.0,
+      ai_calls: 1293, guide_calls: 220, google_calls: 410, active_members: 14, paying_members: 3, per_active: 0.3443, per_paying: 11.27,
+      gross: 119.94, refunded: 0, margin: 84.84, today: 0.42, today_threshold: 10,
+      daily: series(30, i => { const ai = 0.03 + ((i * 7) % 5) * 0.01, guide = (i % 4) * 0.01, google = 0.04 + ((i * 3) % 6) * 0.01
+        return { ai, guide, google, total: ai + guide + google, ai_calls: Math.round(ai / 0.0015), guide_calls: Math.round(guide / 0.004), google_calls: 12 + i } }),
+      google_endpoints: [['text_search', 31, 0.99], ['place_details', 44, 0.75], ['autocomplete', 260, 0.74], ['photo', 52, 0.36], ['routes', 15, 0.08], ['geocode', 8, 0.04]]
+        .map(([endpoint, calls, usd]) => ({ endpoint, calls, usd })),
+      top_members: [{ user_id: '00000000-0000-0000-0000-000000000000', email: null, system: true, internal: false, plan: 'free', ai_calls: 0, guide_calls: 0, google_calls: 22, usd: 0.11, max_ai_day: 0, max_google_day: 6 },
+        ...members.slice(0, 8).map((m, i) => ({ user_id: m.id, email: m.email, system: false, internal: false, plan: m.plan, ai_calls: 220 - i * 25, guide_calls: 40 - i * 4,
+          google_calls: 90 - i * 9, usd: Number((0.9 - i * 0.1).toFixed(2)), max_ai_day: 60 - i * 6, max_google_day: 30 - i * 3 }))],
+      flags: [{ day: d10(-2), user_id: members[3].id, kind: 'ai', calls: 342, email: members[3].email }],
+      last_24h: { ai_members: 6, ai_calls: 141, google_members: 5, google_calls: 37 },
+    }
+    case 'admin_settings': return demoSettings
+    case 'admin_setting_set': {
+      const old = demoSettings[args.p_key] || {}
+      demoSettings[args.p_key] = { ...old, ...args.p_value, ...(args.p_value.google ? { google: { ...old.google, ...args.p_value.google } } : {}), _updated_at: day(0) }
+      return demoSettings[args.p_key]
+    }
+    case 'cost:test': return { sent: true, today: 0.42, flags: 0, test: true }
     case 'admin_codes': return codes
     case 'admin_code_report': return {
       codes: [{ id: 'x1', code: 'GOOSE30', status: 'active', uses: 23 }],

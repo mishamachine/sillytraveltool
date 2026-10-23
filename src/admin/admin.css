@@ -349,3 +349,11 @@ input[type="date"].a-select { width: auto; }
 .a-cohort__nums strong { color: var(--ink); font-family: var(--font-display); font-size: 1rem; }
 .a-rules-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 14px; }
 .a-readout { margin-top: 8px; background: var(--surface-card); border-radius: var(--radius-sm); padding: 6px 10px; }
+
+/* Money → Costs and Controls */
+.a-stat--danger .a-stat__value { color: var(--danger); }
+.a-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.a-controls .a-impact { display: flex; flex-direction: column; gap: 10px; }
+.a-controls__wide { grid-column: 1 / -1; }
+.a-control { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 0.875rem; flex-wrap: wrap; }
+.a-controls .a-hint { margin-top: 0; }

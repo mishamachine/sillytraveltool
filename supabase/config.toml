@@ -58,3 +58,6 @@ verify_jwt = false
 
 [functions.admin-experiment-ai]
 verify_jwt = false
+
+[functions.cost-alert]
+verify_jwt = false
