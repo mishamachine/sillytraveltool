@@ -39,7 +39,24 @@ async function stripeFn(action, body = {}) {
   return data
 }
 
+async function emailFn(action, body = {}) {
+  if (demo) return demo(`email:${action}`, body)
+  const { data, error } = await supabase.functions.invoke('admin-email', { body: { action, ...body } })
+  if (error) {
+    let message = error.message
+    try { message = (await error.context.json()).error || message } catch { /* not JSON */ }
+    throw new Error(message)
+  }
+  return data
+}
+
 export const api = {
+  emailPreview: (b) => emailFn('preview', b),
+  emailCheck: (b) => emailFn('check', b),
+  emailSend: (b) => emailFn('send', b),
+  emailTemplates: () => rpc('admin_email_templates'),
+  emailTemplateSave: (p) => rpc('admin_email_template_save', { p }),
+  emailLog: (userId) => rpc('admin_email_log', { p_user: userId || null }),
   stripeStatus: () => stripeFn('status'),
   stripeSync: (force) => stripeFn('sync', { force: !!force }),
   stripePushCode: (id) => stripeFn('code_push', { id }),
@@ -81,5 +98,8 @@ export const api = {
   endRedemption: (id, reason) => rpc('admin_end_redemption', { p_redemption: id, p_reason: reason }),
   usage: (f) => rpc('admin_usage', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),
   context: (f) => rpc('admin_context', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),
+  freshStartPreview: () => rpc('admin_fresh_start_preview'),
+  freshStart: (confirm) => rpc('admin_fresh_start', { p_confirm: confirm }),
+  formerMembers: () => rpc('admin_former_members'),
   system: (f) => rpc('admin_system', { p_from: f.from, p_to: f.to }),
 }

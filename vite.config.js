@@ -120,11 +120,11 @@ export default defineConfig(({ mode }) => {
         // The owner cockpit (/admin/) is its own page; travellers' service workers never precache it
         globIgnores: ['**/admin/**', '**/assets/admin-*'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|redeem|upgrade)(\/|$)/]
+        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|redeem|upgrade|unsubscribe)(\/|$)/]
       }
     })
   ].filter(Boolean),
-  // Web build: the app plus the owner cockpit (admin/index.html → /admin/), the code redeem page (/redeem/) and
+  // Web build: the app plus the owner cockpit (admin/index.html → /admin/), the code redeem page (/redeem/),
   // First Class checkout (/upgrade/).
   // The native build ships the app only.
   build: isNative ? {} : {
@@ -134,6 +134,7 @@ export default defineConfig(({ mode }) => {
         admin: new URL('./admin/index.html', import.meta.url).pathname,
         redeem: new URL('./redeem/index.html', import.meta.url).pathname,
         upgrade: new URL('./upgrade/index.html', import.meta.url).pathname,
+        unsubscribe: new URL('./unsubscribe/index.html', import.meta.url).pathname,
       },
     },
   },

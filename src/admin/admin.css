@@ -293,3 +293,14 @@ textarea { resize: vertical; }
 .a-ctx h3 { font-size: 0.85rem; margin-bottom: 4px; color: var(--ink-secondary); }
 @media (max-width: 1100px) { .a-ctx { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .a-ctx { grid-template-columns: 1fr; } }
+
+/* ── Email composer ── */
+.a-compose { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 20px; }
+.a-compose__side h3 { font-size: 0.85rem; color: var(--ink-secondary); margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
+.a-compose__side h3:not(:first-child) { margin-top: 16px; }
+.a-compose__n { font-size: 0.9rem; } .a-compose__n strong { font-family: var(--font-display); font-size: 1.6rem; }
+.a-email-preview { background: #F4EEE6; border-radius: var(--radius-md); max-height: 420px; overflow: auto; color: #2A2520; }
+.a-email-preview__subject { font-weight: 600; font-size: 0.85rem; padding: 10px 12px 0; }
+.a-email-preview table { width: 100%; } .a-email-preview td { padding: 10px !important; }
+.a-check--wrap { white-space: normal; align-items: flex-start; line-height: 1.4; }
+@media (max-width: 760px) { .a-compose { grid-template-columns: 1fr; } }

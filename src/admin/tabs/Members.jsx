@@ -4,6 +4,8 @@ import { api } from '../api'
 import { Card, Table, Badge, Loading, ErrorNote, useLoad, ExportButton, Segmented, Stat, BarList, ago, fmtDate, STAGES, STAGE_LABEL,
   STATUS_LABEL, PLAN_LABEL, statusTone, stageTone } from '../ui'
 import MemberPanel from './MemberPanel'
+import EmailComposer from './EmailComposer'
+import EmailsView from './EmailsView'
 import { money } from './StripePanel'
 
 // Segment filters that live in the URL (#seg_affluence=Premium) and come from admin_insight_rows
@@ -16,6 +18,7 @@ const healthTone = (h) => (h >= 60 ? 'ok' : h >= 30 ? 'info' : h >= 10 ? 'warn' 
 
 export default function Members({ filters, view, go, role }) {
   const [search, setSearch] = useState('')
+  const [composing, setComposing] = useState(false)
   const mode = view.mode || 'list'
   const list = useLoad(() => api.membersPlus(search, filters), [filters, search])
   const audience = useLoad(() => (mode === 'audience' ? api.audience(filters) : null), [filters, mode])
@@ -41,6 +44,7 @@ export default function Members({ filters, view, go, role }) {
     { key: 'plan', label: 'Plan', render: m => <Badge tone={m.plan === 'first_class' ? 'accent' : 'neutral'}>{PLAN_LABEL[m.plan]}</Badge> },
     { key: 'lifetime_value', label: 'Paid', num: true, render: m => m.lifetime_value ? money(m.lifetime_value) : '—' },
     { key: 'status', label: 'Status', render: m => m.status === 'active' ? <span className="a-muted">Active</span> : <Badge tone={statusTone(m.status)}>{STATUS_LABEL[m.status]}</Badge> },
+    { key: 'offers', label: 'Offers', render: m => m.offers === false ? <Badge>Off</Badge> : <span className="a-muted">On</span>, sortValue: m => m.offers },
     { key: 'next_action', label: 'Next best action', render: m => <span className="a-small">{m.next_action || '—'}</span> },
     { key: 'last_seen', label: 'Last seen', render: m => ago(m.last_seen), sortValue: m => m.last_seen || '' },
   ]
@@ -49,7 +53,7 @@ export default function Members({ filters, view, go, role }) {
     <div className="a-grid">
       <Card title="Trip cycle" icon="compass" className="a-span-12"
         subtitle="Between trips is healthy. Lapsed means quieter than this member's own rhythm."
-        actions={<Segmented size="sm" options={[['list', 'Members'], ['audience', 'Audience']]} value={mode} onChange={(m) => go({ mode: m === 'list' ? null : m })} />}>
+        actions={<Segmented size="sm" options={[['list', 'Members'], ['audience', 'Audience'], ['emails', 'Emails']]} value={mode} onChange={(m) => go({ mode: m === 'list' ? null : m })} />}>
         <div className="a-stages">
           <button className={`a-stage ${!view.stage ? 'is-on' : ''}`} onClick={() => go({ stage: null })}>
             <span className="a-stage__n">{all.length}</span><span>Everyone</span>
@@ -62,7 +66,7 @@ export default function Members({ filters, view, go, role }) {
         </div>
       </Card>
 
-      {mode === 'audience' ? <Audience a={audience} pick={pickSeg} view={view} /> : (
+      {mode === 'emails' ? <EmailsView role={role} go={go} /> : mode === 'audience' ? <Audience a={audience} pick={pickSeg} view={view} /> : (
         <Card title="Members" icon="users" className="a-span-12" subtitle={`${rows.length} shown`}
           actions={<>
             <div className="a-search"><Icon name="search" size={16} />
@@ -74,6 +78,8 @@ export default function Members({ filters, view, go, role }) {
               <option value="">Any status</option>
               {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+            {role !== 'analyst' && <button className="a-btn a-btn--ghost a-btn--sm" disabled={!rows.length || rows.length > 200} onClick={() => setComposing(true)}
+              title={rows.length > 200 ? 'Filter to 200 or fewer' : undefined}><Icon name="mail" size={16} /> Email these {rows.length}</button>}
             <ExportButton name="members" rows={rows.map(({ tags, regions, ...m }) => ({ ...m, tags: (tags || []).join(' '), regions: (regions || []).join(' ') }))} />
           </>}>
           {!!segs.length && (
@@ -91,6 +97,9 @@ export default function Members({ filters, view, go, role }) {
         </Card>
       )}
 
+      {composing && <EmailComposer to={{ userIds: rows.map(m => m.id), label: `${rows.length} member${rows.length === 1 ? '' : 's'}` }}
+        template={view.stage === 'just_back' ? 'recap' : view.stage === 'lapsed' ? 'win_back' : view.stage === 'new' ? 'welcome' : undefined}
+        role={role} onClose={() => setComposing(false)} />}
       {view.member && <MemberPanel id={view.member} role={role} onClose={() => go({ member: null })} onChanged={list.reload} />}
     </div>
   )
@@ -113,6 +122,7 @@ function Audience({ a, pick, view }) {
           <Stat label="Paying" value={d.paying} hint={d.lifetime_value ? `${money(d.lifetime_value)} paid` : null} />
           <Stat label="Average health" value={d.avg_health ?? '—'} hint="0–100" />
         </div>
+        {!!d.offers_off && <p className="a-hint">{d.offers_off} member{d.offers_off === 1 ? ' has' : 's have'} turned off tailored offers and {d.offers_off === 1 ? 'is' : 'are'} left out of these numbers.</p>}
         {d.members < 30 && <p className="a-hint">Small numbers: read these as people, not percentages. Click any bar to see those members.</p>}
       </Card>
       {SEGMENTS.map(([k, label]) => (

@@ -1,5 +1,30 @@
 # STT Handoff — 2026-10-21
 
+## Update — multi-city shipped; emailed trips never named after home (2026-10-23)
+- **Website live** with multi-city (`fd8b93c`), built from a clean `git archive` copy so uncommitted local edits don't
+  ship (`npx vite build` there skips the help prebuild). Server backup `~/backups/stt-202610230731-pre-multicity.tar.gz`.
+  CSP has `https://flagcdn.com`; no console errors on the live site.
+- **receive-booking-email v42 (live):** `repointAutoTrip` in `ingest.ts`. After each booking, an auto-named email trip
+  whose destination is home (profile `home_city`, else where its first leg leaves from) moves to the longest hotel stay
+  away from home, else the first leg's arrival. Never when a hotel night is at the destination, never for a typed name,
+  guests or manual bookings. Sim cases added (`scripts/test-email-match-sim.mjs`). Live test on machinemisha: Delta
+  flight home sent first → "Trip to San Francisco"; after the other 13 → one trip "Trip to London", 10–20 Apr, 14
+  bookings. Backup of v40 was taken before deploying.
+- **Known bug (not fixed):** the single-email parser keeps only the first leg of a multi-leg flight email (Delta
+  LIS→JFK→SFO saved as LIS→JFK only). The attachment/itinerary path already returns every leg.
+- **Deploying Edge Functions:** the CLI isn't logged in, so v41/v42 went through the MCP as one esbuild bundle
+  (`esbuild index.ts --bundle --format=esm --platform=neutral --minify --charset=utf8 --external:'jsr:*'`) and were
+  checked byte-for-byte with `get_edge_function`. A one-time `supabase login` (or `SUPABASE_ACCESS_TOKEN`) makes this
+  `supabase functions deploy receive-booking-email --no-verify-jwt`.
+- **Android:** versionCode 3 / 0.21.0 debug APK built from the same clean copy and installed on `STT_Pixel` (not
+  uploaded). The AVD is slow to boot ("System isn't responding" twice) and was signed in as babar54, so new screens
+  are not yet checked on it.
+- **iOS:** Xcode is not installed (only Command Line Tools), there is no `ios/` folder, and `@capacitor/ios` isn't in
+  `package.json`. This Mac is Intel (i7-9750H, macOS 26.7.1): the App Store's Xcode 27 runs on Apple silicon only.
+- **OPEN, production:** Supabase auth emails fail. Auth log 2026-10-23 19:56Z on `/otp`: `550 The sillytraveltool.com
+  domain is not verified` (Resend SMTP). Magic links, password resets and sign-up confirmations don't send. Fix in
+  Resend (verify sillytraveltool.com, DNS at Hostinger) or point Supabase SMTP's sender at a verified domain.
+
 
 ## Update — Stripe web billing (2026-10-23, branch `feat/stripe-web-billing`, PR #1; full notes: `docs/STRIPE_BILLING.md`)
 - **Web buys First Class straight through Stripe** (owner decision: no RevenueCat on the web; apps still use store
@@ -78,6 +103,30 @@
 - **Deployed 2026-10-23 08:54** from a clean worktree (HEAD fd8b93c + cockpit files only; other sessions' uncommitted work
   not included). Backup: `~/backups/stt-202610230854-pre-cockpit.tar.gz`. Browsers with the old service worker show the
   app at /admin once, then the cockpit after the worker updates.
+- **Privacy (2026-10-23, owner sign-off, `docs/PRIVACY_UPDATE_DRAFT.md`):** policy rewritten (DeepSeek in China
+  disclosed, Google Maps, Stripe, traveller profiles, session data, account decisions, retention); Settings → Tailored
+  offers (`user_profiles.tailored_offers`); `purge-old-usage` pg_cron job deletes usage events, code attempts and function
+  errors older than 25 months, nightly 03:17 UTC. Deployed 2026-10-23 19:32 (backup `stt-202610231932-pre-privacy.tar.gz`); operator name and
+  address filled in on privacy and terms (backup `stt-202610231936-legal-pages.tar.gz`).
+- **Fresh start + Stripe metadata (2026-10-23):** `former_members` holds the name and email of every account except
+  babar54@gmail.com and machinemisha@gmail.com (13 saved, marketing_consent 'unknown'). The owner removes those accounts
+  with System → Former members → Start fresh (owner-only `admin_fresh_start('START FRESH')`; dry-run tested and rolled
+  back: 13 removed, owner's 5 trips kept). `recompute_user_stats` skips deleted users (account deletion used to fail).
+  Stripe objects' full `metadata` jsonb is stored (migration `20261023140000`, admin-stripe v3); web billing
+  (branch feat/stripe-web-billing) sets user_id, plan, price_key, platform, app_version, trigger, code, utm_*, experiment,
+  variant on checkout, subscription and payment intent.
+- **Member emails (2026-10-23):** `admin-email` v1 (Resend batch, from goose@bookings.sillytraveltool.com, reply-to
+  hello@sillytraveltool.com; template rendering in `_shared/emailTemplate.js`, tested by `node scripts/test-email-template.mjs`)
+  and `email-unsubscribe` v1 (RFC 8058 one-click POST; GET redirects to `/unsubscribe/?t=`). Migration
+  `20261023160000_member_emails`: `user_profiles.marketing_emails` (Settings → Travel tips by email, off by default) +
+  `email_token`, `email_templates` (9 seeded: recap, win_back, welcome, first_class, relaunch, notice_*), `email_sends`
+  log, `email_unsubscribe(token)` (anon). Rules: account notices (service) to any member; marketing owner-only, opted-in
+  members only, former members only with consent or the owner's per-send confirmation, never the unsubscribed or
+  suspended. Cockpit: Email button on member pages, "Do it" on the next best action, "Email these N" on any filtered
+  list (≤200), Members → Emails (templates, send log), status changes email the member notice, former members "Email
+  them". Not tested with a real send (needs the owner's Google session); open/click tracking not built.
+- **TO DO SOON (owner, 2026-10-23):** the privacy page and Terms show the owner's **home address** (402 Grandey Way NE,
+  Renton). Fine for now; replace it with a PO box or virtual business address soon, in `public/privacy/` and `public/terms/`.
 - **Not done yet:** in-app Owner view (Profile files belong to the user-guide session),
   function_errors writes from Edge Functions, exposure events, GA4/social/briefs/experiments (later steps).
 
