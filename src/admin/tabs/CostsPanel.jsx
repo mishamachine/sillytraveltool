@@ -6,7 +6,7 @@ import { Card, Stat, Table, Bars, BarList, Loading, ErrorNote, useLoad, Modal, F
 // Money → Costs (admin_costs: usage × the editable cost_rates) and Controls (app_settings, owner-only, audited).
 // AI limits and the kill switches are enforced in consume_ai_quota / consume_api_call, so they work without a deploy.
 
-const usd = (n, digits = 2) => n == null ? '—' : `$${Number(n).toFixed(digits)}`
+const usd = (n, digits = 2) => n == null ? '—' : `${Number(n) < 0 ? '−' : ''}$${Math.abs(Number(n)).toFixed(digits)}`
 const small = (n) => n == null ? '—' : Number(n) > 0 && Number(n) < 0.1 ? usd(n, 3) : usd(n)
 const ENDPOINT = { autocomplete: 'Autocomplete', place_details: 'Place details', text_search: 'Text search', nearby: 'Nearby search',
   photo: 'Photos', routes: 'Routes', geocode: 'Geocoding', timezone: 'Time zone', static_map: 'Static maps', other: 'Other' }

@@ -48,6 +48,35 @@
   on device. Not uploaded.
 
 
+## Update — Money → Costs and Controls (2026-10-23, commits 64b4814, 85b616d)
+- **Settings (live, migration `20261023190000_costs_controls`):** `app_settings` (key, value jsonb): `founders_offer`
+  {active}, `free_limits` {upcoming_trips, reservations_per_trip, email_imports}, `ai_limits` {ai_daily 100, guide_daily
+  40}, `google_limits` {per_user_daily 5000}, `kill` {ai_paused, google_paused}, `cost_alert` {daily_usd 10, flag_ai 300,
+  flag_guide 150, flag_google 1500, last_sent_day}, `cost_rates` (AI call, guide section, Google per endpoint, Supabase +
+  hosting monthly). `public_settings()` (anon) returns only founders_offer + free_limits, for the paywall (billing
+  session told). `admin_settings()` / owner-only `admin_setting_set(key, patch)` (merges, validates, audited).
+- **AI enforcement without redeploys:** `consume_ai_quota` returns false when `kill.ai_paused`, and `ai_limits` override
+  the limit the functions pass.
+- **Google counted:** every billed call in `_shared/google.ts` (`call()`, static maps) and `_shared/timezones.ts`
+  (time zone, geocode) goes through `allowGoogle(endpoint)` → `consume_api_call` → `api_usage` (day, user, endpoint);
+  false when Google is paused or the member hit the daily cap (callers fall back; fails open on errors). The member comes
+  from `withGoogleScope` (AsyncLocalStorage per request) + `setGoogleUser`. Redeployed from 64b4814: places v9,
+  resolve-timezone v8, goosey-discover v21, generate-guide v33, parse-booking-email v29, receive-booking-email v46
+  (byte-identical to the local bundle); each tested live with the owner's session (counts landed on babar54).
+- **Costs (`admin_costs(from, to, exclude_internal)`):** estimated spend per day (AI, guides, Google), per active and
+  paying member, margin vs Stripe gross − refunds − all costs (fixed costs prorated), top 25 members (click → member page),
+  Google by endpoint, usage flags. Estimates ignore Google's monthly free usage.
+- **Controls card (Money tab):** kill switches and founders switch (confirm with last-24h impact), free/AI/Google limits,
+  alert levels, cost rates, "Send a test alert". Analysts see read-only.
+- **Alerts:** Needs you gets "spend today over $X", "kill switch on" and per-member abuse items (`cost_needs_items()`,
+  patched into `admin_needs_you`). `cost-alert` Edge Function v1 emails the owner (Resend) at most once a day for spend
+  and once per member/day/kind for flags (`usage_flags`); pg_cron `cost-alert` at :05 every hour via pg_net with the
+  Vault secret `cost_alert_token` (no owner secret needed). Proof: cron call with a $0.10 threshold sent (Resend id
+  01a16ae4-3a99-7ca9-b39f-5e72b62a0148), second call same day didn't, wrong token 401; threshold restored to $10 and
+  last_sent_day cleared. Owner test send from the live cockpit also sent. `purge-old-costs` cron keeps 25 months.
+- **Cockpit deployed** (admin/index.html + admin-*.js/css only, from a clean worktree of 85b616d+; backup
+  `~/backups/stt-202610232236-pre-costs-admin.tar.gz`).
+
 ## Update — owner cockpit, build step 1 (2026-10-23, plan: `docs/ADMIN_PLAN.md`)
 - **/admin/** (own Vite entry `admin/index.html`, bundle `src/admin/`, never in the app or native build or the service
   worker precache). Sign-in (existing session on the same origin, Google or magic link) → **authenticator (TOTP) set-up,
