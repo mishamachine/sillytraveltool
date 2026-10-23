@@ -30,6 +30,9 @@ const sub = subscriptionRow({ id: 'sub_1', livemode: false, customer: 'cus_1', s
   items: { data: [{ current_period_end: now + 86400, price: { id: 'price_1', lookup_key: 'stt_first_class_yearly', unit_amount: 1499, currency: 'usd', recurring: { interval: 'year' } } }] } }, 'u1')
 check('subscription period end from item', sub.current_period_end === new Date((now + 86400) * 1000).toISOString())
 check('subscription lookup key + user', sub.lookup_key === 'stt_first_class_yearly' && sub.user_id === 'u1')
+const portalCancel = subscriptionRow({ id: 'sub_2', status: 'active', cancel_at: now + 86400, cancel_at_period_end: false, items: { data: [] } }, 'u1')
+check('portal cancel (cancel_at, flexible billing) counts as canceling', portalCancel.cancel_at_period_end === true)
+check('no cancel scheduled → not canceling', subscriptionRow({ id: 'sub_3', status: 'active', cancel_at: null, items: { data: [] } }, 'u1').cancel_at_period_end === false)
 check('invoice subscription (new shape)', invoiceSubscription({ parent: { subscription_details: { subscription: 'sub_1' } } }) === 'sub_1')
 check('invoice subscription (old shape)', invoiceSubscription({ subscription: 'sub_2' }) === 'sub_2')
 
