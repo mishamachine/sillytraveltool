@@ -27,6 +27,7 @@ export default function CityAutocomplete({
   const [active, setActive] = useState(-1)
   const debounceRef = useRef(null)
   const wrapperRef = useRef(null)
+  const searchId = useRef(0) // a reply to an older search (or one that lands after a pick) is dropped
   const listId = useId()
   const session = useRef(newSession())
 
@@ -36,15 +37,18 @@ export default function CityAutocomplete({
     const handleClick = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false)
     }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    // pointerdown covers touch as well as mouse, so a tap anywhere else closes the list
+    document.addEventListener('pointerdown', handleClick)
+    return () => { document.removeEventListener('pointerdown', handleClick); clearTimeout(debounceRef.current) }
   }, [])
 
   const search = async (q) => {
+    const id = ++searchId.current
     if (q.length < 2) { setResults([]); setOpen(false); return }
     setLoading(true)
     try {
       const google = await suggestCities(q, session.current)
+      if (id !== searchId.current) return
       if (google.length) {
         const cities = google.slice(0, 5).map(g => ({ place_id: g.place_id, city: g.main, country: g.secondary.split(', ').pop() || '', label: g.secondary }))
         setResults(cities)
@@ -57,6 +61,7 @@ export default function CityAutocomplete({
         { headers: { 'Accept-Language': 'en' } }
       )
       const data = await res.json()
+      if (id !== searchId.current) return
       const cities = (data.features || [])
         .filter(f => ['city', 'town', 'municipality'].includes(f.properties?.type))
         .map(f => ({
@@ -74,7 +79,7 @@ export default function CityAutocomplete({
       setActive(-1)
       setOpen(cities.length > 0)
     } catch { setResults([]) }
-    finally { setLoading(false) }
+    finally { if (id === searchId.current) setLoading(false) }
   }
 
   const handleChange = (e) => {
@@ -86,9 +91,12 @@ export default function CityAutocomplete({
   }
 
   const handleSelect = async (result) => {
+    clearTimeout(debounceRef.current)
+    searchId.current++
     setQuery(result.city)
     setOpen(false)
     setResults([])
+    wrapperRef.current?.querySelector('input')?.blur() // put the phone keyboard away so the chosen city is in view
     if (!result.place_id) { onSelect?.(result); return }
     // Google suggestion: fetch country code, coordinates and time zone (same billing session)
     setLoading(true)

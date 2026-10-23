@@ -1,8 +1,12 @@
-.city-ac { position: relative; }
+/* The field is its own layer above the content after it (chips, the HONK card, animated cards that make
+   their own stacking context), but under the bottom nav (100) and sheets (300) */
+.city-ac { position: relative; z-index: 60; }
 .city-ac__list {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 1;
   list-style: none; margin: 0; padding: 6px var(--space-2);
-  background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-raised);
+  max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface-card); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised), var(--shadow-inverse);
 }
 .city-ac__list li + li { border-top: 1px solid var(--line); }
 .city-ac__list li[aria-selected="true"] .city-ac__opt { background: var(--surface-page); }
