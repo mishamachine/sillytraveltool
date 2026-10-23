@@ -202,9 +202,18 @@ only adding past a limit is blocked.
 - Demo mode: `?demo&plan=first_class`, `?demo&limits=1`.
 - Tested in the browser (demo, phone size): Settings row → paywall; new trip with limits on → paywall with the trips
   line + form message; pay button → `/upgrade/?from=limit_trips`; First Class Settings shows renewal + Manage.
-- Android: `assembleDebug` builds with the plugin. **Not run on an emulator yet**: the only emulator was in use by the
-  multi-city session and memory was too low for a second. iOS: no Xcode on this Mac; the "iOS app via GitHub Actions
-  cloud Mac" session is setting up iOS builds.
+- **Cloud devices (owner, 2026-10-23: "use a cloud emulator for both"):** the repo is public, so GitHub Actions
+  runners are free.
+  - **Android:** `.github/workflows/android.yml` builds a demo APK (`VITE_DEMO=1`, `VITE_DEMO_PARAMS=limits=1`, no
+    secrets), boots an emulator on Linux (API 34, Pixel 7) and runs `scripts/android-emu-shots.mjs`, which drives the
+    WebView through Chrome DevTools: Settings → Get First Class → paywall, "coming soon" without a store key, no web
+    checkout inside the app, founders plan selectable, a 3rd trip opens the paywall. Screenshots + `results.json` in the
+    `android-emulator-shots` artifact. Runs on pushes to this branch (or by hand). The system image download glitches
+    now and then ("ZipFile unknown archive"): re-run the job.
+  - **iPhone:** uses the iOS session's project and `ios.yml` (branch `claude/objective-ptolemy-052302`, not merged).
+    Checked on a throwaway branch `ci/paywall-iphone` (that branch + this one, demo build with `paywall=settings`):
+    the paywall renders on the iPhone Simulator, light and dark. First start on the runner takes 20–30 s.
+  - Demo options reach app builds through `VITE_DEMO_PARAMS`; `?demo&paywall=<trigger>` opens the paywall at launch.
 
 **`store-webhook`** v1 deployed (verify_jwt off; 401 without the secret). Reads the member from RevenueCat on every
 event and upserts `store_entitlements` (entitlement id `first_class`).

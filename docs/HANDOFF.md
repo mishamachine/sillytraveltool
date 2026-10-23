@@ -60,7 +60,10 @@
 - **Paywall on every platform + free limits built** (branch `feat/first-class-paywall`): PaywallSheet, Settings → Plan,
   `store-webhook` v1, migration `first_class_everywhere` applied with limits **OFF** (`billing_settings`). Details and
   the owner's App Store / Play / RevenueCat steps: `docs/STRIPE_BILLING.md` → "Built".
-- **Not done:** Android emulator run of the paywall, store products + RevenueCat keys (owner), `receive-booking-email`
+- **Cloud device checks:** `.github/workflows/android.yml` (GitHub Linux emulator, demo APK, 8 paywall checks, all pass)
+  and the iOS session's `ios.yml` (paywall checked on the iPhone Simulator via throwaway branch `ci/paywall-iphone`).
+  Use these instead of the shared local emulator. See `docs/STRIPE_BILLING.md` → "Cloud devices".
+- **Not done:** store products + RevenueCat keys (owner), `receive-booking-email`
   deploy, `subscription_status` analytics from the webhook, admin-stripe
   reusing `_shared/stripe.ts`.
 
