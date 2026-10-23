@@ -17,7 +17,7 @@
 - **Stripe sandbox:** product `stt_first_class`, prices `stt_first_class_yearly` / `stt_first_class_lifetime_founding`,
   portal configuration `bpc_1UTdLhR315zoHnpnVGMVz3v6`, webhook `we_1UTo8yR315zoHnpnfvqgc3qn` →
   `/functions/v1/stripe-webhook` (18 events). Tax: threshold monitoring only (no registrations yet).
-- **Live (2026-10-23):** migration applied, `billing` v3 + `stripe-webhook` v5 deployed (MCP; verify_jwt off). Secrets
+- **Live (2026-10-23):** migration applied, `billing` v5 (redeployed 21:1x with current `_shared/stripe.ts`) + `stripe-webhook` v5 deployed (MCP; verify_jwt off). Secrets
   STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET set (sandbox). Checkout metadata follows the cockpit spec (user_id, plan,
   price_key, platform, app_version, trigger from `/upgrade/?from=`, code from `?code=` (pre-applied), first-touch UTM,
   experiment, variant); the webhook writes each object's metadata jsonb (charges merge their payment intent's).
@@ -26,8 +26,14 @@
   refund → `free`. Not tested end to end: the `billing` function itself from a signed-in browser (sessions were made
   with the same parameters through the Stripe API) and the `/upgrade/` page signed in; the page goes live with the
   next website deploy.
-- **Not done:** in-app paywall screens (PAYWALL_PLAN section 6), server-side First Class limits, Play/App Store billing,
-  `subscription_status` analytics from the webhook, admin-stripe reusing `_shared/stripe.ts`.
+- **`/upgrade/` is on the live site** (21:17, added on top of the main deploy; backup `stt-202610232117-pre-upgrade`).
+  Returning visitors' service worker still serves the app there until live `sw.js` skips `/upgrade/` (owner OK needed,
+  or the next full deploy after PR #1 merges). Signed-in end-to-end test waits on the owner signing in as machinemisha.
+- **Plans for approval** (owner wants paywall on web, iOS and Android): `docs/STRIPE_BILLING.md` → "Plans for approval"
+  A (one PaywallSheet everywhere; web → Stripe, apps → StoreKit / Play Billing via RevenueCat) and B (server limits
+  behind a kill switch until every platform can pay).
+- **Not done:** the above, Play/App Store billing, `subscription_status` analytics from the webhook, admin-stripe
+  reusing `_shared/stripe.ts`.
 
 ## Update — owner cockpit, build step 1 (2026-10-23, plan: `docs/ADMIN_PLAN.md`)
 - **/admin/** (own Vite entry `admin/index.html`, bundle `src/admin/`, never in the app or native build or the service

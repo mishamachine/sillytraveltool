@@ -44,7 +44,8 @@ Analytics (`track()`): `paywall_view {trigger, store}`, `purchase_started {plan,
 | `supabase/config.toml` | `verify_jwt = false` for both functions (they authenticate themselves) |
 
 ## What's live
-- **Supabase** (`swywrvbuswylvqlktsym`): migration `stripe_web_billing` applied; `billing` v3, `stripe-webhook` v5
+- **Supabase** (`swywrvbuswylvqlktsym`): migration `stripe_web_billing` applied; `billing` v5 (2026-10-23 21:1x, current
+  `_shared/stripe.ts`; unauthenticated and bad-token calls answer 401), `stripe-webhook` v5
   deployed through the Supabase MCP (the local CLI isn't logged in). Secrets: `STRIPE_SECRET_KEY`,
   `STRIPE_WEBHOOK_SECRET` (both **sandbox**), `APP_URL`.
 - **Stripe sandbox** "Silly Travel Tool sandbox" (`acct_1UTTUsR315zoHnpn`):
@@ -54,7 +55,12 @@ Analytics (`track()`): `paywall_view {trigger, store}`, `purchase_started {plan,
   - portal config `bpc_1UTdLhR315zoHnpnVGMVz3v6` (cancel at period end with reasons, card update, invoices, email/address)
   - webhook `we_1UTo8yR315zoHnpnfvqgc3qn` → `/functions/v1/stripe-webhook`, 18 events. Its signing secret is under
     Developers → **Workbench → Webhooks** (not Settings).
-- **Not live:** the `/upgrade/` page. It ships with the next website deploy (Hostinger `dist/`, needs the owner's OK).
+- **Website (2026-10-23 21:17, owner OK):** `/upgrade/` added **on top of** the live site (only `upgrade/index.html` +
+  4 new assets uploaded, no `--delete`; the rest is the 19:53 deploy from main). Backup:
+  `~/backups/stt-202610232117-pre-upgrade.tar.gz`. **Catch:** the live `sw.js` (built from main before PR #1) doesn't skip
+  `/upgrade/`, so anyone who has opened the site before gets the app instead of the page until their service worker
+  updates. Fix: add `upgrade` to `navigateFallbackDenylist` in live `sw.js` (one word), or the next full deploy after
+  PR #1 merges. A new visitor / cleared browser sees the page.
 - Publishable key: not needed (hosted Checkout, no Stripe.js).
 
 ## Tested (sandbox, test account machinemisha `c447b10f-…`)
@@ -74,16 +80,14 @@ card / 3DS (`4000 0000 0000 0002`, `4000 0025 0000 3155`), and `past_due` grace.
 - The first webhook secret saved in Supabase was wrong, so every delivery got 400 "Bad signature". Check
   `stripe-webhook` logs first if rows stop arriving. Both functions trim whitespace from the secrets.
 - Supabase MCP deploys: files go in as `source/index.ts` + `_shared/stripe.ts`, entrypoint `source/index.ts`.
-- `billing` v3 was deployed before `customerRow` started writing `metadata`. The webhook's `customer.created` fills it,
-  but redeploy `billing` with the current `_shared/stripe.ts` next time.
 - The migration was renumbered from `140000` to `140100`, because `140000` is the cockpit's `stripe_metadata`.
 - The restricted key needs: write customers, Checkout sessions, portal sessions; read prices, promotion codes,
   subscriptions, invoices, charges, payment intents (plus the cockpit's coupon/promotion-code writes).
 
 ## Next steps
-1. Owner reviews and merges PR #1; remove the worktree.
-2. Redeploy `billing` with the current `_shared/stripe.ts`.
-3. Website deploy (owner OK) → signed-in end-to-end test on `/upgrade/`: yearly, portal cancel, lifetime, `?code=`,
+1. Owner reviews and merges PR #1; remove the worktree. Then a full website deploy from main (fixes the `sw.js` catch).
+2. ~~Redeploy `billing`~~ done (v5).
+3. ~~Website deploy~~ done (additive) → signed-in end-to-end test on `/upgrade/`: yearly, portal cancel, lifetime, `?code=`,
    declined card, 3DS.
 4. In the **web** app (not native), link limit hits and Settings to `/upgrade/?from=<trigger>`. PAYWALL_PLAN
    section 6 screens.
@@ -93,3 +97,61 @@ card / 3DS (`4000 0000 0000 0002`, `4000 0025 0000 3155`), and `past_due` grace.
 7. Have `admin-stripe` reuse `_shared/stripe.ts` mappers.
 8. Go-live (owner): Stripe account activation (business, bank), live product/prices/portal/webhook recreated in live mode,
    live restricted key + webhook secret in Supabase, Stripe Tax decision, Terms/"free" copy, Supabase Pro.
+
+## Plans for approval (2026-10-23, owner: "integrations on all platforms: web, Android, Apple")
+
+### A. Paywall entry points on every platform (step 4)
+One paywall, three ways to pay. Same triggers and screen everywhere; only the Buy button differs.
+- **Shared code:** `src/lib/paywall.js` `openPaywall(trigger)` + a Clay `PaywallSheet` (PAYWALL_PLAN section 6: luggage
+  tag, 4 benefits, yearly / lifetime cards, price and renewal text, terms + privacy). `hasFirstClass()` in
+  `src/lib/firstClass.js` switches from the dev flag to `my_entitlement()`, read at sign-in and after a purchase.
+- **Triggers (all platforms):** a server limit error (`code: 'upgrade'` / `upgrade:<feature>`), 3rd upcoming trip,
+  6th reservation, 6th forwarded email, a locked past trip, the handwritten-import lock (replaces "coming soon"),
+  Settings → First Class row. Soft: never on first launch, one automatic show per session. `paywall_view {trigger, store}`.
+- **Buy button by platform:**
+  | Platform | How they pay | Status |
+  |---|---|---|
+  | Web | `/upgrade/?from=<trigger>` → Stripe Checkout | built, live in sandbox |
+  | iOS | StoreKit 2 in-app purchase (Apple 3.1.1: digital unlocks bought in the app must use it) | to build |
+  | Android | Google Play Billing (Play Payments policy, same rule) | to build |
+  Native purchases go through **RevenueCat** (PAYWALL_PLAN section 3: one Capacitor SDK, receipt checks, grace,
+  refunds). A new `store-webhook` Edge Function writes an `entitlement_grants`-style row (`store: app_store|play`), so
+  `entitlement()` stays the one answer. A member who bought on the web is First Class in the apps (and vice versa)
+  with no restore.
+- **What the apps must not do:** link to or mention the web price outside the US. In the US both stores now allow an
+  external purchase link (Apple: link entitlement; Google: external offers, with a fee). Recommendation: **not at
+  launch**; store billing only, revisit once there's revenue to compare.
+- **Settings → Plan screen:** plan, renewal date, and "Manage": web → Stripe portal; App Store / Play purchases →
+  the store's subscription page; a web subscriber inside the apps sees the plan and date only (no link out).
+- **Owner to provide for native:** App Store Connect + Play Console products (`stt_first_class_yearly`, auto-renew
+  $14.99; `stt_first_class_lifetime_founding`, non-consumable $29.99), paid-apps agreements / tax + bank forms in both
+  stores, a RevenueCat account (free under $2.5k/month).
+- **Order:** (1) PaywallSheet + triggers + Plan screen, with the web Buy working and native showing "coming soon";
+  (2) RevenueCat + StoreKit/Play products + `store-webhook`, tested in the iOS Simulator (StoreKit config file) and a
+  Play internal-testing track. Settings/Profile files are also edited by other sessions: check
+  `list_sessions` and rebase onto main before touching `SettingsView.jsx`.
+
+### B. Free-plan limits on the server (step 5)
+Server decides, app only displays. Limits follow the **trip owner's** plan. Nothing is ever deleted on downgrade;
+only adding past a limit is blocked.
+- **Migration `…_free_plan_limits`:**
+  - `is_first_class(uid)` = `entitlement(uid) = 'first_class'` (wraps grants + Stripe + later store rows).
+  - `trips` BEFORE INSERT / UPDATE OF start_date, end_date: free owner with 2 upcoming dated trips
+    (`end_date >= current_date`, status `planning|active`) → `raise exception 'upgrade:trips'`. Undated trips don't count.
+  - `bookings` BEFORE INSERT: reservations (`restaurant`, `activity`, `other`; flights, hotels, transport don't count)
+    ≥ 5 on a free owner's trip → `upgrade:reservations`. **Owner to confirm:** do "ideas" use `other`? If so, they need
+    their own flag to stay exempt.
+  - `app_config.free_limits_on` kill switch (default **off**).
+- **Email import (`receive-booking-email`):** count the account's imported emails; the 6th+ is parsed and saved with
+  a new `bookings.locked` flag, the app shows "New email received, free limit reached", and a reply goes only to the
+  account's own verified address. `stripe-webhook` / grants unlock (`locked = false`) when First Class starts.
+- **Past trips:** locked the day after the trip ends (recap teaser stays free). Recommend doing this as a later step
+  through a `trip_details(trip_id)` RPC rather than new RLS, so `fetchTrips()`'s 3-query rule and performance stay intact.
+- **AI:** `checkAiQuota` keeps today's daily fair-use for free; First Class gets the safety net only (section 10).
+- **Errors:** triggers raise `upgrade:<feature>`; Edge Functions return `{ error, code: 'upgrade', feature }`.
+  `src/lib/paywall.js` reads both and opens the paywall instead of an error toast.
+- **Rollout:** keep the switch off until members on **every** platform can pay (web now, apps after RevenueCat), or
+  native members would hit a wall with no way through. Turning it on early for web-only accounts isn't possible
+  (the server can't tell the platform reliably).
+- **Tests:** SQL checks per limit with a free test user and machinemisha (First Class on/off), then the app on web,
+  the iOS Simulator and the Android emulator showing the paywall at each limit.
