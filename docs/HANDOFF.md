@@ -1,5 +1,43 @@
 # STT Handoff — 2026-10-21
 
+
+## Update — multi-city trips (2026-10-22, commits 6cdc2e9 … eafd519)
+Built per `docs/MULTI_CITY_PLAN.md`, all five phases. Proof: `docs/screenshots/multicity/`, tests in `scripts/test-*.mjs`
+(run with `node`; 12 + 10 + 6 + sheet + 7-replay email sim, all passing).
+- **One rule for "which trip":** `supabase/functions/_shared/tripMatch.js` (app + Edge Functions): dates overlap
+  (nearest wins), else within 3 days on the route (≤ 75 km of a stop) which extends the trip, else an undated trip
+  nearby. Never city names. Email import (`receive-booking-email`, logic in `ingest.ts`) extends trips, folds two
+  auto-made trips linked by a flight/train, ignores home (`user_profiles.home_city`), dedupes re-forwarded legs.
+- **Saving from the guide/HONK:** one tap goes to the fitting trip (live trip within 500 km, else one passing within
+  75 km) with **Change**; with no fit the **Save to** picker (`TripPickerSheet`) lists every editable trip + New trip.
+  Never auto-creates a city trip. Paste import uses the same rule.
+- **Outside the dates:** a booking > 1 day outside a dated trip asks Extend / Move to another trip / New trip / Keep
+  (`OutsideDatesSheet`, `tripsStore.datePrompt`); undated trips still fill in silently.
+- **Stops:** `_shared/route.js` derives stops from all bookings (hotels, legs, nights on board, nights after an
+  arrival, day trips > 30 km, home both ends). Saved in **`trip_stops`** (migration `20261022200000`, live, RLS like
+  bookings), loaded with trips (`trip_stops(*)`), re-derived by `tripsStore.refreshStops` after booking changes, on
+  opening a trip and for the trip in progress. `source='manual'` rows are never overwritten (no editing UI yet).
+- **Where am I today:** `placeOn` / `src/lib/stops.js#tripPlace|currentPlace` drive Today (title, weather, "Madrid →
+  Granada" on travel days), header clock, On the road card, Tools banner ("Germany · stop 5 of 8"), currency, tip,
+  SOS/embassy, Translate and Explore's default city + chips. **Today and Day n of N use today's stop's zone** (owner
+  sign-off; `docs/LOCAL_TIME.md` updated).
+- **Plan tab:** route strip, stop headers, travel/day-trip day titles, ideas by stop, non-blocking checks
+  (`src/lib/conflicts.js`: two hotels, overlaps, tight connections, missing nights, duplicates). Auto-named trips
+  ("Trip to X") are renamed from stops ("Spain, Germany & Italy"). Weather/Pack use the saved stops.
+- **Import any format:** paste sheet → Upload a file (PDF, screenshot, photo, CSV, XLSX); inbox attachments too
+  (Resend attachments API; 2 per email, 6 MB). `parse-booking-email` v26 takes `{ file, transcribe }`. Spreadsheets
+  are read by `_shared/sheet.js` (no npm dependency). **Handwritten agenda = First Class**, behind
+  `src/lib/firstClass.js` (off; dev: `localStorage.stt_first_class=1`, build: `VITE_FIRST_CLASS=1`); shows "What
+  Goose read" before saving. The server doesn't check entitlement yet (paywall task).
+- **Live deploys:** `receive-booking-email` v36 (backup = git `de58425` source, was v34), `parse-booking-email` v26
+  (was v25 = `de58425` source). Both boot (unsigned/unauth requests get 401).
+- **Demo:** `?demo&flagship=<0-18>` = Seattle → Madrid → Granada → Seville → Barcelona → Berlin → Dresden → Munich →
+  night train → Rome → Seattle, on that trip day. Demo geocoding: `src/dev/demoGeo.js`.
+- **Not verified live:** end-to-end with real AI on a real email/file (needs a signed-in session or sending the
+  fixture emails to the owner's inbox: owner to OK). Free-plan limits for files = same as emails (paywall task).
+- **Open:** stop editing sheet (manual stops), per-leg travellers, Today's day buckets for bookings still use each
+  booking's own zone (unchanged rule).
+
 ## Update — second fix batch from the testing pass (2026-10-22)
 - **Edit bookings:** `BookingFormSheet` takes `booking` (edit mode, times shown via `toWallInput` in each zone);
   `PlanTab` saves with `updateBooking` + `fillDatesIfUndated`. Creator or trip owner can edit (same rule as RLS).
