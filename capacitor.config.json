@@ -5,6 +5,9 @@
   "android": {
     "backgroundColor": "#F4EEE6"
   },
+  "ios": {
+    "backgroundColor": "#F4EEE6"
+  },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 800,

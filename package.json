@@ -13,13 +13,15 @@
     "android": "npm run build:native && npx cap run android",
     "android:open": "npm run build:native && npx cap open android",
     "check:clay": "node scripts/check-clay.mjs",
-    "postbuild": "node scripts/check-dist.mjs"
+    "postbuild": "node scripts/check-dist.mjs",
+    "build:ios": "vite build --mode native && npx cap sync ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.2",
     "@capacitor/browser": "^8.0.5",
     "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
     "@sentry/capacitor": "4.4.0",
