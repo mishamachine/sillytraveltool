@@ -3,7 +3,7 @@
 // Shared by the Resend webhook (index.ts) so it can be exercised without a signed webhook.
 import { geminiFetch, checkAiQuota } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
-import { attachPlace, geocode, cached } from '../_shared/google.ts'
+import { attachPlace, geocode, cached, setGoogleUser } from '../_shared/google.ts'
 import { bestTrip, wallSpan, distanceKm, gapDays, routeKm, NEAR_KM, EDGE_DAYS } from '../_shared/tripMatch.js'
 import { readItinerary, VISION_TYPES } from '../_shared/itinerary.ts'
 import { sheetToText } from '../_shared/sheet.js'
@@ -191,6 +191,7 @@ async function ingestOne(
   },
 ): Promise<Response> {
   const userId = profile.id
+  setGoogleUser(userId)
 
   if (!(await checkAiQuota(userId))) {
     console.warn(`AI quota exceeded for user ${userId} — inbound email not parsed`)
@@ -361,6 +362,7 @@ activity_time, ticket_quantity
 /** Match one parsed booking to a trip (extend, fold or create one) and insert it. Updates `trips` in place. */
 async function fileBooking(supabase: any, profile: { id: string, home_city?: string | null }, trips: any[], parsed: any): Promise<Record<string, any>> {
   const userId = profile.id
+  setGoogleUser(userId)
   // ── 5b. The same confirmation forwarded again: keep the booking we already have ──
   // Hotels, tickets and tables only: an outbound and return flight share one confirmation number
   const tripIds = trips.map((t: any) => t.id)

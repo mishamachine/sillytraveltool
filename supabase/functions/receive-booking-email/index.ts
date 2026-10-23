@@ -13,6 +13,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // ============================================================
 
 import { CORS, ok, err, ingestEmail } from './ingest.ts'
+import { withGoogleScope } from '../_shared/google.ts'
 
 // Files worth reading: PDFs, images over 20 KB (not logos or signatures), CSV / Excel sheets; two at most, 6 MB each.
 const READABLE = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif)|text\/(csv|plain|tab-separated-values)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)$/
@@ -95,7 +96,7 @@ async function verifySvix(secret: string, headers: Headers, rawBody: string): Pr
   })
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withGoogleScope(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   const GEMINI_API_KEY     = Deno.env.get('GEMINI_API_KEY')
@@ -213,4 +214,4 @@ Deno.serve(async (req) => {
     console.error('receive-booking-email error:', e)
     return err(e.message || 'Unexpected error', 500)
   }
-})
+}))

@@ -3,6 +3,7 @@
 // place: departure_tz (origin), arrival_tz (destination), local_tz (hotel / restaurant / venue).
 // Booking emails print local wall-clock times, so we read them as printed and convert them here.
 import { AIRPORT_TZ } from './airportZones.ts'
+import { allowGoogle } from './google.ts'
 
 const OFFSET_RE = /(Z|[+-]\d{2}:?\d{2})$/i
 
@@ -66,7 +67,7 @@ function googleWarn(api: string, d: any) {
 
 async function zoneForCoords(lat: number, lng: number): Promise<{ tz: string, source: string } | null> {
   const key = Deno.env.get('GOOGLE_MAPS_SERVER_KEY')
-  if (key) {
+  if (key && await allowGoogle('timezone')) {
     const d = await getJson(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${key}`)
     if (d?.status === 'OK' && isValidZone(d.timeZoneId)) return { tz: d.timeZoneId, source: 'google' }
     googleWarn('timezone', d)
@@ -78,7 +79,7 @@ async function zoneForCoords(lat: number, lng: number): Promise<{ tz: string, so
 
 async function coordsForQuery(query: string): Promise<{ lat: number, lng: number } | null> {
   const key = Deno.env.get('GOOGLE_MAPS_SERVER_KEY')
-  if (key) {
+  if (key && await allowGoogle('geocode')) {
     const d = await getJson(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${key}`)
     const loc = d?.results?.[0]?.geometry?.location
     if (loc) return { lat: loc.lat, lng: loc.lng }

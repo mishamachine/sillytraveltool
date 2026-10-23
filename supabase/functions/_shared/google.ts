@@ -1,13 +1,77 @@
 // Google Maps Platform, server-side only. The key lives in the GOOGLE_MAPS_SERVER_KEY secret and never
 // reaches the client. Every helper returns null on failure so callers can fall back.
 // Google's terms allow caching place IDs indefinitely and other place content for up to 30 days.
+// Every billed call is counted per member and endpoint (consume_api_call → api_usage, the cockpit's Money → Costs);
+// it is refused when the owner pauses Google or the member's daily cap is used up, and the caller falls back.
+
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 const KEY = () => Deno.env.get('GOOGLE_MAPS_SERVER_KEY') || ''
 export const hasGoogle = () => !!KEY()
 
 type Admin = { from: (t: string) => any }
 
+// ── Usage counting ─────────────────────────────────────────────────────────────
+// Each request runs in its own scope so concurrent requests in one isolate never share a member
+const scope = new AsyncLocalStorage<{ user: string | null }>()
+let unscopedUser: string | null = null
+
+/** Wrap a Deno.serve handler so Google calls made while it runs are counted for the member set by setGoogleUser. */
+export function withGoogleScope<A extends unknown[], R>(handler: (...args: A) => R) {
+  return (...args: A): R => scope.run({ user: null }, () => handler(...args))
+}
+
+export function setGoogleUser(id: string | null) {
+  const s = scope.getStore()
+  if (s) s.user = id
+  else unscopedUser = id
+}
+
+export function googleEndpoint(url: string): string {
+  const u = new URL(url)
+  const p = u.pathname
+  if (u.hostname === 'places.googleapis.com') {
+    if (p.endsWith(':autocomplete')) return 'autocomplete'
+    if (p.endsWith(':searchText')) return 'text_search'
+    if (p.endsWith(':searchNearby')) return 'nearby'
+    if (p.endsWith('/media')) return 'photo'
+    return 'place_details'
+  }
+  if (u.hostname === 'routes.googleapis.com') return 'routes'
+  if (p.includes('/geocode/')) return 'geocode'
+  if (p.includes('/timezone/')) return 'timezone'
+  if (p.includes('/staticmap')) return 'static_map'
+  return 'other'
+}
+
+/** Count one Google call; false = paused or over the member's daily cap. Fails open (like checkAiQuota). */
+export async function allowGoogle(endpoint: string): Promise<boolean> {
+  const user = scope.getStore()?.user ?? unscopedUser
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 2000)
+  try {
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/consume_api_call`, {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ p_user_id: user, p_endpoint: endpoint, p_service: 'google' }),
+    })
+    if (!res.ok) { console.error('consume_api_call failed:', res.status, (await res.text()).slice(0, 200)); return true }
+    const ok = (await res.json()) !== false
+    if (!ok) console.warn(`google ${endpoint} refused: paused or daily cap reached`)
+    return ok
+  } catch (e) {
+    console.error('consume_api_call error:', (e as Error).message)
+    return true
+  } finally { clearTimeout(timer) }
+}
+
 async function call(url: string, init: RequestInit = {}, ms = 8000): Promise<any> {
+  if (!(await allowGoogle(googleEndpoint(url)))) return null
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), ms)
   try {
@@ -185,6 +249,7 @@ export async function staticMap(markers: { lat: number, lng: number }[], { w = 6
     ? '&style=element:geometry|color:0x242f3e&style=element:labels.text.fill|color:0x9aa0a6&style=element:labels.text.stroke|color:0x242f3e&style=feature:water|element:geometry|color:0x17263c&style=feature:road|element:geometry|color:0x38414e'
     : ''
   const url = `https://maps.googleapis.com/maps/api/staticmap?size=${Math.min(w, 640)}x${Math.min(h, 640)}&scale=2${zoom ? `&zoom=${zoom}` : ''}&markers=color:0xB24A17|${pts}${style}&key=${KEY()}`
+  if (!(await allowGoogle('static_map'))) return null
   try {
     const res = await fetch(url)
     if (!res.ok) { console.warn(`google staticmap ${res.status}`); return null }
