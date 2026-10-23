@@ -9,24 +9,27 @@ import './paywall.css'
 // The First Class paywall (docs/PAYWALL_PLAN.md section 6), one sheet on web, iOS and Android. Opened through
 // usePlanStore().openPaywall(trigger): a free-limit error, a locked feature, or Settings → First Class.
 const BENEFITS = [
-  { icon: 'map', title: 'Unlimited trips', text: 'Plan every trip on your list, not just the next two.' },
+  { icon: 'map', title: 'Unlimited trips', text: 'Plan every trip on your list, not just the next few.' },
   { icon: 'ticket', title: 'Unlimited reservations', text: 'Every restaurant, ticket and tour on one plan.' },
   { icon: 'inbox', title: 'Unlimited email import', text: 'Forward every confirmation to Goose.' },
   { icon: 'book', title: 'Every past trip, kept', text: 'Your recaps and details, whenever you look back.' },
 ]
 
+// The lead line for each trigger; numbers come from the owner's free-limit settings
 const LEAD = {
-  limit_trips: 'You have 2 upcoming trips, the most the free plan holds.',
-  limit_reservations: 'This trip has 5 reservations, the most the free plan holds.',
-  limit_emails: 'You’ve forwarded 5 emails. New ones are saved, and First Class opens them.',
-  handwritten_import: 'Reading handwritten agendas is part of First Class.',
+  limit_trips: (n) => `You have ${n.upcoming_trips} upcoming trips, the most the free plan holds.`,
+  limit_reservations: (n) => `This trip has ${n.reservations_per_trip} reservations, the most the free plan holds.`,
+  limit_emails: (n) => `You’ve forwarded ${n.email_imports} emails. New ones are saved, and First Class opens them.`,
+  handwritten_import: () => 'Reading handwritten agendas is part of First Class.',
 }
 
 const WEB_PRICES = { yearly: '$14.99', lifetime: '$29.99' }
 const STORE_NAME = { app_store: 'the App Store', play_store: 'Google Play' }
 
 export default function PaywallSheet() {
-  const { paywall, closePaywall, load, plan } = usePlanStore()
+  const { paywall, closePaywall, load, plan, settings } = usePlanStore()
+  // The owner can end the founders offer (Controls); the lifetime card then disappears everywhere
+  const founders = settings.founders_offer?.active !== false
   const user = useAuthStore(s => s.user)
   const [choice, setChoice] = useState('yearly')
   // Same prices everywhere; the stores' local prices replace these once they load
@@ -39,6 +42,7 @@ export default function PaywallSheet() {
   useEffect(() => {
     if (!paywall) return
     setError(null); setWelcome(false); setChoice('yearly')
+    load()
     track('paywall_view', { trigger, store: STORE })
     if (STORE !== 'stripe' && canBuy && user) storePrices(user.id).then(p => p?.yearly && setPrices(p)).catch(() => {})
   }, [paywall])
@@ -57,7 +61,7 @@ export default function PaywallSheet() {
   const purchase = async () => {
     setError(null); setBusy('buy')
     try {
-      const r = await buy(choice, { trigger, userId: user?.id })
+      const r = await buy(founders ? choice : 'yearly', { trigger, userId: user?.id })
       if (r.left || r.cancelled) return
       if (await waitForPlan()) setWelcome(true)
       else setError('Payment went through. First Class can take a minute to arrive; it will appear on its own.')
@@ -110,7 +114,7 @@ export default function PaywallSheet() {
       <Stack gap={5} className="paywall">
         <div className="paywall__hero">
           <TagMark size={56} />
-          <Text variant="body" tone="secondary">{LEAD[trigger] || 'More room for every trip.'}</Text>
+          <Text variant="body" tone="secondary">{LEAD[trigger]?.(settings.free_limits) || 'More room for every trip.'}</Text>
         </div>
 
         <ul className="paywall__benefits">
@@ -124,7 +128,7 @@ export default function PaywallSheet() {
 
         <div className="paywall__plans" role="radiogroup" aria-label="Choose a plan">
           <PlanCard id="yearly" choice={choice} onPick={setChoice} title="Yearly" price={`${price('yearly')} / year`} note="Renews each year. Cancel any time." />
-          <PlanCard id="lifetime" choice={choice} onPick={setChoice} title="Founders offer" price={`${price('lifetime')} once`} note="Pay once, First Class for life. For a limited time." />
+          {founders && <PlanCard id="lifetime" choice={choice} onPick={setChoice} title="Founders offer" price={`${price('lifetime')} once`} note="Pay once, First Class for life. For a limited time." />}
         </div>
 
         <Text variant="caption" tone="secondary">We keep STT as affordable as we can so more people travel, well informed and organised. Your subscription keeps the lights on (and the dog fed).</Text>
@@ -132,7 +136,7 @@ export default function PaywallSheet() {
         <Text variant="micro" tone="muted" as="p">
           Yearly is {price('yearly')} a year and renews automatically until you cancel
           {STORE === 'stripe' ? ' in Settings → Plan' : ` in your ${STORE_NAME[STORE]} subscriptions`}, at least a day before it renews;
-          you keep First Class to the end of the year you paid for. The founders offer is a one-time payment.{' '}
+          you keep First Class to the end of the year you paid for.{founders && ' The founders offer is a one-time payment.'}{' '}
           <a href="https://sillytraveltool.com/terms/" target="_blank" rel="noreferrer">Terms</a> ·{' '}
           <a href="https://sillytraveltool.com/privacy/" target="_blank" rel="noreferrer">Privacy</a>
         </Text>

@@ -5,13 +5,19 @@ import { track } from '../lib/analytics'
 // The member's plan (docs/STRIPE_BILLING.md, plan A). The server decides access (entitlement(), free-limit triggers);
 // this copy only drives the UI: badges, locks and the paywall sheet.
 // plan: my_entitlement() → { plan: 'free' | 'first_class', until, web, store, limits_on }
+// settings: public_settings() → { founders_offer: { active }, free_limits: { upcoming_trips, reservations_per_trip,
+// email_imports } }, set by the owner in /admin → Money → Controls
+export const DEFAULT_SETTINGS = { founders_offer: { active: true }, free_limits: { upcoming_trips: 2, reservations_per_trip: 5, email_imports: 5 } }
+
 export const usePlanStore = create((set, get) => ({
   plan: null,
+  settings: DEFAULT_SETTINGS,
   paywall: null,        // open paywall: { trigger }
   autoShown: false,     // automatic triggers show the paywall once per session
 
   load: async () => {
-    const { data, error } = await supabase.rpc('my_entitlement')
+    const [{ data, error }, { data: settings }] = await Promise.all([supabase.rpc('my_entitlement'), supabase.rpc('public_settings')])
+    if (settings) set({ settings: { ...DEFAULT_SETTINGS, ...settings, free_limits: { ...DEFAULT_SETTINGS.free_limits, ...settings.free_limits } } })
     if (!error && data) set({ plan: data })
     return data
   },
@@ -42,12 +48,14 @@ export function upgradeError(err) {
   if (!feature) return err
   usePlanStore.getState().openPaywall(`limit_${feature}`)
   track('limit_hit', { feature })
-  const e = new Error(LIMIT_COPY[feature] || 'That’s past the free plan. First Class lifts the limit.')
+  const n = usePlanStore.getState().settings.free_limits
+  const e = new Error(limitCopy(feature, n))
   e.upgrade = feature
   return e
 }
 
-const LIMIT_COPY = {
-  trips: 'The free plan has 2 upcoming trips. First Class makes it unlimited.',
-  reservations: 'The free plan has 5 reservations per trip. First Class makes it unlimited.',
+function limitCopy(feature, n) {
+  if (feature === 'trips') return `The free plan has ${n.upcoming_trips} upcoming trips. First Class makes it unlimited.`
+  if (feature === 'reservations') return `The free plan has ${n.reservations_per_trip} reservations per trip. First Class makes it unlimited.`
+  return 'That’s past the free plan. First Class lifts the limit.'
 }

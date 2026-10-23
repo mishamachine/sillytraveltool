@@ -9,6 +9,7 @@
 //   ?demo&signedout=1     no session (auth screen)
 //   ?demo&plan=first_class  signed in with First Class (default: free)
 //   ?demo&limits=1        new trips and reservations hit the free-plan limit (paywall)
+//   ?demo&founders=off    the founders (lifetime) offer has ended
 //   ?demo&paywall=settings  opens the First Class paywall at launch (cloud device screenshots)
 // App builds have no address bar: VITE_DEMO_PARAMS="limits=1&paywall=settings" sets the same options at build time.
 import { buildFixtures, DEMO_USER } from './fixtures'
@@ -20,6 +21,7 @@ let db = null
 let session = null
 let PLAN = 'free'
 let LIMITS = false
+let FOUNDERS = true
 const wait = (ms) => new Promise(r => setTimeout(r, ms))
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2))
 
@@ -136,6 +138,7 @@ export function createDemoClient() {
   SLOW = params.has('slow')
   PLAN = params.get('plan') === 'first_class' ? 'first_class' : 'free'
   LIMITS = params.has('limits')
+  FOUNDERS = params.get('founders') !== 'off'
   db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship') })
   session = params.has('signedout') ? null : {
     access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
@@ -153,6 +156,9 @@ export function createDemoClient() {
     __demo: true,
     from: (table) => new Query(table),
     rpc: async (fn, args) => {
+      if (fn === 'public_settings') {
+        return { data: { founders_offer: { active: FOUNDERS }, free_limits: { upcoming_trips: 2, reservations_per_trip: 5, email_imports: 5 } }, error: null }
+      }
       if (fn === 'my_entitlement') {
         const fc = PLAN === 'first_class'
         return { data: { plan: PLAN, until: fc ? new Date(Date.now() + 300 * 864e5).toISOString() : null,

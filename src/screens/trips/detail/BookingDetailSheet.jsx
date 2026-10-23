@@ -104,7 +104,7 @@ export default function BookingDetailSheet({ item, tripTz, countryCode, isActivi
         <Card>
           <Stack row gap={3}>
             <IconTile icon="lock" tone="accent" size="md" />
-            <Text variant="body" tone="secondary" className="grow">Goose saved this booking from your email. The free plan includes 5 forwarded emails; First Class opens this one and every one after it.</Text>
+            <Text variant="body" tone="secondary" className="grow">Goose saved this booking from your email. The free plan includes {usePlanStore.getState().settings.free_limits.email_imports} forwarded emails; First Class opens this one and every one after it.</Text>
           </Stack>
         </Card>
         <Button variant="primary" block onClick={() => { onClose(); usePlanStore.getState().openPaywall('limit_emails') }}>See First Class</Button>

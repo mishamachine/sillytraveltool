@@ -232,3 +232,13 @@ sessions own live changes there; it only matters once the switch is on). Reply e
    (owner sets): `REVENUECAT_API_KEY` (secret v1 key), `REVENUECAT_WEBHOOK_SECRET`. RevenueCat webhook →
    `https://swywrvbuswylvqlktsym.supabase.co/functions/v1/store-webhook` with that secret as the Authorization header.
 4. Then: test purchases (Play internal testing, StoreKit sandbox), deploy `receive-booking-email`, turn the switch on.
+
+## Owner Controls (2026-10-23, from the Costs and Controls session, main `64b4814`)
+- Limit numbers come from `app_settings.free_limits` (`upcoming_trips`, `reservations_per_trip`, `email_imports`),
+  changed in /admin → Money → Controls. Triggers read `public.setting('free_limits')` (migration
+  `20261023200000_free_limits_from_settings`, applied; tested by changing the numbers inside a rolled-back test).
+- The app reads `public_settings()` with the plan: paywall lead lines, form messages and the locked-email text use those
+  numbers; when `founders_offer.active` is false the paywall drops the lifetime card (like `/upgrade/`, and `billing`
+  refuses lifetime with 410 `offer_ended`). Demo: `?demo&founders=off`.
+- **Still two places:** turning enforcement on is `billing_settings.free_limits_on` (off). It could move into
+  `app_settings.free_limits` as an `enabled` flag with a Controls toggle; that's the cockpit session's call.
