@@ -126,7 +126,7 @@ async function sync(admin: any) {
       return { id: s.id, livemode: s.livemode, customer: idOf(s.customer), user_id: uid(s), status: s.status,
         price_id: item?.price?.id ?? null, lookup_key: item?.price?.lookup_key ?? null, amount: item?.price?.unit_amount ?? null,
         currency: item?.price?.currency ?? s.currency ?? null, interval: item?.price?.recurring?.interval ?? null,
-        current_period_end: ts(s.current_period_end ?? item?.current_period_end), cancel_at_period_end: !!s.cancel_at_period_end,
+        current_period_end: ts(s.current_period_end ?? item?.current_period_end), cancel_at_period_end: !!(s.cancel_at_period_end || s.cancel_at),
         canceled_at: ts(s.canceled_at), ended_at: ts(s.ended_at), promotion_code: promoFrom(s), created: ts(s.created),
         metadata: s.metadata || {}, synced_at: new Date().toISOString() }
     }),
