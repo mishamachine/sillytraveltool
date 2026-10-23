@@ -84,11 +84,14 @@ jobs:
         run: |
           mkdir -p shots
           xcrun simctl launch "$UDID" com.sillytraveltool.app
-          sleep 20
-          xcrun simctl io "$UDID" screenshot shots/ios-01-paywall.png
+          for t in 10 30 60; do sleep $([ $t = 10 ] && echo 10 || echo $(( t / 2 ))); xcrun simctl io "$UDID" screenshot shots/ios-at-${t}s.png; done
           xcrun simctl ui "$UDID" appearance dark
-          sleep 4
-          xcrun simctl io "$UDID" screenshot shots/ios-02-paywall-dark.png
+          sleep 5
+          xcrun simctl io "$UDID" screenshot shots/ios-paywall-dark.png
+          # The app's own JS console (Capacitor logs it with ⚡️) and any JS errors
+          xcrun simctl spawn "$UDID" log show --last 5m --style compact \
+            --predicate 'process == "App" AND (eventMessage CONTAINS "⚡️" OR eventMessage CONTAINS[c] "javascript" OR eventMessage CONTAINS[c] "error")' \
+            2>/dev/null | grep -v -i "token\|WebPrivacy\|ResourceLoadStatistics" | tail -200 > shots/js.log || true
 
       - name: Launch and screenshot
         if: github.ref_name != 'ci/paywall-iphone'
