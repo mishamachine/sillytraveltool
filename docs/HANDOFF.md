@@ -21,9 +21,19 @@
   are not yet checked on it.
 - **iOS:** Xcode is not installed (only Command Line Tools), there is no `ios/` folder, and `@capacitor/ios` isn't in
   `package.json`. This Mac is Intel (i7-9750H, macOS 26.7.1): the App Store's Xcode 27 runs on Apple silicon only.
-- **OPEN, production:** Supabase auth emails fail. Auth log 2026-10-23 19:56Z on `/otp`: `550 The sillytraveltool.com
-  domain is not verified` (Resend SMTP). Magic links, password resets and sign-up confirmations don't send. Fix in
-  Resend (verify sillytraveltool.com, DNS at Hostinger) or point Supabase SMTP's sender at a verified domain.
+- **FIXED, production (2026-10-23):** Supabase auth emails failed (`550 The sillytraveltool.com domain is not verified`):
+  Supabase SMTP sent from `noreply@sillytraveltool.com`, but Resend (free plan, one domain) only has
+  `bookings.sillytraveltool.com` verified. Sender is now `noreply@bookings.sillytraveltool.com` (Auth → SMTP); a magic
+  link to machinemisha was delivered. The templates are still Supabase's defaults ("Your Magic Link").
+- **Emulator check (machinemisha, 0.21.0):** emailed trip → "United Kingdom, France & Portugal", route strip, stop
+  headers, booking times in local zones; import sheet shows Handwritten locked (First Class); XLSX upload → 11 bookings,
+  one trip, 8 stops. Today per stop not checkable (no trip in progress). Test trips deleted afterwards.
+- **Bugs found (not fixed):** (1) rename-from-stops runs once on partial stops and never again: the XLSX trip stayed
+  "Madrid & Granada" with Spain, Germany and Italy stops (`tripsStore._refreshStops` only renames "Trip to X" titles);
+  (2) stops/day headers use the airport's town: Hounslow, Roissy-en-France, Schönefeld, SeaTac, Queens County;
+  (3) booking cards print the confirmation twice ("Conf. X · 2 guests · Conf. X"); (4) import result buttons clipped
+  (left one shows "…ip"); "Final destination: Madrid" for an 11-stop sheet; (5) Settings footer says v0.20.0 in the
+  0.21.0 APK; (6) single-email parser keeps only the first leg of multi-leg flights (see above).
 
 
 ## Update — Stripe web billing (2026-10-23, branch `feat/stripe-web-billing`, PR #1; full notes: `docs/STRIPE_BILLING.md`)
