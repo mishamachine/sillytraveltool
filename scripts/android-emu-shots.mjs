@@ -38,7 +38,13 @@ await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = rejec
 let seq = 0
 const pending = new Map()
 ws.onmessage = (m) => { const d = JSON.parse(m.data); pending.get(d.id)?.(d); pending.delete(d.id) }
-const cdp = (method, params = {}) => new Promise((resolve) => { const id = ++seq; pending.set(id, resolve); ws.send(JSON.stringify({ id, method, params })) })
+// Every call times out, so a page that stops answering fails the run instead of hanging it
+const cdp = (method, params = {}) => new Promise((resolve, reject) => {
+  const id = ++seq
+  const timer = setTimeout(() => { pending.delete(id); reject(new Error(`DevTools timeout: ${method}`)) }, 15000)
+  pending.set(id, (d) => { clearTimeout(timer); resolve(d) })
+  ws.send(JSON.stringify({ id, method, params }))
+})
 async function js(expression) {
   const r = await cdp('Runtime.evaluate', { expression: `(async () => { ${expression} })()`, awaitPromise: true, returnByValue: true })
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'page error')
@@ -72,6 +78,7 @@ try {
   await shot('02-settings')
   await click('Get First Class')
   check('paywall opens from Settings', await waitText('Unlimited reservations'))
+  await sleep(800) // sheet slide-in
   check('app build without a store key says coming soon', await waitText('First Class in the app is coming soon'))
   check('paywall never mentions web checkout in the app', !(await js(`return /secure payment|sillytraveltool\\.com\\/upgrade/i.test(document.querySelector('.c-sheet').innerText)`)))
   await shot('03-paywall')

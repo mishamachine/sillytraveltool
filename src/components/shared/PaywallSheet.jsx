@@ -29,7 +29,8 @@ export default function PaywallSheet() {
   const { paywall, closePaywall, load, plan } = usePlanStore()
   const user = useAuthStore(s => s.user)
   const [choice, setChoice] = useState('yearly')
-  const [prices, setPrices] = useState(STORE === 'stripe' ? WEB_PRICES : null)
+  // Same prices everywhere; the stores' local prices replace these once they load
+  const [prices, setPrices] = useState(WEB_PRICES)
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState(null)
   const [welcome, setWelcome] = useState(false)
@@ -39,7 +40,7 @@ export default function PaywallSheet() {
     if (!paywall) return
     setError(null); setWelcome(false); setChoice('yearly')
     track('paywall_view', { trigger, store: STORE })
-    if (STORE !== 'stripe' && canBuy && user) storePrices(user.id).then(p => p && setPrices(p)).catch(() => {})
+    if (STORE !== 'stripe' && canBuy && user) storePrices(user.id).then(p => p?.yearly && setPrices(p)).catch(() => {})
   }, [paywall])
 
   if (!paywall) return null
