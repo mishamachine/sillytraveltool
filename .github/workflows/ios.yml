@@ -103,10 +103,12 @@ jobs:
             xcrun simctl boot "$U" && xcrun simctl bootstatus "$U" -b
             xcrun simctl status_bar "$U" override --time 9:41 --batteryState charged --batteryLevel 100
             xcrun simctl install "$U" build/Build/Products/Debug-iphonesimulator/App.app
-            xcrun simctl launch "$U" com.sillytraveltool.app; sleep 10
+            xcrun simctl launch "$U" com.sillytraveltool.app; sleep 25
             xcrun simctl io "$U" screenshot "shots/size-$NAME-signed-out.png"
             if [ -n "$DEEPLINK" ]; then
-              xcrun simctl openurl "$U" "$DEEPLINK"; sleep 10
+              xcrun simctl openurl "$U" "$DEEPLINK"; sleep 4
+              axe tap --label Open --udid "$U" || true  # "Open in Silly Travel Tool?"
+              sleep 12
               xcrun simctl io "$U" screenshot "shots/size-$NAME-trips.png"
             fi
             xcrun simctl shutdown "$U"
