@@ -18,6 +18,9 @@ on:
       trip:
         description: Text on the trip card to open
         default: Lisbon
+      taps:
+        description: "Fallback tap points (iOS points) when a label is not found: trip=x,y;plan=x,y;back=x,y;import=x,y"
+        default: ""
   push:
     branches: [claude/objective-ptolemy-052302]
 
@@ -78,6 +81,7 @@ jobs:
           OUT: shots
           DEEPLINK: ${{ (github.event_name == 'push' || inputs.sign_in) && secrets.IOS_TEST_DEEPLINK || '' }}
           TRIP: ${{ inputs.trip || 'Lisbon' }}
+          TAPS: ${{ inputs.taps }}
         run: python3 scripts/ios-sim-shots.py
 
       - name: App log

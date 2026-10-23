@@ -2,10 +2,12 @@
 """Drive the booted iOS Simulator and take screenshots (used by .github/workflows/ios.yml).
 
 Taps go through AXe (https://github.com/cameroncooke/AXe), which reads the accessibility
-tree, so WKWebView buttons are found by their visible text / aria-label.
+tree, so native alerts and any labelled web content are found by text.
 
 env: UDID, OUT (screenshot dir), DEEPLINK (optional: signs the test account in),
-     TRIP (optional: text in the trip card to open, default "Lisbon")
+     TRIP (optional: text in the trip card to open, default "Lisbon"),
+     TAPS (optional: "trip=x,y;plan=x,y;back=x,y;import=x,y" in points). WKWebView content is
+     often missing from the accessibility tree, so these coordinates are the fallback.
 """
 import json, os, subprocess, sys, time
 
@@ -13,6 +15,7 @@ UDID = os.environ['UDID']
 OUT = os.environ.get('OUT', 'shots')
 DEEPLINK = os.environ.get('DEEPLINK', '').strip()
 TRIP = os.environ.get('TRIP', 'Lisbon')
+TAPS = dict(p.split("=") for p in os.environ.get("TAPS", "").replace(" ", "").split(";") if "=" in p)
 BUNDLE = 'com.sillytraveltool.app'
 os.makedirs(OUT, exist_ok=True)
 
@@ -54,7 +57,7 @@ def elements():
     return found
 
 
-def tap(text, exact=False, timeout=20):
+def tap(text, exact=False, timeout=20, key=None):
     """Tap the smallest element whose label matches text; waits for it to appear."""
     end = time.time() + timeout
     while time.time() < end:
@@ -67,6 +70,11 @@ def tap(text, exact=False, timeout=20):
             run('axe', 'tap', '-x', str(round(x)), '-y', str(round(y)), '--udid', UDID)
             return True
         time.sleep(1)
+    if key in TAPS:
+        x, y = TAPS[key].split(",")
+        print(f"tap {key} at {x},{y} (fallback)", flush=True)
+        run("axe", "tap", "-x", x, "-y", y, "--udid", UDID)
+        return True
     print(f'!! no element matching "{text}"', flush=True)
     return False
 
@@ -83,16 +91,16 @@ if DEEPLINK:
     time.sleep(10)
     shot('02-trips')
 
-    ok &= tap(TRIP)
+    ok &= tap(TRIP, timeout=8, key="trip")
     time.sleep(4)
     shot('03-trip')
-    ok &= tap('Plan', exact=True)
+    ok &= tap("Plan", exact=True, timeout=8, key="plan")
     time.sleep(3)
     shot('04-plan')
 
-    tap('Back', exact=True, timeout=5) or tap('Trips', exact=True, timeout=5)
+    tap("Back", exact=True, timeout=5, key="back")
     time.sleep(3)
-    ok &= tap('Paste a booking confirmation')
+    ok &= tap("Paste a booking confirmation", timeout=8, key="import")
     time.sleep(3)
     shot('05-import-sheet')
 
