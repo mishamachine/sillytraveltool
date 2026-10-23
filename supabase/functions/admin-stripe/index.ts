@@ -68,9 +68,10 @@ const promoFrom = (o: Obj) => {
 async function sync(admin: any) {
   // Members by email, for customers without metadata.user_id
   const emails = new Map<string, string>()
+  const known = new Set<string>()
   for (let page = 1; page < 50; page++) {
     const { data } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
-    for (const u of data?.users || []) if (u.email) emails.set(u.email.toLowerCase(), u.id)
+    for (const u of data?.users || []) { known.add(u.id); if (u.email) emails.set(u.email.toLowerCase(), u.id) }
     if (!data?.users || data.users.length < 1000) break
   }
   const [customers, subs, charges, sessions, invoices, promos] = await Promise.all([
@@ -83,12 +84,14 @@ async function sync(admin: any) {
   ])
   const userOf = new Map<string, string | null>()
   const customerRows = customers.map((c) => {
-    const uid = c.metadata?.user_id || c.metadata?.supabase_user_id || (c.email && emails.get(c.email.toLowerCase())) || null
+    // A user_id in metadata only counts if that account still exists (test or removed accounts would break the save)
+    const meta = [c.metadata?.user_id, c.metadata?.supabase_user_id].find((x: string) => x && known.has(x))
+    const uid = meta || (c.email && emails.get(c.email.toLowerCase())) || null
     userOf.set(c.id, uid)
     return { id: c.id, livemode: c.livemode, email: c.email, user_id: uid, name: c.name, country: c.address?.country ?? null,
       created: ts(c.created), delinquent: !!c.delinquent, metadata: c.metadata || {}, synced_at: new Date().toISOString() }
   })
-  const uid = (o: Obj) => o.metadata?.user_id || o.client_reference_id || userOf.get(idOf(o.customer)) || null
+  const uid = (o: Obj) => [o.metadata?.user_id, o.client_reference_id].find((x: string) => x && known.has(x)) || userOf.get(idOf(o.customer)) || null
   // Checkout sessions carry the plan in metadata; charges inherit it through the payment intent
   const planByIntent = new Map<string, string>()
   for (const s of sessions) if (s.payment_intent && s.metadata?.plan) planByIntent.set(idOf(s.payment_intent), s.metadata.plan)
