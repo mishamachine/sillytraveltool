@@ -357,3 +357,15 @@ input[type="date"].a-select { width: auto; }
 .a-controls__wide { grid-column: 1 / -1; }
 .a-control { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 0.875rem; flex-wrap: wrap; }
 .a-controls .a-hint { margin-top: 0; }
+
+/* Money → Statement: gross → fees → net → costs → profit */
+.a-ledger { list-style: none; display: flex; flex-direction: column; font-size: 0.875rem; }
+.a-ledger__head { font-family: var(--font-heading, inherit); font-weight: 600; font-size: 0.8rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 14px 0 6px; }
+.a-ledger__head:first-child { padding-top: 0; }
+.a-ledger__row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border-subtle, var(--surface-sunken)); }
+.a-ledger__row.is-indent .a-ledger__label { padding-left: 14px; }
+.a-ledger__row.is-total { font-weight: 700; border-bottom: 2px solid var(--ink-muted); }
+.a-ledger__row.is-muted { color: var(--ink-muted); }
+.a-ledger__label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.a-ledger__label small { font-size: 0.75rem; color: var(--ink-muted); font-weight: 400; }
+.a-ledger__value { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }

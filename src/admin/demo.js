@@ -36,6 +36,7 @@ const demoSettings = {
   kill: { ai_paused: false, google_paused: false, _updated_at: day(-1) },
   cost_alert: { daily_usd: 10, flag_ai: 300, flag_guide: 150, flag_google: 1500, last_sent_day: d10(-3), _updated_at: day(-1) },
   cost_rates: { ai_call: 0.0015, guide_section: 0.004, supabase_monthly: 25, hosting_monthly: 4, _updated_at: day(-1),
+    ai_prices: { 'deepseek-chat': { input: 0.28, cached_input: 0.028, output: 0.42 }, 'gemini-2.5-flash': { input: 0.3, cached_input: 0.075, output: 2.5 } },
     google: { autocomplete: 0.00283, place_details: 0.017, text_search: 0.032, nearby: 0.032, photo: 0.007, routes: 0.005, geocode: 0.005, timezone: 0.005, static_map: 0.002, other: 0.005 } },
 }
 const series = (n, f) => Array.from({ length: n }, (_, i) => ({ day: d10(i - n + 1), ...f(i) }))
@@ -193,6 +194,26 @@ export default async function demo(name, args) {
           google_calls: 90 - i * 9, usd: Number((0.9 - i * 0.1).toFixed(2)), max_ai_day: 60 - i * 6, max_google_day: 30 - i * 3 }))],
       flags: [{ day: d10(-2), user_id: members[3].id, kind: 'ai', calls: 342, email: members[3].email }],
       last_24h: { ai_members: 6, ai_calls: 141, google_members: 5, google_calls: 37 },
+    }
+    case 'admin_financials': return {
+      days: 30,
+      stripe: { connected: true, livemode: false, gross: 119.94, refunds: -29.99, disputes: 0, processing_fees: -4.95, stripe_fees: -0.84, other: 0, net: 84.16, payouts: 50,
+        fee_lines: [{ label: 'Stripe processing fees', amount: -4.95 }, { label: 'Billing - Usage Fee (2026-10-01 - 2026-10-31)', amount: -0.84 }],
+        discounts: 14.99, transactions: 9, balance: { available: 1210, pending: 2735, currency: 'usd', at: day(-0.05) }, last_sync: day(-0.01), currencies: ['usd'] },
+      stores: { connected: false, note: 'App Store and Google Play sales arrive with the native apps (RevenueCat). Apple and Google keep 15% (small business programmes).' },
+      revenue_net: 84.16,
+      costs: { ai: 0.31, guides: 0.12, google: 2.0, fixed: [{ label: 'Supabase', amount: 25, source: 'monthly amount in Controls, prorated' }, { label: 'Hosting (Hostinger)', amount: 4, source: 'monthly amount in Controls, prorated' }],
+        fixed_total: 29, total: 31.43, missing: [
+          { key: 'google_billing', label: 'Google Cloud actual bill (Maps + Gemini)', detail: 'Using calls × list price until the billing export is connected.' },
+          { key: 'resend', label: 'Resend (email)', detail: 'Free plan today; add it to the fixed costs when you upgrade.' },
+          { key: 'stores', label: 'App Store and Google Play', detail: 'Developer fees and store commission are not counted yet.' }] },
+      ai: { by_provider: [{ provider: 'deepseek', model: 'deepseek-flash', calls: 412, failed: 0, input_tokens: 380000, cached_tokens: 120000, output_tokens: 210000, usd: 0.17 },
+          { provider: 'gemini', model: 'gemini-2.5-flash', calls: 9, failed: 0, input_tokens: 42000, cached_tokens: 0, output_tokens: 9000, usd: 0.0351 }],
+        by_feature: [['generate-guide', 120, 0.12, 1900], ['parse-booking-email', 64, 0.09, 1400], ['receive-booking-email', 40, 0.06, 1500], ['generate-phrases', 150, 0.03, 600], ['goosey-discover', 47, 0.02, 900]]
+          .map(([feature, calls, usd, avg_tokens]) => ({ feature, calls, usd, avg_tokens })), logged_since: d10(-20), estimated_days: 10 },
+      deepseek: { connected: true, latest: { ts: day(-0.02), currency: 'USD', total: 19.62, granted: 0, topped_up: 19.62 }, spent: 0.17, tracked_since: day(-20), tokens_usd: 0.17 },
+      profit: 52.73,
+      daily: series(30, i => ({ net: i % 4 === 0 ? 28.82 : i % 7 === 0 ? 14.26 : 0, costs: 1.05 })),
     }
     case 'admin_settings': return demoSettings
     case 'admin_setting_set': {

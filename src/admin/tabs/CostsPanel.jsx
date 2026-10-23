@@ -221,20 +221,31 @@ function NumberGroup({ title, k, value = {}, fields, hint, isOwner, onSave, bare
   return bare ? body : <section className="a-impact">{body}</section>
 }
 
-const RATE_FIELDS = [['ai_call', 'AI call ($)'], ['guide_section', 'Guide section ($)'], ['supabase_monthly', 'Supabase a month ($)'], ['hosting_monthly', 'Hosting a month ($)']]
+const RATE_FIELDS = [['ai_call', 'AI call, flat ($)'], ['guide_section', 'Guide section, flat ($)'], ['supabase_monthly', 'Supabase a month ($)'], ['hosting_monthly', 'Hosting a month ($)']]
+const PRICE_FIELDS = [['input', 'in'], ['cached_input', 'cached in'], ['output', 'out']]
+// Models DeepSeek or Gemini have answered with; a model without its own price is charged at its provider's default
+const SEEN_MODELS = ['deepseek-flash']
 
 function RatesGroup({ rates = {}, isOwner, onSave, updated }) {
   const g = rates.google || {}
+  const prices = rates.ai_prices || {}
+  const models = [...new Set([...Object.keys(prices), ...SEEN_MODELS])]
+  const priceOf = (m, f) => prices[m]?.[f] ?? prices[m.startsWith('gemini') ? 'gemini-2.5-flash' : 'deepseek-chat']?.[f] ?? ''
   const [form, setForm] = useState(() => ({ ...Object.fromEntries(RATE_FIELDS.map(([f]) => [f, rates[f] ?? ''])),
-    ...Object.fromEntries(Object.keys(ENDPOINT).map(e => [`g_${e}`, g[e] ?? ''])) }))
+    ...Object.fromEntries(Object.keys(ENDPOINT).map(e => [`g_${e}`, g[e] ?? ''])),
+    ...Object.fromEntries(models.flatMap(m => PRICE_FIELDS.map(([f]) => [`m_${m}|${f}`, priceOf(m, f)]))) }))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [saved, setSaved] = useState(false)
   const submit = async () => {
     const vals = Object.entries(form).map(([f, v]) => [f, Number(v)])
     if (vals.some(([, n], i) => Object.values(form)[i] === '' || !Number.isFinite(n) || n < 0)) { setError('Numbers of 0 or more only.'); return }
-    const patch = { google: {} }
-    for (const [f, n] of vals) { if (f.startsWith('g_')) patch.google[f.slice(2)] = n; else patch[f] = n }
+    const patch = { google: {}, ai_prices: {} }
+    for (const [f, n] of vals) {
+      if (f.startsWith('g_')) patch.google[f.slice(2)] = n
+      else if (f.startsWith('m_')) { const [m, k] = f.slice(2).split('|'); (patch.ai_prices[m] ||= {})[k] = n }
+      else patch[f] = n
+    }
     setBusy(true); setError(null)
     try { await onSave('cost_rates', patch); setSaved(true); setTimeout(() => setSaved(false), 2500) } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
@@ -250,6 +261,10 @@ function RatesGroup({ rates = {}, isOwner, onSave, updated }) {
         {RATE_FIELDS.map(([f, l]) => input(f, l))}
         {Object.entries(ENDPOINT).map(([e, l]) => input(`g_${e}`, `Google ${l.toLowerCase()} ($ a call)`))}
       </div>
+      <h3>AI prices ($ per million tokens)</h3>
+      <div className="a-form--3">
+        {models.flatMap(m => PRICE_FIELDS.map(([f, l]) => input(`m_${m}|${f}`, `${m} ${l}${prices[m] ? '' : ' (not set yet)'}`)))}
+      </div>
       {isOwner && (
         <div className="a-row">
           <button className="a-btn a-btn--primary a-btn--sm" onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Save rates'}</button>
@@ -257,7 +272,7 @@ function RatesGroup({ rates = {}, isOwner, onSave, updated }) {
           {error && <span className="a-field__error">{error}</span>}
         </div>
       )}
-      <p className="a-hint">Estimates per call: DeepSeek ≈ $0.0015 a request, a guide section ≈ $0.004. Google Places API (New) list prices: autocomplete $0.00283, details $0.005–0.017 (we ask for hours and ratings, so the higher tier), text and nearby search $0.032, photos $0.007; routes, geocoding and time zone $0.005. Change them when a bill says otherwise.{updated ? ` Last changed ${ago(updated)}.` : ''}</p>
+      <p className="a-hint">AI is priced from each call's tokens with the per-model prices (check deepseek.com and ai.google.dev pricing); the flat per-call rates only cover days before token logging started (24 Oct 2026). Google Places API (New) list prices: autocomplete $0.00283, details $0.005–0.017 (we ask for hours and ratings, so the higher tier), text and nearby search $0.032, photos $0.007; routes, geocoding and time zone $0.005. Change them when a bill says otherwise.{updated ? ` Last changed ${ago(updated)}.` : ''}</p>
     </section>
   )
 }
