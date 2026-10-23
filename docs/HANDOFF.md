@@ -20,7 +20,10 @@
   uploaded). The AVD is slow to boot ("System isn't responding" twice) and was signed in as babar54, so new screens
   are not yet checked on it.
 - **iOS:** Xcode is not installed (only Command Line Tools), there is no `ios/` folder, and `@capacitor/ios` isn't in
-  `package.json`.
+  `package.json`. This Mac is Intel (i7-9750H, macOS 26.7.1): the App Store's Xcode 27 runs on Apple silicon only.
+- **OPEN, production:** Supabase auth emails fail. Auth log 2026-10-23 19:56Z on `/otp`: `550 The sillytraveltool.com
+  domain is not verified` (Resend SMTP). Magic links, password resets and sign-up confirmations don't send. Fix in
+  Resend (verify sillytraveltool.com, DNS at Hostinger) or point Supabase SMTP's sender at a verified domain.
 
 
 ## Update — owner cockpit, build step 1 (2026-10-23, plan: `docs/ADMIN_PLAN.md`)
