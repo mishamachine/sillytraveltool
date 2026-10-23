@@ -30,7 +30,7 @@ const insights = (m, i = Number(m.id.slice(-2))) => ({ ...m, traveller_type: ['S
   next_action: ['Send a trip recap and the First Class offer', 'Check their bookings imported cleanly before they leave', 'Win-back: inspiration for their next trip', null][i % 4] })
 const demoSettings = {
   founders_offer: { active: true, _updated_at: day(-1) },
-  free_limits: { upcoming_trips: 2, reservations_per_trip: 5, email_imports: 5, _updated_at: day(-1) },
+  free_limits: { enabled: false, trips_on: true, reservations_on: true, imports_on: true, upcoming_trips: 2, reservations_per_trip: 5, email_imports: 5, _updated_at: day(-1) },
   ai_limits: { ai_daily: 100, guide_daily: 40, _updated_at: day(-1) },
   google_limits: { per_user_daily: 5000, _updated_at: day(-1) },
   kill: { ai_paused: false, google_paused: false, _updated_at: day(-1) },
@@ -214,6 +214,14 @@ export default async function demo(name, args) {
       deepseek: { connected: true, latest: { ts: day(-0.02), currency: 'USD', total: 19.62, granted: 0, topped_up: 19.62 }, spent: 0.17, tracked_since: day(-20), tokens_usd: 0.17 },
       profit: 52.73,
       daily: series(30, i => ({ net: i % 4 === 0 ? 28.82 : i % 7 === 0 ? 14.26 : 0, costs: 1.05 })),
+    }
+    case 'admin_free_plan': return {
+      settings: { ...demoSettings.free_limits }, members: 18, free: 15, first_class: 3, paywall_views_30d: 24, limit_hits_30d: { trips: 3, imports: 2 },
+      histograms: {
+        trips: [{ n: 0, members: 6 }, { n: 1, members: 5 }, { n: 2, members: 3 }, { n: 3, members: 1 }],
+        reservations: [{ n: 0, members: 8 }, { n: 1, members: 2 }, { n: 2, members: 2 }, { n: 4, members: 1 }, { n: 6, members: 1 }, { n: 9, members: 1 }],
+        imports: [{ n: 0, members: 9 }, { n: 1, members: 2 }, { n: 3, members: 1 }, { n: 5, members: 2 }, { n: 22, members: 1 }],
+      },
     }
     case 'admin_settings': return demoSettings
     case 'admin_setting_set': {

@@ -146,10 +146,6 @@ function Controls({ settings, last24, role, onChanged }) {
           <p className="a-hint">The paywall reads this when it opens; members mid-checkout aren't affected.</p>
         </section>
 
-        <NumberGroup title="Free plan limits" k="free_limits" value={s.free_limits} isOwner={isOwner} onSave={save}
-          hint="Read by the paywall and the app through public_settings."
-          fields={[['upcoming_trips', 'Upcoming dated trips'], ['reservations_per_trip', 'Reservations per trip'], ['email_imports', 'Email imports (total)']]} />
-
         <NumberGroup title="AI daily limits (per member)" k="ai_limits" value={s.ai_limits} isOwner={isOwner} onSave={save}
           hint="Enforced on the server for every AI call; replaces the function defaults (100 and 40)."
           fields={[['ai_daily', 'AI calls a day'], ['guide_daily', 'Guide sections a day']]} />

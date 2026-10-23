@@ -48,6 +48,20 @@
   on device. Not uploaded.
 
 
+## Update — Money → Free plan dashboard (2026-10-23, migration `20261024010000_free_plan_dashboard`)
+- **One place for the free-plan limits:** `app_settings.free_limits` = `enabled` (master switch, **off**: the apps can't
+  take payment yet), `trips_on` / `reservations_on` / `imports_on` (per-limit switches) and the three numbers (whole
+  numbers ≥ 1). `billing_settings` (the paywall branch's on/off row) is folded in and **dropped**; `free_limits_on()`
+  keeps its name and reads the setting; new `free_limit_cap(key)` (null = not enforced) is used by
+  `enforce_trip_limit`, `enforce_reservation_limit` and `email_import_locked`; `my_entitlement().limits_on` reads
+  `free_limits_on()`. Tested rolled back: off → nothing blocked; on with 1 trip → 3rd… insert refused `upgrade:trips`;
+  trips limit switched off → allowed.
+- **Cockpit card (Money → Free plan):** master switch (confirm shows how many free members are already at/over), per
+  limit a Limit/No limit switch, − / + stepper and a histogram of today's free members by usage (bars at or past the
+  limit highlighted, "N at the limit, M over" updates as you change the number), Save/Undo, audited.
+  `admin_free_plan()` returns the histograms, free/First Class counts, paywall views and `limit_hit` events (30 days).
+  The paywall branch's migration files still describe `billing_settings`: its session was told.
+
 ## Update — Money → Statement: gross, fees, net, exact AI cost (2026-10-23, commits b62f2af, a8ccd8a)
 - **Statement card (top of Money, `admin_financials(from, to)`, migrations `20261024000000_financials` +
   `20261024000100_cost_rows_switchover`):** Stripe gross → refunds → disputes → Stripe fee lines → net, from Stripe's

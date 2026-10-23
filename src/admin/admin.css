@@ -369,3 +369,15 @@ input[type="date"].a-select { width: auto; }
 .a-ledger__label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .a-ledger__label small { font-size: 0.75rem; color: var(--ink-muted); font-weight: 400; }
 .a-ledger__value { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+
+/* Money → Free plan */
+.a-limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin: 14px 0; }
+.a-limit { display: flex; flex-direction: column; gap: 10px; }
+.a-limit.is-off .a-hist { opacity: 0.5; }
+.a-stepper { display: flex; align-items: center; gap: 8px; }
+.a-stepper input { width: 72px; text-align: center; }
+.a-hist { display: flex; align-items: flex-end; gap: 3px; height: 72px; }
+.a-hist__col { flex: 1; min-width: 6px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+.a-hist__bar { width: 100%; height: var(--fill); background: var(--surface-sunken); border-radius: 3px 3px 0 0; min-height: 2px; }
+.a-hist__col.is-hit .a-hist__bar { background: var(--accent); }
+.a-hist__col span { font-size: 0.65rem; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
