@@ -61,6 +61,18 @@ async function experimentAI(body) {
   return data
 }
 
+// beta-invite emails the private beta links (owner only; it checks admin_guard('owner') with the caller's session)
+async function betaInvite(action, body = {}) {
+  if (demo) return demo(`beta:${action}`, body)
+  const { data, error } = await supabase.functions.invoke('beta-invite', { body: { action, ...body } })
+  if (error) {
+    let message = error.message
+    try { message = (await error.context.json()).error || message } catch { /* not JSON */ }
+    throw new Error(MESSAGES[message] || message)
+  }
+  return data
+}
+
 // cost-alert sends the owner's spend email; from the cockpit only as a test (it checks admin_guard('owner'))
 async function costAlertTest() {
   if (demo) return demo('cost:test')
@@ -144,4 +156,8 @@ export const api = {
   settings: () => rpc('admin_settings'),
   settingSet: (key, value) => rpc('admin_setting_set', { p_key: key, p_value: value }),
   costAlertTest,
+  beta: (f) => rpc('admin_beta', { p_from: f.from, p_to: f.to }),
+  betaRows: () => rpc('admin_beta_rows'),
+  betaSettingsSet: (value) => rpc('admin_beta_settings_set', { p_value: value }),
+  betaInvite,
 }

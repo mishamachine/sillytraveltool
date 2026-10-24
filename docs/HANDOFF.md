@@ -1,5 +1,32 @@
 # STT Handoff — 2026-10-21
 
+## Update — beta waitlist at /beta (2026-10-24, branch feat/beta-waitlist)
+- **Live: https://sillytraveltool.com/beta** (the one link for every social bio/post; `/beta?utm_…` 301s to `/beta/` with
+  the query kept). Own Vite entry (`beta/index.html`, `src/beta/`), no supabase-js. Form: email, platform, optional travel
+  frequency; UTM + referrer saved; honeypot `website` + 2 s minimum; "Get it now" (web app live; iPhone/Android "Coming
+  soon" until a link is shown); success state with "Start now on the web". Also writes `stt_first_touch` like the app.
+- **Database (live, migration `20261024030000_beta_waitlist` + `beta_public_links`):** `beta_waitlist` (RLS, no grants),
+  `beta_signup_hits` (hashed IP, kept a day). `beta_signup` (service role only: dedupe by email, 5/IP/hour, 300/hour
+  overall), `beta_page_config()` (anon: redirect + links shown on the page), `admin_beta`, `admin_beta_rows`,
+  `admin_beta_settings_set` (owner), `admin_beta_claim` / `admin_beta_mark` / `admin_beta_release_stuck` (owner).
+  `email_unsubscribe` also unsubscribes waitlist tokens (returns `beta: true`; /unsubscribe/ shows beta wording).
+  Settings `app_settings.beta`: ios_url, android_url, web_url (set to the site), show_ios/show_android/show_web, redirect_on/url.
+- **Edge Functions (MCP esbuild bundles, verify_jwt off):** `beta-signup` v2 (Resend "You're on the list", List-Unsubscribe),
+  `beta-invite` v1 (owner only: test send to self, send by platform ≤100 per click, release stuck). Never double-sends:
+  claim (waiting|failed → sending) before the email, mark sent/failed after.
+- **Cockpit → Growth → Beta waitlist:** totals, per day, platform / utm_source / frequency, CSV, invites, links +
+  "Show on /beta", launch redirect. Send buttons stay off for a platform with no link.
+- **Tested:** SQL (rolled back): dedupe, rate limit, unsubscribe, claim never re-sends, failed retried, anon can't read.
+  Live function: honeypot/fast/bad email/bad platform, real sign-ups (machinemisha+…; Resend accepted; rows deleted after).
+  Live page on desktop + 375 px, light/dark, no console/CSP errors. Not tested: an owner invite/test send (needs the owner's
+  Google session).
+- **Service worker fix:** Workbox tests `navigateFallbackDenylist` against path + query, so `/beta?utm_source=…` (and
+  `/redeem?code=…`) got the app shell. The pattern now ends `(\/|\?|$)`.
+- **Deployed** from this branch rebased on origin/main `0e0ab62` (clean worktree, `npm ci`), rsync **without** `--delete`
+  (old hashed assets kept for open tabs). Backup `~/backups/stt-202610240616-pre-beta.tar.gz`. **Merge this branch before the
+  next deploy from main**, or a `--delete` sync removes /beta.
+- **Resend free plan = 100 emails/day:** confirmations count too. Upgrade Resend before a big social push.
+
 ## Update — iOS app builds and runs on GitHub Actions (2026-10-23, branch claude/objective-ptolemy-052302)
 - **`ios/`** (Capacitor 8.5.3, Swift Package Manager, no CocoaPods), generated with `npx cap add ios` (works on any Mac,
   no Xcode needed). App id `com.sillytraveltool.app`, 0.20.0 (4) like Android (bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `ios/App/App.xcodeproj` with Android). Icon + light/dark splash from `assets/`
