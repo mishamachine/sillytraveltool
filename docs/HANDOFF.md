@@ -5,7 +5,7 @@
   the query kept). Own Vite entry (`beta/index.html`, `src/beta/`), no supabase-js. Form: email, platform, optional travel
   frequency; UTM + referrer saved; honeypot `website` + 2 s minimum; "Get it now" (web app live; iPhone/Android "Coming
   soon" until a link is shown); success state with "Start now on the web". Also writes `stt_first_touch` like the app.
-- **Database (live, migration `20261024030000_beta_waitlist` + `beta_public_links`):** `beta_waitlist` (RLS, no grants),
+- **Database (live, migration `20261024060039_beta_waitlist` + `beta_public_links`):** `beta_waitlist` (RLS, no grants),
   `beta_signup_hits` (hashed IP, kept a day). `beta_signup` (service role only: dedupe by email, 5/IP/hour, 300/hour
   overall), `beta_page_config()` (anon: redirect + links shown on the page), `admin_beta`, `admin_beta_rows`,
   `admin_beta_settings_set` (owner), `admin_beta_claim` / `admin_beta_mark` / `admin_beta_release_stuck` (owner).
