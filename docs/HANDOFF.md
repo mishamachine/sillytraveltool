@@ -1,5 +1,26 @@
 # STT Handoff — 2026-10-21
 
+## Update — iOS app builds and runs on GitHub Actions (2026-10-23, branch claude/objective-ptolemy-052302)
+- **`ios/`** (Capacitor 8.5.3, Swift Package Manager, no CocoaPods), generated with `npx cap add ios` (works on any Mac,
+  no Xcode needed). App id `com.sillytraveltool.app`, 0.21.0 (3) like Android. Icon + light/dark splash from `assets/`
+  (`npx @capacitor/assets generate --ios`). `Info.plist`: URL scheme `com.sillytraveltool.app` (magic link, Google,
+  invites — Google sign-in needs nothing else on iOS), camera / photo library / location prompts, arm64.
+  `npm run build:ios` = native web build + `cap sync ios`.
+- **Run it:** Actions → "iOS simulator" → Run workflow (or `gh workflow run ios.yml --ref <branch>`), then
+  `gh run download <id>`. macOS 26 Apple-silicon runner, latest Xcode, builds for the Simulator, launches on iPhone 17 Pro,
+  plus the smallest and largest iPhones (signed-out + Trips) to check the layout fits every size. ~8 min, free (public repo).
+  Pushes to the branch run signed-out only. Secrets: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+- **Signed-in run:** put a fresh session for the TEST account in secret `IOS_TEST_DEEPLINK`
+  (`com.sillytraveltool.app://auth-callback#access_token=…&refresh_token=…`: POST `/auth/v1/otp?redirect_to=com.sillytraveltool.app%3A%2F%2Fauth-callback`
+  for machinemisha, read the link in its Gmail, `curl -w "%{redirect_url}"` the verify link, `gh secret set IOS_TEST_DEEPLINK < file`).
+  Valid ~1 h. Never pass tokens as workflow inputs (repo is public). Screenshots: Trips, trip (Plan tab), import sheet.
+  Taps are coordinates (`taps` input, iPhone 17 Pro points): AXe can't see WKWebView content in the accessibility tree.
+- **Checked (run 40042063517, green):** starts cleanly, no crash; signed-out, Trips, Plan tab, import sheet on iPhone 17 Pro, and
+  signed-out + Trips on iPhone 16e (smallest) and 17 Pro Max (largest) all fit with safe areas. Proof: `docs/screenshots/ios/`.
+  The test trip used ("Lisbon long weekend" on machinemisha) and the `IOS_TEST_DEEPLINK` secret were removed afterwards;
+  set both up again for the next signed-in run. Extra simulators boot slowly (~7 min each); a size that won't boot is skipped with a warning.
+- **Not done:** TestFlight / signing / Apple Developer account (needs the owner's OK); Google sign-in tapped through on iOS.
+
 ## Update — multi-city shipped; emailed trips never named after home (2026-10-23)
 - **Website live** with multi-city (`fd8b93c`), built from a clean `git archive` copy so uncommitted local edits don't
   ship (`npx vite build` there skips the help prebuild). Server backup `~/backups/stt-202610230731-pre-multicity.tar.gz`.
