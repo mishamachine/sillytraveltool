@@ -1,5 +1,17 @@
 # STT Handoff — 2026-10-21
 
+## Update — onboarding tour + Guide and FAQ live on the website (2026-10-24, PR #11)
+- **Website deployed from `release/tour-and-shared-trips` `8016137`** (= live `fix/homepage-meta` + shared-trip email
+  fix + tour). Clean `git archive` build; dry run deleted only the old `workbox-*.js`; homepage meta, privacy, terms,
+  llms.txt, redeem, unsubscribe identical to live; /, /help/, /admin/, /beta/, /upgrade/, /delete-account/ all 200.
+  Backup `~/backups/stt-202610240711-pre-tour.tar.gz`. PR #11 to main is open, not merged.
+- **Local `main` was 63 commits behind `origin/main`** (other sessions merge PRs on GitHub). Always `git fetch` and
+  build from what's live (`origin/main` + any deployed branch) before deploying; a sync from stale main would have
+  deleted /upgrade, /beta, /delete-account and restored the old "Free AI Travel Planner" meta.
+- **Tour:** `src/screens/auth/Onboarding.jsx` + `TourArt.jsx` + `tour.css`; replay via `useUIStore().openTour()`
+  (Profile, Guide and FAQ). Dev: `?demo&onboarding`. Report an issue: `src/lib/reportIssue.js`, `BetaCard.jsx`.
+- **Android:** debug APK from this branch installed on the emulator (machinemisha), not uploaded. iOS not tested.
+
 ## Update — shared trips get travellers' forwarded emails (2026-10-24, receive-booking-email **v49**)
 - **Fix (`ingest.ts`):** a traveller who joined a trip with **Can edit** (accepted `trip_collaborators`, role
   `collaborator`) now has their forwarded booking emails filed in that shared trip. Before, matching only looked at
