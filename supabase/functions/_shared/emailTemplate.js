@@ -25,19 +25,22 @@ export function bodyText(text) {
 }
 
 /**
- * render({ subject, body, cta_label, cta_url }, vars, { kind, unsubscribeUrl }) → { subject, html, text }
- * Marketing emails carry an unsubscribe line; service emails say why they were sent.
+ * render({ subject, body, cta_label, cta_url }, vars, { kind, unsubscribeUrl, why }) → { subject, html, text }
+ * Marketing emails carry an unsubscribe line; service emails say why they were sent. `why` replaces the default reason.
  */
-export function render(tpl, vars, { kind, unsubscribeUrl }) {
+export function render(tpl, vars, { kind, unsubscribeUrl, why }) {
   const subject = fill(tpl.subject, vars).replace(/\s+/g, ' ').trim()
   const body = fill(tpl.body, vars)
   const ctaUrl = fill(tpl.cta_url, vars)
   const cta = tpl.cta_label && /^https?:\/\//.test(ctaUrl)
     ? `<p style="margin:24px 0 8px;"><a href="${esc(ctaUrl)}" style="display:inline-block;background:#B24A17;color:#FFFDF9;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:14px;">${esc(fill(tpl.cta_label, vars))}</a></p>`
     : ''
+  const reason = why || (kind === 'marketing'
+    ? "You're getting this because you said yes to travel tips from Silly Travel Tool."
+    : "You're getting this because you have a Silly Travel Tool account.")
   const foot = kind === 'marketing'
-    ? `You're getting this because you said yes to travel tips from Silly Travel Tool. <a href="${esc(unsubscribeUrl)}" style="color:#6B6355;">Unsubscribe</a>.`
-    : `You're getting this because you have a Silly Travel Tool account.`
+    ? `${esc(reason)} <a href="${esc(unsubscribeUrl)}" style="color:#6B6355;">Unsubscribe</a>.`
+    : esc(reason)
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:#F4EEE6;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4EEE6;"><tr><td align="center" style="padding:32px 16px;">
@@ -47,6 +50,6 @@ export function render(tpl, vars, { kind, unsubscribeUrl }) {
 </table>
 <p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">${foot}<br>Silly Travel Tool · Babar Ali, 402 Grandey Way NE, Renton, WA 98056, USA</p>
 </td></tr></table></body></html>`
-  const text = `${bodyText(body)}${tpl.cta_label && ctaUrl ? `\n\n${fill(tpl.cta_label, vars)}: ${ctaUrl}` : ''}\n\n--\n${kind === 'marketing' ? `Unsubscribe: ${unsubscribeUrl}` : "You're getting this because you have a Silly Travel Tool account."}\nSilly Travel Tool · Babar Ali, 402 Grandey Way NE, Renton, WA 98056, USA`
+  const text = `${bodyText(body)}${tpl.cta_label && ctaUrl ? `\n\n${fill(tpl.cta_label, vars)}: ${ctaUrl}` : ''}\n\n--\n${kind === 'marketing' ? `${why ? `${why}\n` : ''}Unsubscribe: ${unsubscribeUrl}` : reason}\nSilly Travel Tool · Babar Ali, 402 Grandey Way NE, Renton, WA 98056, USA`
   return { subject, html, text }
 }

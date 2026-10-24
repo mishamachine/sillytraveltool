@@ -73,3 +73,9 @@ verify_jwt = false
 
 [functions.delete-account]
 verify_jwt = false
+
+[functions.beta-signup]
+verify_jwt = false
+
+[functions.beta-invite]
+verify_jwt = false

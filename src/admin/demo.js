@@ -34,6 +34,7 @@ const demoSettings = {
   ai_limits: { ai_daily: 100, guide_daily: 40, _updated_at: day(-1) },
   google_limits: { per_user_daily: 5000, _updated_at: day(-1) },
   kill: { ai_paused: false, google_paused: false, _updated_at: day(-1) },
+  beta: { web_url: 'https://sillytraveltool.com/', show_web: true, show_ios: false, show_android: false, redirect_on: false, _updated_at: day(-1) },
   cost_alert: { daily_usd: 10, email_usd: 50, flag_ai: 300, flag_guide: 150, flag_google: 1500, email_ai: 1000, email_guide: 400, email_google: 5000, last_sent_day: d10(-3), _updated_at: day(-1) },
   cost_rates: { ai_call: 0.0015, guide_section: 0.004, supabase_monthly: 25, hosting_monthly: 4, _updated_at: day(-1),
     ai_prices: { 'deepseek-chat': { input: 0.28, cached_input: 0.028, output: 0.42 }, 'gemini-2.5-flash': { input: 0.3, cached_input: 0.075, output: 2.5 } },
@@ -233,6 +234,19 @@ export default async function demo(name, args) {
       return demoSettings[args.p_key]
     }
     case 'cost:test': return { sent: true, today: 0.42, flags: 0, test: true }
+    case 'admin_beta': return {
+      total: 214, in_window: 188, unsubscribed: 3, series: series(30, i => ({ value: i > 20 ? (i * 7) % 23 + 4 : 0 })).map(x => ({ day: x.day, value: x.value })),
+      platforms: [{ platform: 'ios', total: 121, waiting: 121, sent: 0, failed: 0, sending: 0 }, { platform: 'android', total: 58, waiting: 58, sent: 0, failed: 0, sending: 0 },
+        { platform: 'web', total: 35, waiting: 30, sent: 4, failed: 1, sending: 0 }],
+      sources: [{ label: 'instagram', value: 102 }, { label: 'tiktok', value: 71 }, { label: 'Direct or unknown', value: 29 }, { label: 'share', value: 12 }],
+      frequency: [{ label: 'few_year', value: 96 }, { label: 'not_given', value: 61 }, { label: 'monthly', value: 38 }, { label: 'rarely', value: 12 }, { label: 'weekly', value: 7 }],
+      settings: { ...demoSettings.beta },
+    }
+    case 'admin_beta_rows': return [{ id: 1, email: 'ana@example.com', platform: 'ios', travel_frequency: 'monthly', utm_source: 'instagram', created_at: day(-2), invite_status: 'waiting' }]
+    case 'admin_beta_settings_set': demoSettings.beta = { ...demoSettings.beta, ...args.p_value, _updated_at: day(0) }; return demoSettings.beta
+    case 'beta:test': return { sent: 1, to: 'owner@example.com', platforms: ['web'] }
+    case 'beta:send': return { sent: 30, failed: 0, by_platform: { web: { sent: 30, failed: 0 } }, skipped_no_link: ['ios', 'android'] }
+    case 'beta:release': return { released: 0 }
     case 'admin_codes': return codes
     case 'admin_code_report': return {
       codes: [{ id: 'x1', code: 'GOOSE30', status: 'active', uses: 23 }],

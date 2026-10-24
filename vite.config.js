@@ -120,12 +120,13 @@ export default defineConfig(({ mode }) => {
         // The owner cockpit (/admin/) is its own page; travellers' service workers never precache it
         globIgnores: ['**/admin/**', '**/assets/admin-*'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|redeem|upgrade|unsubscribe|delete-account)(\/|$)/]
+        // Workbox tests these against path + query, so `/beta?utm_source=…` needs the `\?` branch
+        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|redeem|upgrade|unsubscribe|delete-account|beta)(\/|\?|$)/]
       }
     })
   ].filter(Boolean),
   // Web build: the app plus the owner cockpit (admin/index.html → /admin/), the code redeem page (/redeem/),
-  // First Class checkout (/upgrade/).
+  // First Class checkout (/upgrade/) and the beta waitlist (/beta/).
   // The native build ships the app only.
   build: isNative ? {} : {
     rollupOptions: {
@@ -135,6 +136,7 @@ export default defineConfig(({ mode }) => {
         redeem: new URL('./redeem/index.html', import.meta.url).pathname,
         upgrade: new URL('./upgrade/index.html', import.meta.url).pathname,
         unsubscribe: new URL('./unsubscribe/index.html', import.meta.url).pathname,
+        beta: new URL('./beta/index.html', import.meta.url).pathname,
       },
     },
   },

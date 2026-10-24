@@ -1,8 +1,9 @@
 import { api } from '../api'
 import { Card, Bars, BarList, Sized, Loading, ErrorNote, useLoad, ExportButton, STAGES, num } from '../ui'
+import BetaPanel from './BetaPanel'
 
 // Step 1: our own data (sign-ups, activation, sources, trip stages). GA4 visits, campaigns and social come in steps 3 and 7.
-export default function Growth({ filters, go }) {
+export default function Growth({ filters, go, role }) {
   const pulse = useLoad(() => api.pulse(filters), [filters])
   const members = useLoad(() => api.members({}, filters), [filters])
   if (pulse.error || members.error) return <ErrorNote error={pulse.error || members.error} onRetry={() => { pulse.reload(); members.reload() }} />
@@ -20,6 +21,8 @@ export default function Growth({ filters, go }) {
 
   return (
     <div className="a-grid">
+      <BetaPanel filters={filters} role={role} />
+
       <Card title="Funnel" icon="filter" className="a-span-7" subtitle={`members who joined ${filters.label.startsWith('last') || filters.label === 'today' ? filters.label : `in ${filters.label}`}`}
         actions={<ExportButton name="funnel" rows={steps.map(([step, n]) => ({ step, members: n }))} />}>
         <ol className="a-funnel">
