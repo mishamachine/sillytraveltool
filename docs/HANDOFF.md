@@ -2,7 +2,7 @@
 
 ## Update — iOS app builds and runs on GitHub Actions (2026-10-23, branch claude/objective-ptolemy-052302)
 - **`ios/`** (Capacitor 8.5.3, Swift Package Manager, no CocoaPods), generated with `npx cap add ios` (works on any Mac,
-  no Xcode needed). App id `com.sillytraveltool.app`, 0.21.0 (3) like Android. Icon + light/dark splash from `assets/`
+  no Xcode needed). App id `com.sillytraveltool.app`, 0.20.0 (4) like Android (bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `ios/App/App.xcodeproj` with Android). Icon + light/dark splash from `assets/`
   (`npx @capacitor/assets generate --ios`). `Info.plist`: URL scheme `com.sillytraveltool.app` (magic link, Google,
   invites — Google sign-in needs nothing else on iOS), camera / photo library / location prompts, arm64.
   `npm run build:ios` = native web build + `cap sync ios`.
