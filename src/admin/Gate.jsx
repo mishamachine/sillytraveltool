@@ -11,7 +11,7 @@ export default function Gate({ children }) {
   const [session, setSession] = useState(undefined)
 
   const refresh = async () => {
-    if (isDemo) { setSession({ user: { email: 'owner@example.com' } }); setWho({ is_admin: true, role: 'owner', google: true }); return }
+    if (isDemo) { setSession({ user: { email: 'owner@example.com', id: '00000000-0000-4000-8000-000000000001' } }); setWho({ is_admin: true, role: 'owner', google: true }); return }
     const { data } = await supabase.auth.getSession()
     setSession(data.session)
     if (!data.session) { setWho(null); return }
@@ -33,7 +33,7 @@ export default function Gate({ children }) {
   if (who.error) return <Frame><ErrorNote error={who.error} onRetry={refresh} /></Frame>
   if (!who.is_admin) return <Frame><NotAdmin email={session.user?.email} /></Frame>
   if (!who.google) return <Frame><SignIn again email={session.user?.email} /></Frame>
-  return children({ role: who.role, email: session.user?.email, signOut: () => supabase.auth.signOut() })
+  return children({ role: who.role, email: session.user?.email, id: session.user?.id, signOut: () => supabase.auth.signOut() })
 }
 
 function Frame({ children }) {
@@ -50,7 +50,7 @@ function Frame({ children }) {
 function SignIn({ again, email }) {
   const [error, setError] = useState(null)
   const google = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/admin/` } })
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/admin/`, queryParams: { prompt: 'select_account' } } })
     if (error) setError(error)
   }
   return (

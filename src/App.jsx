@@ -1,11 +1,14 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { useAuthStore, useUIStore, useTripsStore, useCollabStore } from './store'
-import { supabase } from './lib/supabase'
+import { supabase, isDemo } from './lib/supabase'
+import { demoParams } from './dev/demoClient'
 
 import AuthScreen from './screens/AuthScreen'
 import BottomNav from './components/layout/BottomNav'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import OutsideDatesSheet from './components/shared/OutsideDatesSheet'
+import PaywallSheet from './components/shared/PaywallSheet'
+import { usePlanStore } from './store/planStore'
 
 import { useVisibilityRestore } from './hooks/useVisibilityRestore'
 import { initDeepLinks } from './native/deepLinks'
@@ -71,6 +74,16 @@ export default function App() {
 
   useEffect(() => {
     if (user) fetchPendingInvites()
+  }, [user?.id])
+
+  // The member's plan (First Class or free) for locks, Settings and the paywall
+  useEffect(() => {
+    if (!user) { usePlanStore.getState().clear(); return }
+    usePlanStore.getState().load().then(() => {
+      // Demo screenshots (?demo&paywall=<trigger>): open the paywall at launch
+      const trigger = isDemo && demoParams().get('paywall')
+      if (trigger) usePlanStore.getState().openPaywall(trigger)
+    })
   }, [user?.id])
 
   // One-time onboarding (Goose inbox + location) for new accounts. Accounts older than a day
@@ -196,6 +209,7 @@ export default function App() {
         </Suspense>
       )}
       <OutsideDatesSheet />
+      <PaywallSheet />
       {inviteToast && (
         <Toast position="top" icon="users" title="You joined the trip">{inviteToast.tripName} is now in your trips</Toast>
       )}

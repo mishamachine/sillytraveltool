@@ -195,6 +195,23 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   console.log('London hotel + Eurostar + Paris stay: stays Trip to London')
 }
 
+// A connecting flight in one email: every leg is filed (LIS → JFK → SFO), and forwarding it again adds nothing
+{
+  const db = makeDb()
+  PARSED['14m-two-legs'] = { type: 'flight', title: 'LIS -> JFK', confirmation_number: 'GV5T2K', airline: 'Delta', flight_number: 'DL 263',
+    departure_airport: 'LIS', arrival_airport: 'JFK', departure_time: '2027-04-20T11:15', arrival_time: '2027-04-20T14:05', destination_city: 'New York',
+    more_legs: [{ title: 'JFK -> SFO', flight_number: 'DL 416', departure_airport: 'JFK', arrival_airport: 'SFO', departure_time: '2027-04-20T17:30', arrival_time: '2027-04-20T21:02' }] }
+  const send = async id => { current = id; return (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const a = await send('14m-two-legs')
+  assert.equal(a.legs.length, 2, JSON.stringify(a))
+  assert.deepEqual(db.tables.bookings.map(b => b.flight_number).sort(), ['DL 263', 'DL 416'])
+  assert.ok(db.tables.bookings.every(b => b.confirmation_number === 'GV5T2K' && b.airline === 'Delta'))
+  assert.equal(db.tables.trips.length, 1)
+  const b = await send('14m-two-legs')
+  assert.ok(b.legs.every(l => l.duplicate), JSON.stringify(b)); assert.equal(db.tables.bookings.length, 2)
+  console.log('connecting flight email: both legs filed, re-forward adds nothing')
+}
+
 // Re-forwarding a flight doesn't duplicate it
 {
   const db = await replay(ids, 'then re-forward 3 emails')

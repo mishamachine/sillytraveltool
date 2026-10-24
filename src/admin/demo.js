@@ -23,8 +23,22 @@ const insights = (m, i = Number(m.id.slice(-2))) => ({ ...m, traveller_type: ['S
   trip_style: ['Short breaks', 'Multi-city', 'Long trips', 'Mixed'][i % 4], planning_style: ['Early planner', 'Planner', 'Last-minute'][i % 3],
   persona: ['Organiser', 'Explorer', 'Linguist', 'Group planner'][i % 4], channel: ['Direct', 'Booking.com', 'Forwarded email', 'Expedia group'][i % 4],
   regions: [['Europe'], ['Asia', 'Europe'], ['Americas']][i % 3], trips_per_year: (i % 5) + 0.5, avg_trip_days: 4 + (i % 9), lead_days: 10 + i * 4,
-  health: (i * 13) % 100, lifetime_value: i % 6 === 0 ? 2999 : null,
+  health: (i * 13) % 100, lifetime_value: i % 6 === 0 ? 2999 : null, is_me: i === 0,
+  country: ['US', 'GB', 'PT', 'CA', 'DE', null][i % 6], area: ['Los Angeles', 'London', 'Lisbon', 'Toronto', 'Berlin', ''][i % 6], location_from: 'first session', tz: 'America/Los_Angeles',
+  platforms: [['web', 'android'], ['android'], ['web'], ['ios', 'web'], ['web (installed)', 'android'], []][i % 6], main_platform: [['web'], ['android'], ['web'], ['ios'], ['web (installed)'], [null]][i % 6][0],
+  platform_mix: ['android + web', 'android', 'web', 'ios + web', 'android + web', ''][i % 6], offers: true, emails_ok: i % 3 === 0,
   next_action: ['Send a trip recap and the First Class offer', 'Check their bookings imported cleanly before they leave', 'Win-back: inspiration for their next trip', null][i % 4] })
+const demoSettings = {
+  founders_offer: { active: true, _updated_at: day(-1) },
+  free_limits: { enabled: false, trips_on: true, reservations_on: true, imports_on: true, upcoming_trips: 2, reservations_per_trip: 5, email_imports: 5, _updated_at: day(-1) },
+  ai_limits: { ai_daily: 100, guide_daily: 40, _updated_at: day(-1) },
+  google_limits: { per_user_daily: 5000, _updated_at: day(-1) },
+  kill: { ai_paused: false, google_paused: false, _updated_at: day(-1) },
+  cost_alert: { daily_usd: 10, email_usd: 50, flag_ai: 300, flag_guide: 150, flag_google: 1500, email_ai: 1000, email_guide: 400, email_google: 5000, last_sent_day: d10(-3), _updated_at: day(-1) },
+  cost_rates: { ai_call: 0.0015, guide_section: 0.004, supabase_monthly: 25, hosting_monthly: 4, _updated_at: day(-1),
+    ai_prices: { 'deepseek-chat': { input: 0.28, cached_input: 0.028, output: 0.42 }, 'gemini-2.5-flash': { input: 0.3, cached_input: 0.075, output: 2.5 } },
+    google: { autocomplete: 0.00283, place_details: 0.017, text_search: 0.032, nearby: 0.032, photo: 0.007, routes: 0.005, geocode: 0.005, timezone: 0.005, static_map: 0.002, other: 0.005 } },
+}
 const series = (n, f) => Array.from({ length: n }, (_, i) => ({ day: d10(i - n + 1), ...f(i) }))
 
 const codes = [
@@ -75,6 +89,7 @@ export default async function demo(name, args) {
         series: series(n, i => ({ signups: (i * 7) % 4, active: 8 + ((i * 5) % 9), bookings: (i * 3) % 7, errors: i % 5 === 0 ? 2 : 0 })) }
     }
     case 'admin_needs_you': return { items: [
+      { key: 'cost_day:x', priority: 1, tab: 'money', title: 'AI + Google spend today is about $12.40', detail: 'Over your $10.00 alert level. Money → Costs shows who and what; the kill switches are in Controls.' },
       { key: 'errors:x', priority: 1, tab: 'product', title: '9 errors in the last 24 hours', detail: 'About 2.1 a day is normal. Open Product to see which screens and versions.' },
       { key: 'welcome:x', priority: 2, tab: 'members', filter: 'new', title: '14 new members this week', detail: 'Say hello while it\'s fresh. A personal note from the founder converts better than any campaign.' },
       { key: 'just_back:x', priority: 2, tab: 'members', filter: 'just_back', title: '5 members are just back from a trip', detail: 'Best moment for a recap, a share ask or the First Class offer.' },
@@ -93,7 +108,7 @@ export default async function demo(name, args) {
         .map(([value, n]) => ({ value, n })).sort((x, y) => y.n - x.n)
       return { members: rows.length, with_trips: 14, avg_trips_per_year: 2.6, avg_trip_days: 7.4, avg_lead_days: 41, avg_health: 46,
         premium_or_better_pct: 38, affluence_known: 13, paying: 3, lifetime_value: 8997,
-        dist: Object.fromEntries(['traveller_type', 'affluence', 'trip_style', 'planning_style', 'persona', 'channel', 'region', 'source', 'platform'].map(k => [k, dist(k)])) }
+        dist: Object.fromEntries(['traveller_type', 'affluence', 'trip_style', 'planning_style', 'persona', 'channel', 'region', 'source', 'country', 'main_platform', 'platform_mix'].map(k => [k, dist(k)])), multi_platform: 9, located: 15 }
     }
     case 'admin_context': return { sessions: 160, dist: { os: [{ value: 'ios', n: 70 }, { value: 'android', n: 41 }, { value: 'mac', n: 30 }, { value: 'windows', n: 19 }],
       display: [{ value: 'browser', n: 90 }, { value: 'app', n: 41 }, { value: 'installed', n: 29 }], screen: [{ value: 'phone', n: 118 }, { value: 'desktop', n: 42 }],
@@ -112,6 +127,26 @@ export default async function demo(name, args) {
     case 'email:check': return { kind: 'marketing', eligible: Math.max(1, (args.user_ids?.length || 13) - 2), skipped: [{ email: 'jade@example.com', reason: "Hasn't opted in to emails" }, { email: 'ivan@example.com', reason: 'Unsubscribed' }] }
     case 'email:preview': return { kind: 'marketing', subject: 'Welcome back from Lisbon', html: '<table><tr><td style="background:#FFFDF9;border-radius:22px;padding:24px"><p style="margin:0 0 16px;font-size:16px;color:#2A2520">Hi Ana,</p><p style="margin:0 0 16px;font-size:16px;color:#2A2520">Welcome home from Lisbon. 7 days, all in one place.</p><p><a style="display:inline-block;background:#B24A17;color:#FFFDF9;padding:12px 22px;border-radius:14px;text-decoration:none;font-weight:600">See your recap</a></p></td></tr></table>' }
     case 'email:send': return { sent: 11, failed: 0, skipped: 2 }
+    case 'admin_experiments': return { traffic: { paywall: 18, paywall_estimated: true, pricing: 4, onboarding: 6, trip_planning: 22, explore: 15, email: 7, other: 30, website: null, website_note: 'needs GA4 visits (build step 3)', active: 30, signups: 6 },
+      experiments: [
+        { id: 'x1', key: 'founders_badge_on_the_paywall_1a2b', metric_event: 'purchase_completed', name: 'Founders badge on the paywall', status: 'running', surface: 'paywall', audience: 'everyone', hypothesis: 'If the paywall shows a "Founders, limited time" badge, more people buy lifetime, because scarcity makes the offer feel time-bound.', primary_metric: 'paywall → purchase rate', guardrail: 'refund rate', baseline_rate: 0.04, min_effect: 0.6, traffic_share: 1, variants: [{ key: 'control', name: 'Today', weight: 50 }, { key: 'b', name: 'Founders badge', weight: 50 }], started_at: day(-9), ice_impact: 7, ice_confidence: 6, ice_ease: 9 },
+        { id: 'x2', name: 'Recap email with a share card', status: 'queued', queue_position: 1, surface: 'email', audience: 'just back', hypothesis: 'If the recap email includes a share card, more members share their trip, because it is one tap.', primary_metric: 'recap shares', guardrail: 'unsubscribes', baseline_rate: 0.08, min_effect: 0.5, traffic_share: 1, variants: [{ key: 'control', name: 'Plain recap', weight: 50 }, { key: 'b', name: 'With share card', weight: 50 }], ice_impact: 5, ice_confidence: 5, ice_ease: 8 },
+        { id: 'x3', name: 'Yearly first on the paywall', status: 'queued', queue_position: 2, surface: 'paywall', audience: 'everyone', hypothesis: 'If yearly is shown first, more people pick yearly.', primary_metric: 'paywall → purchase rate', guardrail: 'refunds', baseline_rate: 0.04, min_effect: 0.5, traffic_share: 1, variants: [{ key: 'control', name: 'Lifetime first', weight: 50 }, { key: 'b', name: 'Yearly first', weight: 50 }], ice_impact: 6, ice_confidence: 4, ice_ease: 9 },
+        { id: 'x4', name: 'Onboarding: forward one email first', status: 'draft', surface: 'onboarding', audience: 'new members', updated_at: day(-1), variants: [] },
+        { id: 'x5', name: 'Trip limit message wording', status: 'done', surface: 'trip_planning', decision: 'ship', learnings: 'Saying what First Class unlocks beat saying what is blocked.', started_at: day(-60), ended_at: day(-30), variants: [] },
+      ] }
+    case 'experiment:ai': return { reply: args.messages?.length ? 'Good. Who should see it: everyone who opens the paywall, or only free members who just hit the trip limit? And what share buys today, roughly?' : 'Hi! What would you like more people to do? For example: upgrade after hitting a limit, finish their first trip, or come back after a trip.',
+      draft: args.messages?.length ? { name: 'Upgrade prompt after the trip limit', surface: 'paywall', primary_metric: 'paywall → purchase rate', guardrail: '7-day retention', baseline_rate: 0.04, min_effect: 0.5 } : {}, done: false }
+    case 'admin_experiment_save': return 'x9'
+    case 'admin_cohorts': return [
+      { id: 'c1', name: 'Premium travellers just back', kind: 'rules', rules: { affluence: 'Premium', stage: 'just_back' }, fixed_count: 0, created_at: day(-20),
+        now: { size: 6, active_7d: 4, paying: 2, emails_ok: 3, avg_health: 58 }, history: series(20, i => ({ size: 2 + Math.floor(i / 5), active_7d: 1, paying: 1 })) },
+      { id: 'c2', name: 'Beta testers', kind: 'fixed', rules: {}, fixed_count: 8, created_at: day(-40), now: { size: 8, active_7d: 5, paying: 3, emails_ok: 6, avg_health: 64 }, history: [] },
+    ]
+    case 'admin_cohort_members': return members.slice(0, 6).map(insights)
+    case 'admin_cohort_preview': return { size: 7, emails_ok: 3 }
+    case 'admin_cohort_save': return 'c9'
+    case 'admin_experiment_readout': return { metric_event: 'purchase_completed', variants: [{ variant: 'control', assigned: 64, exposed: 51, converted: 2 }, { variant: 'b', assigned: 61, exposed: 49, converted: 5 }] }
     case 'stripe:status': return { configured: true, livemode: false, sync: { last_sync: day(-0.01), ok: true } }
     case 'stripe:sync': return { skipped: true }
     case 'stripe:code_push': return { promo: 'promo_demo' }
@@ -146,6 +181,58 @@ export default async function demo(name, args) {
         { action: 'code.create', target: null, email: null, detail: { count: 50, batch: 'PARTNER-20261020-0910' }, ts: day(-3) }],
       admins: [{ email: 'owner@example.com', role: 'owner', added_at: day(-1) }],
     }
+    case 'admin_costs': return {
+      days: 30, variable: 4.82, variable_all: 6.1, fixed: 29, total: 33.82, ai_usd: 1.94, guide_usd: 0.88, google_usd: 2.0,
+      ai_calls: 1293, guide_calls: 220, google_calls: 410, active_members: 14, paying_members: 3, per_active: 0.3443, per_paying: 11.27,
+      gross: 119.94, refunded: 0, margin: 84.84, today: 0.42, today_threshold: 10,
+      daily: series(30, i => { const ai = 0.03 + ((i * 7) % 5) * 0.01, guide = (i % 4) * 0.01, google = 0.04 + ((i * 3) % 6) * 0.01
+        return { ai, guide, google, total: ai + guide + google, ai_calls: Math.round(ai / 0.0015), guide_calls: Math.round(guide / 0.004), google_calls: 12 + i } }),
+      google_endpoints: [['text_search', 31, 0.99], ['place_details', 44, 0.75], ['autocomplete', 260, 0.74], ['photo', 52, 0.36], ['routes', 15, 0.08], ['geocode', 8, 0.04]]
+        .map(([endpoint, calls, usd]) => ({ endpoint, calls, usd })),
+      top_members: [{ user_id: '00000000-0000-0000-0000-000000000000', email: null, system: true, internal: false, plan: 'free', ai_calls: 0, guide_calls: 0, google_calls: 22, usd: 0.11, max_ai_day: 0, max_google_day: 6 },
+        ...members.slice(0, 8).map((m, i) => ({ user_id: m.id, email: m.email, system: false, internal: false, plan: m.plan, ai_calls: 220 - i * 25, guide_calls: 40 - i * 4,
+          google_calls: 90 - i * 9, usd: Number((0.9 - i * 0.1).toFixed(2)), max_ai_day: 60 - i * 6, max_google_day: 30 - i * 3 }))],
+      flags: [{ day: d10(-2), user_id: members[3].id, kind: 'ai', calls: 342, email: members[3].email }],
+      last_24h: { ai_members: 6, ai_calls: 141, google_members: 5, google_calls: 37 },
+    }
+    case 'admin_financials': return {
+      days: 30,
+      stripe: { connected: true, livemode: false, gross: 119.94, refunds: -29.99, disputes: 0, processing_fees: -4.95, stripe_fees: -0.84, other: 0, net: 84.16, payouts: 50,
+        fee_lines: [{ label: 'Stripe processing fees', amount: -4.95 }, { label: 'Billing - Usage Fee (2026-10-01 - 2026-10-31)', amount: -0.84 }],
+        discounts: 14.99, transactions: 9, balance: { available: 1210, pending: 2735, currency: 'usd', at: day(-0.05) }, last_sync: day(-0.01), currencies: ['usd'] },
+      stores: { connected: false, note: 'App Store and Google Play sales arrive with the native apps (RevenueCat). Apple and Google keep 15% (small business programmes).' },
+      revenue_net: 84.16,
+      costs: { ai: 0.31, guides: 0.12, google: 2.0, fixed: [{ label: 'Supabase', amount: 25, source: 'monthly amount in Controls, prorated' }, { label: 'Hosting (Hostinger)', amount: 4, source: 'monthly amount in Controls, prorated' }],
+        fixed_total: 29, total: 31.43, missing: [
+          { key: 'google_billing', label: 'Google Cloud actual bill (Maps + Gemini)', detail: 'Using calls × list price until the billing export is connected.' },
+          { key: 'resend', label: 'Resend (email)', detail: 'Free plan today; add it to the fixed costs when you upgrade.' },
+          { key: 'stores', label: 'App Store and Google Play', detail: 'Developer fees and store commission are not counted yet.' }] },
+      ai: { by_provider: [{ provider: 'deepseek', model: 'deepseek-flash', calls: 412, failed: 0, input_tokens: 380000, cached_tokens: 120000, output_tokens: 210000, usd: 0.17 },
+          { provider: 'gemini', model: 'gemini-2.5-flash', calls: 9, failed: 0, input_tokens: 42000, cached_tokens: 0, output_tokens: 9000, usd: 0.0351 }],
+        by_feature: [['generate-guide', 120, 0.12, 1900], ['parse-booking-email', 64, 0.09, 1400], ['receive-booking-email', 40, 0.06, 1500], ['generate-phrases', 150, 0.03, 600], ['goosey-discover', 47, 0.02, 900]]
+          .map(([feature, calls, usd, avg_tokens]) => ({ feature, calls, usd, avg_tokens })), logged_since: d10(-20), estimated_days: 10 },
+      deepseek: { connected: true, latest: { ts: day(-0.02), currency: 'USD', total: 19.62, granted: 0, topped_up: 19.62 }, spent: 0.17, tracked_since: day(-20), tokens_usd: 0.17 },
+      profit: 52.73,
+      daily: series(30, i => ({ net: i % 4 === 0 ? 28.82 : i % 7 === 0 ? 14.26 : 0, costs: 1.05 })),
+    }
+    case 'admin_free_plan': return {
+      settings: { ...demoSettings.free_limits }, members: 18, free: 15, first_class: 3, paywall_views_30d: 24, limit_hits_30d: { trips: 3, imports: 2 },
+      histograms: {
+        trips: [{ n: 0, members: 6 }, { n: 1, members: 5 }, { n: 2, members: 3 }, { n: 3, members: 1 }],
+        reservations: [{ n: 0, members: 8 }, { n: 1, members: 2 }, { n: 2, members: 2 }, { n: 4, members: 1 }, { n: 6, members: 1 }, { n: 9, members: 1 }],
+        imports: [{ n: 0, members: 9 }, { n: 1, members: 2 }, { n: 3, members: 1 }, { n: 5, members: 2 }, { n: 22, members: 1 }],
+      },
+    }
+    case 'admin_alerts': return { items: [
+      { key: 'cost_day:x', kind: 'cost', tab: 'money', title: 'AI + Google spend today is about $12.40', detail: 'Over your $10.00 alert level. You get an email only past $50.00. Money → Costs shows who and what; the kill switches are in Controls.' },
+    ] }
+    case 'admin_settings': return demoSettings
+    case 'admin_setting_set': {
+      const old = demoSettings[args.p_key] || {}
+      demoSettings[args.p_key] = { ...old, ...args.p_value, ...(args.p_value.google ? { google: { ...old.google, ...args.p_value.google } } : {}), _updated_at: day(0) }
+      return demoSettings[args.p_key]
+    }
+    case 'cost:test': return { sent: true, today: 0.42, flags: 0, test: true }
     case 'admin_codes': return codes
     case 'admin_code_report': return {
       codes: [{ id: 'x1', code: 'GOOSE30', status: 'active', uses: 23 }],

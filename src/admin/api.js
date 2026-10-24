@@ -50,7 +50,42 @@ async function emailFn(action, body = {}) {
   return data
 }
 
+async function experimentAI(body) {
+  if (demo) return demo('experiment:ai', body)
+  const { data, error } = await supabase.functions.invoke('admin-experiment-ai', { body })
+  if (error) {
+    let message = error.message
+    try { message = (await error.context.json()).error || message } catch { /* not JSON */ }
+    throw new Error(message)
+  }
+  return data
+}
+
+// cost-alert sends the owner's spend email; from the cockpit only as a test (it checks admin_guard('owner'))
+async function costAlertTest() {
+  if (demo) return demo('cost:test')
+  const { data, error } = await supabase.functions.invoke('cost-alert', { body: { test: true } })
+  if (error) {
+    let message = error.message
+    try { message = (await error.context.json()).error || message } catch { /* not JSON */ }
+    throw new Error(MESSAGES[message] || message)
+  }
+  return data
+}
+
 export const api = {
+  experiments: () => rpc('admin_experiments'),
+  experimentSave: (p) => rpc('admin_experiment_save', { p }),
+  experimentStatus: (id, status) => rpc('admin_experiment_status', { p_id: id, p_status: status }),
+  experimentReorder: (ids) => rpc('admin_experiment_reorder', { p_ids: ids }),
+  experimentDelete: (id) => rpc('admin_experiment_delete', { p_id: id }),
+  experimentAI,
+  experimentReadout: (id) => rpc('admin_experiment_readout', { p_id: id }),
+  cohorts: () => rpc('admin_cohorts'),
+  cohortMembers: (id) => rpc('admin_cohort_members', { p_cohort: id }),
+  cohortPreview: (rules) => rpc('admin_cohort_preview', { p_rules: rules }),
+  cohortSave: (p) => rpc('admin_cohort_save', { p }),
+  cohortMember: (id, userId, add) => rpc('admin_cohort_member', { p_cohort: id, p_user: userId, p_add: add }),
   emailPreview: (b) => emailFn('preview', b),
   emailCheck: (b) => emailFn('check', b),
   emailSend: (b) => emailFn('send', b),
@@ -102,4 +137,11 @@ export const api = {
   freshStart: (confirm) => rpc('admin_fresh_start', { p_confirm: confirm }),
   formerMembers: () => rpc('admin_former_members'),
   system: (f) => rpc('admin_system', { p_from: f.from, p_to: f.to }),
+  alerts: () => rpc('admin_alerts'),
+  freePlan: (f) => rpc('admin_free_plan', { p_exclude_internal: f.excludeInternal }),
+  financials: (f) => rpc('admin_financials', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),
+  costs: (f) => rpc('admin_costs', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),
+  settings: () => rpc('admin_settings'),
+  settingSet: (key, value) => rpc('admin_setting_set', { p_key: key, p_value: value }),
+  costAlertTest,
 }

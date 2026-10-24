@@ -7,6 +7,8 @@ import { Sheet, Card, Button, IconTile, Text, Stack, category } from '../../../u
 import ConfirmDialog from '../../../components/shared/ConfirmDialog'
 import GetThereSheet from '../../../components/shared/GetThereSheet'
 import { ACTIVITY_CATEGORIES } from './planKinds'
+import { hasFirstClass } from '../../../lib/firstClass'
+import { usePlanStore } from '../../../store/planStore'
 import { safeUrl } from '../../../lib/safeUrl'
 import { placeDetails, findPlace } from '../../../lib/places'
 import { StaticMap, GoogleRating, OpenNow, GoogleAttribution } from '../../../components/shared/PlaceMedia'
@@ -93,6 +95,21 @@ export default function BookingDetailSheet({ item, tripTz, countryCode, isActivi
 
   const copyRef = async () => {
     try { await navigator.clipboard.writeText(item.confirmation_number); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch {}
+  }
+
+  // A forwarded email past the free plan's 5 is saved but locked until First Class (docs/STRIPE_BILLING.md, plan B)
+  if (item.locked && !hasFirstClass()) {
+    return (
+      <Sheet title={item.title} subtitle="Locked" onClose={onClose}>
+        <Card>
+          <Stack row gap={3}>
+            <IconTile icon="lock" tone="accent" size="md" />
+            <Text variant="body" tone="secondary" className="grow">Goose saved this booking from your email. The free plan includes {usePlanStore.getState().settings.free_limits.email_imports} forwarded emails; First Class opens this one and every one after it.</Text>
+          </Stack>
+        </Card>
+        <Button variant="primary" block onClick={() => { onClose(); usePlanStore.getState().openPaywall('limit_emails') }}>See First Class</Button>
+      </Sheet>
+    )
   }
 
   return (

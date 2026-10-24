@@ -116,10 +116,12 @@ function IdeaRow({ item, onOpen }) {
 // A confirmed booking: its confirmation reference (or "Booked") behind a check, before the usual details
 function bookedMeta(item, extra) {
   const ref = item.confirmation_number ? `Conf. ${item.confirmation_number}` : 'Booked'
+  // The details may end with the same reference; show it once
+  const rest = extra && String(extra).split(' · ').filter(bit => bit !== ref).join(' · ')
   return (
     <span className="detail-booked">
       <Icon name="check" size={14} strokeWidth={2.5} className="tone-success" />
-      <span>{[ref, extra].filter(Boolean).join(' · ')}</span>
+      <span>{[ref, rest].filter(Boolean).join(' · ')}</span>
     </span>
   )
 }

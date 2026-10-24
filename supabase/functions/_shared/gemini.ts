@@ -4,6 +4,9 @@
 //   doesn't go dark again the way it did when gemini-2.0-flash was shut down.
 // - Hard timeout so the client never hangs; a timeout returns a 504 Response.
 // - API key goes in a header, not the URL (keeps it out of logs).
+// - Every answered call is logged with its provider, model and tokens (logAiCall → ai_calls, Money → Statement).
+
+import { logAiCall, setRequestUser } from './usage.ts'
 
 const PRIMARY_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash'
 const FALLBACK_MODEL = 'gemini-flash-latest'
@@ -51,7 +54,10 @@ async function deepseekFetch(key: string, body: Record<string, any>, timeoutMs: 
       signal: controller.signal,
     })
     if (!res.ok) return new Response(await res.text(), { status: res.status })
-    const text = (await res.json()).choices?.[0]?.message?.content || ''
+    const data = await res.json()
+    const u = data.usage || {}
+    logAiCall({ provider: 'deepseek', model: data.model || DEEPSEEK_MODEL, input: u.prompt_tokens, cached: u.prompt_cache_hit_tokens, output: u.completion_tokens })
+    const text = data.choices?.[0]?.message?.content || ''
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], provider: 'deepseek' }), { status: 200 })
   } catch (e: any) {
     const msg = e?.name === 'AbortError' ? `DeepSeek timed out after ${timeoutMs / 1000}s` : `DeepSeek failed: ${e?.message}`
@@ -98,6 +104,12 @@ export async function geminiDirect(
       console.warn(`Gemini model ${model} returned 404, retrying on ${FALLBACK_MODEL}`)
       continue
     }
+    // Thinking tokens are billed as output
+    if (res.ok) res.clone().json().then((d) => {
+      const u = d?.usageMetadata || {}
+      logAiCall({ provider: 'gemini', model, input: u.promptTokenCount, cached: u.cachedContentTokenCount,
+        output: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0) })
+    }).catch(() => {})
     return res
   }
   // Unreachable: the loop always returns on the last model.
@@ -118,6 +130,7 @@ export const AI_DAILY_LIMIT = Number(Deno.env.get('AI_DAILY_LIMIT') || 100)
 export const GUIDE_DAILY_LIMIT = Number(Deno.env.get('GUIDE_DAILY_LIMIT') || 40)
 
 export async function checkAiQuota(userId: string, kind: 'ai' | 'guide' = 'ai'): Promise<boolean> {
+  setRequestUser(userId)
   try {
     const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/consume_ai_quota`, {
       method: 'POST',

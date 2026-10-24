@@ -5,6 +5,9 @@ import { Card, Stat, Table, Badge, Bars, BarList, Loading, ErrorNote, useLoad, M
   fmtDate, ago, num } from '../ui'
 import { ReasonModal } from './MemberPanel'
 import StripePanel, { money } from './StripePanel'
+import CostsPanel from './CostsPanel'
+import StatementPanel from './StatementPanel'
+import FreePlanPanel from './FreePlanPanel'
 
 const STATUS_TONE = { active: 'ok', paused: 'warn', ended: 'neutral', expired: 'neutral', archived: 'neutral' }
 const ATTEMPT = { ok: 'Used', invalid: 'Wrong code', not_started: 'Not started yet', expired: 'Ended', paused: 'Paused', used_up: 'Fully used',
@@ -24,7 +27,10 @@ export default function Money({ filters, view, go, role }) {
 
   return (
     <div className="a-grid">
+      <StatementPanel filters={filters} />
       <StripePanel filters={filters} go={go} />
+      <FreePlanPanel filters={filters} role={role} />
+      <CostsPanel filters={filters} go={go} role={role} />
 
       <Card title="Codes" icon="percent" className="a-span-12" subtitle={`${list.filter(c => c.status === 'active').length} active`}
         actions={<>

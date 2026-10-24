@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import {
   autocomplete, cached, geocode, reverseGeocode, placeDetails, normalizePlace, photoUri, searchNearby, searchText,
-  staticMap, DETAIL_FIELDS, routeTimes,
+  staticMap, DETAIL_FIELDS, routeTimes, withGoogleScope, setGoogleUser,
 } from '../_shared/google.ts'
 import { resolveZone } from '../_shared/timezones.ts'
 
@@ -28,7 +28,7 @@ const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0
 const num = (v: unknown, lim: number) => { const n = Number(v); return v != null && v !== '' && isFinite(n) && Math.abs(n) <= lim ? n : null }
 const NEARBY: Record<string, string[]> = { hospital: ['hospital'], police: ['police'], pharmacy: ['pharmacy'] }
 
-Deno.serve(async (req) => {
+Deno.serve(withGoogleScope(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   try {
     const auth = req.headers.get('Authorization')
@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
     const anon = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!)
     const { data: { user }, error } = await anon.auth.getUser(auth.replace('Bearer ', ''))
     if (error || !user) return json({ error: 'Unauthorized' }, 401)
+    setGoogleUser(user.id)
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
     const b = await req.json().catch(() => ({}))
@@ -162,4 +163,4 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ error: (e as Error).message }, 500)
   }
-})
+}))
