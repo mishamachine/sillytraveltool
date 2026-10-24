@@ -1,5 +1,22 @@
 # STT Handoff — 2026-10-21
 
+## Update — shared trips get travellers' forwarded emails (2026-10-24, receive-booking-email **v49**)
+- **Fix (`ingest.ts`):** a traveller who joined a trip with **Can edit** (accepted `trip_collaborators`, role
+  `collaborator`) now has their forwarded booking emails filed in that shared trip. Before, matching only looked at
+  trips the sender owned, so it made them a new "Trip to X". Viewers and pending invites still go to their own trips.
+- **Rules:** a shared trip must be on the booking's route (date overlap alone isn't enough); when a shared trip and
+  the sender's own trip both fit, the shared trip wins; the function never re-dates, folds, renames or repoints a
+  trip someone else owns (a booking outside its dates still lands; the app's outside-dates sheet handles it).
+- **Second fix:** the flight/train duplicate check only counts the sender's own legs, so two travellers on the same
+  flight both keep their booking (it used to drop the second as a duplicate).
+- **Tests:** 6 shared-trip cases in `scripts/test-email-match-sim.mjs`; all existing sims unchanged vs main.
+  Staging copy (`receive-booking-email-staging`, now a 410 stub: delete it in the dashboard) tested on machinemisha
+  with a test@test.com trip; then live: two real emails to machinemisha's inbox (391fa86a) landed in the shared
+  trip, dates unchanged. Test data deleted.
+- **Deploy:** v48 backed up to `~/backups/receive-booking-email-v48-index.js` (= build of main `731ffa8`, byte for
+  byte). v49 deployed via the MCP (esbuild bundle with `--external:node:*` too, since `_shared/google.ts` imports
+  `node:async_hooks`), verified byte-for-byte (SHA-256 2a2e2be7…). JWT verify still off.
+- **Note:** the paywall branch adds `email_import_locked` to the same insert; merge both before the next deploy.
 ## Update — beta waitlist at /beta (2026-10-24, branch feat/beta-waitlist)
 - **Live: https://sillytraveltool.com/beta** (the one link for every social bio/post; `/beta?utm_…` 301s to `/beta/` with
   the query kept). Own Vite entry (`beta/index.html`, `src/beta/`), no supabase-js. Form: email, platform, optional travel

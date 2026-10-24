@@ -269,4 +269,69 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   assert.equal(c.ignored, true); assert.equal(db.tables.bookings.length, 0); assert.equal(db.tables.trips.length, 0)
   console.log('loyalty statement → card added, then updated (Gold, 21000 pts); newsletter ignored')
 }
+
+// Shared trips: a traveller who joined someone else's trip with edit rights forwards their own bookings
+{
+  const send = async (db, user, id) => { current = id; return (await ingestEmail(db, { id: user, home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  // Owner's London trip, 11–17 Apr, with their hotel; `role`/`status` for u2 vary per case
+  const sharedDb = (role, status = 'accepted') => {
+    const db = makeDb()
+    db.tables.trips.push({ id: 'trip-shared', owner_id: 'owner', title: 'London with friends', destination_city: 'London', destination_lat: 51.51, destination_lng: -0.13, start_date: '2027-04-11', end_date: '2027-04-17', status: 'planning' })
+    db.tables.trip_collaborators.push({ id: 'c-owner', trip_id: 'trip-shared', user_id: 'owner', role: 'owner', status: 'accepted' })
+    db.tables.trip_collaborators.push({ id: 'c-u2', trip_id: 'trip-shared', user_id: 'u2', role, status })
+    db.tables.bookings.push({ id: 'b-owner-hotel', trip_id: 'trip-shared', created_by: 'owner', type: 'hotel', title: 'The Hoxton, Shoreditch', hotel_name: 'The Hoxton, Shoreditch', hotel_address: '81 Great Eastern Street, London', check_in_date: '2027-04-11', check_out_date: '2027-04-14', source: 'manual' })
+    return db
+  }
+  const shared = db => db.tables.trips.find(t => t.id === 'trip-shared')
+
+  // Can edit: the flight lands in the shared trip, credited to u2; the owner's dates stay put (flight leaves 10 Apr)
+  let db = sharedDb('collaborator')
+  let out = await send(db, 'u2', '01-flight-united-sfo-lhr')
+  assert.equal(out.trip_id, 'trip-shared', JSON.stringify(out))
+  assert.equal(db.tables.trips.length, 1)
+  assert.equal(db.tables.bookings.find(b => b.id === out.booking_id).created_by, 'u2')
+  assert.equal(shared(db).start_date, '2027-04-11'); assert.equal(shared(db).end_date, '2027-04-17')
+  assert.equal(shared(db).title, 'London with friends')
+  // Their museum ticket lands there too
+  out = await send(db, 'u2', '03-museum-british-museum')
+  assert.equal(out.trip_id, 'trip-shared')
+  console.log('shared trip (can edit): flight and ticket land in the owner\'s trip, credited to the traveller; dates and name unchanged')
+
+  // Two travellers on the same flight: both keep their booking
+  db = sharedDb('collaborator')
+  const a = await send(db, 'owner', '01-flight-united-sfo-lhr')
+  const b = await send(db, 'u2', '01-flight-united-sfo-lhr')
+  assert.ok(!a.duplicate && !b.duplicate, JSON.stringify([a, b]))
+  assert.equal(db.tables.bookings.filter(x => x.flight_number === 'UA 901').length, 2)
+  assert.deepEqual(db.tables.bookings.filter(x => x.flight_number === 'UA 901').map(x => x.created_by).sort(), ['owner', 'u2'])
+  // …and the same traveller forwarding it twice still gets one
+  const again = await send(db, 'u2', '01-flight-united-sfo-lhr')
+  assert.equal(again.duplicate, true, JSON.stringify(again))
+  console.log('same flight, two travellers: both kept; the same traveller forwarding again: duplicate')
+
+  // View only, or an invite not yet accepted: the traveller's own new trip, the shared trip untouched
+  for (const [role, status] of [['viewer', 'accepted'], ['collaborator', 'pending']]) {
+    db = sharedDb(role, status)
+    out = await send(db, 'u2', '01-flight-united-sfo-lhr')
+    assert.notEqual(out.trip_id, 'trip-shared', `${role}/${status}: ${JSON.stringify(out)}`)
+    assert.equal(db.tables.trips.find(t => t.id === out.trip_id).owner_id, 'u2')
+    assert.equal(db.tables.bookings.filter(x => x.trip_id === 'trip-shared').length, 1)
+  }
+  console.log('view only / pending invite: the traveller gets their own trip; the shared trip is untouched')
+
+  // The traveller also has their own London trip on the same dates: the shared trip wins
+  db = sharedDb('collaborator')
+  db.tables.trips.push({ id: 'trip-own', owner_id: 'u2', title: 'Trip to London', destination_city: 'London', destination_lat: 51.51, destination_lng: -0.13, start_date: '2027-04-11', end_date: '2027-04-14', status: 'planning' })
+  out = await send(db, 'u2', '02-hotel-hoxton-london')
+  assert.equal(out.trip_id, 'trip-shared', JSON.stringify(out))
+  console.log('own trip and shared trip both fit: the shared trip wins')
+
+  // Somewhere the shared trip doesn't go: the traveller's own new trip
+  db = sharedDb('collaborator')
+  out = await send(db, 'u2', '10-hotel-expedia-lisbon')
+  assert.notEqual(out.trip_id, 'trip-shared')
+  assert.equal(db.tables.trips.find(t => t.id === out.trip_id).owner_id, 'u2')
+  assert.equal(shared(db).end_date, '2027-04-17')
+  console.log('booking elsewhere (Lisbon): the traveller\'s own new trip; shared trip unchanged')
+}
 console.log('\nall replays: one trip, 14 bookings, 10–20 Apr; attachments filed')
