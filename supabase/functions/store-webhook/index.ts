@@ -9,7 +9,7 @@ type Obj = Record<string, any>
 
 const SECRET = (Deno.env.get('REVENUECAT_WEBHOOK_SECRET') || '').trim()
 const API_KEY = (Deno.env.get('REVENUECAT_API_KEY') || '').trim()
-const ENTITLEMENT = 'first_class'
+const ENTITLEMENT = 'silly_travel_tool_pro'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 

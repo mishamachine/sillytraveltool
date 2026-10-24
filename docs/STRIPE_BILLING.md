@@ -222,14 +222,14 @@ only adding past a limit is blocked.
   - Demo options reach app builds through `VITE_DEMO_PARAMS`; `?demo&paywall=<trigger>` opens the paywall at launch.
 
 **`store-webhook`** v1 deployed (verify_jwt off; 401 without the secret). Reads the member from RevenueCat on every
-event and upserts `store_entitlements` (entitlement id `first_class`).
+event and upserts `store_entitlements` (RevenueCat entitlement id `silly_travel_tool_pro`).
 **`receive-booking-email`**: repo marks the 6th+ email `locked` (via `email_import_locked`); **not deployed** (other
 sessions own live changes there; it only matters once the switch is on). Reply email to the sender: not built.
 
 **Owner to do for in-app purchases:**
 1. App Store Connect + Play Console: products `stt_first_class_yearly` (auto-renew, $14.99/yr) and
    `stt_first_class_lifetime_founding` (non-consumable, $29.99); paid-apps agreements, tax and bank forms.
-2. RevenueCat (free under $2.5k/month): project with both apps, entitlement `first_class` on both products, an
+2. RevenueCat (free under $2.5k/month): project with both apps, entitlement `silly_travel_tool_pro` on both products, an
    offering with packages Annual + Lifetime.
 3. Keys: app builds get `VITE_REVENUECAT_ANDROID_KEY` / `VITE_REVENUECAT_IOS_KEY` (public SDK keys). Supabase secrets
    (owner sets): `REVENUECAT_API_KEY` (secret v1 key), `REVENUECAT_WEBHOOK_SECRET`. RevenueCat webhook →
@@ -271,3 +271,25 @@ Owner asked whether RevenueCat is needed; chose to keep it. Reason: free under ~
 (check their current pricing), and it replaces 1–2 weeks of receipt validation plus ongoing renewals, grace,
 refunds and restore work for both stores. Switching later is contained: the server only reads `store_entitlements`
 (swap `store-webhook` and the app plugin). Owner is setting up the App Store Connect and Play Console accounts.
+
+## RevenueCat wired to the owner's account (2026-10-23)
+- Entitlement id is **`silly_travel_tool_pro`** (RevenueCat dashboard), not `first_class`; `store-webhook` v2 deployed
+  with it. Default offering: `$rc_annual` → `yearly`, `$rc_lifetime` → `lifetime` (Test Store products for now; map
+  the App Store / Play products to the same packages later).
+- Local app builds read `VITE_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` from `.env.local`; both hold the **Test Store**
+  key (`test_…`), which simulates purchases on emulators/simulators. RevenueCat's SDK crashes a production build that
+  uses a Test Store key: swap in the real store keys before any release build.
+- Fixed: `revenueCat()` returned the Capacitor plugin from an async function, so JS called `Purchases.then()` and
+  prices, buy and restore all threw on device. It now returns `{ Purchases }`.
+- Settings → Plan → "Manage subscription" opens RevenueCat's **Customer Center** (`@revenuecat/purchases-capacitor-ui`
+  13.7.3, same version as the core plugin) for a store plan bought on this platform or the Test Store; falls back to
+  the store's subscriptions page.
+- Android emulator test (machinemisha): paywall loads Test Store prices, "Test valid purchase" → entitlement
+  `silly_travel_tool_pro` active for the Supabase user id, Customer Center shows the plan. The app then waits for
+  the webhook, which needs the owner's `REVENUECAT_API_KEY` + `REVENUECAT_WEBHOOK_SECRET` and the webhook URL set.
+- Test Store prices are RevenueCat's defaults ($79.99 / $99.99); set $14.99 / $29.99 in the dashboard.
+- iPhone check (GitHub Actions run 40050386881, throwaway branch `ci/revenuecat-iphone` = this branch + the iOS
+  branch, demo build, Test Store key from the repo secret `VITE_REVENUECAT_TEST_KEY`): paywall shows the RevenueCat
+  prices, the Test Store sheet opens from the paywall's buy(), "Test valid purchase" goes through, and the Customer
+  Center shows the subscription Active (Test Store) for the demo user. The RevenueCat plugins come in through Swift
+  Package Manager on `cap sync ios`; no Swift code needed.
