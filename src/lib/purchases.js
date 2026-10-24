@@ -24,11 +24,13 @@ async function revenueCat(userId) {
   // appUserID = Supabase user id, so the webhook knows whose purchase it is
   configured ||= Purchases.configure({ apiKey: RC_KEY, appUserID: userId })
   await configured
-  return Purchases
+  // Wrapped: a Capacitor plugin proxy answers every property, so returning it bare from an async function makes
+  // JS treat it as a promise and call Purchases.then(), which throws "not implemented"
+  return { Purchases }
 }
 
 async function storePackages(userId) {
-  const Purchases = await revenueCat(userId)
+  const { Purchases } = await revenueCat(userId)
   const { current } = await Purchases.getOfferings()
   return { Purchases, packages: current?.availablePackages || [] }
 }
@@ -67,25 +69,44 @@ export async function buy(plan, { trigger, userId }) {
 /** Apps: asks the store for earlier purchases (new phone, reinstall). The webhook then updates the plan. */
 export async function restore(userId) {
   if (!native || !RC_KEY) return
-  const Purchases = await revenueCat(userId)
+  const { Purchases } = await revenueCat(userId)
   await Purchases.restorePurchases()
   track('purchase_restored', { store: STORE })
 }
 
+const STORE_PAGE = {
+  app_store: 'https://apps.apple.com/account/subscriptions',
+  play_store: 'https://play.google.com/store/account/subscriptions',
+}
+
 /**
  * Where "Manage" goes for this plan, or null when there is nothing to manage here.
+ * A store plan bought on this platform opens RevenueCat's Customer Center (cancel, refund request, restore).
  * A web (Stripe) plan is managed in the Stripe portal from the website only; inside the apps it just shows its date.
  */
 export function manageTarget(plan) {
-  if (plan?.store?.store === 'app_store') return ios || !native ? 'https://apps.apple.com/account/subscriptions' : null
-  if (plan?.store?.store === 'play_store') return !ios || !native ? 'https://play.google.com/store/account/subscriptions' : null
+  const store = plan?.store?.store
+  // test_store = RevenueCat's Test Store (test_ key builds), which works on either platform
+  if (native && RC_KEY && (store === STORE || store === 'test_store')) return 'customer_center'
+  if (store === 'app_store') return ios || !native ? STORE_PAGE.app_store : null
+  if (store === 'play_store') return !ios || !native ? STORE_PAGE.play_store : null
   if (!native && plan?.web?.customer) return 'stripe_portal'
   return null
 }
 
-export async function openManage(plan) {
+export async function openManage(plan, userId) {
   const target = manageTarget(plan)
-  if (target === 'stripe_portal') {
+  if (target === 'customer_center') {
+    try {
+      await revenueCat(userId)
+      const { RevenueCatUI } = await import('@revenuecat/purchases-capacitor-ui')
+      await RevenueCatUI.presentCustomerCenter()
+      track('customer_center_view', { store: STORE })
+    } catch {
+      // Customer Center not available (not set up in RevenueCat, old OS): the store's own page still works
+      await Browser.open({ url: STORE_PAGE[STORE] })
+    }
+  } else if (target === 'stripe_portal') {
     const { data, error } = await supabase.functions.invoke('billing', { body: { action: 'portal' } })
     if (error || !data?.url) throw new Error('Billing is having a moment. Try again shortly.')
     window.location.assign(data.url)
