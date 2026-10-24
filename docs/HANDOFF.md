@@ -15,8 +15,10 @@
   for machinemisha, read the link in its Gmail, `curl -w "%{redirect_url}"` the verify link, `gh secret set IOS_TEST_DEEPLINK < file`).
   Valid ~1 h. Never pass tokens as workflow inputs (repo is public). Screenshots: Trips, trip (Plan tab), import sheet.
   Taps are coordinates (`taps` input, iPhone 17 Pro points): AXe can't see WKWebView content in the accessibility tree.
-- **Checked (run 40033915139 and earlier):** starts cleanly, no crash; signed-out screen, Trips, Plan tab, import sheet all
-  render right with safe areas. machinemisha has test trip "Lisbon long weekend" while testing (delete afterwards).
+- **Checked (run 40042063517, green):** starts cleanly, no crash; signed-out, Trips, Plan tab, import sheet on iPhone 17 Pro, and
+  signed-out + Trips on iPhone 16e (smallest) and 17 Pro Max (largest) all fit with safe areas. Proof: `docs/screenshots/ios/`.
+  The test trip used ("Lisbon long weekend" on machinemisha) and the `IOS_TEST_DEEPLINK` secret were removed afterwards;
+  set both up again for the next signed-in run. Extra simulators boot slowly (~7 min each); a size that won't boot is skipped with a warning.
 - **Not done:** TestFlight / signing / Apple Developer account (needs the owner's OK); Google sign-in tapped through on iOS.
 
 ## Update — multi-city shipped; emailed trips never named after home (2026-10-23)
