@@ -1,55 +1,45 @@
 # iOS: build for the iPhone Simulator on a GitHub macOS (Apple silicon) runner, launch, screenshot.
-# The owner's Intel Mac can't run Xcode 27, so all iOS building and checking happens here.
-#
-# Secrets: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (the same public values the website ships).
-# Optional IOS_TEST_DEEPLINK = com.sillytraveltool.app://auth-callback#access_token=…&refresh_token=…
-# for the TEST account only; when set (and sign_in is on), the run signs in and screenshots
-# Trips, a trip's Plan tab and the import sheet. Never put tokens in workflow inputs: this repo
-# is public and inputs show in the run page.
+# THROWAWAY branch ci/revenuecat-iphone: demo build + RevenueCat Test Store (secret VITE_REVENUECAT_TEST_KEY).
+# Pass 1 buys yearly through the paywall's buy(); pass 2 opens the Customer Center (src/dev/ciRevenueCat.js).
 name: iOS simulator
 
 on:
   workflow_dispatch:
-    inputs:
-      sign_in:
-        description: Sign in with the IOS_TEST_DEEPLINK secret and screenshot signed-in screens
-        type: boolean
-        default: true
-      trip:
-        description: Text on the trip card to open
-        default: Lisbon
-      taps:
-        description: "Tap points in iOS points (measured on iPhone 17 Pro): trip=x,y;plan=x,y;back=x,y;import=x,y"
-        default: "trip=200,210;plan=81,297;back=42,91;import=236,96"
   push:
-    branches: [claude/objective-ptolemy-052302]
+    branches: [ci/revenuecat-iphone]
 
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  VITE_SUPABASE_URL: https://demo.invalid
+  VITE_SUPABASE_ANON_KEY: demo
+  VITE_DEMO: '1'
+  VITE_DEMO_PARAMS: limits=1&paywall=settings
+  VITE_REVENUECAT_IOS_KEY: ${{ secrets.VITE_REVENUECAT_TEST_KEY }}
 
 jobs:
   simulator:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - run: npm ci
 
-      - name: Web build (native mode) + cap sync ios
+      - name: Web build (pass 1, buy) + cap sync ios
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_CI_RC: buy
         run: npx vite build --mode native && npx cap sync ios
 
       - name: Build for the iPhone Simulator
@@ -66,59 +56,41 @@ jobs:
           devs = [d for rt, ds in json.load(sys.stdin)["devices"].items() if "iOS" in rt for d in ds]
           phones = [d for d in devs if d["name"].startswith("iPhone") and "Pro" in d["name"] and "Max" not in d["name"]] or devs
           print(phones[-1]["udid"])')
-          xcrun simctl list devices | grep "$UDID"
           echo "UDID=$UDID" >> "$GITHUB_ENV"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100
           xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/App.app
 
-      - name: Install AXe (taps by accessibility label)
+      - name: Install AXe
         run: brew install cameroncooke/axe/axe
 
-      - name: Launch and screenshot
+      - name: Pass 1 - Test Store purchase
+        run: python3 scripts/ios-rc-check.py buy
+
+      - name: Pass 2 - Customer Center (same native app, new web assets)
         env:
-          OUT: shots
-          DEEPLINK: ${{ github.event_name == 'workflow_dispatch' && inputs.sign_in && secrets.IOS_TEST_DEEPLINK || '' }}
-          TRIP: ${{ inputs.trip || 'Lisbon' }}
-          TAPS: ${{ inputs.taps }}
-        run: python3 scripts/ios-sim-shots.py
+          VITE_CI_RC: cc
+          VITE_DEMO_PARAMS: limits=1
+        run: |
+          npx vite build --mode native
+          APP=build/Build/Products/Debug-iphonesimulator/App.app
+          rm -rf "$APP/public" && cp -R dist "$APP/public"
+          xcrun simctl terminate "$UDID" com.sillytraveltool.app || true
+          xcrun simctl install "$UDID" "$APP"
+          python3 scripts/ios-rc-check.py cc
 
       - name: App log
         if: always()
         run: |
           mkdir -p shots
-          xcrun simctl spawn "$UDID" log show --last 10m --style compact \
-            --predicate 'process == "App"' 2>/dev/null | grep -v -i "token" | tail -300 > shots/app.log || true
+          xcrun simctl spawn "$UDID" log show --last 15m --style compact \
+            --predicate 'process == "App" AND (eventMessage CONTAINS "⚡️" OR eventMessage CONTAINS "[ci-rc]" OR eventMessage CONTAINS "Purchases" OR eventMessage CONTAINS[c] "error")' \
+            2>/dev/null | grep -v -i "token\|WebPrivacy\|ResourceLoadStatistics" | tail -300 > shots/js.log || true
 
-      # Same build on the smallest and largest iPhones: the layout must fit every screen size.
-      - name: Other screen sizes
-        if: always()
-        env:
-          DEEPLINK: ${{ github.event_name == 'workflow_dispatch' && inputs.sign_in && secrets.IOS_TEST_DEEPLINK || '' }}
-        run: |
-          xcrun simctl shutdown "$UDID" || true  # one simulator at a time; runners struggle with three
-          xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          devs = [d for rt, ds in json.load(sys.stdin)["devices"].items() if "iOS" in rt for d in ds]
-          phones = [d for d in devs if d["name"].startswith("iPhone")]
-          small = [d for d in phones if d["name"].endswith("e") or "SE" in d["name"] or "mini" in d["name"]]
-          big = [d for d in phones if "Pro Max" in d["name"] or "Plus" in d["name"]]
-          for d in (small[-1:] + big[-1:]): print(d["udid"], d["name"].replace(" ", "-"))' > sizes.txt
-          cat sizes.txt
-          while read -r U NAME; do
-            if ! { xcrun simctl boot "$U" || { sleep 20; xcrun simctl boot "$U"; }; } || ! xcrun simctl bootstatus "$U" -b; then
-              echo "::warning::$NAME simulator did not boot; skipped"; xcrun simctl shutdown "$U" || true; continue
-            fi
-            xcrun simctl status_bar "$U" override --time 9:41 --batteryState charged --batteryLevel 100
-            xcrun simctl install "$U" build/Build/Products/Debug-iphonesimulator/App.app
-            UDID="$U" OUT=shots PREFIX="size-$NAME-" ONLY_TRIPS=1 LAUNCH_WAIT=25 python3 scripts/ios-sim-shots.py || true
-            xcrun simctl shutdown "$U"
-          done < sizes.txt
-
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ios-simulator-shots
+          name: ios-revenuecat-shots
           path: shots
           retention-days: 3

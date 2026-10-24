@@ -9,6 +9,8 @@ initSentry()
 initAnalytics()
 applyTheme(getSavedTheme())
 
+if (import.meta.env.VITE_CI_RC) import('./dev/ciRevenueCat').then(m => m.runCiRevenueCat(import.meta.env.VITE_CI_RC))
+
 const root = createRoot(document.getElementById('root'))
 
 // Dev-only component gallery: http://localhost:5173/?gallery
