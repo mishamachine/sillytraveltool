@@ -70,3 +70,6 @@ verify_jwt = false
 
 [functions.store-webhook]
 verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = false

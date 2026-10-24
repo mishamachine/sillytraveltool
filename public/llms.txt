@@ -1,15 +1,15 @@
 # Silly Travel Tool — llms.txt
 # https://llmstxt.org
 
-> Silly Travel Tool is a free, AI-powered travel planning PWA.
+> Silly Travel Tool is an AI-powered travel planner on the web, iPhone and Android. Paid plan: First Class.
 
 ## What it does
-- Generates AI city guides for any destination using Gemini
+- Generates AI city guides for any destination
 - Tracks flights, hotels, and activities in one place
 - Imports bookings from confirmation emails automatically
 - Finds local spots in real-time based on your mood (HONK feature)
 - Provides live weather forecasts, currency conversion, and emergency SOS numbers
-- Works as an installable PWA — no app store required
+- Works in the browser, as an installable PWA, and as iPhone and Android apps
 
 ## Who it's for
 Independent travellers who want smart trip organization without the bloat of mainstream travel apps.
