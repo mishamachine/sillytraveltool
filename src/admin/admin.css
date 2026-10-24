@@ -381,3 +381,13 @@ input[type="date"].a-select { width: auto; }
 .a-hist__bar { width: 100%; height: var(--fill); background: var(--surface-sunken); border-radius: 3px 3px 0 0; min-height: 2px; }
 .a-hist__col.is-hit .a-hist__bar { background: var(--accent); }
 .a-hist__col span { font-size: 0.65rem; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+/* Cost alert banner (every page) */
+.a-alert { display: flex; flex-direction: column; gap: 8px; margin: 16px 28px 0; }
+.a-alert__item { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 16px 18px; border-radius: var(--radius-md);
+  background: var(--danger-fill); color: var(--on-danger); box-shadow: 0 2px 10px rgba(42, 37, 32, 0.18); }
+.a-alert__item:hover { background: var(--danger); }
+.a-alert__item span { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.a-alert__item strong { font-size: 1.05rem; }
+.a-alert__item small { font-size: 0.85rem; opacity: 0.92; }
+@media (max-width: 760px) { .a-alert { margin: 12px 16px 0; } }

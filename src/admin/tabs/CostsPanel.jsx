@@ -156,11 +156,13 @@ function Controls({ settings, last24, role, onChanged }) {
 
         <section className="a-impact">
           <NumberGroup bare title="Alerts" k="cost_alert" value={s.cost_alert} isOwner={isOwner} onSave={save}
-            hint="Emails you at most once a day when today's estimate passes the amount, and once per member when they pass a flag level. Checked every hour."
-            fields={[['daily_usd', 'Email me when a day passes ($)', 0.5], ['flag_ai', 'Flag a member at AI calls'], ['flag_guide', 'Flag at guide sections'], ['flag_google', 'Flag at Google calls']]} />
+            hint="Dashboard: a red banner on every cockpit page (and Needs you) when a day's spend or one member passes these levels. Email: only for a big spike, at most once a day for spend and once per member. Checked every hour."
+            fields={[['daily_usd', 'Dashboard alert when a day passes ($)', 0.5], ['email_usd', 'Email only when a day passes ($)', 1],
+              ['flag_ai', 'Dashboard: member AI calls'], ['flag_guide', 'Dashboard: member guide sections'], ['flag_google', 'Dashboard: member Google calls'],
+              ['email_ai', 'Email: member AI calls'], ['email_guide', 'Email: member guide sections'], ['email_google', 'Email: member Google calls']]} />
           {isOwner && (
             <div className="a-row">
-              <button className="a-btn a-btn--sm" onClick={sendTest} disabled={test?.busy}><Icon name="mail" size={16} /> {test?.busy ? 'Sending…' : 'Send a test alert'}</button>
+              <button className="a-btn a-btn--sm" onClick={sendTest} disabled={test?.busy}><Icon name="mail" size={16} /> {test?.busy ? 'Sending…' : 'Send a test email'}</button>
               {test?.ok && <span className="a-muted">{test.ok}</span>}
               {test?.error && <span className="a-field__error">{test.error}</span>}
             </div>

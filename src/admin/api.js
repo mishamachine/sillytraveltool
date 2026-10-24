@@ -137,6 +137,7 @@ export const api = {
   freshStart: (confirm) => rpc('admin_fresh_start', { p_confirm: confirm }),
   formerMembers: () => rpc('admin_former_members'),
   system: (f) => rpc('admin_system', { p_from: f.from, p_to: f.to }),
+  alerts: () => rpc('admin_alerts'),
   freePlan: (f) => rpc('admin_free_plan', { p_exclude_internal: f.excludeInternal }),
   financials: (f) => rpc('admin_financials', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),
   costs: (f) => rpc('admin_costs', { p_from: f.from, p_to: f.to, p_exclude_internal: f.excludeInternal }),

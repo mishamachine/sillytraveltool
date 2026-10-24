@@ -34,7 +34,7 @@ const demoSettings = {
   ai_limits: { ai_daily: 100, guide_daily: 40, _updated_at: day(-1) },
   google_limits: { per_user_daily: 5000, _updated_at: day(-1) },
   kill: { ai_paused: false, google_paused: false, _updated_at: day(-1) },
-  cost_alert: { daily_usd: 10, flag_ai: 300, flag_guide: 150, flag_google: 1500, last_sent_day: d10(-3), _updated_at: day(-1) },
+  cost_alert: { daily_usd: 10, email_usd: 50, flag_ai: 300, flag_guide: 150, flag_google: 1500, email_ai: 1000, email_guide: 400, email_google: 5000, last_sent_day: d10(-3), _updated_at: day(-1) },
   cost_rates: { ai_call: 0.0015, guide_section: 0.004, supabase_monthly: 25, hosting_monthly: 4, _updated_at: day(-1),
     ai_prices: { 'deepseek-chat': { input: 0.28, cached_input: 0.028, output: 0.42 }, 'gemini-2.5-flash': { input: 0.3, cached_input: 0.075, output: 2.5 } },
     google: { autocomplete: 0.00283, place_details: 0.017, text_search: 0.032, nearby: 0.032, photo: 0.007, routes: 0.005, geocode: 0.005, timezone: 0.005, static_map: 0.002, other: 0.005 } },
@@ -223,6 +223,9 @@ export default async function demo(name, args) {
         imports: [{ n: 0, members: 9 }, { n: 1, members: 2 }, { n: 3, members: 1 }, { n: 5, members: 2 }, { n: 22, members: 1 }],
       },
     }
+    case 'admin_alerts': return { items: [
+      { key: 'cost_day:x', kind: 'cost', tab: 'money', title: 'AI + Google spend today is about $12.40', detail: 'Over your $10.00 alert level. You get an email only past $50.00. Money → Costs shows who and what; the kill switches are in Controls.' },
+    ] }
     case 'admin_settings': return demoSettings
     case 'admin_setting_set': {
       const old = demoSettings[args.p_key] || {}

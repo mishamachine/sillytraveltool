@@ -62,7 +62,12 @@
   `admin_free_plan()` returns the histograms, free/First Class counts, paywall views and `limit_hit` events (30 days).
   The paywall branch's migration files still describe `billing_settings`: its session was told.
 - **Admins (owner request):** machinemisha@gmail.com added with the owner role (Google sign-in; audited). Both owners
-  get the cost-alert emails.
+  get the (rare) spike emails.
+- **Alerts, owner request "no emails unless a crazy spike"** (migration `20261024020000_alert_levels`): dashboard levels
+  (`cost_alert.daily_usd` $10, `flag_*` 300 / 150 / 1,500) show a red banner on every cockpit page (`AlertBanner`,
+  `admin_alerts()`, refreshed each minute) and in Needs you. Email only past `email_usd` ($50 a day) or a member past
+  `email_ai` 1,000 / `email_guide` 400 / `email_google` 5,000 (PAYWALL_PLAN runaway levels). All eight are in
+  Money → Controls → Alerts. Tested rolled back: 350 AI calls → banner, no email; 1,200 → email.
 
 ## Update — Money → Statement: gross, fees, net, exact AI cost (2026-10-23, commits b62f2af, a8ccd8a)
 - **Statement card (top of Money, `admin_financials(from, to)`, migrations `20261024000000_financials` +

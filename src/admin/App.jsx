@@ -3,6 +3,7 @@ import Icon from '../ui/icons/Icon'
 import Gate from './Gate'
 import { ago } from './ui'
 import CommandBar from './CommandBar'
+import AlertBanner from './AlertBanner'
 import DateWindow, { windowOf } from './DateWindow'
 import Today from './tabs/Today'
 import Members from './tabs/Members'
@@ -128,6 +129,7 @@ function Cockpit({ me }) {
             <button className="a-btn a-btn--ghost a-btn--sm" onClick={refresh} title="Refresh now (R)"><Icon name="refresh" size={16} /> {ago(updated)}</button>
           </div>
         </header>
+        <AlertBanner tick={tick} go={go} />
         <main className="a-content">
           <Tab filters={filters} view={view} go={go} role={me.role} refresh={refresh} />
         </main>
