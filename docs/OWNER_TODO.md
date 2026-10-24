@@ -7,9 +7,6 @@ Other sessions: send new owner items to the owner-todo session rather than editi
 Format: what to do · where · what Claude does once it's ticked.
 
 ## Review & merge
-- [ ] **Review and merge PR #5** (launch readiness: Sentry, account deletion, Apple button, Terms/meta copy, checkout
-  methods) · https://github.com/mishamachine/sillytraveltool/pull/5 · Claude deploys the website from main (backup +
-  dry run first).
 - [ ] **Confirm the Terms choices in PR #5:** governing law = State of Washington; 14-day refund on website purchases
   · PR #5 → `public/terms/` · Claude adjusts the wording if you pick differently.
 
@@ -40,6 +37,8 @@ Format: what to do · where · what Claude does once it's ticked.
   webhook → `https://swywrvbuswylvqlktsym.supabase.co/functions/v1/store-webhook` with that secret as the
   Authorization header · Supabase → Edge Functions → Secrets; RevenueCat → Integrations → Webhooks · Claude tests a
   purchase end to end (store → webhook → `store_entitlements`).
+- [ ] **If the secret key is V2** (Customer information: Read only), send Claude the RevenueCat project ID ·
+  RevenueCat → Project settings · Claude switches `store-webhook` to the V2 API.
 - [ ] **Real store SDK keys** (iOS `appl_…`, Android `goog_…`) shared with Claude before any release build (the Test
   Store key crashes release builds) · RevenueCat → API keys · Claude puts them in the builds.
 
@@ -76,8 +75,8 @@ Format: what to do · where · what Claude does once it's ticked.
 - **RevenueCat ticked →** (you're generating the V1 secret key now) once the secrets and webhook are set, send a
   RevenueCat test event, then merge PR #3 (iOS, `claude/objective-ptolemy-052302`) and any RevenueCat commits on
   `feat/first-class-paywall` not yet in main, swap in the real store keys, run the iOS and Android cloud checks.
-- **PR #5 merged →** deploy the website from main (backup + dry run).
 - **Stripe activated →** live product, prices, portal, webhook, keys; one real purchase + refund to confirm.
 
 ## Done
-_(ticked items move here with the date)_
+- [x] **Review and merge PR #5** (launch readiness) · 2026-10-24 · merged as `aad8a07`; website deployed from it
+  (backup `stt-202610240302-pre-launch-readiness.tar.gz`).
