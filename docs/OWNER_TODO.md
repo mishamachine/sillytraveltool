@@ -2,6 +2,8 @@
 
 Kept by the **owner-todo** session. Tick an item (`[x]` + date) here or in the checklist artifact, or just tell the
 owner-todo session it's done: it updates both and tells whichever session is waiting on it.
+Checklist artifact: https://claude.ai/artifact/DRNKdNfMLMjfR2zDabz4v8 (collection `todos`, one doc per item).
+Other sessions: send new owner items to the owner-todo session rather than editing this file.
 Format: what to do · where · what Claude does once it's ticked.
 
 ## Apple
