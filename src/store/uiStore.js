@@ -46,6 +46,10 @@ export const useUIStore = create((set) => ({
   closeBookingForm: () => set({ showBookingForm: false, editingItem: null }),
   openActivityForm: (item = null) => set({ showActivityForm: true, editingItem: item }),
   closeActivityForm: () => set({ showActivityForm: false, editingItem: null }),
+  // Replay of the onboarding tour (Profile, Help)
+  tourOpen: false,
+  openTour: () => set({ tourOpen: true }),
+  closeTour: () => set({ tourOpen: false }),
   openSheet: (content) => set({ sheetContent: content }),
   closeSheet: () => set({ sheetContent: null }),
 

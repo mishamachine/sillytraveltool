@@ -4,6 +4,7 @@ import { InboxAddress } from '../trips/InboxHint'
 import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { manageTarget, openManage } from '../../lib/purchases'
+import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Switch, Text, Stack, Logo, LinkButton, Icon,
 } from '../../ui'
@@ -206,6 +207,7 @@ export default function SettingsView({ onBack, onDelete }) {
         <Logo size="sm" />
         <Text variant="micro" tone="muted">Silly Travel Tool · v{import.meta.env.VITE_APP_VERSION || '0.19.0'}</Text>
         <LinkButton href="mailto:hello@sillytraveltool.com">hello@sillytraveltool.com</LinkButton>
+        <LinkButton icon="alert-circle" href={reportIssueHref('settings')} onClick={() => trackReport('settings')}>Report an issue</LinkButton>
       </Stack>
     </Screen>
   )

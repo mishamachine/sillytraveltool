@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
-import { useAuthStore } from '../../store'
+import { useAuthStore, useUIStore } from '../../store'
+import BetaCard from '../../components/shared/BetaCard'
 import { BADGES, BADGE_TIER_TONE } from '../../lib/tokens'
 import { Screen, Section, Card, ListRow, IconButton, LinkButton, Text, Overline, Stack, GooseMark, Icon } from '../../ui'
 
@@ -30,6 +31,7 @@ export function BadgeTile({ badge, earned, onClick }) {
 
 export default function ProfileHome({ docCount, cardCount, onOpen }) {
   const { profile, user, stats, badges } = useAuthStore()
+  const openTour = useUIStore(s => s.openTour)
   const earnedIds = (badges || []).map(b => b.badge_id)
   const total = Object.keys(BADGES).length
   const earned = Object.entries(BADGES).filter(([id]) => earnedIds.includes(id))
@@ -76,10 +78,17 @@ export default function ProfileHome({ docCount, cardCount, onOpen }) {
       </Section>
 
       <Card variant="group">
+        <ListRow icon="help" tone="success" title="Guide and FAQ" meta="How everything works, including travelling together" chevron onClick={() => onOpen('help')} />
+        <ListRow icon="compass" tone="accent" title="Take the tour" meta="A two-minute look at everything STT does" chevron onClick={openTour} />
+      </Card>
+
+      <Card variant="group">
         <ListRow icon="passport" tone="info" title="Travel documents" trailing={docCount ? String(docCount) : undefined} chevron onClick={() => onOpen('docs')} />
         <ListRow icon="card" tone="accent" title="Loyalty cards" trailing={cardCount ? String(cardCount) : undefined} chevron onClick={() => onOpen('loyalty')} />
         <ListRow icon="settings" tone="neutral" title="Settings and privacy" chevron onClick={() => onOpen('settings')} />
       </Card>
+
+      <BetaCard where="profile" />
     </Screen>
   )
 }
