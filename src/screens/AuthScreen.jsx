@@ -22,10 +22,29 @@ function GoogleMark() {
   )
 }
 
+function AppleMark() {
+  // Apple's logo (Sign in with Apple guidelines): solid, takes the button's text colour.
+  return (
+    <svg className="auth-google" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8a4.7 4.7 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8s1.9.8 3.2.8c1.3 0 2.1-1.2 2.9-2.4.9-1.3 1.3-2.6 1.3-2.7 0 0-2.4-1-2.4-4zM14 5.4c.7-.8 1.1-1.9 1-3a4.3 4.3 0 0 0-2.8 1.4c-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.5 2.8-1.3z" />
+    </svg>
+  )
+}
+
+// Show "Continue with Apple" once the Apple provider is switched on in Supabase (Auth → Providers → Apple).
+async function appleEnabled() {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY } })
+    return !!(await res.json())?.external?.apple
+  } catch { return false }
+}
+
 const TITLES = { login: 'Welcome back', signup: 'Create your account', magic: 'Email me a sign-in link', forgot: 'Reset your password' }
 
 export default function AuthScreen() {
   const [mode, setMode] = useState('login')
+  const [apple, setApple] = useState(false)
+  useEffect(() => { appleEnabled().then(setApple) }, [])
   const [step, setStep] = useState('welcome') // 'welcome' | 'email'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -96,15 +115,15 @@ export default function AuthScreen() {
     finally { setLoading(false) }
   }
 
-  const handleGoogle = async () => {
+  const handleOAuth = async (provider) => {
     setLoading(true)
     setError(null)
     // Native: Google blocks sign-in inside WebViews, so open it in a Custom Tab;
     // it returns via the app scheme and src/native/deepLinks.js finishes sign-in.
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider,
       // select_account: Google always shows its account chooser instead of reusing the last account
-      options: { redirectTo: authRedirect(), skipBrowserRedirect: isNative, queryParams: { prompt: 'select_account' } },
+      options: { redirectTo: authRedirect(), skipBrowserRedirect: isNative, ...(provider === 'google' ? { queryParams: { prompt: 'select_account' } } : {}) },
     })
     if (error) setError(error.message)
     else if (isNative && data?.url) await Browser.open({ url: data.url })
@@ -166,7 +185,12 @@ export default function AuthScreen() {
       </div>
       <div className="auth-actions">
         {errorBanner}
-        <Button variant="secondary" size="lg" block onClick={handleGoogle} disabled={loading}>
+        {apple && (
+          <Button variant="dark" size="lg" block onClick={() => handleOAuth('apple')} disabled={loading}>
+            <AppleMark />Continue with Apple
+          </Button>
+        )}
+        <Button variant="secondary" size="lg" block onClick={() => handleOAuth('google')} disabled={loading}>
           <GoogleMark />Continue with Google
         </Button>
         <Button variant="outline" size="lg" block icon="mail" onClick={() => { setStep('email'); setError(null) }}>Continue with email</Button>

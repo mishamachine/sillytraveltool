@@ -21,6 +21,27 @@
   set both up again for the next signed-in run. Extra simulators boot slowly (~7 min each); a size that won't boot is skipped with a warning.
 - **Not done:** TestFlight / signing / Apple Developer account (needs the owner's OK); Google sign-in tapped through on iOS.
 
+## Update — launch readiness: deletion, Apple sign-in, paid copy, store forms (2026-10-24, branch chore/launch-readiness)
+- **In-app account deletion (Apple 5.1.1(v), Play):** `delete-account` Edge Function v1 (verify_jwt off, checks the
+  caller's JWT, body `{confirm:'DELETE'}`) cancels any live Stripe subscription (on failure: `admin_tasks` row
+  `cancel-sub-<id>`), then `public.delete_account(user)` (migration `20261024030000`, service role only): hands the
+  member's bookings/ideas on others' trips to the trip owner, deletes their trips, folds `api_usage` into the zero user,
+  nulls `ai_calls`, deletes function_errors/ingest_locks/former_members rows, deletes the auth user (rest cascades;
+  Stripe ledger rows keep with user_id null). Owner admins are refused. Tested rolled back on a real non-owner account
+  (15 → 14 users, profile and 2 trips gone; owner refused). Not tested end to end with a live session (no throwaway
+  account). Screen: Profile → Settings → Delete account (`DeleteAccountView.jsx`). Public page `/delete-account/` (Play URL).
+- **Sign in with Apple:** "Continue with Apple" on the welcome screen, shown only when Supabase reports the Apple
+  provider on (`/auth/v1/settings`), so it appears by itself once the owner sets it up (`docs/OWNER_TODO.md`).
+- **Paid, not free:** Terms get "8. Plans and payments" (free plan limits, First Class yearly auto-renew + lifetime,
+  Stripe on web / stores in apps, 14-day web refunds, codes), governing law Washington; index.html title/meta and
+  llms.txt no longer say free; privacy lists RevenueCat and Apple sign-in.
+- **Checkout:** `billing` v7 excludes Cash App, Klarna and Pay by Bank (`excluded_payment_method_types`; checked in the
+  sandbox: card, Link, Amazon Pay remain). The sandbox promo code STTTEST50 can't be switched off through the Stripe
+  connector; it dies with the sandbox at go-live.
+- **Sentry:** DSN of project `silly-travel-tool/silly-travel-tool` in `.env.local` (`VITE_SENTRY_DSN`); web builds now
+  report errors. CI builds (iOS/Android workflows) need the same value as a repo secret to report from the apps.
+- **Store forms:** answers for Play Data safety and App Store privacy labels in `docs/STORE_PRIVACY_FORMS.md`.
+
 ## Update — multi-city shipped; emailed trips never named after home (2026-10-23)
 - **Website live** with multi-city (`fd8b93c`), built from a clean `git archive` copy so uncommitted local edits don't
   ship (`npx vite build` there skips the help prebuild). Server backup `~/backups/stt-202610230731-pre-multicity.tar.gz`.

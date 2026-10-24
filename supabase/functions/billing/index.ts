@@ -102,6 +102,8 @@ Deno.serve(async (req) => {
         success_url: `${back}?paid={CHECKOUT_SESSION_ID}`,
         cancel_url: back,
         ...(promo ? { discounts: [{ promotion_code: promo.id }] } : { allow_promotion_codes: true }),
+        // Owner: no Cash App, Klarna or bank payments (sandbox and live alike).
+        excluded_payment_method_types: ['cashapp', 'klarna', 'pay_by_bank'],
         metadata: meta,
         ...(plan === 'lifetime'
           ? { payment_intent_data: { metadata: meta }, invoice_creation: { enabled: true } }

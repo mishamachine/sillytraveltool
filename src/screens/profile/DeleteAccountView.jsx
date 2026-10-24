@@ -1,14 +1,21 @@
 import { useState } from 'react'
 import { useAuthStore, useTripsStore } from '../../store'
+import { usePlanStore } from '../../store/planStore'
+import { supabase } from '../../lib/supabase'
+import { track } from '../../lib/analytics'
 import { Screen, ScreenHeader, Card, Button, Field, Dialog, Text, Stack, Icon, GooseMark } from '../../ui'
 
-// Account deletion: UI only for now. Server-side deletion ships in Phase 2, so the
-// final button explains that instead of deleting anything.
+// Account deletion (Apple 5.1.1(v), Google Play): the delete-account Edge Function cancels a website subscription,
+// then erases the member (public.delete_account). Store subscriptions are the member's to cancel in their store.
 export default function DeleteAccountView({ docCount, cardCount, onBack }) {
   const trips = useTripsStore(s => s.trips)
   const badges = useAuthStore(s => s.badges)
+  const signOut = useAuthStore(s => s.signOut)
+  const storePlan = usePlanStore(s => s.plan?.store)
   const [confirmText, setConfirmText] = useState('')
-  const [notice, setNotice] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
   const owned = trips.filter(t => !t._isShared).length
 
   const items = [
@@ -21,13 +28,27 @@ export default function DeleteAccountView({ docCount, cardCount, onBack }) {
 
   const ready = confirmText.trim() === 'DELETE'
 
+  const erase = async () => {
+    setBusy(true); setError(null)
+    const { data, error: err } = await supabase.functions.invoke('delete-account', { body: { confirm: 'DELETE' } })
+    if (err || !data?.deleted) {
+      let msg = data?.error
+      try { msg = msg || (await err?.context?.json())?.error } catch { /* not JSON */ }
+      setError(msg || 'Couldn’t delete your account. Nothing was deleted; try again.')
+      setBusy(false)
+      return
+    }
+    track('account_deleted')
+    await signOut()
+  }
+
   return (
     <Screen gap={4} labelledBy="delete-title">
       <ScreenHeader onBack={onBack} backLabel="Back to settings" />
       <Stack gap={3} align="start">
         <GooseMark expression="sad" size={58} tile tileSize="sm" />
         <Text variant="h1" id="delete-title">Delete your account?</Text>
-        <Text variant="body" tone="secondary">This can't be undone. Everything below is erased within 30 days, including backups.</Text>
+        <Text variant="body" tone="secondary">This can't be undone. Everything below is erased right away; backup copies are gone within 30 days.</Text>
       </Stack>
 
       <Card variant="group" as="ul" className="profile-erase" aria-label="What gets erased">
@@ -43,16 +64,19 @@ export default function DeleteAccountView({ docCount, cardCount, onBack }) {
         autoComplete="off" autoCapitalize="characters" spellCheck={false} inputClassName="profile-delete-input" />
 
       <Stack gap={2} className="profile-delete-actions">
-        <Button variant="danger" size="lg" block disabled={!ready} onClick={() => setNotice(true)}>Request account deletion</Button>
+        <Button variant="danger" size="lg" block disabled={!ready} onClick={() => setConfirming(true)}>Delete my account</Button>
         <Button variant="ghost" block onClick={onBack}>Keep my account</Button>
       </Stack>
 
-      <Dialog open={notice} onClose={() => setNotice(false)} title="Send your deletion request"
+      <Dialog open={confirming} onClose={() => !busy && setConfirming(false)} title="Delete everything now?"
         actions={<>
-          <Button onClick={() => setNotice(false)}>Not now</Button>
-          <a className="c-btn c-btn--danger c-btn--md" href="mailto:hello@sillytraveltool.com?subject=Delete%20my%20account" onClick={() => setNotice(false)}>Email request</a>
+          <Button onClick={() => setConfirming(false)} disabled={busy}>Cancel</Button>
+          <Button variant="danger" onClick={erase} disabled={busy}>{busy ? 'Deleting…' : 'Delete'}</Button>
         </>}>
-        In-app deletion is on its way. For now, send the request from your account email and we erase everything within 30 days. Nothing has been deleted yet.
+        {storePlan
+          ? 'Your account and everything in it is erased right away. Your App Store or Google Play subscription isn’t cancelled by this: cancel it in your store account.'
+          : 'Your account and everything in it is erased right away. A First Class subscription bought on our website is cancelled.'}
+        {error && <Text variant="caption" as="span" tone="danger" role="alert" style={{ display: 'block', marginTop: 8 }}>{error}</Text>}
       </Dialog>
     </Screen>
   )
