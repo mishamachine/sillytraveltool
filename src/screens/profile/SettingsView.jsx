@@ -33,6 +33,7 @@ const fmtDate = (d) => new Date(d).toLocaleDateString(undefined, { month: 'long'
 // Plan row: free → opens the paywall; First Class → renewal date and, where this platform may, Manage
 function PlanSection() {
   const { plan, openPaywall } = usePlanStore()
+  const userId = useAuthStore(s => s.user?.id)
   const [error, setError] = useState(null)
   if (!plan) return null
   if (!isFirstClass(plan)) {
@@ -47,13 +48,14 @@ function PlanSection() {
   const sub = plan.web?.subscription
   const renews = plan.store ? plan.store.will_renew : sub ? !sub.canceling : false
   const line = !plan.until ? 'For life' : `${renews ? 'Renews' : 'Ends'} ${fmtDate(plan.until)}`
-  const manage = async () => { setError(null); try { await openManage(plan) } catch (e) { setError(e.message) } }
+  const target = manageTarget(plan)
+  const manage = async () => { setError(null); try { await openManage(plan, userId) } catch (e) { setError(e.message) } }
   return (
     <Section title="Plan">
       <Card variant="group">
         <ValueRow label="First Class" value={line} />
         {sub?.status === 'past_due' && <Banner tone="danger" icon="alert-triangle">Your last payment didn’t go through. Update your card to keep First Class.</Banner>}
-        {manageTarget(plan) && <ListRow icon="card" title="Manage subscription" meta="Card, invoices, cancel" chevron onClick={manage} />}
+        {target && <ListRow icon="card" title="Manage subscription" meta={target === 'stripe_portal' ? 'Card, invoices, cancel' : 'Cancel, refunds, restore'} chevron onClick={manage} />}
         {error && <Banner tone="danger" icon="alert-circle" role="alert">{error}</Banner>}
       </Card>
     </Section>
