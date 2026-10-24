@@ -1,6 +1,7 @@
 # Silly Travel Tool (STT) — working notes for Claude
 
 Read `docs/HANDOFF.md` first (state, decisions, bug list, coding order), then `docs/brand/BRAND.md` before touching UI.
+Owner's open to-dos: `docs/OWNER_TODO.md`; tick items there and tell the owner-todo session.
 
 ## Goal
 Ship STT as native iOS and Android apps with Capacitor, wrapping this React 18 + Vite app. The web build at sillytraveltool.com stays as the shared codebase.
