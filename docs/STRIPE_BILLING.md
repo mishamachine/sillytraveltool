@@ -288,3 +288,8 @@ refunds and restore work for both stores. Switching later is contained: the serv
   `silly_travel_tool_pro` active for the Supabase user id, Customer Center shows the plan. The app then waits for
   the webhook, which needs the owner's `REVENUECAT_API_KEY` + `REVENUECAT_WEBHOOK_SECRET` and the webhook URL set.
 - Test Store prices are RevenueCat's defaults ($79.99 / $99.99); set $14.99 / $29.99 in the dashboard.
+- iPhone check (GitHub Actions run 40050386881, throwaway branch `ci/revenuecat-iphone` = this branch + the iOS
+  branch, demo build, Test Store key from the repo secret `VITE_REVENUECAT_TEST_KEY`): paywall shows the RevenueCat
+  prices, the Test Store sheet opens from the paywall's buy(), "Test valid purchase" goes through, and the Customer
+  Center shows the subscription Active (Test Store) for the demo user. The RevenueCat plugins come in through Swift
+  Package Manager on `cap sync ios`; no Swift code needed.
