@@ -120,7 +120,7 @@ export default defineConfig(({ mode }) => {
         // The owner cockpit (/admin/) is its own page; travellers' service workers never precache it
         globIgnores: ['**/admin/**', '**/assets/admin-*'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|redeem|upgrade|unsubscribe)(\/|$)/]
+        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|redeem|upgrade|unsubscribe|delete-account)(\/|$)/]
       }
     })
   ].filter(Boolean),

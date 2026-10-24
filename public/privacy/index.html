@@ -19,7 +19,7 @@
   </header>
 
   <h1>Privacy Policy</h1>
-  <p class="meta">Effective 23 October 2026 · Last updated 23 October 2026</p>
+  <p class="meta">Effective 23 October 2026 · Last updated 24 October 2026</p>
 
   <div class="card summary">
     <p><strong>The short version.</strong> We keep your trips, bookings and travel documents so the app can show them to you.
@@ -55,7 +55,7 @@
   <h3>Payments</h3>
   <p>If you buy First Class on the website, payment is handled by Stripe. We receive your purchase details (plan, amount,
   date, status, refunds and any discount code) but never your full card number. In the apps, purchases go through Apple or
-  Google, who share the purchase status with us. Codes you redeem are recorded with your account.</p>
+  Google, who share the purchase status with us through RevenueCat. Codes you redeem are recorded with your account.</p>
   <h3>Usage and diagnostics</h3>
   <p>Product events (for example "trip created", "guide viewed", which screen was opened and how long it was actively in
   use), plus once per session a few device settings: device type (phone, tablet or computer), operating system, whether you
@@ -110,7 +110,9 @@
         <tr><td>Resend</td><td>Receiving forwarded booking emails; sending invites and account emails</td><td>Those emails</td></tr>
         <tr><td>Stripe (US)</td><td>Website payments and discount codes</td><td>Your email and your purchase and payment details (Stripe holds the card)</td></tr>
         <tr><td>Apple, Google Play</td><td>In-app purchases</td><td>Purchase status</td></tr>
+        <tr><td>RevenueCat (US)</td><td>Checks app-store purchases and renewals for us</td><td>Your account ID and purchase status (no card details)</td></tr>
         <tr><td>Google (sign-in)</td><td>"Continue with Google"</td><td>Your Google sign-in</td></tr>
+        <tr><td>Apple (sign-in)</td><td>"Continue with Apple"</td><td>Your Apple ID sign-in (you can hide your email)</td></tr>
         <tr><td>Open-Meteo</td><td>Weather and past-trip weather</td><td>Trip coordinates and dates</td></tr>
         <tr><td>OpenStreetMap Nominatim, Komoot Photon, BigDataCloud, timeapi.io</td><td>City search, coordinates to city, local time</td><td>Search text or coordinates</td></tr>
         <tr><td>open.er-api.com, flagcdn.com</td><td>Exchange rates, flag images</td><td>Currency or country codes only</td></tr>
