@@ -181,7 +181,7 @@ only adding past a limit is blocked.
   the iOS Simulator and the Android emulator showing the paywall at each limit.
 
 ## Built (2026-10-23, branch `feat/first-class-paywall`, on top of PR #1; owner approved plans A and B)
-**Database** (migration `20261023170000_first_class_everywhere`, applied):
+**Database** (migration `20261023170100_first_class_everywhere`, applied):
 - `store_entitlements` (one row per member, written only by `store-webhook`; members can read their own).
   `entitlement()` = grants OR Stripe OR stores. `my_entitlement()` adds `store {store, product, expires_at, will_renew}`
   and `limits_on`.
