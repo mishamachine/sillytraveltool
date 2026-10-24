@@ -28,7 +28,7 @@ const STORE_NAME = { app_store: 'the App Store', play_store: 'Google Play' }
 
 export default function PaywallSheet() {
   const { paywall, closePaywall, load, plan, settings } = usePlanStore()
-  // The owner can end the founders offer (Controls); the lifetime card then disappears everywhere
+  // The owner can end the Founders Flock offer (Controls); the lifetime card then disappears everywhere
   const founders = settings.founders_offer?.active !== false
   const user = useAuthStore(s => s.user)
   const [choice, setChoice] = useState('yearly')
@@ -128,7 +128,7 @@ export default function PaywallSheet() {
 
         <div className="paywall__plans" role="radiogroup" aria-label="Choose a plan">
           <PlanCard id="yearly" choice={choice} onPick={setChoice} title="Yearly" price={`${price('yearly')} / year`} note="Renews each year. Cancel any time." />
-          {founders && <PlanCard id="lifetime" choice={choice} onPick={setChoice} title="Founders offer" price={`${price('lifetime')} once`} note="Pay once, First Class for life. For a limited time." />}
+          {founders && <PlanCard id="lifetime" choice={choice} onPick={setChoice} title="Founders Flock" price={`${price('lifetime')} once`} note="LIFETIME First Class for one payment: about what two years of Yearly cost, then it’s yours for good. Only while the Flock is open." />}
         </div>
 
         <Text variant="caption" tone="secondary">We keep STT as affordable as we can so more people travel, well informed and organised. Your subscription keeps the lights on (and the dog fed).</Text>
@@ -136,7 +136,7 @@ export default function PaywallSheet() {
         <Text variant="micro" tone="muted" as="p">
           Yearly is {price('yearly')} a year and renews automatically until you cancel
           {STORE === 'stripe' ? ' in Settings → Plan' : ` in your ${STORE_NAME[STORE]} subscriptions`}, at least a day before it renews;
-          you keep First Class to the end of the year you paid for.{founders && ' The founders offer is a one-time payment.'}{' '}
+          you keep First Class to the end of the year you paid for.{founders && ' Founders Flock is a one-time payment.'}{' '}
           <a href="https://sillytraveltool.com/terms/" target="_blank" rel="noreferrer">Terms</a> ·{' '}
           <a href="https://sillytraveltool.com/privacy/" target="_blank" rel="noreferrer">Privacy</a>
         </Text>
