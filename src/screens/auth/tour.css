@@ -99,7 +99,8 @@
 .tour-plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .tour-plan-item { display: flex; align-items: flex-start; gap: var(--space-2); }
 .tour-plan-item > svg { flex-shrink: 0; margin-top: 2px; }
-.tour-plan-free { display: flex; flex-direction: column; gap: var(--space-3); }
+.tour-plan-free { display: flex; flex-direction: column; gap: var(--space-2); }
+.tour-free { text-decoration: underline; text-underline-offset: 3px; font-weight: 500; }
 .tour-fc { display: flex; flex-direction: column; gap: var(--space-3); }
 .tour-fc .tour-plan-item > svg { color: var(--accent-on-inverse); }
 .tour-fc__price { padding-top: var(--space-3); border-top: 1px solid rgba(255, 255, 255, 0.12); }
@@ -363,3 +364,34 @@
 .tour-stepper { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-card); box-shadow: var(--shadow-card); }
 .tour-stepper__ctl { display: inline-flex; align-items: center; gap: var(--space-3); font: 700 1.125rem var(--font-display); color: var(--ink); }
 .tour-stepper__ctl > span { width: 30px; height: 30px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; justify-content: center; background: var(--surface-sunken); color: var(--ink-secondary); }
+
+/* Staggered entrance delays: TourArt's d(ms) picks one of these, so no inline styles. */
+.tour-delay-0 { animation-delay: 0ms; }
+.tour-delay-100 { animation-delay: 100ms; }
+.tour-delay-120 { animation-delay: 120ms; }
+.tour-delay-150 { animation-delay: 150ms; }
+.tour-delay-180 { animation-delay: 180ms; }
+.tour-delay-240 { animation-delay: 240ms; }
+.tour-delay-250 { animation-delay: 250ms; }
+.tour-delay-260 { animation-delay: 260ms; }
+.tour-delay-300 { animation-delay: 300ms; }
+.tour-delay-360 { animation-delay: 360ms; }
+.tour-delay-400 { animation-delay: 400ms; }
+.tour-delay-450 { animation-delay: 450ms; }
+.tour-delay-500 { animation-delay: 500ms; }
+.tour-delay-520 { animation-delay: 520ms; }
+.tour-delay-540 { animation-delay: 540ms; }
+.tour-delay-550 { animation-delay: 550ms; }
+.tour-delay-600 { animation-delay: 600ms; }
+.tour-delay-620 { animation-delay: 620ms; }
+.tour-delay-650 { animation-delay: 650ms; }
+.tour-delay-780 { animation-delay: 780ms; }
+.tour-delay-800 { animation-delay: 800ms; }
+.tour-delay-840 { animation-delay: 840ms; }
+.tour-delay-900 { animation-delay: 900ms; }
+.tour-delay-950 { animation-delay: 950ms; }
+.tour-delay-1060 { animation-delay: 1060ms; }
+.tour-delay-1280 { animation-delay: 1280ms; }
+.tour-delay-1500 { animation-delay: 1500ms; }
+.tour-delay-1900 { animation-delay: 1900ms; }
+.tour-delay-2100 { animation-delay: 2100ms; }

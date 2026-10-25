@@ -6,6 +6,9 @@
 # for the TEST account only; when set (and sign_in is on), the run signs in and screenshots
 # Trips, a trip's Plan tab and the import sheet. Never put tokens in workflow inputs: this repo
 # is public and inputs show in the run page.
+# Runs on every pull request to main that touches the app (about 16 minutes) and by hand. The script asserts
+# that the app process is alive, the screen is not blank, no crash report exists and each tap changed the screen
+# (results.json in the ios-simulator-shots artifact); any failed check fails the job.
 name: iOS simulator
 
 on:
@@ -24,8 +27,9 @@ on:
       demo_params:
         description: "Demo build instead (no account, fixture data), e.g. flagship=10 for the shared-traveller card. Skips sign-in"
         default: ""
-  push:
-    branches: [claude/objective-ptolemy-052302]
+  pull_request:
+    branches: [main]
+    paths: [src/**, ios/**, package.json, package-lock.json, scripts/ios-sim-shots.py, .github/workflows/ios.yml]
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -87,7 +91,7 @@ jobs:
           DEMO: ${{ inputs.demo_params && '1' || '' }}
           DEEPLINK: ${{ github.event_name == 'workflow_dispatch' && inputs.sign_in && !inputs.demo_params && secrets.IOS_TEST_DEEPLINK || '' }}
           TRIP: ${{ inputs.trip || 'Lisbon' }}
-          TAPS: ${{ inputs.taps }}
+          TAPS: ${{ inputs.taps || 'trip=200,210;plan=81,297;back=42,91;import=236,96' }}
         run: python3 scripts/ios-sim-shots.py
 
       - name: App log

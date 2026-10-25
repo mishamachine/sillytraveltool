@@ -2,13 +2,14 @@
 # Shared emulators on the owner's Mac collide between sessions, so app checks run here instead.
 # The APK is a demo build (VITE_DEMO=1: signed in with fixture data, no network account, no secrets);
 # VITE_DEMO_PARAMS=limits=1 makes new trips hit the free-plan limit so the paywall flow can be checked.
-# Results: the android-emulator-shots artifact (screenshots + results.json).
+# Runs on every pull request to main that touches the app (and by hand). Results: the android-emulator-shots
+# artifact (screenshots + results.json); the job fails when any check in results.json fails.
 name: Android emulator
 
 on:
   workflow_dispatch:
-  push:
-    branches: [feat/first-class-paywall]
+  pull_request:
+    branches: [main]
     paths: [src/**, android/**, package.json, package-lock.json, scripts/android-emu-shots.mjs, .github/workflows/android.yml]
 
 concurrency:

@@ -2,10 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import { initSentry } from './lib/sentry'
-import { initAnalytics } from './lib/analytics'
+import { initAnalytics, analyticsEnabled } from './lib/analytics'
 import { applyTheme, getSavedTheme } from './lib/theme'
 
-initSentry()
+// Crash reports follow the "Share usage stats" switch, so Sentry doesn't start when it is off
+if (analyticsEnabled()) initSentry()
 initAnalytics()
 applyTheme(getSavedTheme())
 

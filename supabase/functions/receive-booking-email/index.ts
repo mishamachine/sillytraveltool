@@ -174,7 +174,7 @@ Deno.serve(withGoogleScope(async (req) => {
     // ── 3. Look up user by token (the only accepted path) ─────
     if (!token) return err('No booking token in recipient address', 404)
 
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.118.0')
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
     const { data: profile, error: profileErr } = await supabase

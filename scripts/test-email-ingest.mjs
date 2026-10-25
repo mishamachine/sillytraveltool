@@ -120,10 +120,18 @@ async function runWebhook() {
   process.exitCode = passed === selected.length ? 0 : 1
 }
 
-if (!SUPABASE_URL) throw new Error('No Supabase URL (set STT_SUPABASE_URL or VITE_SUPABASE_URL in .env.local)')
-if (mode === 'parse') await runParse()
-else if (mode === 'webhook') await runWebhook()
-else {
-  console.log('Usage: node scripts/test-email-ingest.mjs parse|webhook [fixture-id …]')
-  console.log(`Fixtures (${fixtures.length}): ${fixtures.map(f => f.id).join(', ')}`)
+// This is a live test against the Supabase project, so it is not part of the CI gate (check.yml runs `npm test`,
+// which includes this file): without credentials it explains itself and exits 0 instead of failing the run.
+const credentials = mode === 'parse' ? process.env.STT_TEST_JWT
+  : mode === 'webhook' ? process.env.RESEND_WEBHOOK_SECRET && process.env.STT_BOOKING_ADDRESS
+  : null
+if (!credentials || !SUPABASE_URL) {
+  console.log('SKIP test-email-ingest: live test against Supabase (needs the network and credentials).')
+  console.log('  parse:   STT_TEST_JWT=<access token of a signed-in test user> node scripts/test-email-ingest.mjs parse [fixture-id …]')
+  console.log('  webhook: RESEND_WEBHOOK_SECRET=whsec_… STT_BOOKING_ADDRESS=<token>@bookings.sillytraveltool.com node scripts/test-email-ingest.mjs webhook [fixture-id …]')
+  if (!SUPABASE_URL) console.log('  Also set STT_SUPABASE_URL, or VITE_SUPABASE_URL in .env.local.')
+  console.log(`  Fixtures (${fixtures.length}): ${fixtures.map(f => f.id).join(', ')}`)
+  process.exit(0)
 }
+if (mode === 'parse') await runParse()
+else await runWebhook()

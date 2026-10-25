@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
   }
   const event = JSON.parse(raw)
   try {
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.118.0')
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     // Which Stripe mode the site is in, so test rows don't grant First Class once live keys are in
     await admin.from('stripe_sync').upsert({ id: 1, livemode: !!event.livemode })

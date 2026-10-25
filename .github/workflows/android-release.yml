@@ -1,0 +1,87 @@
+# Android release: a signed App Bundle (.aab) for Google Play, built on a GitHub Linux runner.
+# Run: Actions → "Android release" → Run workflow (or `gh workflow run android-release.yml --ref <branch>`), then
+# download the android-release-aab artifact and upload it in Play Console → Testing (docs/NATIVE_RELEASE.md).
+#
+# Secrets (setup commands in docs/NATIVE_RELEASE.md; never echoed):
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY   the same public values the website ships
+#   VITE_REVENUECAT_ANDROID_KEY                  RevenueCat public SDK key (goog_…); without it the app has no paywall
+#   VITE_SENTRY_DSN                              optional: crash reports from the app
+#   STT_KEYSTORE_B64                             base64 of ~/.stt/upload-keystore.jks (the Play upload key)
+#   STT_KEYSTORE_PASSWORD, STT_KEY_ALIAS, STT_KEY_PASSWORD   from ~/.stt/keystore.env
+# versionCode comes from package.json "versionCode"; Play refuses one it has seen, so bump it per upload.
+name: Android release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: Override versionCode for this build only (blank = package.json versionCode)
+        default: ''
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Web build (native) + cap sync android
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_REVENUECAT_ANDROID_KEY: ${{ secrets.VITE_REVENUECAT_ANDROID_KEY }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+        run: |
+          test -n "$VITE_SUPABASE_URL" && test -n "$VITE_SUPABASE_ANON_KEY" || { echo "::error::VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY secrets are missing"; exit 1; }
+          [ -n "$VITE_REVENUECAT_ANDROID_KEY" ] || echo "::warning::VITE_REVENUECAT_ANDROID_KEY is not set: this build has no paywall (First Class can't be bought in it)"
+          case "$VITE_REVENUECAT_ANDROID_KEY" in test_*) echo "::warning::VITE_REVENUECAT_ANDROID_KEY is a RevenueCat Test Store key: purchases are not real";; esac
+          npm run build:native
+
+      - name: Upload key
+        env:
+          STT_KEYSTORE_B64: ${{ secrets.STT_KEYSTORE_B64 }}
+        run: |
+          [ -n "$STT_KEYSTORE_B64" ] || { echo "::error::STT_KEYSTORE_B64 secret is missing (docs/NATIVE_RELEASE.md)"; exit 1; }
+          echo "$STT_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
+          echo "STT_KEYSTORE_PATH=$RUNNER_TEMP/upload-keystore.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed App Bundle
+        env:
+          STT_KEYSTORE_PASSWORD: ${{ secrets.STT_KEYSTORE_PASSWORD }}
+          STT_KEY_ALIAS: ${{ secrets.STT_KEY_ALIAS }}
+          STT_KEY_PASSWORD: ${{ secrets.STT_KEY_PASSWORD }}
+          STT_VERSION_CODE: ${{ inputs.version_code }}
+        run: cd android && ./gradlew bundleRelease --no-daemon -q
+
+      - name: Check the signature
+        run: |
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          jarsigner -verify "$AAB" | tee /dev/stderr | grep -q "jar verified" || { echo "::error::The bundle is not signed"; exit 1; }
+          keytool -printcert -jarfile "$AAB" | grep -E "Owner|SHA256:" | head -2
+          ls -la "$AAB"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 14
+
+      - name: Remove the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-keystore.jks"

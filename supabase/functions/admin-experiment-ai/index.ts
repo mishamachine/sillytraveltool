@@ -56,7 +56,7 @@ Deno.serve(withRequestScope(async (req) => {
   try {
     const auth = req.headers.get('Authorization')
     if (!auth) return json({ error: 'Unauthorized' }, 401)
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.118.0')
     const asCaller = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } })
     const { data: role, error: guardErr } = await asCaller.rpc('admin_guard', { p_min: 'owner' })
     if (guardErr || !role) return json({ error: guardErr?.message || 'not_admin' }, 403)
