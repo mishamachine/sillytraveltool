@@ -111,18 +111,20 @@ if DEMO:
         swipe()  # Today to its end: "Full trip plan" then sits just above the tab bar
     # "Full trip plan" (or the "Later today" row, which opens the plan too) sits 130-260 pt above the bottom,
     # depending on how much of Today fits: tap upward until the screen changes
-    def screen_hash():
+    def screen_now():  # a 48 px bitmap of the screen: opening the plan changes most of it, a clock tick barely
         run('xcrun', 'simctl', 'io', UDID, 'screenshot', '/tmp/stt-probe.png')
-        with open('/tmp/stt-probe.png', 'rb') as f:
-            return hash(f.read())
+        run('sips', '-Z', '48', '-s', 'format', 'bmp', '/tmp/stt-probe.png', '--out', '/tmp/stt-probe.bmp')
+        with open('/tmp/stt-probe.bmp', 'rb') as f:
+            return f.read()
     spots = [TAPS['plan_demo'].split(',')] if 'plan_demo' in TAPS else \
         [(str(round(screen['width'] / 2)), str(round(screen['height'] - up))) for up in range(133, 270, 25)]
     for x, y in spots:
-        before = screen_hash()
+        before = screen_now()
         print(f'tap Full trip plan at {x},{y}', flush=True)
         run('axe', 'tap', '-x', x, '-y', y, '--udid', UDID)
         time.sleep(4)
-        if screen_hash() != before:
+        after = screen_now()
+        if sum(a != b for a, b in zip(before, after)) > len(before) * 0.3:
             break
     shot('03-plan-00')
     for i in range(1, 16):
