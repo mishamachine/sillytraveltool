@@ -101,26 +101,22 @@ function ProgressBar({ index, total }) {
   )
 }
 
-function Check({ children }) {
-  return (
-    <li className="tour-plan-item">
-      <Icon name="check" size={18} strokeWidth={2.4} className="tone-success" />
-      <Text variant="body" as="span">{children}</Text>
-    </li>
-  )
-}
+const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+const count = (n, one, many) => `${NUMBER_WORDS[n] ?? n} ${n === 1 ? one : many}`
 
-/** Free plan first ("generous, use it"), then what First Class adds. Numbers only show while limits are on. */
+/** First Class first, then the free plan as a "try it first" card. Limits only show while they are switched on. */
 function PlansCard() {
   const { plan, settings } = usePlanStore()
   const fl = settings.free_limits || {}
   const founders = settings.founders_offer?.active !== false
   const limitsOn = fl.enabled === true
+  const tripsLimited = limitsOn && fl.trips_on !== false
   const limits = [
-    limitsOn && fl.trips_on !== false && `${fl.upcoming_trips} upcoming trips`,
-    limitsOn && fl.reservations_on !== false && `${fl.reservations_per_trip} reservations per trip`,
-    limitsOn && fl.imports_on !== false && `${fl.email_imports} forwarded emails`,
+    tripsLimited && count(fl.upcoming_trips, 'upcoming trip', 'upcoming trips'),
+    limitsOn && fl.reservations_on !== false && `${count(fl.reservations_per_trip, 'reservation', 'reservations')} ${tripsLimited ? 'each' : 'per trip'}`,
+    limitsOn && fl.imports_on !== false && count(fl.email_imports, 'forwarded email', 'forwarded emails'),
   ].filter(Boolean)
+  const limitsLine = limits.join(', ').replace(/^./, c => c.toUpperCase())
 
   if (isFirstClass(plan)) return (
     <Card variant="inverse" className="tour-fc">
@@ -132,19 +128,6 @@ function PlansCard() {
 
   return (
     <>
-      <Card className="tour-plan-free">
-        <Stack row justify="between" align="center">
-          <Text variant="card-title" as="h2">Free plan</Text>
-          <Chip tone="success" icon="check">Yours now</Chip>
-        </Stack>
-        <ul className="tour-plan-list">
-          <Check>Trips, plans, weather and packing lists</Check>
-          <Check>City guides, HONK and every travel tool</Check>
-          <Check>Forward, paste or upload your bookings</Check>
-          <Check>Plan together with your travel crew</Check>
-        </ul>
-        {limits.length > 0 && <Text variant="caption" tone="muted" as="p">Includes {limits.join(', ')}.</Text>}
-      </Card>
       <Card variant="inverse" className="tour-fc">
         <Stack gap={1}>
           <Overline tone="accent-on-inverse">First Class</Overline>
@@ -171,6 +154,17 @@ function PlansCard() {
         )}
         <Text variant="caption" tone="inverse-muted" as="p" className="tour-fc__price">
           {STORE === 'stripe' ? (founders ? 'Or $14.99 a year. ' : '$14.99 a year. ') : founders ? 'Or pay yearly. ' : ''}It also keeps a small team (and one Goose) flying.
+        </Text>
+      </Card>
+      <Card className="tour-plan-free">
+        <Stack row justify="between" align="center">
+          <Text variant="card-title" as="h2">Try it first</Text>
+          <Chip tone="success" icon="check">Yours now</Chip>
+        </Stack>
+        <Text variant="body" tone="secondary" as="p">
+          {limits.length > 0
+            ? `${limitsLine}. The core tools work the same.`
+            : 'Trips, plans, weather, packing lists, city guides and HONK, all yours to start with.'}
         </Text>
       </Card>
     </>
@@ -282,8 +276,8 @@ export default function Onboarding({ onDone, replay = false }) {
           <>
             <div className="tour-copy">
               <Overline>Your plan</Overline>
-              <Text variant="h1" id="onb-title">{paid ? 'That’s the tour' : 'The free plan is generous. Use it lots.'}</Text>
-              {!paid && <Text variant="body-lg" tone="secondary">Everything you just saw is in it, and we hope you plan plenty of trips with it.</Text>}
+              <Text variant="h1" id="onb-title">{paid ? 'That’s the tour' : 'Pick how you travel.'}</Text>
+              {!paid && <Text variant="body-lg" tone="secondary">Every trip you plan, kept in one calm place.</Text>}
             </div>
             <PlansCard />
           </>
@@ -327,8 +321,8 @@ export default function Onboarding({ onDone, replay = false }) {
           paid
             ? <Button variant="dark" size="lg" block onClick={() => finish()}>Done</Button>
             : <>
-              <Button variant="primary" size="lg" block icon="sparkles" onClick={() => finish(true)}>See First Class</Button>
-              <Button variant="ghost" block onClick={() => finish()}>Start with the free plan</Button>
+              <Button variant="primary" size="lg" block icon="sparkles" onClick={() => finish(true)}>Get First Class</Button>
+              <Button variant="ghost" block className="tour-free" onClick={() => finish()}>Start with the free plan</Button>
               <LinkButton className="tour-report" href={reportIssueHref('tour')} onClick={() => trackReport('tour')}>Found a bug? Report an issue</LinkButton>
             </>
         ) : (
