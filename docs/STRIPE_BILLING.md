@@ -4,6 +4,12 @@ Branch `feat/stripe-web-billing` → PR https://github.com/mishamachine/sillytra
 Worktree used to build it: `../silly-travel-tool-stripe` (remove after merge: `git worktree remove ../silly-travel-tool-stripe`).
 Related plans: `docs/PAYWALL_PLAN.md` (product rules, prices, screens), `docs/ADMIN_PLAN.md` (cockpit, Money tab).
 
+## LIVE since 2026-10-25
+Live account `acct_1UTcxRJ3Q35Z71yD`: product `prod_VVMUdDYZ1m1GP0` (secret `STRIPE_PRODUCT_ID`), prices with the same
+lookup keys, portal `bpc_1UULpdJ3Q35Z71yD1SDkNn2G`, webhook `we_1UULrbJ3Q35Z71yDpvVuWo8N` (18 events). Supabase holds the
+live restricted key and webhook secret. Proof and details: `docs/HANDOFF.md` 2026-10-25. The sandbox objects below are
+for reference only; sandbox purchases no longer count.
+
 ## Decisions (owner)
 - **Web sells First Class straight through Stripe**, no RevenueCat on the web. The apps will use Google Play Billing /
   StoreKit later; Apple/Google rules forbid linking to web checkout from inside the apps.

@@ -1,5 +1,31 @@
 # STT Handoff — 2026-10-21
 
+## Update — Stripe web billing is LIVE (2026-10-25, live account `acct_1UTcxRJ3Q35Z71yD`)
+- **Owner did:** Supabase org → **Pro**; Stripe activation (business, bank, identity; Payments + Payouts active, no open
+  tasks); the restricted key and the three Supabase secrets; the real purchase and refund. Claude filled the public details
+  (support email hello@sillytraveltool.com, support URL /help/, privacy + terms URLs; descriptor `SILLY TRAVEL TOOL`).
+- **Tax:** owner chose threshold monitoring only (no `automatic_tax`, no code change).
+- **Live objects** (dashboard; the Stripe MCP still only sees the sandbox, Workbench shell is read-only in live):
+  product `prod_VVMUdDYZ1m1GP0` (dashboard can't set the id `stt_first_class`, so Supabase secret
+  `STRIPE_PRODUCT_ID` holds it for admin-stripe's coupon `applies_to`), tax code `txcd_10103001`, metadata `app=stt`;
+  prices `price_1UULlzJ3Q35Z71yDHOuJzytY` (`stt_first_class_yearly`, $14.99/yr) and `price_1UULlzJ3Q35Z71yDeB8Qt8S6`
+  (`stt_first_class_lifetime_founding`, $29.99 once), both tax-exclusive with `metadata.plan`; default portal
+  `bpc_1UULpdJ3Q35Z71yD1SDkNn2G` (cancel at period end + reasons, card update, invoices, email/address, no plan
+  switching, return /upgrade/); webhook `we_1UULrbJ3Q35Z71yDpvVuWo8N` → `/functions/v1/stripe-webhook`, same 18 events,
+  API `2026-09-30.endive` (= account default). No cockpit codes to recreate (`promo_codes` empty); STTTEST50 stays sandbox.
+- **Key:** restricted `stt-supabase-functions` (the account's only secret key), 13 permissions. Write: Customers, Checkout
+  Sessions, Customer Portal, Subscriptions (delete-account), Coupons, Promotion Codes. Read: Prices, Products, Charges and
+  Refunds, Payment Intents, Invoices, Balance, Payment Disputes.
+- **Supabase secrets** (names): `STRIPE_SECRET_KEY` (07:45 UTC), `STRIPE_WEBHOOK_SECRET` (07:52), `STRIPE_PRODUCT_ID` (09:04).
+- **Smoke test:** `billing` returned `cs_live_` Checkout for lifetime and yearly; live `customer.created` → `stripe-webhook`
+  200 (signature OK); cockpit Sync now OK, `stripe_sync.livemode = true`.
+- **Real purchase (owner's card, machinemisha, `/upgrade/`):** sub `sub_1UUMJ6J3Q35Z71yDW35GCTLx`, charge
+  `ch_3UUMJ3J3Q35Z71yD0DolPluo` $14.99 (plan yearly, invoice `in_1UUMJ2J3Q35Z71yDzEFg3Gec`, fee $0.73) →
+  `entitlement()` first_class; 6/6 webhook deliveries 200. Then cancel now + full refund in the dashboard: refund
+  `re_3UUMJ3J3Q35Z71yD0CO9rndV` → entitlement `free`, sub canceled, ledger shows −$14.99 refund. Net cost: the $0.73 fee.
+- **Open:** Checkout still offers Link's **Bank** and **Klarna** (not covered by `excluded_payment_method_types`); turn them
+  off in Stripe → Settings → Payment methods if wanted. Sandbox webhook `we_1UTo8y…` can be disabled.
+
 ## Update — signed Android beta APK for sideloading (2026-10-25, PR "Android release: also build a signed universal APK")
 - `android-release.yml` now also runs `./gradlew assembleRelease` (same upload key, same versionCode) and uploads the universal APK as the `android-release-apk` artifact (7-day retention; the AAB artifact is unchanged).
 - Private hand-off only: the APK goes to the owner's Google Drive folder "STT Android beta" (not shared) and the Actions artifact (needs GitHub login). Never a public URL.
