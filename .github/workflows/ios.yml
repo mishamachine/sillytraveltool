@@ -24,6 +24,9 @@ on:
       taps:
         description: "Tap points in iOS points (measured on iPhone 17 Pro): trip=x,y;plan=x,y;back=x,y;import=x,y"
         default: "trip=200,210;plan=81,297;back=42,91;import=236,96"
+      demo_params:
+        description: "Demo build instead (no account, fixture data), e.g. flagship=10 for the shared-traveller card. Skips sign-in"
+        default: ""
   pull_request:
     branches: [main]
     paths: [src/**, ios/**, package.json, package-lock.json, scripts/ios-sim-shots.py, .github/workflows/ios.yml]
@@ -54,6 +57,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_DEMO: ${{ inputs.demo_params && '1' || '' }}
+          VITE_DEMO_PARAMS: ${{ inputs.demo_params }}
         run: npx vite build --mode native && npx cap sync ios
 
       - name: Build for the iPhone Simulator
@@ -83,7 +88,8 @@ jobs:
       - name: Launch and screenshot
         env:
           OUT: shots
-          DEEPLINK: ${{ github.event_name == 'workflow_dispatch' && inputs.sign_in && secrets.IOS_TEST_DEEPLINK || '' }}
+          DEMO: ${{ inputs.demo_params && '1' || '' }}
+          DEEPLINK: ${{ github.event_name == 'workflow_dispatch' && inputs.sign_in && !inputs.demo_params && secrets.IOS_TEST_DEEPLINK || '' }}
           TRIP: ${{ inputs.trip || 'Lisbon' }}
           TAPS: ${{ inputs.taps || 'trip=200,210;plan=81,297;back=42,91;import=236,96' }}
         run: python3 scripts/ios-sim-shots.py
@@ -99,7 +105,8 @@ jobs:
       - name: Other screen sizes
         if: always()
         env:
-          DEEPLINK: ${{ github.event_name == 'workflow_dispatch' && inputs.sign_in && secrets.IOS_TEST_DEEPLINK || '' }}
+          DEMO: ${{ inputs.demo_params && '1' || '' }}
+          DEEPLINK: ${{ github.event_name == 'workflow_dispatch' && inputs.sign_in && !inputs.demo_params && secrets.IOS_TEST_DEEPLINK || '' }}
         run: |
           xcrun simctl shutdown "$UDID" || true  # one simulator at a time; runners struggle with three
           xcrun simctl list devices available -j | python3 -c '

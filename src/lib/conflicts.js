@@ -2,6 +2,7 @@
 // overlap, connections too tight to make, nights with nowhere to sleep, and the same booking twice.
 // Pure: bookings in, [{ id, kind, title, detail, ids }] out. Self-contained so scripts/test-conflicts.mjs runs in Node.
 import { dayIn, addDays } from '../../supabase/functions/_shared/route.js'
+import { legKey, travellerOf } from './sharedLegs.js'
 
 const MIN = 60000
 const LENGTH_MIN = { restaurant: 90, activity: 120, other: 60 } // how long a reservation lasts when it has no end
@@ -43,11 +44,12 @@ export function planConflicts(trip, bookings = []) {
   const out = []
   const add = (kind, title, detail, ids) => out.push({ id: `${kind}:${ids.join(',')}`, kind, title, detail, ids })
 
-  // Same booking twice: same confirmation number, type and start
+  // Same booking twice: same confirmation number, type and start, for the same traveller (a family on one
+  // booking is one row per traveller, not a duplicate)
   const seen = new Map()
   for (const b of mine) {
     const start = b.departure_time || b.check_in_date || (b.activity_date ? `${b.activity_date} ${b.activity_time || ''}` : '')
-    const key = b.confirmation_number ? `${b.type}|${b.confirmation_number}|${start}` : `${b.type}|${name(b).toLowerCase()}|${start}`
+    const key = `${b.confirmation_number ? `${b.type}|${b.confirmation_number}` : `${b.type}|${name(b).toLowerCase()}`}|${start}|${travellerOf(b)}`
     if (!start) continue
     if (seen.has(key)) add('duplicate', `${name(b)} is in the plan twice`, 'Same booking, same time. Delete one.', [seen.get(key).id, b.id])
     else seen.set(key, b)
@@ -78,7 +80,8 @@ export function planConflicts(trip, bookings = []) {
   }
 
   // Connections too tight: a flight needs 90 minutes after landing, anything else 45
-  const legs = timed.filter(x => isLeg(x.b))
+  // Travellers on the same flight or train are one leg
+  const legs = timed.filter((x, i, all) => isLeg(x.b) && !(legKey(x.b) && all.slice(0, i).some(y => legKey(y.b) === legKey(x.b))))
   for (let i = 1; i < legs.length; i++) {
     const prev = legs[i - 1], next = legs[i]
     const gap = (next.t.start - prev.t.end) / MIN

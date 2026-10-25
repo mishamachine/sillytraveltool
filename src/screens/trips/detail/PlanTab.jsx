@@ -17,9 +17,14 @@ import { lookupZone } from '../../../lib/zoneLookup'
 import ActivityFormSheet from './ActivityFormSheet'
 import { ACTIVITY_CATEGORIES } from './planKinds'
 import BookingDetailSheet from './BookingDetailSheet'
+import SharedLegCard from './SharedLegCard'
+import { groupSharedLegs, nearMisses } from '../../../lib/sharedLegs'
+import { track } from '../../../lib/analytics'
 
 // Flights and trains stand on their own card; everything else sits in a list group
 const STANDALONE = new Set(['flight', 'train', 'bus', 'ferry'])
+// Trips whose near-miss legs were already counted this session
+const nearMissSent = new Set()
 
 // Times are local to the place (departure airport, venue); a zone name appears when it differs from the phone.
 function trailingFor(item, tz) {
@@ -170,15 +175,21 @@ function StandaloneCard({ item, ...rest }) {
   )
 }
 
-/** Day's items as a run of standalone cards and list groups. */
+/** Day's items as a run of standalone cards and list groups; travellers on one flight or train share a card. */
 function DayBlock({ items, ...rowProps }) {
   const blocks = []
+  const placed = new Set()
   items.forEach(item => {
-    if (item._kind === 'booking' && STANDALONE.has(bookingKind(item))) blocks.push({ solo: item })
+    const leg = item._kind === 'booking' && rowProps.shared?.get(item.id)
+    if (leg) { if (!placed.has(leg.key)) { placed.add(leg.key); blocks.push({ leg }) } }
+    else if (item._kind === 'booking' && STANDALONE.has(bookingKind(item))) blocks.push({ solo: item })
     else if (blocks.length && blocks[blocks.length - 1].group) blocks[blocks.length - 1].group.push(item)
     else blocks.push({ group: [item] })
   })
-  return blocks.map((b, i) => b.solo
+  return blocks.map((b, i) => b.leg
+    ? <SharedLegCard key={b.leg.key} items={b.leg.items} me={rowProps.currentUserId} hideConf={rowProps.hideConf}
+        trailing={trailingFor(b.leg.items[0], rowProps.tz)} onOpen={rowProps.onOpen} />
+    : b.solo
     ? <StandaloneCard key={b.solo.id} item={b.solo} {...rowProps} />
     : <Card key={`g${i}`} variant="group">{b.group.map(item => <ItemRow key={item.id} item={item} {...rowProps} />)}</Card>)
 }
@@ -238,6 +249,14 @@ export default function PlanTab({ trip, readOnly }) {
   const stops = [...(trip.trip_stops || [])].sort((a, b) => a.position - b.position)
   const multi = stops.filter(s => s.kind === 'stay').length >= 2
   const warnings = readOnly ? [] : planConflicts(trip, tripBookings)
+  // Same flight or train, several travellers: one card. Legs that miss by a minute are counted, never merged.
+  const shared = groupSharedLegs(items, currentUserId)
+  const misses = nearMisses(tripBookings)
+  useEffect(() => {
+    if (!misses || nearMissSent.has(trip.id)) return
+    nearMissSent.add(trip.id)
+    track('shared_leg_near_miss', { count: misses })
+  }, [trip.id, misses])
 
   const byDay = {}
   const unscheduled = []
@@ -251,12 +270,17 @@ export default function PlanTab({ trip, readOnly }) {
   // Same rule as the database: the person who added a booking, or the trip owner, can change it
   const canEdit = (item) => !readOnly && item._kind === 'booking' && (canDelete(item) || trip.owner_id === currentUserId)
   const rowProps = {
-    tz, currentUserId, readOnly,
+    tz, currentUserId, readOnly, shared,
+    // View-only travellers don't see other travellers' confirmation numbers (display only until RLS enforces it)
+    hideConf: !!trip._isShared && trip._myRole === 'viewer',
     onOpen: (item) => setSheet({ detail: item }),
     onToggle: (item, v) => toggleActivity(item.id, v),
   }
   const pick = (t) => setSheet(t.plan ? 'plan' : { type: t.type, mode: t.mode })
-  const detail = sheet?.detail && [...items, ...ideas].find(i => i.id === sheet.detail.id && i._kind === sheet.detail._kind)
+  const found = sheet?.detail && [...items, ...ideas].find(i => i.id === sheet.detail.id && i._kind === sheet.detail._kind)
+  // A viewer opening another traveller's line on a shared card doesn't see their confirmation there either
+  const detail = found && rowProps.hideConf && shared.has(found.id) && found.created_by !== currentUserId
+    ? { ...found, confirmation_number: null } : found
   // "Confirm a visit" on an idea: the booking form, filled in; the booking then replaces the idea
   const confirmIdea = async (idea) => {
     const local_tz = idea.location_lat != null ? await lookupZone({ lat: idea.location_lat, lng: idea.location_lng }) : null

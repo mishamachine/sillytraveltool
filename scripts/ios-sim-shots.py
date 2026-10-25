@@ -12,6 +12,7 @@ the screen. WKWebView text is not in the accessibility tree and there is no OCR 
 so the "Continue with Google / email" labels themselves cannot be asserted here.
 
 env: UDID, OUT (screenshot dir), DEEPLINK (optional: signs the test account in),
+     DEMO=1 (demo build with flagship=N: opens the plan and scrolls to the shared-traveller card),
      TRIP (optional: text in the trip card to open, default "Lisbon"),
      PREFIX (file-name prefix), ONLY_TRIPS=1 (stop after the Trips screen), LAUNCH_WAIT (seconds, default 10),
      TAPS (optional: "trip=x,y;plan=x,y;back=x,y;import=x,y" in points). WKWebView content is
@@ -27,6 +28,7 @@ TAPS = dict(p.split("=") for p in os.environ.get("TAPS", "").replace(" ", "").sp
 PREFIX = os.environ.get("PREFIX", "")
 ONLY_TRIPS = os.environ.get("ONLY_TRIPS") == "1"
 LAUNCH_WAIT = int(os.environ.get("LAUNCH_WAIT", "10"))
+DEMO = os.environ.get("DEMO") == "1"
 BUNDLE = 'com.sillytraveltool.app'
 os.makedirs(OUT, exist_ok=True)
 
@@ -217,6 +219,43 @@ if DEEPLINK:
     trips = shot('02-trips')
     screen_changed('deep link signs in (screen changed from signed-out)', signed_out, trips)
     check('app process still running after sign-in', app_pid() is not None)
+
+if DEMO:
+    # Demo build, no account: the flagship trip's BCN -> BER flight, one card for three travellers.
+    # WKWebView content is not in the accessibility tree here, so this taps by position and keeps every scroll step.
+    def swipe(y0=640, y1=340):
+        run('axe', 'swipe', '--start-x', '200', '--start-y', str(y0), '--end-x', '200', '--end-y', str(y1), '--udid', UDID, check=False)
+        time.sleep(1.5)
+    time.sleep(5)
+    shot('02-demo-today')
+    frames = [f for l, f in elements()]
+    screen = max(frames, key=lambda f: f['width'] * f['height']) if frames else {'width': 402, 'height': 874}
+    for _ in range(3):
+        swipe()  # Today to its end: "Full trip plan" then sits just above the tab bar
+    # "Full trip plan" (or the "Later today" row, which opens the plan too) sits 130-260 pt above the bottom,
+    # depending on how much of Today fits: tap upward until the screen changes
+    def changed_share(before, after):  # same measure as screen_changed(): opening the plan changes most of it
+        x, y = png_pixels(before), png_pixels(after)
+        if not x or not y or len(x[2]) != len(y[2]):
+            return 0
+        return sum(1 for p, q in zip(x[2], y[2]) if abs(p[0] - q[0]) + abs(p[1] - q[1]) + abs(p[2] - q[2]) > 48) / max(1, len(x[2]))
+    spots = [TAPS['plan_demo'].split(',')] if 'plan_demo' in TAPS else \
+        [(str(round(screen['width'] / 2)), str(round(screen['height'] - up))) for up in range(133, 270, 25)]
+    share = 0
+    for i, (x, y) in enumerate(spots):
+        before = shot(f'03-probe-{i}')
+        print(f'tap Full trip plan at {x},{y}', flush=True)
+        run('axe', 'tap', '-x', x, '-y', y, '--udid', UDID)
+        time.sleep(4)
+        share = changed_share(before, shot(f'03-probe-{i}-after'))
+        if share > 0.15:
+            break
+    check('demo: Full trip plan opens the plan', share > 0.15, f'{share:.0%} of the screen changed')
+    shot('03-plan-00')
+    for i in range(1, 16):
+        swipe(600, 350)
+        shot(f'03-plan-{i:02d}')
+    check('app process still running after the demo walk', app_pid() is not None)
 
 if DEEPLINK and not ONLY_TRIPS:
     check('trip card tap target found', tap(TRIP, timeout=8, key="trip"))

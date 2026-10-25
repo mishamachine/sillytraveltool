@@ -15,15 +15,25 @@ import {
   Screen, ScreenHeader, Section, Card, Button, IconButton, IconTile, ListRow, Text, Overline, Stack, Icon, GooseMark, category,
 } from '../../ui'
 import { safeUrl } from '../../lib/safeUrl'
+import { groupSharedLegs, travellerName } from '../../lib/sharedLegs'
 
 function placeOf(b) {
   return b.venue_address || b.hotel_address || b.venue_name || b.hotel_name || b.location_address || b.location_name ||
     (b.departure_airport ? (b.type === 'flight' ? `${b.departure_airport} airport` : b.departure_airport) : null)
 }
 
+/** "with Maria and Tom" / "with Maria, Tom and 2 more": the others on a shared flight or train, by first name. */
+function withLine(others) {
+  const names = [...new Set(others.map(b => travellerName(b).split(' ')[0]))]
+  if (!names.length) return null
+  if (names.length === 1) return `with ${names[0]}`
+  if (names.length === 2) return `with ${names[0]} and ${names[1]}`
+  return `with ${names[0]}, ${names[1]} and ${names.length - 2} more`
+}
+
 const SHOW_LABEL = { flight: 'Show boarding info', activity: 'Show tickets', restaurant: 'Show reservation', hotel: 'Show booking', transport: 'Show tickets' }
 
-function NextUp({ item, tz, onShow }) {
+function NextUp({ item, tz, companions, onShow }) {
   const start = bookingStart(item, tz)
   const hint = zoneHint(bookingZone(item, tz))
   const cat = category(bookingKind(item))
@@ -39,6 +49,7 @@ function NextUp({ item, tz, onShow }) {
         <Stack gap={1} grow>
           <Text variant="title" id="next-up-title">{item.title}</Text>
           {bookingMeta(item) && <Text variant="caption" tone="muted">{bookingMeta(item)}</Text>}
+          {companions && <Text variant="caption" tone="muted" truncate>{companions}</Text>}
         </Stack>
       </Stack>
       <Stack row gap={2} wrap>
@@ -55,6 +66,7 @@ export default function TodayView({ trip, onShowAll }) {
   const { bookings, activities, fetchTripDetail, setActiveTrip, activeTrip } = useTripsStore()
   const openExplore = useUIStore(s => s.openExplore)
   const tempUnit = useAuthStore(s => (s.profile?.temp_unit === 'F' ? 'fahrenheit' : 'celsius'))
+  const me = useAuthStore(s => s.user?.id)
   const [weather, setWeather] = useState(null)
   const [now, setNow] = useState(() => new Date())
   const [detail, setDetail] = useState(null)
@@ -92,9 +104,15 @@ export default function TodayView({ trip, onShowAll }) {
   ], tz)
   // Next up prefers items with a real clock time (a hotel check-in date alone is not "next")
   const soon = items.filter(b => bookingStart(b, tz) > now && bookingDay(b, tz) <= tomorrow)
-  const next = soon.find(hasClockTime) || soon[0]
-  const laterToday = items.filter(b => b !== next && bookingDay(b, tz) === today && bookingStart(b, tz) > now)
-  const tomorrowFirst = items.find(b => bookingDay(b, tz) === tomorrow && b !== next)
+  // A flight or train others on the trip are on too shows once: your own booking of it, "with Maria and Tom"
+  const shared = groupSharedLegs(tripBookings, me)
+  const once = b => b._activity || !shared.has(b.id) || shared.get(b.id).items[0] === b
+  const first = soon.find(hasClockTime) || soon[0]
+  const leg = first && !first._activity ? shared.get(first.id) : null
+  const next = leg ? leg.items[0] : first
+  const companions = leg ? withLine(leg.items.filter(b => b !== next && b.created_by !== me)) : null
+  const laterToday = items.filter(b => b !== next && once(b) && bookingDay(b, tz) === today && bookingStart(b, tz) > now)
+  const tomorrowFirst = items.find(b => bookingDay(b, tz) === tomorrow && b !== next && once(b))
   const { n, total } = tripDay(trip)
   const w = weather && weatherInfo(weather.now.code)
   const openPlan = () => setActiveTrip(trip)
@@ -113,7 +131,7 @@ export default function TodayView({ trip, onShowAll }) {
         )}
       />
 
-      {next ? <NextUp item={next} tz={tz} onShow={() => setDetail(next)} /> : (
+      {next ? <NextUp item={next} tz={tz} companions={companions} onShow={() => setDetail(next)} /> : (
         <Card variant="raised">
           <Overline tone="accent">Today</Overline>
           <Text variant="title">Nothing else booked today</Text>
