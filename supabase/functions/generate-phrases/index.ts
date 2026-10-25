@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { withRequestScope } from '../_shared/usage.ts'
+import { targetLanguage, sourceLanguage } from './languages.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -20,10 +21,13 @@ Deno.serve(withRequestScope(async (req) => {
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
     const raw = await req.json()
-    const languageCode = cap(raw.languageCode, 12), languageName = cap(raw.languageName, 60)
+    // Codes from a fixed list; the names that reach the prompt and the permanent cache are ours, not the request's
+    const target = targetLanguage(raw.languageCode)
     // The traveler's own language; English unless they picked another
-    const sourceCode = cap(raw.sourceCode, 12) || 'en', sourceName = cap(raw.sourceName, 60) || 'English'
-    if (!languageCode || !languageName) return new Response(JSON.stringify({ error: 'languageCode and languageName required' }), { status: 400, headers: CORS })
+    const source = sourceLanguage(raw.sourceCode)
+    if (!target || !source) return new Response(JSON.stringify({ error: 'Unsupported language' }), { status: 400, headers: CORS })
+    const { code: languageCode, name: languageName } = target
+    const { code: sourceCode, name: sourceName } = source
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
@@ -102,7 +106,12 @@ Make romanizations phonetically accurate for ${meaning} speakers.`
       source_code: sourceCode, language_code: languageCode, language_name: languageName,
       generated_at: new Date().toISOString(), expires_at: 'infinity',
     }
-    for (const c of CATEGORIES) row[c] = Array.isArray(result?.[c]) ? result[c] : []
+    // Kept forever and shown to everyone: only the four text fields, capped, no control characters
+    const clean = (v: unknown) => cap(String(v ?? '').replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, ''), 300)
+    for (const c of CATEGORIES) {
+      row[c] = (Array.isArray(result?.[c]) ? result[c] : []).slice(0, 12).filter((p: any) => p && typeof p === 'object')
+        .map((p: any) => ({ english: clean(p.english), native: clean(p.native), romanized: clean(p.romanized), context: clean(p.context) }))
+    }
     // Saved forever, so only a complete phrasebook goes in; a thin reply is shown but the next request retries
     const complete = CATEGORIES.every(c => (row[c] as unknown[]).filter((p: any) => p?.english && p?.native).length >= 5)
     if (complete) {
@@ -110,7 +119,8 @@ Make romanizations phonetically accurate for ${meaning} speakers.`
       if (cacheErr) console.error('phrase_cache write failed:', cacheErr.message)
     } else console.warn(`phrases ${sourceCode}>${languageCode}: incomplete reply, not cached`)
 
-    return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json' } })
+    // Same shape as a cache hit
+    return new Response(JSON.stringify(row), { headers: { ...CORS, 'Content-Type': 'application/json' } })
 
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS })
