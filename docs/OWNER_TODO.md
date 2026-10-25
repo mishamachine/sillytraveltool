@@ -50,6 +50,32 @@ Format: what to do · where · what Claude does once it's ticked.
 - [ ] **Business address:** get a PO box or virtual business address to replace the home address on the privacy and
   terms pages · any mailbox provider · Claude swaps it into `public/privacy/` and `public/terms/` and deploys.
 
+## Legal and IP
+From `docs/legal/LEGAL_REVIEW_2026-10-25.md` (L…) and `docs/legal/IP_PROTECTION_PLAN.md` (IP…). Claude is not a lawyer;
+an attorney and a CPA should confirm.
+- [ ] **Say yes or no to the AI consent sheet and moving personal-data AI to Gemini** (L1, L2), and confirm Google AI
+  billing is on (free tier lets Google use inputs) · reply in chat; Google AI Studio → Billing · Claude builds both
+  before the next App Store submission.
+- [ ] **Washington health-data page for vaccine records** (L5): approve Claude's draft, ideally after an hour with a
+  privacy attorney · chat · Claude publishes the page and the homepage link.
+- [ ] **CPA consult on sales tax** (L19, L20): Washington registration and Stripe Tax for WA; pick an EU/UK option
+  (recommended: send EU/UK buyers to the app stores) · a CPA; Washington DOR Business Licensing · Claude wires
+  `automatic_tax` and the EU/UK routing.
+- [ ] **Form the LLC with a distinct name** (not "Bodhi Studios": a "Bodhi Studios, LLC" already sells on the App
+  Store) plus registered agent, EIN, business bank (L25, L26) · sos.wa.gov (CCFS), irs.gov · Claude updates terms,
+  privacy, emails and store contacts; then Stripe, Apple and Play move over (L27).
+- [ ] **Hold the persona and AI-creator ads** until Claude re-renders them with an on-screen "Fictional traveller ·
+  AI-generated" label for the whole video (L30) · chat · Claude re-renders and updates the posting pack.
+- [ ] **File the trademarks after the LLC exists:** SILLY TRAVEL TOOL (classes 42 and 9) and the luggage-tag logo,
+  about $1,400 in USPTO fees (IP7 to IP9) · TEAS at uspto.gov, or a trademark attorney · Claude prepares specimens and
+  the goods/services text.
+- [ ] **Make the GitHub repo private** (IP15) · GitHub → Settings → Change visibility · Claude checks CI and adds the
+  "All rights reserved" LICENSE.
+- [ ] **Domains and handles** (IP21, IP22): auto-renew and lock sillytraveltool.com; buy .app, .net, .co, .co.uk, .eu;
+  reserve @sillytraveltool on GitHub, Bluesky, X, Threads, Reddit · Hostinger and each site · Claude sets up redirects.
+- [ ] **Tell Claude who drew the Goose** (IP11, IP14) · chat · Claude prepares the copyright filing or an assignment.
+- [ ] **Quotes for tech E&O + cyber insurance** once the LLC exists (L36) · an online broker · nothing further.
+
 ## Accounts & settings
 - [ ] **Leaked-password protection:** one toggle · Supabase → Authentication → Attack Protection · nothing further.
 - [ ] **Supabase CLI access:** run `supabase login` once in Terminal, or create a token (Supabase → Account → Access
