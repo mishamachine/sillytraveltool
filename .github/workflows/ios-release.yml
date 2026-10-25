@@ -24,6 +24,9 @@ on:
         description: Upload to TestFlight (off = sign and export the .ipa only)
         type: boolean
         default: true
+  # Until this file is on main (workflow_dispatch needs that), pushes to the release branch run it; a push never uploads
+  push:
+    branches: [claude/fix-native-release-729fd6]
 
 concurrency:
   group: ios-release-${{ github.ref }}
