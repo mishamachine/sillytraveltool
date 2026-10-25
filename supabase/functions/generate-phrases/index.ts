@@ -14,7 +14,7 @@ Deno.serve(withRequestScope(async (req) => {
     const auth = req.headers.get('Authorization')
     if (!auth) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.118.0')
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!)
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
