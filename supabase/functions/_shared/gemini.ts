@@ -7,6 +7,7 @@
 // - Every answered call is logged with its provider, model and tokens (logAiCall → ai_calls, Money → Statement).
 
 import { logAiCall, setRequestUser } from './usage.ts'
+import { quotaUnavailable, rememberQuota } from './quota.ts'
 
 const PRIMARY_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash'
 const FALLBACK_MODEL = 'gemini-flash-latest'
@@ -121,9 +122,10 @@ export function cap(value: unknown, max: number): string {
   return String(value ?? '').trim().slice(0, max)
 }
 
-// Daily per-user AI quota (public.consume_ai_quota, service role only).
-// Returns false once the user is over the limit. Fails open: a quota-check
-// outage must not take the AI features down with it.
+// Daily per-user AI quota (public.consume_ai_quota, service role only), plus the project-wide daily cap.
+// Returns false once the user (or the project) is over the limit. Fails CLOSED: when the quota RPC errors or takes
+// longer than 2 s, the member's last answer (under 60 s old) is used; with none, the call is refused and a
+// quota_check_failed row is logged (_shared/quota.ts).
 // "guide" = sections written into the shared guide cache (for every user), on their own allowance so they
 // don't use up the user's own AI requests.
 export const AI_DAILY_LIMIT = Number(Deno.env.get('AI_DAILY_LIMIT') || 100)
@@ -131,9 +133,12 @@ export const GUIDE_DAILY_LIMIT = Number(Deno.env.get('GUIDE_DAILY_LIMIT') || 40)
 
 export async function checkAiQuota(userId: string, kind: 'ai' | 'guide' = 'ai'): Promise<boolean> {
   setRequestUser(userId)
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 2000)
   try {
     const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/consume_ai_quota`, {
       method: 'POST',
+      signal: ctrl.signal,
       headers: {
         'Content-Type': 'application/json',
         apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -142,14 +147,16 @@ export async function checkAiQuota(userId: string, kind: 'ai' | 'guide' = 'ai'):
       body: JSON.stringify({ p_user_id: userId, p_limit: kind === 'guide' ? GUIDE_DAILY_LIMIT : AI_DAILY_LIMIT, p_kind: kind }),
     })
     if (!res.ok) {
-      console.error('consume_ai_quota failed:', res.status, await res.text())
-      return true
+      const why = `consume_ai_quota ${res.status} ${(await res.text()).slice(0, 120)}`
+      return quotaUnavailable(kind, userId, why)
     }
-    return (await res.json()) !== false
+    const ok = (await res.json()) !== false
+    rememberQuota(kind, userId, ok)
+    return ok
   } catch (e) {
-    console.error('consume_ai_quota error:', e)
-    return true
-  }
+    const why = (e as Error)?.name === 'AbortError' ? 'consume_ai_quota timed out after 2s' : `consume_ai_quota error: ${(e as Error)?.message}`
+    return quotaUnavailable(kind, userId, why)
+  } finally { clearTimeout(timer) }
 }
 
 export const QUOTA_MESSAGE = 'You have reached today\'s AI limit. It resets at midnight UTC.'

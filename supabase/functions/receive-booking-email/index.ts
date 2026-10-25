@@ -203,7 +203,7 @@ Deno.serve(withGoogleScope(async (req) => {
     const work = (async () => {
       const attachments = await fetchAttachments((rawBody?.data ?? rawBody)?.email_id, payload.attachments)
       if (!bodyText && !attachments.length) { console.warn('No email body or readable attachment'); return }
-      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments })
+      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments, emailId: (rawBody?.data ?? rawBody)?.email_id || null })
       console.log(`📨 Filed: ${res.status} ${(await res.text()).slice(0, 300)}`)
     })().catch(e => console.error('receive-booking-email background error:', e))
     // @ts-ignore EdgeRuntime is provided by Supabase Edge Functions
