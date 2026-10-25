@@ -17,28 +17,43 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
 
 // ── Install and launch ──
 sh(`adb install -r ${APK}`)
-sh(`adb shell am start -n ${APP}/.MainActivity`)
+sh('adb logcat -c') // so the logcat dump in the artifact covers only this run
+const launch = () => sh(`adb shell am start -n ${APP}/.MainActivity`)
+const appPid = () => { try { return sh(`adb shell pidof ${APP}`) } catch { return '' } }
+launch()
 
-// ── Attach to the WebView's DevTools socket ──
-let socket
-for (let i = 0; i < 60 && !socket; i++) {
-  await sleep(1000)
-  socket = (sh('adb shell cat /proc/net/unix').match(/@(webview_devtools_remote_\d+)/) || [])[1]
+// ── Attach to the WebView's DevTools socket (again after a crash: the socket name carries the new pid) ──
+let ws, seq = 0
+let pending = new Map()
+async function attach() {
+  let socket
+  for (let i = 0; i < 60 && !socket; i++) {
+    await sleep(1000)
+    const pid = appPid()
+    const all = sh('adb shell cat /proc/net/unix').match(/@webview_devtools_remote_\d+/g) || []
+    socket = (all.find(n => pid && n.endsWith(`_${pid}`)) || all[0])?.slice(1) // this process's socket, else any
+  }
+  if (!socket) throw new Error('WebView DevTools socket not found')
+  sh(`adb forward --remove-all`)
+  sh(`adb forward tcp:9222 localabstract:${socket}`)
+  let target
+  for (let i = 0; i < 30 && !target; i++) {
+    await sleep(1000)
+    target = (await fetch('http://127.0.0.1:9222/json').then(r => r.json()).catch(() => [])).find(t => t.type === 'page')
+  }
+  if (!target) throw new Error('No WebView page')
+  try { ws?.close() } catch { /* already gone */ }
+  pending = new Map()
+  ws = new WebSocket(target.webSocketDebuggerUrl)
+  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject })
+  ws.onmessage = (m) => { const d = JSON.parse(m.data); pending.get(d.id)?.(d); pending.delete(d.id) }
+  await js(`
+    window.__t = {
+      byText: (t, sel = 'button, a, [role=button], [role=radio]') => [...document.querySelectorAll(sel)].find(e => e.innerText?.trim().startsWith(t) || e.getAttribute('aria-label') === t),
+      has: (t) => document.body.innerText.includes(t),
+      set: (el, v) => { const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value'); d.set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })) },
+    }; return true`)
 }
-if (!socket) throw new Error('WebView DevTools socket not found')
-sh(`adb forward tcp:9222 localabstract:${socket}`)
-let target
-for (let i = 0; i < 30 && !target; i++) {
-  await sleep(1000)
-  target = (await fetch('http://127.0.0.1:9222/json').then(r => r.json()).catch(() => [])).find(t => t.type === 'page')
-}
-if (!target) throw new Error('No WebView page')
-
-const ws = new WebSocket(target.webSocketDebuggerUrl)
-await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject })
-let seq = 0
-const pending = new Map()
-ws.onmessage = (m) => { const d = JSON.parse(m.data); pending.get(d.id)?.(d); pending.delete(d.id) }
 // Every call times out, so a page that stops answering fails the run instead of hanging it
 const cdp = (method, params = {}) => new Promise((resolve, reject) => {
   const id = ++seq
@@ -51,16 +66,12 @@ async function js(expression) {
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'page error')
   return r.result?.result?.value
 }
+const logcat = (name) => { try { writeFileSync(`${OUT}/logcat-${name}.txt`, sh('adb logcat -d -t 3000')) } catch { /* no logcat */ } }
+await attach()
+
 const shot = async (name) => { await sleep(700); execSync(`adb exec-out screencap -p > ${OUT}/${name}.png`) }
 
-// Page helpers: find by visible text, click, wait, set React inputs (again after each reload)
-const helpers = () => js(`
-  window.__t = {
-    byText: (t, sel = 'button, a, [role=button], [role=radio]') => [...document.querySelectorAll(sel)].find(e => e.innerText?.trim().startsWith(t) || e.getAttribute('aria-label') === t),
-    has: (t) => document.body.innerText.includes(t),
-    set: (el, v) => { const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value'); d.set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })) },
-  }; return true`)
-await helpers()
+// Page helpers: find by visible text, click, wait, set React inputs (window.__t is injected by attach())
 async function waitText(t, ms = 15000) {
   for (let i = 0; i < ms / 250; i++) { if (await js(`return __t.has(${JSON.stringify(t)})`)) return true; await sleep(250) }
   return false
@@ -75,6 +86,13 @@ const ERROR_SCREEN = 'Goose lost the plot' // the ErrorState title (src/ui/State
 // One failing section (an exception, not a failed check) must not hide the sections after it
 async function section(name, fn) {
   try { await fn() } catch (e) { check(`${name} section ran`, false, e.message); await shot(`99-${name}-error`).catch(() => {}) }
+  if (appPid()) return
+  // The app process is gone (a WebView renderer crash kills the app): record it, keep the log, start again
+  check(`app still running after ${name}`, false, 'process died; see logcat-' + name + '.txt')
+  logcat(name)
+  launch()
+  await attach().catch((e) => check(`app relaunches after ${name}`, false, e.message))
+  await waitText('Trips', 30000)
 }
 
 try {
@@ -169,7 +187,8 @@ try {
   check('script ran', false, e.message)
   await shot('99-error').catch(() => {})
 } finally {
+  logcat('end')
   writeFileSync(`${OUT}/results.json`, JSON.stringify(results, null, 2))
-  ws.close()
+  ws?.close()
 }
 process.exit(results.every(r => r.ok) ? 0 : 1)
