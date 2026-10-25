@@ -12,8 +12,7 @@
   receive-booking-email checks `email_import_locked`, admin-email passes the "why you got this" line. Nothing else.
 - **store-webhook:** live (v4) was ahead of main (owner made the shared secret optional on 2026-10-24); the repo file now
   matches live, so the deploy did not revert it. Unauthenticated empty POST returns 200 `{ok:true}` by design.
-- **Not done:** `gemini-proxy` (v15, 410 tombstone) and `receive-booking-email-staging` (v2) are deleted from the repo
-  but still live; run `supabase functions delete gemini-proxy` and `... receive-booking-email-staging` (or Delete in the dashboard).
+- **Deleted live (2026-10-25):** `gemini-proxy` and `receive-booking-email-staging` (both now 404). Live has exactly the 23 functions.
 
 ## Update — onboarding tour + Guide and FAQ live on the website (2026-10-24, PR #11)
 - **Website deployed from `release/tour-and-shared-trips` `8016137`** (= live `fix/homepage-meta` + shared-trip email
