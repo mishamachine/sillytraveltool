@@ -17,9 +17,6 @@ on:
       version_code:
         description: Override versionCode for this build only (blank = package.json versionCode)
         default: ''
-  # Until this file is on main (workflow_dispatch needs that), pushes to the release branch run it; a push never uploads
-  push:
-    branches: [claude/fix-native-release-729fd6]
 
 concurrency:
   group: android-release-${{ github.ref }}
