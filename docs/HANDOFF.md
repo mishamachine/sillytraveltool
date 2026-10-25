@@ -1,5 +1,14 @@
 # STT Handoff — 2026-10-21
 
+## Update — website deployed from main 1efb131: shared-traveller card, tour plan slide, privacy fixes (2026-10-25)
+- Deployed by the audit session with the owner's go-ahead: clean `git archive` of `origin/main` (1efb131), `npm ci && npm run build`
+  (dist check passed), server backup `~/backups/stt-<timestamp>-pre-card.tar.gz`, dry run showed 89 changed files and no deletions,
+  rsync **without** `--delete`. Verified: /, /help/, /beta/, /upgrade/, /redeem/, /delete-account/, /privacy/, /terms/, /admin/ all 200;
+  live `main-*.js` hash equals the build; the Plan tab chunk with the shared-leg card is served.
+- Live since this deploy: shared-traveller card (PR #19), tour plan slide leading with First Class (PR #12), Sentry email scrubbing and
+  GA in native builds (PR #13), Tip tool crash fix (PR #14, deployed earlier tonight), cockpit join date (PR #25) and live-only Stripe
+  reporting (PR #26) in the admin bundle.
+
 ## Update — Stripe web billing is LIVE (2026-10-25, live account `acct_1UTcxRJ3Q35Z71yD`)
 - **Owner did:** Supabase org → **Pro**; Stripe activation (business, bank, identity; Payments + Payouts active, no open
   tasks); the restricted key and the three Supabase secrets; the real purchase and refund. Claude filled the public details
