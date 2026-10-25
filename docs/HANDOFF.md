@@ -1,5 +1,25 @@
 # STT Handoff — 2026-10-21
 
+## Update — signed Android beta APK for sideloading (2026-10-25, PR "Android release: also build a signed universal APK")
+- `android-release.yml` now also runs `./gradlew assembleRelease` (same upload key, same versionCode) and uploads the universal APK as the `android-release-apk` artifact (7-day retention; the AAB artifact is unchanged).
+- Private hand-off only: the APK goes to the owner's Google Drive folder "STT Android beta" (not shared) and the Actions artifact (needs GitHub login). Never a public URL.
+- This build has no paywall: `VITE_REVENUECAT_ANDROID_KEY` is not set in repo secrets. The earlier debug APK must be uninstalled first (different signing key).
+## Update — cockpit Stripe data is live-only (2026-10-25, migration `20261025140000_stripe_live_only`, applied)
+- **Why:** Stripe went live tonight; every `stripe_*` row synced before that came from the sandbox.
+- **Purged** (`livemode = false`, applied after a rolled-back dry run): balance_txns 8, charges 7, checkouts 8, customers 2,
+  invoices 7, promotion_codes 1, subscriptions 5 (38 rows). Live rows untouched. `promo_codes` had no Stripe ids (0 rows in
+  total); the migration still nulls any sandbox coupon/promo ids with a note so codes re-push to live from Codes.
+  `admin_audit`, `entitlement_grants`, `code_redemptions` untouched.
+- **`stripe_sync`:** last_sync/counts/balance cleared (livemode stays true); the sync is a full pull, so the next one is
+  unthrottled. A forced "Sync now" then pulled live only: 1 charge, 1 invoice, 2 checkouts, 1 customer, 1 sub, 1 balance txn.
+- **Filters added** (`livemode = stripe_sync.livemode`): `admin_code_stripe` (Codes Stripe stats), `experiment_traffic`
+  (checkout counts), `member_rows_plus` (customer country). Already filtered: `admin_stripe`, `admin_financials`,
+  `admin_costs`, `admin_insight_rows`, `my_entitlement`, `stripe_first_class`.
+- **Verified** on /admin Money: Statement $14.99 gross, −$0.73 fees, $14.26 net, badge Live; Cash pending $14.26.
+- **Sandbox can't come back:** `stripe-webhook` checks signatures with the live `STRIPE_WEBHOOK_SECRET`, so sandbox events get
+  a 400 and write nothing, and the sync uses the live key. If the sandbox endpoint is still enabled in Stripe (test mode →
+  Webhooks), disable it so Stripe stops retrying and emailing about failed deliveries.
+
 ## Update — trip-list invite Accept/Decline fixed (2026-10-25, accept-invite **v14**)
 - **Bug:** after the RLS hardening (PR #16) clients may only `UPDATE (role)` on `trip_collaborators`, so the trip-list
   "Join trip"/"Decline" buttons failed with 42501 (a silent no-op before that). Also, the Invites list was always empty:
