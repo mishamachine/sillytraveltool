@@ -90,7 +90,7 @@ await attach()
 
 const shot = async (name) => { await sleep(700); execSync(`adb exec-out screencap -p > ${OUT}/${name}.png`) }
 
-// Page helpers: find by visible text, click, wait, set React inputs (window.__t is injected by attach())
+// Page helpers: find by visible text, click, wait, set React inputs (window.__t comes from inject(), run by attach() and after each reload)
 async function waitText(t, ms = 15000) {
   for (let i = 0; i < ms / 250; i++) { if (await js(`return __t.has(${JSON.stringify(t)})`)) return true; await sleep(250) }
   return false
@@ -124,7 +124,7 @@ try {
   const openPaywall = async (store) => {
     // Demo stand-in for the store (src/lib/purchases.js): none = sends no prices, prices = sends local prices
     await js(`setTimeout(() => location.replace('/?store=${store}'), 100); return true`)
-    await sleep(3000); await helpers(); await waitText('Trips', 30000)
+    await sleep(3000); await inject(); await waitText('Trips', 30000)
     await tab('profile'); await sleep(800)
     await click('Settings'); await waitText('Get First Class')
     await click('Get First Class')
