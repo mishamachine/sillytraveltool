@@ -26,6 +26,11 @@ Format: what to do · where · what Claude does once it's ticked.
 - [ ] **TestFlight link on /beta:** once Beta App Review approves build 0.20.0 (5), paste
   https://testflight.apple.com/join/rFv9QAA4 into Cockpit → Growth → Beta waitlist as the iOS link (the link exists, limit
   100; it only works after approval) · Claude can do it when you say so.
+- [ ] **Submit the App Store version 0.20.0:** everything else is filled. (1) iPad 13" screenshots are required (build 5 supports
+  iPad): say "iPhone-only build 6" and Claude changes `TARGETED_DEVICE_FAMILY` to iPhone and ships build 6, or supply real iPad
+  captures. (2) Set a password on machinemisha@gmail.com, then App Store Connect → the app → iOS 0.20.0 → App Review Information: tick
+  Sign-in required, type the email and password, Save. (3) "Add for Review" with both in-app purchases, then "Submit for Review" ·
+  appstoreconnect.apple.com · Claude switches the version to the new build if there is one.
 
 ## Google Play
 - [ ] **Play Console:** developer account, payments profile, tax and bank forms · play.google.com/console · Claude
@@ -70,6 +75,8 @@ Format: what to do · where · what Claude does once it's ticked.
   `feat/first-class-paywall` not yet in main, swap in the real store keys, run the iOS and Android cloud checks.
 
 ## Done
+- [x] **App Store listing for 0.20.0** · 2026-10-25 · metadata, age rating (13+), content rights, $0 price in 175 countries, iPhone
+  screenshots, build 5, review contact and notes, both products' review screenshots (HANDOFF 2026-10-25, asc-submission).
 - [x] **Stripe go-live** · 2026-10-25 · account activated, tax = threshold monitoring, restricted live key (incl.
   Subscriptions: write) + webhook secret in Supabase; live product/prices/portal/webhook; real $14.99 purchase + refund
   passed (HANDOFF 2026-10-25).
