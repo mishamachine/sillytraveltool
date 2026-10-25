@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
     }
 
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.118.0')
 
     // Anon client — just to verify the JWT and get user identity
     const anonClient = createClient(

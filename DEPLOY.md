@@ -11,20 +11,37 @@ STRIPE_WEBHOOK_SECRET = whsec_… (Stripe → Developers → Webhooks → stripe
 ```
 
 ## 2. Deploy Edge Functions (run from project root)
+The repo is the source of truth: live must equal `supabase/functions/`. All 23 functions run with `verify_jwt = false`
+(locked in `supabase/config.toml`; each function checks its caller itself), so always pass `--no-verify-jwt`.
 ```bash
-supabase login
+supabase login                      # once; opens the browser (SUPABASE_ACCESS_TOKEN in .env.local also works, never commit it)
 supabase link --project-ref swywrvbuswylvqlktsym
-supabase functions deploy generate-guide
-supabase functions deploy goosey-discover
-supabase functions deploy parse-booking-email
-supabase functions deploy generate-phrases
-supabase functions deploy generate-checklist
-supabase functions deploy check-badges
-supabase functions deploy send-invite
-supabase functions deploy receive-booking-email
-supabase functions deploy billing
-supabase functions deploy stripe-webhook
 ```
+Back up what is live first (outside the repo), then deploy. `--use-api` bundles on Supabase's side, so Docker isn't needed.
+```bash
+mkdir -p ~/backups/functions-$(date +%F) && cd ~/backups/functions-$(date +%F)
+for f in $(supabase functions list --project-ref swywrvbuswylvqlktsym -o json | python3 -c "import json,sys;print(' '.join(x['slug'] for x in json.load(sys.stdin)['functions']))"); do
+  supabase functions download $f --use-api --project-ref swywrvbuswylvqlktsym; done   # lands in ./supabase/functions/<slug>/
+cd - >/dev/null
+```
+One function:
+```bash
+supabase functions deploy receive-booking-email --no-verify-jwt --use-api
+```
+All 23 (the full list: accept-invite, admin-email, admin-experiment-ai, admin-stripe, beta-invite, beta-signup, billing,
+check-badges, cost-alert, delete-account, email-unsubscribe, generate-checklist, generate-guide, generate-phrases,
+goosey-discover, parse-booking-email, places, receive-booking-email, resolve-timezone, send-invite, send-welcome-email,
+store-webhook, stripe-webhook):
+```bash
+for f in $(ls supabase/functions | grep -v '^_shared$'); do supabase functions deploy $f --no-verify-jwt --use-api; done
+```
+Never use `--prune` (it deletes live functions that aren't in the repo). Check what is live: `supabase functions list`.
+Probe afterwards without real data: an unauthenticated `POST {}` to a user function must return 401; `stripe-webhook`
+without a signature 400; `receive-booking-email` without a Svix signature 401; `email-unsubscribe?t=bad` 400.
+`@supabase/supabase-js` is pinned to one exact version in every function (`esm.sh/@supabase/supabase-js@2.118.0`): bump
+it everywhere in one commit (`grep -rl "supabase-js@2\." supabase/functions`), never back to `@2`.
+Retired functions (`gemini-proxy`, `receive-booking-email-staging`) are deleted from the repo; remove one live with
+`supabase functions delete <name>`.
 
 ## 3. Supabase Dashboard
 - Settings → Auth → Site URL: change to `https://sillytraveltool.com`
@@ -87,7 +104,7 @@ TTL:      3600
    - Webhook URL: `https://swywrvbuswylvqlktsym.supabase.co/functions/v1/receive-booking-email`
 4. Deploy the Edge Function:
    ```bash
-   npx supabase functions deploy receive-booking-email
+   supabase functions deploy receive-booking-email --no-verify-jwt --use-api
    ```
 
 ### c) Run SQL patch for existing users

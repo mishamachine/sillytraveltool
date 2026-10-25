@@ -1,5 +1,19 @@
 # STT Handoff — 2026-10-21
 
+## Update — Edge Functions deployed from the repo with the CLI (2026-10-25)
+- **Live = repo for all 23 functions.** The CLI is logged in and linked (`supabase functions deploy <fn> --no-verify-jwt --use-api`,
+  no Docker, no more MCP bundles). New versions: accept-invite v11, admin-email v3, admin-experiment-ai v4, admin-stripe v11,
+  beta-invite v2, beta-signup v3, billing v9, check-badges v20, cost-alert v4, delete-account v3, email-unsubscribe v3,
+  generate-checklist v22, generate-guide v36, generate-phrases v24, goosey-discover v24, parse-booking-email v32, places v11,
+  receive-booking-email v50, resolve-timezone v10, send-invite v19, send-welcome-email v10, store-webhook v5, stripe-webhook v10.
+  All `verify_jwt` false. `@supabase/supabase-js` pinned to `2.118.0` in every function.
+- **Backup of everything that was live (25 functions): `~/backups/functions-2026-10-25/<slug>/`** (+ `MANIFEST.md` with old versions).
+- **Behaviour that changed on deploy:** places and resolve-timezone now count Google calls (`consume_api_call`),
+  receive-booking-email checks `email_import_locked`, admin-email passes the "why you got this" line. Nothing else.
+- **store-webhook:** live (v4) was ahead of main (owner made the shared secret optional on 2026-10-24); the repo file now
+  matches live, so the deploy did not revert it. Unauthenticated empty POST returns 200 `{ok:true}` by design.
+- **Deleted live (2026-10-25):** `gemini-proxy` and `receive-booking-email-staging` (both now 404). Live has exactly the 23 functions.
+
 ## Update — onboarding tour + Guide and FAQ live on the website (2026-10-24, PR #11)
 - **Website deployed from `release/tour-and-shared-trips` `8016137`** (= live `fix/homepage-meta` + shared-trip email
   fix + tour). Clean `git archive` build; dry run deleted only the old `workbox-*.js`; homepage meta, privacy, terms,

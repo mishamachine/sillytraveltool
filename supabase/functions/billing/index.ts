@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     if (!KEY) return json({ error: 'Billing is not set up yet.' }, 503)
     const auth = req.headers.get('Authorization')
     if (!auth) return json({ error: 'Unauthorized' }, 401)
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.118.0')
     const anon = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!)
     const { data: { user }, error: authErr } = await anon.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return json({ error: 'Unauthorized' }, 401)
