@@ -37,7 +37,8 @@ jobs:
       # Advisory until the 12 violations already on main are fixed (src/admin/*, tour.css, stops.js, tripsStore.js,
       # DeleteAccountView.jsx): it reports as a warning on the run. Drop the `|| { … }` part to make it a gate.
       - name: Clay design check
-        run: npm run check:clay || { echo "::warning::Clay design check failed: run npm run check:clay locally. Advisory until the violations on main are fixed."; exit 0; }
+        run: |
+          npm run check:clay || { echo "::warning::Clay design check failed (advisory until the violations on main are fixed). Run npm run check:clay locally."; exit 0; }
 
       - name: Build (runs check-dist)
         env:
