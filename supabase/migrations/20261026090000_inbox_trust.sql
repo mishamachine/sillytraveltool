@@ -3,7 +3,8 @@
 --
 -- 1. Who may mail an inbox: the member's account email always; more addresses in inbox_allowed_senders; anyone
 --    only when inbox_accept_any is on (for auto-forwarding rules that keep the airline as the sender).
--- 2. A per-inbox daily parse budget (inbox_usage + consume_inbox_quota), separate from the interactive AI quota.
+-- 2. A per-inbox daily parse budget (consume_inbox_quota, ai_usage kind 'inbox'), separate from the interactive AI
+--    quota but under the same kill switch and project-wide AI cap. Needs 20261025150000_global_daily_caps first.
 -- 3. A cancellation email no longer renames or cancels a booking: it stamps cancellation_received_at and the app
 --    shows a note.
 -- 4. Inbox tokens are made by the server: 12 hex chars (48 bits) from gen_random_bytes, on profile insert and on
@@ -20,27 +21,31 @@ alter table public.user_profiles add constraint user_profiles_inbox_allowed_send
   check (cardinality(inbox_allowed_senders) <= 20 and length(array_to_string(inbox_allowed_senders, ',')) <= 2000);
 
 -- ── 2. Parse budget ───────────────────────────────────────────────────────────
-create table if not exists public.inbox_usage (
-  user_id uuid not null references auth.users(id) on delete cascade,
-  day date not null default current_date,
-  parses integer not null default 0,
-  primary key (user_id, day)
-);
-alter table public.inbox_usage enable row level security; -- no policies: service role only
-
--- One unit per AI read of an inbound email or attachment. True while the inbox is within p_limit today.
+-- Counted in ai_usage under its own kind 'inbox' (so the member's in-app 'ai' allowance is untouched and the cockpit
+-- still sees every AI call), with the same AI kill switch, member status check and project-wide AI cap
+-- (global_usage, 20261025150000_global_daily_caps) as consume_ai_quota. The owner can override the 30 with
+-- app_settings.ai_limits.inbox_daily.
+-- One unit per AI read of an inbound email or attachment. True while the inbox is within its limit today.
 create or replace function public.consume_inbox_quota(p_user uuid, p_limit integer default 30)
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare v_parses integer;
+declare v_calls integer; v_limit integer; v_global integer;
 begin
-  insert into public.inbox_usage (user_id, day, parses) values (p_user, current_date, 1)
-  on conflict (user_id, day) do update set parses = public.inbox_usage.parses + 1
-  returning parses into v_parses;
-  return v_parses <= p_limit;
+  if coalesce((public.setting('kill') ->> 'ai_paused')::boolean, false) then return false; end if;
+  if public.member_status(p_user) in ('restricted', 'suspended', 'banned') then return false; end if;
+  v_limit := coalesce((public.setting('ai_limits') ->> 'inbox_daily')::integer, p_limit);
+  insert into public.ai_usage (user_id, day, kind, calls) values (p_user, current_date, 'inbox', 1)
+  on conflict (user_id, day, kind) do update set calls = public.ai_usage.calls + 1
+  returning calls into v_calls;
+  if v_calls > v_limit then return false; end if;
+
+  insert into public.global_usage (day, kind, calls) values (current_date, 'ai', 1)
+  on conflict (day, kind) do update set calls = public.global_usage.calls + 1
+  returning calls into v_global;
+  return v_global <= coalesce((public.setting('global_limits') ->> 'ai_daily')::integer, 3000);
 end;
 $$;
 revoke all on function public.consume_inbox_quota(uuid, integer) from public, anon, authenticated;

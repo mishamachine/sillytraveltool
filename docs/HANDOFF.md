@@ -6,8 +6,10 @@
   Addresses normalised (display name off, lowercase, plus-tag off, Gmail dots off, googlemail → gmail). Others are
   dropped silently with a `function_errors` row (`kind = inbox_rejected_sender`, sender domain only, no body).
   Attachments download only after the check.
-- **Per-inbox budget:** `consume_inbox_quota(p_user, p_limit)` (service role), 30 AI reads a day per inbox, separate from
-  the in-app AI quota (the inbox no longer spends `consume_ai_quota`). Fails open if the RPC is missing, like the AI quota.
+- **Per-inbox budget:** `consume_inbox_quota(p_user, p_limit)` (service role), 30 AI reads a day per inbox, counted in
+  `ai_usage` as kind `inbox` (separate from the member's in-app `ai` allowance; override with `ai_limits.inbox_daily`).
+  Same AI kill switch, member-status check and project-wide `global_usage` AI cap as `consume_ai_quota` (PR #33); fails
+  closed like it (`quotaUnavailable`). Needs migration `20261025150000_global_daily_caps` applied first.
 - **Cancellation emails** only stamp `bookings.cancellation_received_at` and add a note; the title is no longer changed to
   "Cancelled · …". BookingDetailSheet shows one line asking the traveller to check with the provider.
 - **Tokens:** 12 hex (48 bits) from `gen_random_bytes`, made by a trigger on profile insert; clients can't set or change
@@ -19,6 +21,28 @@
   `inbox_accept_any = true` on machinemisha (fixtures come from airline addresses).
 - **Follow-ups:** a Settings editor for `inbox_allowed_senders` (DB-only today); `From:` can be forged, so a DKIM/SPF
   check on Resend's inbound headers would harden it further; optionally rotate all 8-hex tokens once members are told.
+## Update — website deployed from main 1efb131: shared-traveller card, tour plan slide, privacy fixes (2026-10-25)
+- Deployed by the audit session with the owner's go-ahead: clean `git archive` of `origin/main` (1efb131), `npm ci && npm run build`
+  (dist check passed), no pre-deploy backup (the backup step silently failed in zsh; the nearest earlier one is `~/backups/stt-202610250652-pre-invitefix.tar.gz` from tonight) and a post-deploy backup `~/backups/stt-<timestamp>-post-card.tar.gz`, dry run showed 89 changed files and no deletions,
+  rsync **without** `--delete`. Verified: /, /help/, /beta/, /upgrade/, /redeem/, /delete-account/, /privacy/, /terms/, /admin/ all 200;
+  live `main-*.js` hash equals the build; the Plan tab chunk with the shared-leg card is served.
+- Live since this deploy: shared-traveller card (PR #19), tour plan slide leading with First Class (PR #12), Sentry email scrubbing and
+  GA in native builds (PR #13), Tip tool crash fix (PR #14, deployed earlier tonight), cockpit join date (PR #25) and live-only Stripe
+  reporting (PR #26) in the admin bundle.
+## Update — TestFlight beta group and Beta App Review (2026-10-25, testflight-beta session)
+- **State in App Store Connect (checked, nothing re-created):** Test Information is filled (beta description says "Silly
+  Travel Tool beta", feedback hello@sillytraveltool.com, marketing https://sillytraveltool.com/, privacy
+  https://sillytraveltool.com/privacy/, reviewer sign-in on machinemisha). Build 0.20.0 (5) has "What to Test" (start a
+  trip, forward a booking email, paste a confirmation, invite a friend, a city guide, the First Class paywall in
+  sandbox; report from Profile > Report an issue) and sits in internal group "Silly Travel Tool internal" (1 tester,
+  the owner) and external group "Silly Travel Tool beta". Both were made by the store-setup session; the group names
+  differ from the "STT team" wording in the brief.
+- **Review status:** build 5 is **Waiting for Review** (Beta App Review) as of this entry.
+- **Public link (created 2026-10-25 after the owner approved it in chat):** https://testflight.apple.com/join/rFv9QAA4
+  ("Open to Anyone", tester limit 100, 0 joined). It shows "Testers cannot join public link until this group has an
+  approved build": it starts working once Beta App Review approves build 5. Paste it into Cockpit → Growth → Beta
+  waitlist as the iOS link.
+- Not touched: pricing, availability, App Store submission, in-app purchases.
 
 ## Update — Stripe web billing is LIVE (2026-10-25, live account `acct_1UTcxRJ3Q35Z71yD`)
 - **Owner did:** Supabase org → **Pro**; Stripe activation (business, bank, identity; Payments + Payouts active, no open

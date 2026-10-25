@@ -54,6 +54,7 @@ const GEO = [
   ['granada', 37.18, -3.60, 'Granada', 'ES'], ['sea airport', 47.45, -122.31, 'Seattle', 'US'],
   ['jfk', 40.64, -73.78, 'New York', 'US'], ['lis', 38.77, -9.13, 'Lisbon', 'PT'], ['lisbon', 38.72, -9.14, 'Lisbon', 'PT'], ['memmo', 38.71, -9.13, 'Lisbon', 'PT'],
   ['belcanto', 38.71, -9.14, 'Lisbon', 'PT'], ['fado', 38.71, -9.13, 'Lisbon', 'PT'],
+  ['tarifa', 36.01, -5.60, 'Tarifa', 'ES'], ['tangier', 35.77, -5.80, 'Tangier', 'MA'],
 ]
 const lookup = q => { const s = q.toLowerCase(); const g = GEO.find(([k]) => s.includes(k)); return g && { lat: g[1], lng: g[2], city: g[3], cc: g[4] } }
 
@@ -108,7 +109,7 @@ function makeDb() {
   return { tables, from: q, rpc, auth, inbox }
 }
 
-const ACCOUNT_EMAIL = { u1: 'Sam.Rivera@gmail.com', u2: 'alex@example.com' }
+const ACCOUNT_EMAIL = { u1: 'Sam.Rivera@gmail.com', u2: 'alex@example.com', u3: 'kim@example.com' }
 
 // ── Fake network: AI, geocoding, places, time zones ──
 let current = null
@@ -117,6 +118,7 @@ globalThis.Deno = { env: { get: k => ({ GOOGLE_MAPS_SERVER_KEY: 'fake', DEEPSEEK
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), json = b => new Response(JSON.stringify(b), { status: 200 })
   if (u.includes('consume_ai_quota')) return json(true)
+  if (u.includes('consume_api_call')) return json(true) // Google quota check (fails closed when it errors)
   if (u.includes('deepseek')) {
     aiCalls++
     const prompt = JSON.parse(init.body).messages[0].content
@@ -353,6 +355,84 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   assert.equal(shared(db).end_date, '2027-04-17')
   console.log('booking elsewhere (Lisbon): the traveller\'s own new trip; shared trip unchanged')
 }
+// A ferry out and back under one reference and no service number: both legs are kept (the return leg must not
+// overwrite the outbound one). Forwarding either again is still a duplicate, and a real change still updates in place.
+{
+  const db = makeDb()
+  const out1 = { type: 'transport', transport_mode: 'ferry', title: 'Ferry to Tangier', airline: 'FRS', confirmation_number: 'FR-88213', departure_airport: 'Tarifa', arrival_airport: 'Tangier Med', departure_time: '2027-04-12T09:00', arrival_time: '2027-04-12T10:00', destination_city: 'Tangier' }
+  PARSED['15-ferry-out'] = out1
+  PARSED['15-ferry-back'] = { ...out1, title: 'Ferry to Tarifa', departure_airport: 'Tangier Med', arrival_airport: 'Tarifa', departure_time: '2027-04-15T17:00', arrival_time: '2027-04-15T18:00', destination_city: 'Tarifa' }
+  PARSED['15-ferry-out-later'] = { ...out1, change_type: 'change', departure_time: '2027-04-12T11:00', arrival_time: '2027-04-12T12:00' }
+  const send = async id => { current = id; return (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const a = await send('15-ferry-out'), b = await send('15-ferry-back')
+  assert.ok(a.success && b.success && !a.duplicate && !b.duplicate && !b.updated, JSON.stringify([a, b]))
+  assert.equal(db.tables.bookings.length, 2, 'ferry out and back: two bookings')
+  assert.deepEqual(db.tables.bookings.map(x => x.departure_airport).sort(), ['Tangier Med', 'Tarifa'])
+  const dep = id => db.tables.bookings.find(x => x.id === id).departure_time
+  const backTime = dep(b.booking_id)
+  // The same email again: duplicates, nothing changes
+  assert.equal((await send('15-ferry-back')).duplicate, true)
+  assert.equal((await send('15-ferry-out')).duplicate, true)
+  assert.equal(db.tables.bookings.length, 2)
+  // Same origin and day, new time: updated in place, and only that leg
+  const c = await send('15-ferry-out-later')
+  assert.equal(c.updated, true, JSON.stringify(c)); assert.equal(c.booking_id, a.booking_id)
+  assert.equal(db.tables.bookings.length, 2); assert.equal(dep(b.booking_id), backTime)
+  console.log('ferry out and back, one reference, no service number: both legs kept; re-forwards are duplicates; a time change updates only its own leg')
+}
+// With service numbers the leg is still matched by number alone (a rescheduled day keeps its booking), and a leg
+// without one on either side needs the origin AND the day
+{
+  const db = makeDb()
+  const ref = { type: 'transport', transport_mode: 'train', confirmation_number: 'TRN-1', airline: 'Renfe', destination_city: 'Granada' }
+  PARSED['16-train-a'] = { ...ref, title: 'Madrid -> Granada', flight_number: 'AVE 03', departure_airport: 'Madrid Atocha', arrival_airport: 'Granada', departure_time: '2027-04-12T07:05', arrival_time: '2027-04-12T10:25' }
+  PARSED['16-train-a-moved'] = { ...PARSED['16-train-a'], change_type: 'change', departure_time: '2027-04-13T07:05', arrival_time: '2027-04-13T10:25' }
+  PARSED['16-train-b-nonumber'] = { ...ref, title: 'Granada -> Madrid', departure_airport: 'Granada', arrival_airport: 'Madrid Atocha', departure_time: '2027-04-14T16:00', arrival_time: '2027-04-14T19:20', destination_city: 'Madrid' }
+  const send = async id => { current = id; return (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const a = await send('16-train-a')
+  const moved = await send('16-train-a-moved')
+  assert.equal(moved.updated, true, JSON.stringify(moved)); assert.equal(moved.booking_id, a.booking_id)
+  const b = await send('16-train-b-nonumber')   // the stored leg has a number, this one has none: origin differs → a second leg
+  assert.ok(b.success && b.booking_id !== a.booking_id && !b.updated && !b.duplicate, JSON.stringify(b))
+  assert.equal(db.tables.bookings.length, 2)
+  console.log('train legs: matched by service number when both have one; a leg without one needs the same origin and day')
+}
+
+// D5: every booking from one email carries that email's id, so the free-plan counter counts emails, not legs
+{
+  const db = makeDb()
+  PARSED['17-three-legs'] = { type: 'flight', title: 'LIS -> JFK', confirmation_number: 'X9Y8Z7', airline: 'Delta', flight_number: 'DL 263',
+    departure_airport: 'LIS', arrival_airport: 'JFK', departure_time: '2027-04-20T11:15', arrival_time: '2027-04-20T14:05', destination_city: 'New York',
+    more_legs: [
+      { title: 'JFK -> ATL', flight_number: 'DL 416', departure_airport: 'JFK', arrival_airport: 'ATL', departure_time: '2027-04-20T17:30', arrival_time: '2027-04-20T19:50' },
+      { title: 'ATL -> SFO', flight_number: 'DL 902', departure_airport: 'ATL', arrival_airport: 'SFO', departure_time: '2027-04-20T21:15', arrival_time: '2027-04-20T23:30' },
+    ] }
+  current = '17-three-legs'
+  const out = await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-111' })).json()
+  assert.equal(out.legs.length, 3, JSON.stringify(out))
+  assert.equal(db.tables.bookings.length, 3)
+  assert.ok(db.tables.bookings.every(b => b.raw_email_id === 'resend-email-111'), JSON.stringify(db.tables.bookings.map(b => b.raw_email_id)))
+  // A different email gets its own id; with no id (a test harness, an old caller) the column stays null
+  current = '01-flight-united-sfo-lhr'
+  await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-222' })).json()
+  current = '03-museum-british-museum'
+  await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  assert.equal(new Set(db.tables.bookings.map(b => b.raw_email_id).filter(Boolean)).size, 2)
+  assert.equal(db.tables.bookings.filter(b => b.raw_email_id == null).length, 1)
+  // The AI cannot set it
+  PARSED['17b-injected'] = { ...PARSED['04-restaurant-opentable-dishoom'], raw_email_id: 'attacker' }
+  current = '17b-injected'
+  await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-333' })).json()
+  assert.ok(!db.tables.bookings.some(b => b.raw_email_id === 'attacker'))
+  // A spreadsheet of several rows is one email too
+  const sheet = makeDb()
+  const bytes = new Uint8Array(readFileSync(`${root}supabase/tests/files/flagship-itinerary.xlsx`))
+  current = null
+  await ingestAsMember(sheet, { id: 'u1', home_city: null }, { subject: 'Our trip', fromAddress: 'me', bodyText: 'see attached', GEMINI_API_KEY: '', emailId: 'resend-email-444',
+    attachments: [{ name: 'flagship-itinerary.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes }] })
+  assert.equal(sheet.tables.bookings.length, 4); assert.ok(sheet.tables.bookings.every(b => b.raw_email_id === 'resend-email-444'))
+  console.log('raw_email_id: a 3-leg email and a 4-row spreadsheet each stamp one id on every row; none from the AI; null when no id')
+}
 
 // ── Inbox gate (audit S4): who may mail an inbox, checked before any AI call ──
 {
@@ -425,6 +505,14 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     // The last unit of the day still works
     const db2 = makeDb(); db2.inbox.parses = INBOX_DAILY_PARSES - 1
     assert.equal((await send(db2, { id: 'u1' }, 'samrivera@gmail.com')).ai, 1)
+  }
+  // 5b. The budget RPC is down and this inbox has no recent answer: refused (fails closed like the AI quota)
+  {
+    const db = makeDb()
+    db.rpc = async name => name === 'consume_inbox_quota' ? { data: null, error: { message: 'connection refused' } } : { data: name === 'take_ingest_lock' ? true : null, error: null }
+    const res = await ingestEmail(db, { id: 'u3' }, { subject: flight.subject, fromAddress: 'kim@example.com', bodyText: flight.text, GEMINI_API_KEY: '' })
+    assert.equal(res.status, 429)
+    assert.equal(db.tables.bookings.length, 0)
   }
   // 6. Attachments are fetched only after the sender is accepted
   {
