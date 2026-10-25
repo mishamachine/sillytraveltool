@@ -1,5 +1,9 @@
 # STT Handoff — 2026-10-21
 
+## Update — signed Android beta APK for sideloading (2026-10-25, PR "Android release: also build a signed universal APK")
+- `android-release.yml` now also runs `./gradlew assembleRelease` (same upload key, same versionCode) and uploads the universal APK as the `android-release-apk` artifact (7-day retention; the AAB artifact is unchanged).
+- Private hand-off only: the APK goes to the owner's Google Drive folder "STT Android beta" (not shared) and the Actions artifact (needs GitHub login). Never a public URL.
+- This build has no paywall: `VITE_REVENUECAT_ANDROID_KEY` is not set in repo secrets. The earlier debug APK must be uninstalled first (different signing key).
 ## Update — cockpit Stripe data is live-only (2026-10-25, migration `20261025140000_stripe_live_only`, applied)
 - **Why:** Stripe went live tonight; every `stripe_*` row synced before that came from the sandbox.
 - **Purged** (`livemode = false`, applied after a rolled-back dry run): balance_txns 8, charges 7, checkouts 8, customers 2,
