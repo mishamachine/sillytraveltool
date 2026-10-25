@@ -1,5 +1,6 @@
 // Android emulator check (GitHub Actions, .github/workflows/android.yml): installs the demo APK, drives the app's
-// WebView through Chrome DevTools (debug builds allow it), takes screenshots and checks the First Class paywall.
+// WebView through Chrome DevTools (debug builds allow it), takes screenshots and checks the First Class paywall,
+// the free-plan limit, the onboarding tour (Profile → Take the tour), Tools → Tip & split and the Explore tab.
 // Needs a booted emulator (adb) and an APK built with VITE_DEMO=1 VITE_DEMO_PARAMS=limits=1.
 // Usage: node scripts/android-emu-shots.mjs [apk]   →   shots/*.png + shots/results.json; exits 1 when a check fails.
 import { execSync } from 'node:child_process'
@@ -65,6 +66,12 @@ async function waitText(t, ms = 15000) {
 }
 const click = (t, sel) => js(`const e = __t.byText(${JSON.stringify(t)}${sel ? `, ${JSON.stringify(sel)}` : ''}); if (!e) return false; e.click(); return true`)
 const tab = (name) => js(`const a = document.querySelector('a[href="#${name}"]'); a?.click(); return !!a`)
+const closeSheet = () => js(`document.querySelector('.c-sheet [aria-label="Close"]')?.click(); return true`)
+const ERROR_SCREEN = 'Goose lost the plot' // the ErrorState title (src/ui/States.jsx): an uncaught render error
+// One failing section (an exception, not a failed check) must not hide the sections after it
+async function section(name, fn) {
+  try { await fn() } catch (e) { check(`${name} section ran`, false, e.message); await shot(`99-${name}-error`).catch(() => {}) }
+}
 
 try {
   // ── 1. App opens (demo member) ──
@@ -83,9 +90,9 @@ try {
   check('paywall never mentions web checkout in the app', !(await js(`return /secure payment|sillytraveltool\\.com\\/upgrade/i.test(document.querySelector('.c-sheet').innerText)`)))
   await shot('03-paywall')
   await js(`document.querySelector('.paywall__plans')?.scrollIntoView({ block: 'start' }); return true`)
-  await click('Founders offer', '[role=radio]')
+  await click('Founders Flock', '[role=radio]')
   await sleep(500)
-  check('founders plan selectable', await js(`return __t.byText('Founders offer', '[role=radio]')?.getAttribute('aria-checked') === 'true'`))
+  check('founders plan selectable', await js(`return __t.byText('Founders Flock', '[role=radio]')?.getAttribute('aria-checked') === 'true'`))
   await shot('04-paywall-plans')
   await js(`document.querySelector('.c-sheet [aria-label="Close"]')?.click(); return true`)
   await sleep(600)
@@ -102,6 +109,39 @@ try {
   await click('Add trip')
   check('trip limit opens the paywall', await waitText('You have 2 upcoming trips'), picked ? '' : '(city suggestion not picked)')
   await shot('05-trip-limit')
+  await closeSheet(); await sleep(600)
+
+  // ── 4. Onboarding tour, replayed from Profile (the demo APK has no ?onboarding: App.jsx honours it in DEV only) ──
+  await section('tour', async () => {
+    await tab('profile'); await sleep(800)
+    check('profile offers Take the tour', await waitText('Take the tour'))
+    await click('Take the tour')
+    check('tour opens on its first slide', await waitText('Your whole trip, in one calm place'))
+    await shot('06-tour')
+    await click('Close')
+    check('tour closes back to Profile', await waitText('Take the tour'))
+  })
+
+  // ── 5. Explore tab loads ──
+  await section('explore', async () => {
+    await tab('explore'); await sleep(800)
+    let header = false
+    for (let i = 0; i < 60 && !header; i++) { header = await js(`return !!document.getElementById('explore-title')`); if (!header) await sleep(250) }
+    check('explore loads', header)
+    await sleep(2000) // guide sections fetch (demo fixtures) and render
+    check('explore shows no error screen', !(await js(`return __t.has(${JSON.stringify(ERROR_SCREEN)}) || __t.has('Guide unavailable')`)))
+    await shot('07-explore')
+  })
+
+  // ── 6. Tools → Tip & split renders. Last: the error screen (B4 crashed this tool) replaces the whole app, nav included ──
+  await section('tip', async () => {
+    await tab('tools'); await sleep(800)
+    check('tools hub shows Tip & split', await waitText('Tip & split'))
+    await click('Tip & split')
+    check('tip tool renders its Bill field', await waitText('Bill', 10000))
+    check('tip tool shows no error screen', !(await js(`return __t.has(${JSON.stringify(ERROR_SCREEN)})`)))
+    await shot('08-tip-split')
+  })
 } catch (e) {
   check('script ran', false, e.message)
   await shot('99-error').catch(() => {})
