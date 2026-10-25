@@ -42,23 +42,12 @@ Format: what to do · where · what Claude does once it's ticked.
 - [ ] **Real store SDK keys** (iOS `appl_…`, Android `goog_…`) shared with Claude before any release build (the Test
   Store key crashes release builds) · RevenueCat → API keys · Claude puts them in the builds.
 
-## Stripe go-live
-- [ ] **Activate the Stripe account:** business details, bank account, identity · dashboard.stripe.com → Activate ·
-  Claude recreates the product, both prices, portal and webhook in live mode and sets the live key + webhook secret in
-  Supabase.
-- [ ] **Sales tax decision:** register where needed or stay on threshold monitoring · Stripe → Tax · Claude turns on
-  Stripe Tax in Checkout if you choose to collect.
-- [ ] **Stripe key permission:** if the key in Supabase is a restricted key, give it "Subscriptions: write" (the live
-  key too) · Stripe → Developers → API keys · account deletion then cancels web subscriptions itself (otherwise it
-  raises a cockpit task to cancel by hand).
-
 ## Legal & copy
 - [ ] **Business address:** get a PO box or virtual business address to replace the home address on the privacy and
   terms pages · any mailbox provider · Claude swaps it into `public/privacy/` and `public/terms/` and deploys.
 
 ## Accounts & settings
 - [ ] **Leaked-password protection:** one toggle · Supabase → Authentication → Attack Protection · nothing further.
-- [ ] **Supabase Pro plan** before launch · Supabase → Billing · nothing further.
 - [ ] **Supabase CLI access:** run `supabase login` once in Terminal, or create a token (Supabase → Account → Access
   Tokens) and put it in `.env.local` as `SUPABASE_ACCESS_TOKEN` · Claude deploys Edge Functions straight from the repo.
 - [ ] **Google's real bill (later):** Cloud Billing → BigQuery export (dataset `stt_billing`), a service account with
@@ -75,8 +64,11 @@ Format: what to do · where · what Claude does once it's ticked.
 - **RevenueCat ticked →** (you're generating the V1 secret key now) once the secrets and webhook are set, send a
   RevenueCat test event, then merge PR #3 (iOS, `claude/objective-ptolemy-052302`) and any RevenueCat commits on
   `feat/first-class-paywall` not yet in main, swap in the real store keys, run the iOS and Android cloud checks.
-- **Stripe activated →** live product, prices, portal, webhook, keys; one real purchase + refund to confirm.
 
 ## Done
+- [x] **Stripe go-live** · 2026-10-25 · account activated, tax = threshold monitoring, restricted live key (incl.
+  Subscriptions: write) + webhook secret in Supabase; live product/prices/portal/webhook; real $14.99 purchase + refund
+  passed (HANDOFF 2026-10-25).
+- [x] **Supabase Pro plan** · 2026-10-25.
 - [x] **Review and merge PR #5** (launch readiness) · 2026-10-24 · merged as `aad8a07`; website deployed from it
   (backup `stt-202610240302-pre-launch-readiness.tar.gz`).
