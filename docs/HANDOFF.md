@@ -1,5 +1,17 @@
 # STT Handoff — 2026-10-21
 
+## Update — inbox trust and global caps are live; website on main d322527 (2026-10-25, evening)
+- Migrations applied with `apply_migration` after rolled-back tests: `20261025150000_global_daily_caps` (project-wide AI and
+  Google caps, Google per-member cap 500) and `20261026090000_inbox_trust` (sender allow-list columns, `consume_inbox_quota`,
+  `cancellation_received_at`, server-made 12-hex inbox tokens with the guard trigger, `my_rotate_inbox_token()`).
+- Edge Functions deployed from `main` with the CLI (`--no-verify-jwt`): generate-guide, generate-phrases, goosey-discover,
+  generate-checklist, parse-booking-email, places, resolve-timezone, admin-experiment-ai, receive-booking-email (twice:
+  PR #33 then PR #35). Every one answers 401 to an unauthenticated POST.
+- Website deployed from a clean `git archive` of `main` d322527 (backup `~/backups/stt-202610251803-pre-inbox.tar.gz`, dry run
+  89 files, no deletions, rsync without `--delete`); live `main-*.js` hash equals the build; key pages 200.
+- Existing 18 inbox addresses stay 8-hex until a member taps "New address" in Settings; mail from anyone other than the
+  member's own address is now dropped unless the sender is allow-listed or "accept any" is on.
+
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.
