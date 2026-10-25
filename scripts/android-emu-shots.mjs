@@ -102,6 +102,17 @@ try {
   await click('Add trip')
   check('trip limit opens the paywall', await waitText('You have 2 upcoming trips'), picked ? '' : '(city suggestion not picked)')
   await shot('05-trip-limit')
+
+  // ── 4. Shared-traveller card: the flagship trip's BCN → BER flight, three travellers, one card ──
+  await js(`location.href = location.origin + '/?flagship=10'; return true`).catch(() => {}) // reload, page helpers gone
+  let card = false
+  for (let i = 0; i < 60 && !card; i++) {
+    await sleep(500)
+    card = await js(`const b = [...document.querySelectorAll('button')].find(e => e.innerText?.trim().startsWith('Full trip plan')); b?.click()
+      const c = document.querySelector('.shared-leg'); c?.scrollIntoView({ block: 'center' }); return !!c`).catch(() => false)
+  }
+  check('shared flight is one card with three travellers', card && await js(`return document.querySelectorAll('.shared-leg__line').length === 3`))
+  await shot('06-shared-leg')
 } catch (e) {
   check('script ran', false, e.message)
   await shot('99-error').catch(() => {})

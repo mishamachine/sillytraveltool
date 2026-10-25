@@ -5,6 +5,7 @@ Taps go through AXe (https://github.com/cameroncooke/AXe), which reads the acces
 tree, so native alerts and any labelled web content are found by text.
 
 env: UDID, OUT (screenshot dir), DEEPLINK (optional: signs the test account in),
+     DEMO=1 (demo build with flagship=N: opens the plan and scrolls to the shared-traveller card),
      TRIP (optional: text in the trip card to open, default "Lisbon"),
      PREFIX (file-name prefix), ONLY_TRIPS=1 (stop after the Trips screen), LAUNCH_WAIT (seconds, default 10),
      TAPS (optional: "trip=x,y;plan=x,y;back=x,y;import=x,y" in points). WKWebView content is
@@ -20,6 +21,7 @@ TAPS = dict(p.split("=") for p in os.environ.get("TAPS", "").replace(" ", "").sp
 PREFIX = os.environ.get("PREFIX", "")
 ONLY_TRIPS = os.environ.get("ONLY_TRIPS") == "1"
 LAUNCH_WAIT = int(os.environ.get("LAUNCH_WAIT", "10"))
+DEMO = os.environ.get("DEMO") == "1"
 BUNDLE = 'com.sillytraveltool.app'
 os.makedirs(OUT, exist_ok=True)
 
@@ -94,6 +96,22 @@ if DEEPLINK:
     tap('Open', exact=True, timeout=4)  # iOS may confirm "Open in Silly Travel Tool?"
     time.sleep(10)
     shot('02-trips')
+
+if DEMO:
+    # Demo build, no account: the flagship trip's BCN -> BER flight, one card for three travellers
+    time.sleep(5)
+    shot('02-demo-today')
+    ok &= tap('Full trip plan', timeout=15)
+    time.sleep(4)
+    for i in range(14):
+        hits = [f for l, f in elements() if 'Maria Silva' in l]
+        if hits and 150 < hits[0]['y'] < 650:
+            break
+        run('axe', 'swipe', '--start-x', '200', '--start-y', '640', '--end-x', '200', '--end-y', '340', '--udid', UDID, check=False)
+        time.sleep(1.5)
+        if not hits:
+            shot(f'03-scroll-{i:02d}')  # WKWebView text may be missing from the tree: keep every step
+    shot('04-shared-leg')
 
 if DEEPLINK and not ONLY_TRIPS:
     ok &= tap(TRIP, timeout=8, key="trip")
