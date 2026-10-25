@@ -1,0 +1,74 @@
+# The check gate: every pull request and every push to main runs lint, the simulators, the Clay design check
+# and the production build (which runs scripts/check-dist.mjs). Nothing reaches main unchecked.
+# When supabase/functions/** changed, every Edge Function is also bundled with esbuild as a compile check
+# (no deploy). Target: under 3 minutes. Device checks live in android.yml and ios.yml.
+name: Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint (errors fail)
+        run: npm run lint
+
+      - name: Simulators (scripts/test-*.mjs)
+        run: npm test
+
+      # Advisory until the 12 violations already on main are fixed (src/admin/*, tour.css, stops.js, tripsStore.js,
+      # DeleteAccountView.jsx): it reports as a warning on the run. Drop the `|| { … }` part to make it a gate.
+      - name: Clay design check
+        run: |
+          npm run check:clay || { echo "::warning::Clay design check failed (advisory until the violations on main are fixed). Run npm run check:clay locally."; exit 0; }
+
+      - name: Build (runs check-dist)
+        env:
+          # The same public values the website ships. A build with no URL pulls the demo client into the bundle.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://swywrvbuswylvqlktsym.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'ci-placeholder' }}
+        run: npm run build
+
+      - name: Did Edge Functions change?
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            functions:
+              - 'supabase/functions/**'
+
+      - name: Compile check every Edge Function (esbuild bundle, no deploy)
+        if: steps.changes.outputs.functions == 'true'
+        run: |
+          set -e
+          fail=0
+          for dir in supabase/functions/*/; do
+            fn=$(basename "$dir")
+            [ "$fn" = "_shared" ] && continue
+            [ -f "$dir/index.ts" ] || { echo "::warning::$fn has no index.ts"; continue; }
+            if npx esbuild "$dir/index.ts" --bundle --format=esm --platform=neutral \
+                 --external:'jsr:*' --external:'node:*' --outfile="/tmp/$fn.js" --log-level=error; then
+              echo "ok   $fn"
+            else
+              echo "::error::$fn does not bundle"; fail=1
+            fi
+          done
+          exit $fail
