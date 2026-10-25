@@ -2,6 +2,7 @@
 // STT product-proof ads: builds vertical 1080x1920 30fps H.264 cuts from the real app footage.
 //
 //   node build.mjs a|b|c|all [--footage DIR] [--out DIR] [--keep]
+//   node build.mjs --variant persona:ana|marcus|linda|dev|all      (fictional-traveller voice-over ads)
 //
 // Captions, device frame and end card are rendered to PNG with headless Chrome (real Space Grotesk /
 // DM Sans, Clay tokens), then ffmpeg composites: screen clips -> xfade dissolves -> rounded mask ->
@@ -15,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)
 const flag = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d }
+const VARIANT = flag('variant', '')
 const which = args.find((a) => !a.startsWith('--') && ['a', 'b', 'c', 'all'].includes(a)) || 'all'
 const FOOTAGE = resolve(flag('footage', process.env.STT_FOOTAGE || join(HERE, '../app-footage')))
 const OUT = resolve(flag('out', join(HERE, 'out')))
@@ -50,6 +52,43 @@ const VARIANTS = {
     { clip: '07-shared-trip-card', ss: 4, speed: 1, dur: 4, cap: 'One card for [everyone] on the flight.' },
     { clip: '05-today', ss: 0.3, speed: 1, dur: 4, cap: '[Today], with Maria and Tom.' },
   ] },
+}
+
+// ---------- fictional-traveller voice-over ads ----------
+// 0-2 s persona card, 2-18 s voice-over over footage (one scene per spoken line, captions reinforce the key
+// phrase), 18-20.4 s result line, 20.4-22.9 s end card with disclosure. Voices: macOS `say` (offline, no
+// generated video). Each line is synthesised on its own so scene cuts follow the speech. [x] = terracotta word.
+const PHONE = 16, CARD = 2, RESULT = 2.4, END_P = 2.9, LEAD = 0.4, PRE = 0.3, GAP = [0.3, 0.9]
+const DISCLOSURE = 'Fictional traveller. Silly Travel Tool is in beta.'
+const PERSONAS = {
+  ana: { name: 'Ana', who: 'Family organiser, five travellers', voice: 'Samantha', rate: 170,
+    result: 'One trip. Every [seat].', file: 'ana-shared-trip', lines: [
+      { say: 'Five people, five inboxes. I was the one chasing every booking.', clip: '02-forward-lands-in-trip', ss: 3, speed: 1.2, cap: 'Five people, five [inboxes].' },
+      { say: 'Now everyone just forwards theirs to Goose.', clip: '02-forward-lands-in-trip', ss: 0.5, speed: 1, cap: 'Everyone forwards to [Goose].' },
+      { say: 'One trip. One card for each shared flight, with every seat on it.', clip: '07-shared-trip-card', ss: 2.8, speed: 1, cap: 'One card, [every seat].' },
+      { say: 'I finally stopped being the group’s search engine.', clip: '07-shared-trip-card', ss: 5, speed: 1, cap: 'One [trip] for the whole group.' },
+    ] },
+  marcus: { name: 'Marcus', who: 'Business traveller, early flights', voice: 'Daniel', rate: 175,
+    result: 'Landed. Already [moving].', file: 'marcus-today-get-there', lines: [
+      { say: 'Landing at six a.m., half asleep. Where do I go next?', clip: '05-today', ss: 0, speed: 0.9, cap: 'Landing at 6 am. Where [next]?' },
+      { say: 'Today opens on what’s next, in local time.', clip: '05-today', ss: 0.6, speed: 0.8, cap: 'Today opens on what’s [next].' },
+      { say: 'One tap on Get there, and I know how to reach it.', clip: '06-get-there', ss: 3.5, speed: 1, cap: 'One tap: [Get there].' },
+      { say: 'No digging through email. I just go.', clip: '06-get-there', ss: 5.5, speed: 0.8, cap: 'No digging. [Local] time.' },
+    ] },
+  linda: { name: 'Linda', who: 'Three countries, one long trip', voice: 'Moira', rate: 175,
+    result: 'Cross the border. Skip the [googling].', file: 'linda-tools-switch', lines: [
+      { say: 'New country, new currency, new emergency number. I used to look it all up.', clip: '04-multicity-plan', ss: 0.5, speed: 1, cap: 'New country, new [currency].' },
+      { say: 'Now my tools switch the moment the country does.', clip: '09-tools-switch', ss: 0, speed: 0.6, cap: 'Tools that [switch] by country.' },
+      { say: 'The right currency, local phrases, ready to show.', clip: '09-tools-switch', ss: 2.5, speed: 0.6, cap: 'Right [currency], local phrases.' },
+      { say: 'And SOS shows the numbers for wherever I am.', clip: '09-tools-switch', ss: 6.4, speed: 0.55, cap: '[SOS] for where you are.' },
+    ] },
+  dev: { name: 'Dev', who: 'Solo backpacker, hostel to hostel', voice: 'Rishi', rate: 170,
+    result: 'One trip. Nothing to [hunt] for.', file: 'dev-forward-email', lines: [
+      { say: 'Screenshots everywhere. Flights in my photos, hostels in my email.', clip: '01-inbox-first-run', ss: 0.8, speed: 1, cap: '[Screenshots] everywhere.' },
+      { say: 'Now I just forward the confirmation to Goose.', clip: '01-inbox-first-run', ss: 2, speed: 1, cap: 'Forward the [confirmation].' },
+      { say: 'It lands in the right trip, in local time.', clip: '02-forward-lands-in-trip', ss: 3.5, speed: 1.3, cap: 'Right trip. [Local] time.' },
+      { say: 'Got a PDF or a screenshot? Paste it or upload it.', clip: '03-import-sheet', ss: 3, speed: 1, cap: 'Paste it or [upload] it.' },
+    ] },
 }
 
 // ---------- tools ----------
@@ -107,15 +146,28 @@ const pageCap = (fd, t) => `<style>${css(fd)}body{background:transparent}
 .pill{max-width:940px;background:${C.card};border-radius:56px;padding:30px 48px 34px;text-align:center;font-family:'Space Grotesk';font-weight:700;font-size:60px;line-height:1.14;text-wrap:balance;letter-spacing:-.02em;box-shadow:0 8px 22px rgba(120,80,50,.14),inset 0 -4px 0 rgba(120,80,50,.05)}</style>
 <div class="box"><div class="pill">${capHtml(t)}</div></div>`
 
-const pageEnd = (fd, svg) => `<style>${css(fd)}body{background:${C.page}}
-.c{position:absolute;left:0;right:0;top:420px;display:flex;flex-direction:column;align-items:center}
+const pageEnd = (fd, svg, disc = '') => `<style>${css(fd)}body{background:${C.page}}
+.c{position:absolute;left:0;right:0;top:${disc ? 380 : 420}px;display:flex;flex-direction:column;align-items:center}
 .logo{width:300px;height:400px;filter:drop-shadow(0 16px 24px rgba(120,80,50,.25))}
 h1{font-family:'Space Grotesk';font-weight:700;font-size:96px;letter-spacing:-.03em;line-height:1;margin-top:56px}
 .url{font-weight:600;font-size:46px;color:${C.accent};margin-top:26px;letter-spacing:-.005em}
-.beta{margin-top:44px;background:${C.accentSoft};color:${C.accent};border-radius:999px;padding:12px 34px;font-weight:700;font-size:34px;letter-spacing:.06em;text-transform:uppercase}</style>
-<div class="c"><div class="logo">${svg}</div><h1>Silly Travel Tool</h1><div class="url">sillytraveltool.com</div><div class="beta">Beta</div></div>`
+.beta{margin-top:44px;background:${C.accentSoft};color:${C.accent};border-radius:999px;padding:12px 34px;font-weight:700;font-size:34px;letter-spacing:.06em;text-transform:uppercase}
+.disc{margin-top:48px;max-width:760px;text-align:center;font-weight:500;font-size:36px;line-height:1.3;color:${C.muted};text-wrap:balance}</style>
+<div class="c"><div class="logo">${svg}</div><h1>Silly Travel Tool</h1><div class="url">sillytraveltool.com</div><div class="beta">Beta</div>${disc ? `<div class="disc">${esc(disc)}</div>` : ''}</div>`
 
-async function renderAssets(dir, variant) {
+// persona card (0-2 s) and result line (18-20.4 s)
+const personaStyle = (fd) => `<style>${css(fd)}body{background:${C.page}}
+.c{position:absolute;left:0;right:0;top:440px;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 90px}
+.av{width:240px;height:240px;border-radius:50%;background:${C.accentSoft};color:${C.accent};display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;font-size:130px;box-shadow:0 14px 30px rgba(120,80,50,.16)}
+h1{font-family:'Space Grotesk';font-weight:700;font-size:150px;letter-spacing:-.035em;line-height:1;margin-top:52px}
+.who{font-weight:500;font-size:50px;line-height:1.25;color:${C.muted};margin-top:26px;text-wrap:balance}
+.tag{margin-top:56px;background:${C.card};color:${C.ink};border-radius:999px;padding:14px 38px;font-weight:700;font-size:34px;letter-spacing:.04em;box-shadow:0 6px 16px rgba(120,80,50,.14)}
+h2{font-family:'Space Grotesk';font-weight:700;font-size:104px;letter-spacing:-.03em;line-height:1.08;margin-top:56px;text-wrap:balance}
+.tagsm{margin-top:56px;font-weight:600;font-size:34px;color:${C.muted}}</style>`
+const pagePersona = (fd, p) => `${personaStyle(fd)}<div class="c"><div class="av">${esc(p.name[0])}</div><h1>${esc(p.name)}</h1><div class="who">${esc(p.who)}</div><div class="tag">Fictional traveller</div></div>`
+const pageResult = (fd, p) => `${personaStyle(fd)}<div class="c" style="top:560px"><div class="av" style="width:150px;height:150px;font-size:80px">${esc(p.name[0])}</div><h2>${capHtml(p.result)}</h2><div class="tagsm">${esc(p.name)} · Fictional traveller</div></div>`
+
+async function renderAssets(dir, variant, extra) {
   const fd = await ensureFonts()
   const { default: puppeteer } = await import(pathToFileURL(join(HERE, 'node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js')).href)
   const browser = await puppeteer.launch({ executablePath: chromePath(), headless: true, args: ['--allow-file-access-from-files'] })
@@ -126,42 +178,34 @@ async function renderAssets(dir, variant) {
     await page.goto(pathToFileURL(f).href); await page.evaluate(() => document.fonts.ready)
     await page.screenshot({ path: join(dir, `${file}.png`), omitBackground: !!opts.transparent, ...(opts.clip ? { clip: opts.clip } : {}) })
   }
+  const svg = readFileSync(LOGO, 'utf8').replace(/ width="\d+" height="\d+"/, ' width="100%" height="100%"')
   await shot(pageBg(fd), 'bg')
   await shot(pageMask, 'mask', { clip: { x: 0, y: 0, width: SCR.w, height: SCR.h } })
-  const svg = readFileSync(LOGO, 'utf8').replace(/ width="\d+" height="\d+"/, ' width="100%" height="100%"')
-  await shot(pageEnd(fd, svg), 'end')
+  if (extra) await extra(shot, fd, svg)
+  else await shot(pageEnd(fd, svg), 'end')
   for (let i = 0; i < variant.scenes.length; i++) await shot(pageCap(fd, variant.scenes[i].cap), `cap${i}`, { transparent: true })
   await browser.close()
 }
 
 // ---------- ffmpeg ----------
-async function build(key) {
-  const v = VARIANTS[key]
-  const ff = await ffmpegPath()
-  const work = mkdtempSync(join(tmpdir(), `stt-ad-${key}-`))
-  await renderAssets(work, v)
+const loop = (len, file) => ['-loop', '1', '-framerate', FPS, '-t', len, '-i', file]
 
-  const D = v.scenes.map((s) => s.dur)
-  const screenTotal = D.reduce((a, b) => a + b, 0)
-  const total = screenTotal + END
-  const n = v.scenes.length
-  const inputs = []
+// Phone section: bg + scene clips (dissolved, rounded mask, frame) + caption pills.
+// Returns inputs, filter graph, output label and the next free input index. `tail` extends the last scene
+// so a following dissolve has footage to blend with.
+function screenGraph(work, scenes, len, tail = 0) {
+  const n = scenes.length, D = scenes.map((s) => s.dur)
+  const inputs = [...loop(len, join(work, 'bg.png')), ...loop(len, join(work, 'mask.png'))]
   const fc = []
-
-  // 0: bg, 1: mask, 2..: clips, then captions, then end card
-  inputs.push('-loop', '1', '-framerate', FPS, '-t', total, '-i', join(work, 'bg.png'))
-  inputs.push('-loop', '1', '-framerate', FPS, '-t', total, '-i', join(work, 'mask.png'))
-  v.scenes.forEach((s, i) => {
-    const L = i < n - 1 ? s.dur + XF : s.dur
+  scenes.forEach((s, i) => {
+    const L = i < n - 1 ? s.dur + XF : s.dur + tail
     const clip = join(FOOTAGE, `${s.clip}-light.mp4`)
     if (!existsSync(clip)) throw new Error(`missing footage ${clip}`)
     inputs.push('-ss', s.ss, '-t', (L * s.speed + 0.5).toFixed(3), '-i', clip)
     fc.push(`[${2 + i}:v]setpts=PTS/${s.speed},fps=${FPS},scale=${SCR.w}:${SCR.h}:flags=lanczos,tpad=stop_mode=clone:stop_duration=${L},trim=duration=${L.toFixed(3)},setpts=PTS-STARTPTS,format=yuv420p[s${i}]`)
   })
-  v.scenes.forEach((_, i) => inputs.push('-loop', '1', '-framerate', FPS, '-t', D[i] + (i < n - 1 ? 0 : 0), '-i', join(work, `cap${i}.png`)))
-  inputs.push('-loop', '1', '-framerate', FPS, '-t', END, '-i', join(work, 'end.png'))
+  scenes.forEach((_, i) => inputs.push(...loop(D[i], join(work, `cap${i}.png`))))
   const capIdx = (i) => 2 + n + i
-  const endIdx = 2 + 2 * n
 
   // dissolves between screens
   let cur = 's0', acc = 0
@@ -175,27 +219,127 @@ async function build(key) {
 
   // captions: visible from scene start to next scene start, 0.2 s fades
   let t0 = 0, label = 'base0'
-  v.scenes.forEach((s, i) => {
+  scenes.forEach((s, i) => {
     const d = D[i]
     fc.push(`[${capIdx(i)}:v]format=rgba,fade=t=in:st=0:d=0.2:alpha=1,fade=t=out:st=${(d - 0.2).toFixed(3)}:d=0.2:alpha=1,setpts=PTS+${t0.toFixed(3)}/TB[c${i}]`)
     fc.push(`[${label}][c${i}]overlay=0:0:eof_action=pass[b${i + 1}]`)
     label = `b${i + 1}`; t0 += d
   })
+  return { inputs, fc, label, next: 2 + 2 * n }
+}
+
+const encode = (ff, inputs, fc, out, audio, total, outFile) => {
+  const cmd = ['-y', '-v', 'error', ...inputs, ...audio.inputs,
+    '-filter_complex', fc.join(';'), '-map', `[${out}]`, '-map', `${audio.map}:a`,
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-r', FPS, '-profile:v', 'high',
+    '-c:a', 'aac', '-b:a', audio.bitrate, '-t', total, '-movflags', '+faststart', outFile].map(String)
+  const r = spawnSync(ff, cmd, { stdio: 'inherit' })
+  if (r.status !== 0) throw new Error(`ffmpeg failed for ${outFile}`)
+}
+
+async function build(key) {
+  const v = VARIANTS[key]
+  const ff = await ffmpegPath()
+  const work = mkdtempSync(join(tmpdir(), `stt-ad-${key}-`))
+  await renderAssets(work, v)
+
+  const screenTotal = v.scenes.reduce((a, s) => a + s.dur, 0)
+  const total = screenTotal + END
+  const g = screenGraph(work, v.scenes, total)
+  const endIdx = g.next
+  g.inputs.push(...loop(END, join(work, 'end.png')))
   // end card
-  fc.push(`[${endIdx}:v]format=rgba,fade=t=in:st=0:d=${XF}:alpha=1,setpts=PTS+${screenTotal.toFixed(3)}/TB[end]`)
-  fc.push(`[${label}][end]overlay=0:0:eof_action=pass,format=yuv420p[out]`)
+  g.fc.push(`[${endIdx}:v]format=rgba,fade=t=in:st=0:d=${XF}:alpha=1,setpts=PTS+${screenTotal.toFixed(3)}/TB[end]`)
+  g.fc.push(`[${g.label}][end]overlay=0:0:eof_action=pass,format=yuv420p[out]`)
 
   mkdirSync(OUT, { recursive: true })
   const outFile = join(OUT, `stt-ad-${key}-${v.name}.mp4`)
-  const cmd = ['-y', '-v', 'error', ...inputs,
-    '-f', 'lavfi', '-t', total, '-i', 'anullsrc=r=44100:cl=stereo',
-    '-filter_complex', fc.join(';'), '-map', '[out]', '-map', `${endIdx + 1}:a`,
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-r', FPS, '-profile:v', 'high',
-    '-c:a', 'aac', '-b:a', '96k', '-t', total, '-movflags', '+faststart', outFile].map(String)
-  const r = spawnSync(ff, cmd, { stdio: 'inherit' })
-  if (r.status !== 0) throw new Error(`ffmpeg failed for ${key}`)
+  encode(ff, g.inputs, g.fc, 'out', { inputs: ['-f', 'lavfi', '-t', total, '-i', 'anullsrc=r=44100:cl=stereo'], map: endIdx + 1, bitrate: '96k' }, total, outFile)
   if (!KEEP) rmSync(work, { recursive: true, force: true }); else console.log('assets kept in', work)
   console.log(`built ${outFile} (${total}s)`)
 }
 
-for (const k of which === 'all' ? ['a', 'b', 'c'] : [which]) await build(k)
+// ---------- persona voice-over ----------
+const run = (cmd, a, o = {}) => { const r = spawnSync(cmd, a.map(String), { encoding: 'utf8', maxBuffer: 1 << 26, ...o }); if (r.status !== 0) throw new Error(`${cmd} failed: ${r.stderr}`); return r }
+
+// say -> trimmed 44.1 kHz mono wav; returns duration in seconds (measured from the raw PCM).
+function synth(ff, voice, rate, text, wav) {
+  const aiff = wav.replace(/\.wav$/, '.aiff')
+  run('say', ['-v', voice, '-r', rate, '-o', aiff, text])
+  run(ff, ['-y', '-v', 'error', '-i', aiff, '-ar', 44100, '-ac', 1,
+    '-af', 'silenceremove=start_periods=1:start_threshold=-50dB,areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse', wav])
+  const raw = wav.replace(/\.wav$/, '.raw')
+  run(ff, ['-y', '-v', 'error', '-i', wav, '-f', 's16le', raw])
+  return readFileSync(raw).length / 2 / 44100
+}
+
+// Schedule scenes from spoken-line lengths: speech i starts at sp[i] (phone-section time); the cut lands PRE s earlier.
+function schedule(p, durs) {
+  const n = durs.length, sum = durs.reduce((a, b) => a + b, 0)
+  const gap = Math.min(GAP[1], (PHONE - LEAD - 0.5 - sum) / (n - 1))
+  if (gap < GAP[0]) throw new Error(`${p.name}: voice-over too long (${sum.toFixed(1)} s of speech, gap ${gap.toFixed(2)} s); shorten the script or raise the rate`)
+  const sp = []; let t = LEAD
+  durs.forEach((d) => { sp.push(t); t += d + gap })
+  const start = sp.map((x, i) => (i === 0 ? 0 : x - PRE))
+  const dur = start.map((x, i) => (i < n - 1 ? start[i + 1] : PHONE) - x)
+  return { sp, dur, end: sp[n - 1] + durs[n - 1] }
+}
+
+// Mix the lines on a timeline, loudnorm (two-pass, linear), short fade-out; returns the wav path.
+function voiceTrack(ff, work, wavs, starts, total) {
+  const inp = wavs.flatMap((w) => ['-i', w])
+  const delays = starts.map((t, i) => `[${i}:a]adelay=${Math.round(t * 1000)}:all=1[a${i}]`)
+  const mix = `${delays.join(';')};${starts.map((_, i) => `[a${i}]`).join('')}amix=inputs=${starts.length}:duration=longest:dropout_transition=0,volume=${starts.length},highpass=f=70,apad=whole_dur=${total}`
+  const LN = 'I=-16:TP=-1.5:LRA=11'
+  const m1 = run(ff, ['-y', '-hide_banner', ...inp, '-filter_complex', `${mix},loudnorm=${LN}:print_format=json[o]`, '-map', '[o]', '-f', 'null', '-'])
+  const j = JSON.parse(m1.stderr.slice(m1.stderr.lastIndexOf('{'), m1.stderr.lastIndexOf('}') + 1))
+  const out = join(work, 'voice.wav')
+  run(ff, ['-y', '-v', 'error', ...inp, '-filter_complex',
+    `${mix},loudnorm=${LN}:measured_I=${j.input_i}:measured_TP=${j.input_tp}:measured_LRA=${j.input_lra}:measured_thresh=${j.input_thresh}:offset=${j.target_offset}:linear=true,afade=t=out:st=${(total - 0.6).toFixed(2)}:d=0.6,aresample=44100[o]`,
+    '-map', '[o]', '-t', total, out])
+  return out
+}
+
+async function buildPersona(key) {
+  const p = PERSONAS[key]
+  if (!p) throw new Error(`unknown persona "${key}" (${Object.keys(PERSONAS).join(', ')})`)
+  const ff = await ffmpegPath()
+  const work = mkdtempSync(join(tmpdir(), `stt-ad-${key}-`))
+  const wavs = p.lines.map((l, i) => join(work, `line${i}.wav`))
+  const durs = p.lines.map((l, i) => synth(ff, p.voice, p.rate, l.say, wavs[i]))
+  const words = p.lines.reduce((a, l) => a + l.say.split(/\s+/).length, 0)
+  if (words >= 60) throw new Error(`${p.name}: ${words} spoken words (limit 59)`)
+  const { sp, dur, end } = schedule(p, durs)
+  dur.forEach((d, i) => { if (d < 2.5) console.warn(`warn ${p.name}: scene ${i} only ${d.toFixed(2)} s on screen`) })
+  const scenes = p.lines.map((l, i) => ({ ...l, dur: dur[i] }))
+  console.log(`${p.name} (${p.voice}): ${words} words, speech ${durs.map((d) => d.toFixed(1)).join(' + ')} s, ends ${(CARD + end).toFixed(1)} s`)
+
+  await renderAssets(work, { scenes }, async (shot, fd, svg) => {
+    await shot(pagePersona(fd, p), 'card')
+    await shot(pageResult(fd, p), 'result')
+    await shot(pageEnd(fd, svg, DISCLOSURE), 'end')
+  })
+
+  const g = screenGraph(work, scenes, PHONE + XF, XF)
+  const iCard = g.next, iRes = g.next + 1, iEnd = g.next + 2
+  g.inputs.push(...loop(CARD + XF, join(work, 'card.png')), ...loop(RESULT, join(work, 'result.png')), ...loop(END_P, join(work, 'end.png')))
+  const norm = (a, b) => `[${a}]fps=${FPS},format=yuv420p,settb=AVTB[${b}]`
+  g.fc.push(norm(g.label, 'P'), norm(iCard, 'K'), norm(iRes, 'R'), norm(iEnd, 'E'))
+  g.fc.push(`[K][P]xfade=transition=fade:duration=${XF}:offset=${CARD}[X1]`)
+  g.fc.push(`[X1][R]xfade=transition=fade:duration=${XF}:offset=${CARD + PHONE}[X2]`)
+  g.fc.push(`[X2][E]xfade=transition=fade:duration=${XF}:offset=${CARD + PHONE + RESULT - XF}[out]`)
+  const len = CARD + PHONE + RESULT - XF + END_P
+
+  const voice = voiceTrack(ff, work, wavs, sp.map((t) => CARD + t), len)
+  mkdirSync(OUT, { recursive: true })
+  const outFile = join(OUT, `stt-ad-persona-${p.file}.mp4`)
+  encode(ff, g.inputs, g.fc, 'out', { inputs: ['-i', voice], map: iEnd + 1, bitrate: '128k' }, len, outFile)
+  if (!KEEP) rmSync(work, { recursive: true, force: true }); else console.log('assets kept in', work)
+  console.log(`built ${outFile} (${len.toFixed(1)} s)`)
+}
+
+if (VARIANT) {
+  const [kind, name] = VARIANT.split(':')
+  if (kind !== 'persona') throw new Error(`unknown variant "${VARIANT}" (use persona:<name>|all)`)
+  for (const k of name === 'all' ? Object.keys(PERSONAS) : [name]) await buildPersona(k)
+} else for (const k of which === 'all' ? ['a', 'b', 'c'] : [which]) await build(k)
