@@ -57,7 +57,7 @@ function AppLoading() {
 
 export default function App() {
   const { user, loading, init, passwordRecovery, inviteNonce, profile, profileReady } = useAuthStore()
-  const { activeTab, showTripForm, themePref } = useUIStore()
+  const { activeTab, showTripForm, themePref, tourOpen, closeTour } = useUIStore()
   const { activeTrip } = useTripsStore()
   const { fetchPendingInvites } = useCollabStore()
   useVisibilityRestore()
@@ -86,7 +86,7 @@ export default function App() {
     })
   }, [user?.id])
 
-  // One-time onboarding (Goose inbox + location) for new accounts. Accounts older than a day
+  // One-time onboarding tour (features, Goose inbox, location, plans) for new accounts. Accounts older than a day
   // are existing users: mark them onboarded without showing it. Dev: ?onboarding forces it.
   const userId = user?.id
   const profileCreatedAt = profile?.created_at
@@ -184,9 +184,12 @@ export default function App() {
   if (loading) return <AppLoading />
   if (!user || passwordRecovery) return <AuthScreen />
 
-  if (showOnboarding) return (
+  if (showOnboarding || tourOpen) return (
     <Suspense fallback={<ScreenFallback />}>
-      <Onboarding onDone={() => setShowOnboarding(false)} />
+      <Onboarding replay={!showOnboarding} onDone={({ firstClass } = {}) => {
+        setShowOnboarding(false); closeTour()
+        if (firstClass) usePlanStore.getState().openPaywall('onboarding')
+      }} />
     </Suspense>
   )
 

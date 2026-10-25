@@ -4,7 +4,7 @@
 import { geminiFetch, checkAiQuota } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
 import { attachPlace, geocode, cached, setGoogleUser } from '../_shared/google.ts'
-import { bestTrip, wallSpan, distanceKm, gapDays, routeKm, NEAR_KM, EDGE_DAYS } from '../_shared/tripMatch.js'
+import { rankTrips, wallSpan, distanceKm, gapDays, routeKm, NEAR_KM, EDGE_DAYS } from '../_shared/tripMatch.js'
 import { readItinerary, VISION_TYPES } from '../_shared/itinerary.ts'
 import { sheetToText } from '../_shared/sheet.js'
 
@@ -199,13 +199,28 @@ async function ingestOne(
   }
 
   // ── 4. Fetch user's trips for matching ────────────────────
+  const TRIP_COLS = 'id, title, destination_city, destination_country, destination_country_code, destination_tz, destination_lat, destination_lng, start_date, end_date, status'
   const { data: trips } = await supabase
     .from('trips')
-    .select('id, title, destination_city, destination_country, destination_country_code, destination_tz, destination_lat, destination_lng, start_date, end_date, status')
+    .select(TRIP_COLS)
     .eq('owner_id', userId)
     .order('start_date', { ascending: true })
 
-  const tripList: any[] = trips || []
+  // Trips the sender joined with edit rights: their own bookings belong there too. Marked `shared`, so this
+  // function never moves, merges, renames or re-dates them (someone else owns them). Viewers and pending
+  // invites don't count.
+  const { data: joined } = await supabase
+    .from('trip_collaborators')
+    .select('trip_id')
+    .eq('user_id', userId)
+    .eq('status', 'accepted')
+    .eq('role', 'collaborator')
+  const sharedIds = [...new Set((joined || []).map((r: any) => r.trip_id))].filter(id => !(trips || []).some((t: any) => t.id === id))
+  const { data: sharedTrips } = sharedIds.length
+    ? await supabase.from('trips').select(TRIP_COLS).in('id', sharedIds)
+    : { data: [] }
+
+  const tripList: any[] = [...(trips || []), ...(sharedTrips || []).map((t: any) => ({ ...t, shared: true }))]
 
   // ── 4b. Attachments first: an itinerary PDF, a screenshot or a spreadsheet can hold a whole trip ──
   const fromFiles: any[] = []
@@ -366,7 +381,8 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   // ── 5b. The same confirmation forwarded again: keep the booking we already have ──
   // Hotels, tickets and tables only: an outbound and return flight share one confirmation number
   const tripIds = trips.map((t: any) => t.id)
-  const same = await sameReservation(supabase, userId, tripIds, parsed, id => trips.find((t: any) => t.id === id)?.destination_tz || null)
+  const tripOf = (id: string) => trips.find((t: any) => t.id === id)
+  const same = await sameReservation(supabase, userId, tripIds, parsed, id => tripOf(id)?.destination_tz || null, id => !!tripOf(id)?.shared)
   if (same) return same
   delete parsed.change_type
   if (tripIds.length && parsed.title && !parsed.departure_time) {
@@ -388,7 +404,8 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   if (MOVES.has(parsed.type) && parsed.departure_time && (parsed.flight_number || parsed.confirmation_number) && tripIds.length) {
     const probe = await attachZones(supabase, { ...parsed }, { city: parsed.destination_city || '' })
     if (probe.departure_time && probe.departure_tz) {
-      let q = supabase.from('bookings').select('id, trip_id').in('trip_id', tripIds).eq('departure_time', new Date(probe.departure_time).toISOString())
+      // Only the sender's own legs: two travellers on a shared trip can be on the same flight
+      let q = supabase.from('bookings').select('id, trip_id').in('trip_id', tripIds).eq('created_by', userId).eq('departure_time', new Date(probe.departure_time).toISOString())
       q = parsed.flight_number ? q.eq('flight_number', String(parsed.flight_number)) : q.eq('confirmation_number', String(parsed.confirmation_number))
       const { data: dupes } = await q.limit(1)
       if (dupes?.[0]) {
@@ -412,10 +429,14 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   const candidates = trips.filter((t: any) => t.status !== 'cancelled' &&
     (!t.start_date || !item.start || gapDays(t, item) <= EDGE_DAYS))
   for (const t of candidates) await loadTripPoints(supabase, t, home)
-  const match = bestTrip(candidates, item, { today })
+  // A shared trip must also be on the booking's route (overlapping dates alone isn't enough: the traveller may
+  // have a trip of their own elsewhere). One that fits wins over the sender's own: that's where the group plans.
+  const fits = rankTrips(candidates, item, { today }).filter((r: any) => r.score > 0 && (!r.trip.shared || r.km <= NEAR_KM))
+  const match = fits.find((r: any) => r.trip.shared) || fits[0] || null
   let matchedTrip: any = match?.trip || null
 
-  if (matchedTrip && match?.widen) {
+  // Someone else's trip keeps its dates; a booking outside them still lands (the app offers to stretch them)
+  if (matchedTrip && match?.widen && !matchedTrip.shared) {
     Object.assign(matchedTrip, await widenTrip(supabase, matchedTrip.id, match.widen.start_date, match.widen.end_date) || match.widen)
     console.log(`📅 Trip ${matchedTrip.id} now ${match.widen.start_date} → ${match.widen.end_date} (${match.fit})`)
   }
@@ -463,8 +484,8 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
 
   // A train or flight that joins this trip to another emailed one: they're one journey
   let foldedTripId: string | null = null
-  if (matchedTrip?.start_date && MOVES.has(parsed.type)) {
-    foldedTripId = await foldNeighbour(supabase, matchedTrip, trips.filter((t: any) => t.id !== matchedTrip.id), ends, home)
+  if (matchedTrip?.start_date && !matchedTrip.shared && MOVES.has(parsed.type)) {
+    foldedTripId = await foldNeighbour(supabase, matchedTrip, trips.filter((t: any) => t.id !== matchedTrip.id && !t.shared), ends, home)
     if (foldedTripId) trips.splice(trips.findIndex((t: any) => t.id === foldedTripId), 1)
   }
 
@@ -504,7 +525,7 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   }
 
   console.log(`✅ Booking created for user ${userId}: ${booking.id} → trip ${matchedTrip?.id || 'unassigned'}`)
-  if (matchedTrip) await repointAutoTrip(supabase, matchedTrip, home).catch(e => console.warn('repointAutoTrip', e?.message || e))
+  if (matchedTrip && !matchedTrip.shared) await repointAutoTrip(supabase, matchedTrip, home).catch(e => console.warn('repointAutoTrip', e?.message || e))
 
   return {
     success: true,
@@ -575,7 +596,7 @@ const normRef = (v: unknown) => String(v ?? '').replace(/[^0-9a-z]/gi, '').toLow
  * train, the same service: outbound and return legs share a confirmation number). Returns the action taken, or null
  * when it's a new reservation.
  */
-async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null) {
+async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null, isShared: (id: string) => boolean = () => false) {
   const ref = normRef(parsed.confirmation_number)
   if (!ref || !tripIds.length) return null
   const { data: rows } = await supabase.from('bookings').select('*').in('trip_id', tripIds).eq('created_by', userId).eq('type', parsed.type)
@@ -608,7 +629,7 @@ async function sameReservation(supabase: any, userId: string, tripIds: string[],
   const { error } = await supabase.from('bookings').update(updates).eq('id', existing.id)
   if (error) return { error: `Booking update failed: ${error.message}`, status: 500 }
   const span = wallSpan(parsed)
-  if (span && existing.trip_id) await widenTrip(supabase, existing.trip_id, span.start, span.end)
+  if (span && existing.trip_id && !isShared(existing.trip_id)) await widenTrip(supabase, existing.trip_id, span.start, span.end)
   console.log(`✏️ Booking ${existing.id} updated for user ${userId}: ${changed.join(', ')}`)
   return { success: true, updated: true, changed, booking_id: existing.id, trip_id: existing.trip_id }
 }

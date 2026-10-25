@@ -36,3 +36,20 @@
 .profile-export { align-self: flex-start; color: var(--accent); }
 .profile-delete-input { letter-spacing: 0.08em; }
 .profile-delete-actions { margin-top: auto; padding-top: var(--space-4); }
+
+/* How to use STT (HelpView) */
+.help-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.help-step { display: flex; gap: var(--space-3); align-items: flex-start; }
+.help-step__num {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent); font: 700 0.875rem/1 var(--font-display);
+}
+.help-faq + .help-faq { border-top: 1px solid var(--line); }
+.help-faq__q {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  min-height: 52px; padding: var(--space-3) 0; cursor: pointer; list-style: none; font-weight: 600; color: var(--ink);
+}
+.help-faq__q::-webkit-details-marker { display: none; }
+.help-faq__caret { flex: none; color: var(--ink-muted); transition: transform 0.2s; }
+.help-faq[open] .help-faq__caret { transform: rotate(180deg); }
+.help-faq__a { padding-bottom: var(--space-4); }
