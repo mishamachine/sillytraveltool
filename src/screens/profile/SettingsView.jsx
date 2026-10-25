@@ -3,7 +3,7 @@ import { useAuthStore, useUIStore } from '../../store'
 import { InboxAddress } from '../trips/InboxHint'
 import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
-import { manageTarget, openManage } from '../../lib/purchases'
+import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Switch, Text, Stack, Logo, LinkButton, Icon,
@@ -31,7 +31,8 @@ function ExternalRow({ href, title }) {
 
 const fmtDate = (d) => new Date(d).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
 
-// Plan row: free → opens the paywall; First Class → renewal date and, where this platform may, Manage
+// Plan row: free → opens the paywall (an app build without store billing only names the plan); First Class →
+// renewal date and, where this platform may, Manage
 function PlanSection() {
   const { plan, openPaywall } = usePlanStore()
   const userId = useAuthStore(s => s.user?.id)
@@ -41,7 +42,9 @@ function PlanSection() {
     return (
       <Section title="Plan">
         <Card variant="group">
-          <ListRow icon="star" title="Get First Class" meta="Unlimited trips, reservations and email import" chevron onClick={() => openPaywall('settings')} />
+          {canBuy
+            ? <ListRow icon="star" title="Get First Class" meta="Unlimited trips, reservations and email import" chevron onClick={() => openPaywall('settings')} />
+            : <ValueRow label="Current plan" value="Free" />}
         </Card>
       </Section>
     )

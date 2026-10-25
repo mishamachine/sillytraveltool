@@ -25,3 +25,4 @@
 .paywall__restore { align-self: center; }
 .paywall a { color: var(--accent); }
 .paywall__welcome { padding: var(--space-4) 0; }
+.paywall__price-wait { display: inline-block; width: 72px; height: 14px; vertical-align: middle; }

@@ -1,8 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
-// App Store / Google Play → Supabase, through RevenueCat (docs/STRIPE_BILLING.md, plan A). RevenueCat sends the
-// Authorization header set in its dashboard (REVENUECAT_WEBHOOK_SECRET). Rather than trusting the event, each call
-// re-reads the member from the RevenueCat API (REVENUECAT_API_KEY, secret v1 key) and upserts their
+// App Store / Google Play → Supabase, through RevenueCat (docs/STRIPE_BILLING.md, plan A). The event is only a poke:
+// nothing in it is trusted. Each call re-reads the member from the RevenueCat API (REVENUECAT_API_KEY, secret v1 key),
+// so a forged event can only make us copy RevenueCat's real state. That's why the shared secret is optional (owner,
+// 2026-10-24): when REVENUECAT_WEBHOOK_SECRET is set, the Authorization header must match it. Upserts their
 // store_entitlements row, which entitlement() reads. Retries and out-of-order events are harmless: every write is the
 // member's current state. app_user_id is the Supabase user id (the apps configure RevenueCat with it).
 type Obj = Record<string, any>
@@ -14,8 +15,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 function sameSecret(header: string | null) {
+  if (!SECRET) return true
   const got = (header || '').replace(/^Bearer\s+/i, '').trim()
-  if (!SECRET || got.length !== SECRET.length) return false
+  if (got.length !== SECRET.length) return false
   let diff = 0
   for (let i = 0; i < got.length; i++) diff |= got.charCodeAt(i) ^ SECRET.charCodeAt(i)
   return diff === 0
@@ -67,11 +69,12 @@ Deno.serve(async (req) => {
   if (!API_KEY) return json({ error: 'Not set up' }, 503)
   try {
     const { event } = await req.json()
-    if (!event || event.type === 'TEST') return json({ ok: true })
+    if (!event) return json({ ok: true })
+    if (event.type === 'TEST') { console.log('store-webhook: RevenueCat test event received'); return json({ ok: true, test: true }) }
     // Everyone the event touches (a TRANSFER moves a purchase between accounts)
     const ids = new Set<string>([event.app_user_id, event.original_app_user_id, ...(event.aliases || []),
-      ...(event.transferred_from || []), ...(event.transferred_to || [])].filter((id) => UUID.test(id || '')))
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+      ...(event.transferred_from || []), ...(event.transferred_to || [])].filter((id) => UUID.test(id || '')).slice(0, 10))
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.118.0')
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     for (const id of ids) {
       // Only members who exist (RevenueCat can hold ids from deleted accounts)

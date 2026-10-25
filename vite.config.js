@@ -127,8 +127,9 @@ export default defineConfig(({ mode }) => {
   ].filter(Boolean),
   // Web build: the app plus the owner cockpit (admin/index.html → /admin/), the code redeem page (/redeem/),
   // First Class checkout (/upgrade/) and the beta waitlist (/beta/).
-  // The native build ships the app only.
-  build: isNative ? {} : {
+  // The native build ships the app only, into dist-native/ (capacitor.config.json webDir), so a web build in dist/
+  // (with /upgrade/, the Stripe page) can never be packaged into the apps.
+  build: isNative ? { outDir: 'dist-native' } : {
     rollupOptions: {
       input: {
         main: new URL('./index.html', import.meta.url).pathname,

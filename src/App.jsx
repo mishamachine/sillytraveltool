@@ -69,7 +69,7 @@ export default function App() {
 
   useEffect(() => { init(); initDeepLinks(); initBackButton(); initExternalLinks() }, [])
 
-  // GA4 page_view per tab (no-op on native and non-production builds)
+  // GA4 page_view per tab (no-op on the dev server unless VITE_GA_DEV=1)
   useEffect(() => initScreenTracking(), [])
 
   useEffect(() => {

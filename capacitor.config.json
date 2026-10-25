@@ -1,7 +1,7 @@
 {
   "appId": "com.sillytraveltool.app",
   "appName": "Silly Travel Tool",
-  "webDir": "dist",
+  "webDir": "dist-native",
   "android": {
     "backgroundColor": "#F4EEE6"
   },
