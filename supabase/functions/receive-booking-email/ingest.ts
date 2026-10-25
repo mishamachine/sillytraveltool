@@ -185,9 +185,10 @@ export async function ingestEmail(supabase: any, profile: { id: string, home_cit
 async function ingestOne(
   supabase: any,
   profile: { id: string, home_city?: string | null },
-  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [] }: {
+  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [], emailId = null }: {
     subject: string, fromAddress: string, bodyText: string, GEMINI_API_KEY: string,
     attachments?: { name: string, mime: string, bytes: Uint8Array }[],
+    emailId?: string | null,  // the Resend email id: stamped on every booking from this email (raw_email_id)
   },
 ): Promise<Response> {
   const userId = profile.id
@@ -236,7 +237,7 @@ async function ingestOne(
   }
   if (fromFiles.length) {
     const results: any[] = []
-    for (const parsed of fromFiles.slice(0, 40)) results.push(await fileBooking(supabase, profile, tripList, parsed))
+    for (const parsed of fromFiles.slice(0, 40)) results.push(await fileBooking(supabase, profile, tripList, parsed, emailId))
     const saved = results.filter(r => r.booking_id && !r.duplicate).length
     console.log(`📎 ${saved} of ${results.length} bookings from attachments for user ${userId}`)
     return ok({ success: true, from_attachments: true, count: saved, bookings: results, trip_ids: [...new Set(results.map(r => r.trip_id).filter(Boolean))] })
@@ -363,19 +364,19 @@ activity_time, ticket_quantity
   delete parsed.more_legs
   const shared = { type: parsed.type, confirmation_number: parsed.confirmation_number, airline: parsed.airline, transport_mode: parsed.transport_mode,
     passenger_name: parsed.passenger_name, flight_class: parsed.flight_class, change_type: parsed.change_type, currency: parsed.currency }
-  const filed = await fileBooking(supabase, profile, tripList, parsed)
+  const filed = await fileBooking(supabase, profile, tripList, parsed, emailId)
   if (filed.error || !more.length) return filed.error ? err(filed.error, filed.status || 500) : ok(filed)
   const legs = [filed]
   for (const l of more) {
     const leg = { ...shared, ...l, destination_city: l.destination_city || l.arrival_airport || null }
     leg.title = leg.title || [l.departure_airport, l.arrival_airport].filter(Boolean).join(' -> ')
-    legs.push(await fileBooking(supabase, profile, tripList, leg))
+    legs.push(await fileBooking(supabase, profile, tripList, leg, emailId))
   }
   return ok({ ...filed, legs: legs.map(r => ({ booking_id: r.booking_id, trip_id: r.trip_id, duplicate: r.duplicate, error: r.error })) })
 }
 
 /** Match one parsed booking to a trip (extend, fold or create one) and insert it. Updates `trips` in place. */
-async function fileBooking(supabase: any, profile: { id: string, home_city?: string | null }, trips: any[], parsed: any): Promise<Record<string, any>> {
+async function fileBooking(supabase: any, profile: { id: string, home_city?: string | null }, trips: any[], parsed: any, emailId: string | null = null): Promise<Record<string, any>> {
   const userId = profile.id
   setGoogleUser(userId)
   // ── 5b. The same confirmation forwarded again: keep the booking we already have ──
@@ -511,6 +512,8 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
     source: 'email_import',
     is_shared: false,
     locked: !!locked,
+    // One email = one import for the free-plan counter, however many legs it filed (set here, never from the AI's output)
+    raw_email_id: emailId ? String(emailId).slice(0, 200) : null,
   }
 
   const { data: booking, error: insertErr } = await supabase
@@ -591,18 +594,37 @@ const sameValue = (k: string, a: unknown, b: unknown) => {
 }
 const normRef = (v: unknown) => String(v ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase()
 
+/** The calendar day a stored instant falls on in the place it left from (UTC when no zone was stored). */
+const localDay = (iso: string, tz: string | null) => {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d) }
+  catch { return d.toISOString().slice(0, 10) }
+}
+
+/**
+ * Two legs under one confirmation number: the same leg only when it is the same service. Without a service number on
+ * either side (ferry and bus e-tickets: one reference for out and back), the same origin and departure day must match
+ * as well, or the return leg would overwrite the outbound one. `parsed` carries the day as printed (local).
+ */
+function sameLeg(stored: Record<string, any>, parsed: Record<string, any>): boolean {
+  const a = normRef(stored.flight_number), b = normRef(parsed.flight_number)
+  if (a && b) return a === b
+  const from = normRef(parsed.departure_airport)
+  const day = typeof parsed.departure_time === 'string' ? parsed.departure_time.slice(0, 10) : ''
+  return !!from && !!day && normRef(stored.departure_airport) === from && !!stored.departure_time && localDay(stored.departure_time, stored.departure_tz || null) === day
+}
+
 /**
  * The same reservation forwarded again, changed or cancelled: same confirmation number and type (and, for a flight or
- * train, the same service: outbound and return legs share a confirmation number). Returns the action taken, or null
- * when it's a new reservation.
+ * train, the same leg: see sameLeg; outbound and return legs share a confirmation number). Returns the action taken,
+ * or null when it's a new reservation.
  */
 async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null, isShared: (id: string) => boolean = () => false) {
   const ref = normRef(parsed.confirmation_number)
   if (!ref || !tripIds.length) return null
   const { data: rows } = await supabase.from('bookings').select('*').in('trip_id', tripIds).eq('created_by', userId).eq('type', parsed.type)
-  const legNo = normRef(parsed.flight_number)
-  const existing = (rows || []).find((b: any) => normRef(b.confirmation_number) === ref &&
-    (!MOVES.has(parsed.type) || !legNo || !normRef(b.flight_number) || normRef(b.flight_number) === legNo))
+  const existing = (rows || []).find((b: any) => normRef(b.confirmation_number) === ref && (!MOVES.has(parsed.type) || sameLeg(b, parsed)))
   if (!existing) return null
 
   if (parsed.change_type === 'cancellation') {
