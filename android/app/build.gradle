@@ -15,7 +15,7 @@ android {
         applicationId "com.sillytraveltool.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (System.getenv('STT_VERSION_CODE') ?: pkg.versionCode) as int
+        versionCode((System.getenv('STT_VERSION_CODE') ?: pkg.versionCode).toString().toInteger())
         versionName pkg.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
