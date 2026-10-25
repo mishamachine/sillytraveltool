@@ -98,20 +98,28 @@ if DEEPLINK:
     shot('02-trips')
 
 if DEMO:
-    # Demo build, no account: the flagship trip's BCN -> BER flight, one card for three travellers
+    # Demo build, no account: the flagship trip's BCN -> BER flight, one card for three travellers.
+    # WKWebView content is not in the accessibility tree here, so this taps by position and keeps every scroll step.
+    def swipe(y0=640, y1=340):
+        run('axe', 'swipe', '--start-x', '200', '--start-y', str(y0), '--end-x', '200', '--end-y', str(y1), '--udid', UDID, check=False)
+        time.sleep(1.5)
     time.sleep(5)
     shot('02-demo-today')
-    ok &= tap('Full trip plan', timeout=15)
+    frames = [f for l, f in elements()]
+    screen = max(frames, key=lambda f: f['width'] * f['height']) if frames else {'width': 402, 'height': 874}
+    for _ in range(3):
+        swipe()  # Today to its end: "Full trip plan" then sits just above the tab bar
+    if 'plan_demo' in TAPS:
+        x, y = TAPS['plan_demo'].split(',')
+    else:
+        x, y = str(round(screen['width'] / 2)), str(round(screen['height'] - 133))
+    print(f'tap Full trip plan at {x},{y}', flush=True)
+    run('axe', 'tap', '-x', x, '-y', y, '--udid', UDID)
     time.sleep(4)
-    for i in range(14):
-        hits = [f for l, f in elements() if 'Maria Silva' in l]
-        if hits and 150 < hits[0]['y'] < 650:
-            break
-        run('axe', 'swipe', '--start-x', '200', '--start-y', '640', '--end-x', '200', '--end-y', '340', '--udid', UDID, check=False)
-        time.sleep(1.5)
-        if not hits:
-            shot(f'03-scroll-{i:02d}')  # WKWebView text may be missing from the tree: keep every step
-    shot('04-shared-leg')
+    shot('03-plan-00')
+    for i in range(1, 16):
+        swipe(600, 350)
+        shot(f'03-plan-{i:02d}')
 
 if DEEPLINK and not ONLY_TRIPS:
     ok &= tap(TRIP, timeout=8, key="trip")
