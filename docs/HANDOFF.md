@@ -1,5 +1,17 @@
 # STT Handoff — 2026-10-21
 
+## Update — trip-list invite Accept/Decline fixed (2026-10-25, accept-invite **v14**)
+- **Bug:** after the RLS hardening (PR #16) clients may only `UPDATE (role)` on `trip_collaborators`, so the trip-list
+  "Join trip"/"Decline" buttons failed with 42501 (a silent no-op before that). Also, the Invites list was always empty:
+  `send-invite` never sets `user_id`, and invitees can only SELECT their rows where `user_id = auth.uid()`.
+- **Fix:** `accept-invite` (service role) now also takes `{ action: 'list' }` (the caller's pending, unexpired invites, with
+  trip title/place/dates) and `{ collaboratorId, accept }` (same email binding as the token path; accept sets
+  accepted/user_id/accepted_at, decline sets declined). `{ token }` is unchanged. `collabStore` uses both; `InviteRow` shows
+  a busy state and an error line, and the invite stays listed until the function confirms.
+- **Tested live** (local build against live Supabase, machinemisha, fixture trips owned by test@test.com, deleted after):
+  list, accept, decline, replay, someone else's invite, bad body, no auth, expired invite in the UI. v12 backed up to
+  `~/backups/accept-invite-v12-2026-10-25/`. **The client half needs a web deploy** before it works on sillytraveltool.com.
+
 ## Update — Edge Functions deployed from the repo with the CLI (2026-10-25)
 - **Live = repo for all 23 functions.** The CLI is logged in and linked (`supabase functions deploy <fn> --no-verify-jwt --use-api`,
   no Docker, no more MCP bundles). New versions: accept-invite v11, admin-email v3, admin-experiment-ai v4, admin-stripe v11,

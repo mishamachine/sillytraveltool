@@ -126,12 +126,20 @@ function UpcomingCard({ trip, climate, onOpen, live = false }) {
 
 function InviteRow({ invite, onRespond }) {
   const t = invite.trips
+  const [busy, setBusy] = useState(null)
+  const [error, setError] = useState(null)
+  const respond = async (accept) => {
+    setBusy(accept ? 'join' : 'decline'); setError(null)
+    const res = await onRespond(invite.id, accept)
+    if (!res?.success) { setError(res?.error); setBusy(null) }
+  }
   return (
     <Card variant="raised">
       <ListRow as="div" icon="user-plus" tone="accent" title={t?.title || 'Trip invite'} meta={[t?.destination_city, t?.destination_country].filter(Boolean).join(' · ')} />
+      {error && <Text variant="caption" as="span" tone="danger" role="alert" style={{ display: 'block', marginBottom: 8 }}>{error}</Text>}
       <Stack row gap={2}>
-        <Button className="grow" onClick={() => onRespond(invite.id, false)}>Decline</Button>
-        <Button className="grow" variant="primary" onClick={() => onRespond(invite.id, true)}>Join trip</Button>
+        <Button className="grow" loading={busy === 'decline'} disabled={!!busy} onClick={() => respond(false)}>Decline</Button>
+        <Button className="grow" variant="primary" loading={busy === 'join'} disabled={!!busy} onClick={() => respond(true)}>Join trip</Button>
       </Stack>
     </Card>
   )
