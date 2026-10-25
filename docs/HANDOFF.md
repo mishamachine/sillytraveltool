@@ -1,5 +1,10 @@
 # STT Handoff — 2026-10-21
 
+## Update — signed Android beta APK for sideloading (2026-10-25, PR "Android release: also build a signed universal APK")
+- `android-release.yml` now also runs `./gradlew assembleRelease` (same upload key, same versionCode) and uploads the universal APK as the `android-release-apk` artifact (7-day retention; the AAB artifact is unchanged).
+- Private hand-off only: the APK goes to the owner's Google Drive folder "STT Android beta" (not shared) and the Actions artifact (needs GitHub login). Never a public URL.
+- This build has no paywall: `VITE_REVENUECAT_ANDROID_KEY` is not set in repo secrets. The earlier debug APK must be uninstalled first (different signing key).
+
 ## Update — trip-list invite Accept/Decline fixed (2026-10-25, accept-invite **v14**)
 - **Bug:** after the RLS hardening (PR #16) clients may only `UPDATE (role)` on `trip_collaborators`, so the trip-list
   "Join trip"/"Decline" buttons failed with 42501 (a silent no-op before that). Also, the Invites list was always empty:
