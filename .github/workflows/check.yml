@@ -35,7 +35,7 @@ jobs:
         run: npm test
 
       # Advisory until the 12 violations already on main are fixed (src/admin/*, tour.css, stops.js, tripsStore.js,
-      # DeleteAccountView.jsx): it reports as a warning on the run. Delete the two lines below it to make it a gate.
+      # DeleteAccountView.jsx): it reports as a warning on the run. Drop the `|| { … }` part to make it a gate.
       - name: Clay design check
         run: npm run check:clay || { echo "::warning::Clay design check failed: run npm run check:clay locally. Advisory until the violations on main are fixed."; exit 0; }
 
