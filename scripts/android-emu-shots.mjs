@@ -158,7 +158,10 @@ try {
     await tab('tools'); await sleep(800)
     check('tools hub shows Tip & split', await waitText('Tip & split'))
     await click('Tip & split')
-    check('tip tool renders its Bill field', await waitText('Bill', 10000))
+    // The "Bill" label is an overline (CSS uppercase), so innerText says "BILL": look for the input itself
+    let bill = false
+    for (let i = 0; i < 40 && !bill; i++) { bill = await js(`return !!document.getElementById('tip-bill')`); if (!bill) await sleep(250) }
+    check('tip tool renders its Bill field', bill)
     check('tip tool shows no error screen', !(await js(`return __t.has(${JSON.stringify(ERROR_SCREEN)})`)))
     await shot('08-tip-split')
   })
