@@ -8,7 +8,9 @@
 //   webhook mode — signs each fixture exactly like Resend/Svix and posts it to
 //   receive-booking-email, exercising signature check → token lookup → Gemini →
 //   trip matching → insert. Creates real bookings for the address owner, so use
-//   a test account or a test project:
+//   a test account or a test project. The fixtures come from airline addresses, so
+//   that account needs user_profiles.inbox_accept_any = true (Settings → Accept
+//   from any sender), else every one is dropped by the sender check:
 //     RESEND_WEBHOOK_SECRET=whsec_… STT_BOOKING_ADDRESS=<token>@bookings.sillytraveltool.com \
 //       node scripts/test-email-ingest.mjs webhook [fixture-id …]
 //

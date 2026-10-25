@@ -1,5 +1,25 @@
 # STT Handoff — 2026-10-21
 
+## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
+- **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
+  member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.
+  Addresses normalised (display name off, lowercase, plus-tag off, Gmail dots off, googlemail → gmail). Others are
+  dropped silently with a `function_errors` row (`kind = inbox_rejected_sender`, sender domain only, no body).
+  Attachments download only after the check.
+- **Per-inbox budget:** `consume_inbox_quota(p_user, p_limit)` (service role), 30 AI reads a day per inbox, separate from
+  the in-app AI quota (the inbox no longer spends `consume_ai_quota`). Fails open if the RPC is missing, like the AI quota.
+- **Cancellation emails** only stamp `bookings.cancellation_received_at` and add a note; the title is no longer changed to
+  "Cancelled · …". BookingDetailSheet shows one line asking the traveller to check with the provider.
+- **Tokens:** 12 hex (48 bits) from `gen_random_bytes`, made by a trigger on profile insert; clients can't set or change
+  them (trigger `guard_booking_email_token`). Settings → Goose inbox → **New address** calls `my_rotate_inbox_token()`.
+  The 18 existing 8-hex tokens keep working until rotated; the webhook reads 12- or 8-hex tokens. Client token code in
+  `authStore.js` removed. Settings also has **Accept from any sender**.
+- **Order matters in the morning:** apply migration `20261026090000_inbox_trust.sql` first, then deploy
+  `receive-booking-email`, then ship the web/app build. The live webhook test (`test-email-ingest.mjs webhook`) needs
+  `inbox_accept_any = true` on machinemisha (fixtures come from airline addresses).
+- **Follow-ups:** a Settings editor for `inbox_allowed_senders` (DB-only today); `From:` can be forged, so a DKIM/SPF
+  check on Resend's inbound headers would harden it further; optionally rotate all 8-hex tokens once members are told.
+
 ## Update — Stripe web billing is LIVE (2026-10-25, live account `acct_1UTcxRJ3Q35Z71yD`)
 - **Owner did:** Supabase org → **Pro**; Stripe activation (business, bank, identity; Payments + Payouts active, no open
   tasks); the restricted key and the three Supabase secrets; the real purchase and refund. Claude filled the public details
