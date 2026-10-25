@@ -42,12 +42,17 @@ async function attach() {
     target = (await fetch('http://127.0.0.1:9222/json').then(r => r.json()).catch(() => [])).find(t => t.type === 'page')
   }
   if (!target) throw new Error('No WebView page')
+  console.log(`attach: pid ${appPid()} socket ${socket} page ${target.url} "${target.title}"`)
   try { ws?.close() } catch { /* already gone */ }
   pending = new Map()
   ws = new WebSocket(target.webSocketDebuggerUrl)
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject })
   ws.onmessage = (m) => { const d = JSON.parse(m.data); pending.get(d.id)?.(d); pending.delete(d.id) }
-  await js(`
+  await inject()
+}
+// The helpers (window.__t) live in the page; a reload or a new WebView loses them, so attach() and retries re-inject
+async function inject() {
+  await evaluate(`
     window.__t = {
       byText: (t, sel = 'button, a, [role=button], [role=radio]') => [...document.querySelectorAll(sel)].find(e => e.innerText?.trim().startsWith(t) || e.getAttribute('aria-label') === t),
       has: (t) => document.body.innerText.includes(t),
@@ -61,10 +66,24 @@ const cdp = (method, params = {}) => new Promise((resolve, reject) => {
   pending.set(id, (d) => { clearTimeout(timer); resolve(d) })
   ws.send(JSON.stringify({ id, method, params }))
 })
-async function js(expression) {
+async function evaluate(expression) {
   const r = await cdp('Runtime.evaluate', { expression: `(async () => { ${expression} })()`, awaitPromise: true, returnByValue: true })
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'page error')
   return r.result?.result?.value
+}
+// A WebView that stops answering (busy during first load on the software-rendered emulator, or restarted) gets one
+// more chance: reattach to the live socket and run the expression again. A second timeout is the real failure.
+let retrying = false
+async function js(expression) {
+  try { return await evaluate(expression) } catch (e) {
+    if (retrying || !/DevTools timeout/.test(e.message)) throw e
+    retrying = true
+    try {
+      console.log(`${e.message}: reattaching once`)
+      await attach()
+      return await evaluate(expression)
+    } finally { retrying = false }
+  }
 }
 const logcat = (name) => { try { writeFileSync(`${OUT}/logcat-${name}.txt`, sh('adb logcat -d -t 3000')) } catch { /* no logcat */ } }
 await attach()
