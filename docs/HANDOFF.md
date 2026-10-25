@@ -2,7 +2,7 @@
 
 ## Update — website deployed from main 1efb131: shared-traveller card, tour plan slide, privacy fixes (2026-10-25)
 - Deployed by the audit session with the owner's go-ahead: clean `git archive` of `origin/main` (1efb131), `npm ci && npm run build`
-  (dist check passed), server backup `~/backups/stt-<timestamp>-pre-card.tar.gz`, dry run showed 89 changed files and no deletions,
+  (dist check passed), no pre-deploy backup (the backup step silently failed in zsh; the nearest earlier one is `~/backups/stt-202610250652-pre-invitefix.tar.gz` from tonight) and a post-deploy backup `~/backups/stt-<timestamp>-post-card.tar.gz`, dry run showed 89 changed files and no deletions,
   rsync **without** `--delete`. Verified: /, /help/, /beta/, /upgrade/, /redeem/, /delete-account/, /privacy/, /terms/, /admin/ all 200;
   live `main-*.js` hash equals the build; the Plan tab chunk with the shared-leg card is served.
 - Live since this deploy: shared-traveller card (PR #19), tour plan slide leading with First Class (PR #12), Sentry email scrubbing and
