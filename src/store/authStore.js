@@ -84,27 +84,16 @@ export const useAuthStore = create((set, get) => ({
   ensureProfile: async (user, accessToken, shouldCheckBadges = true) => {
     const { data: existing } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
     if (existing) {
-      if (!existing.booking_email_token) {
-        const tokenArr = new Uint8Array(4)
-        crypto.getRandomValues(tokenArr)
-        const token = Array.from(tokenArr).map(b => b.toString(16).padStart(2, '0')).join('')
-        const { data: patched } = await supabase.from('user_profiles')
-          .update({ booking_email_token: token }).eq('id', user.id).select().single()
-        set({ profile: patched || existing })
-      } else {
-        set({ profile: existing })
-      }
+      set({ profile: existing })
       if (shouldCheckBadges) await checkAndAwardBadges(user.id, accessToken)
       await get().fetchStats()
       set({ profileReady: true })
       return
     }
     const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Traveler'
-    const tokenArr = new Uint8Array(4)
-    crypto.getRandomValues(tokenArr)
-    const bookingEmailToken = Array.from(tokenArr).map(b => b.toString(16).padStart(2, '0')).join('')
+    // The inbox address (booking_email_token) is made by the database on insert, never here
     const { data: newProfile } = await supabase.from('user_profiles')
-      .insert({ id: user.id, display_name: displayName, avatar_url: user.user_metadata?.avatar_url || null, booking_email_token: bookingEmailToken })
+      .insert({ id: user.id, display_name: displayName, avatar_url: user.user_metadata?.avatar_url || null })
       .select().single()
     if (newProfile) {
       set({ profile: newProfile })
@@ -134,6 +123,16 @@ export const useAuthStore = create((set, get) => ({
     if (error) throw error
     if (data) set({ profile: data })
     return data
+  },
+
+  // A new Goose inbox address; the old one stops working at once. The server makes the token.
+  rotateInboxAddress: async () => {
+    const { data: token, error } = await supabase.rpc('my_rotate_inbox_token')
+    if (error) throw error
+    if (!token) throw new Error('Could not make a new address. Try again.')
+    set(s => ({ profile: s.profile ? { ...s.profile, booking_email_token: token } : s.profile }))
+    track('inbox_address_rotated')
+    return token
   },
 
   signOut: async () => {
