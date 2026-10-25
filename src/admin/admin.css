@@ -92,6 +92,7 @@ kbd { border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 5px; 
 .a-table tr.is-link:hover td { background: var(--surface-page); }
 .a-who { display: flex; flex-direction: column; min-width: 160px; }
 .a-who span { font-size: 0.75rem; color: var(--ink-muted); }
+.a-nowrap { white-space: nowrap; }
 
 /* ── Controls ── */
 .a-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: var(--radius-sm); background: var(--surface-page); color: var(--ink); font-weight: 600; font-size: 0.875rem; white-space: nowrap; text-decoration: none; box-shadow: inset 0 0 0 1px var(--line-strong); }
