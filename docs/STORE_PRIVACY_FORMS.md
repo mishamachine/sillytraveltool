@@ -12,6 +12,8 @@ accounts exist. Judgment calls are marked **(check)**.
 - Account deletion: in the app (Profile → Settings → Delete account) and on the web at
   `https://sillytraveltool.com/delete-account/` (Play needs this URL).
 - Usage stats are optional (Settings → Share usage stats). Location is optional (OS prompt).
+- Crash reports (Sentry) are sent only while Share usage stats is on, never from the dev server, and carry no email
+  addresses (URLs with emails or `eq.` filters are stripped before sending) and no user ID. Crash logs stay **Optional**.
 
 ## Google Play — Data safety
 Top questions: collects data **Yes** · shares data **No** · encrypted in transit **Yes** · users can request deletion
@@ -33,7 +35,7 @@ Top questions: collects data **Yes** · shares data **No** · encrypted in trans
 | App activity → App interactions | Yes | Optional | No | Analytics, Personalization |
 | App activity → In-app search history (city/place searches) | Yes | Optional | Yes | App functionality |
 | App activity → Other user-generated content (trips, bookings, notes, lists) | Yes | Required | No | App functionality, Personalization |
-| App info and performance → Crash logs | Yes | Optional | No | Analytics |
+| App info and performance → Crash logs | Yes | Optional (none when Share usage stats is off) | No | Analytics |
 | App info and performance → Diagnostics | Yes | Optional | No | Analytics |
 | Device or other IDs (GA device identifier) | Yes | Optional | No | Analytics |
 

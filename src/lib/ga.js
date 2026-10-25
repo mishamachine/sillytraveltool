@@ -1,15 +1,16 @@
 import { Capacitor } from '@capacitor/core'
 
 // GA4 on the website and in the Capacitor app. Fed by track() and screenView() in analytics.js; nothing
-// else should call gtag. Production builds only; a dev build loads it with VITE_GA_DEV=1 (events are sent
-// with debug_mode, so they show in GA4 DebugView). No ads storage, ad signals or Google signals.
+// else should call gtag. Every build except the dev server (npm run dev) loads it; the dev server needs
+// VITE_GA_DEV=1 (events are sent with debug_mode, so they show in GA4 DebugView). No ads storage, ad signals
+// or Google signals.
 
 // The stream's Google tag ID (GA Admin → Data streams → Configure tag settings). It forwards to the GA4
 // measurement ID G-H7ZP1DBHN3; Google answers 404 when the script or config uses the measurement ID itself.
 // The tag's other ID, G-KRXDJXZ4SS, is an old measurement ID: configuring it would also send hits there.
 const GA_ID = import.meta.env.VITE_GA_ID || 'GT-PHRN37HF'
 const KILL_IDS = [GA_ID, 'G-H7ZP1DBHN3']
-const ENABLED = import.meta.env.MODE === 'production' || import.meta.env.VITE_GA_DEV === '1'
+const ENABLED = !import.meta.env.DEV || import.meta.env.VITE_GA_DEV === '1'
 const DEBUG = import.meta.env.DEV
 const CLIENT_KEY = 'stt_ga_client_id'
 
