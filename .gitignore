@@ -17,3 +17,6 @@ ios/App/Pods/
 ios/App/build/
 supabase/.temp/
 release/
+
+# Ad voice-over recordings (Speechify exports etc.)
+video/ads/voices/
