@@ -109,13 +109,21 @@ if DEMO:
     screen = max(frames, key=lambda f: f['width'] * f['height']) if frames else {'width': 402, 'height': 874}
     for _ in range(3):
         swipe()  # Today to its end: "Full trip plan" then sits just above the tab bar
-    if 'plan_demo' in TAPS:
-        x, y = TAPS['plan_demo'].split(',')
-    else:
-        x, y = str(round(screen['width'] / 2)), str(round(screen['height'] - 133))
-    print(f'tap Full trip plan at {x},{y}', flush=True)
-    run('axe', 'tap', '-x', x, '-y', y, '--udid', UDID)
-    time.sleep(4)
+    # "Full trip plan" (or the "Later today" row, which opens the plan too) sits 130-260 pt above the bottom,
+    # depending on how much of Today fits: tap upward until the screen changes
+    def screen_hash():
+        run('xcrun', 'simctl', 'io', UDID, 'screenshot', '/tmp/stt-probe.png')
+        with open('/tmp/stt-probe.png', 'rb') as f:
+            return hash(f.read())
+    spots = [TAPS['plan_demo'].split(',')] if 'plan_demo' in TAPS else \
+        [(str(round(screen['width'] / 2)), str(round(screen['height'] - up))) for up in range(133, 270, 25)]
+    for x, y in spots:
+        before = screen_hash()
+        print(f'tap Full trip plan at {x},{y}', flush=True)
+        run('axe', 'tap', '-x', x, '-y', y, '--udid', UDID)
+        time.sleep(4)
+        if screen_hash() != before:
+            break
     shot('03-plan-00')
     for i in range(1, 16):
         swipe(600, 350)
