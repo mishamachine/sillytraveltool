@@ -1,6 +1,8 @@
-# Android release: a signed App Bundle (.aab) for Google Play, built on a GitHub Linux runner.
+# Android release: a signed App Bundle (.aab) for Google Play plus a signed universal APK for sideloading
+# onto our own phones, built on a GitHub Linux runner. Both use the same upload key and versionCode.
 # Run: Actions → "Android release" → Run workflow (or `gh workflow run android-release.yml --ref <branch>`), then
 # download the android-release-aab artifact and upload it in Play Console → Testing (docs/NATIVE_RELEASE.md).
+# The android-release-apk artifact needs a GitHub login to download; keep it private (it is a paid app).
 #
 # Secrets (setup commands in docs/NATIVE_RELEASE.md; never echoed):
 #   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY   the same public values the website ships
@@ -69,18 +71,37 @@ jobs:
           STT_VERSION_CODE: ${{ inputs.version_code }}
         run: cd android && ./gradlew bundleRelease --no-daemon -q
 
+      - name: Build signed universal APK
+        env:
+          STT_KEYSTORE_PASSWORD: ${{ secrets.STT_KEYSTORE_PASSWORD }}
+          STT_KEY_ALIAS: ${{ secrets.STT_KEY_ALIAS }}
+          STT_KEY_PASSWORD: ${{ secrets.STT_KEY_PASSWORD }}
+          STT_VERSION_CODE: ${{ inputs.version_code }}
+        run: cd android && ./gradlew assembleRelease --no-daemon -q
+
       - name: Check the signature
         run: |
           AAB=android/app/build/outputs/bundle/release/app-release.aab
           jarsigner -verify "$AAB" | tee /dev/stderr | grep -q "jar verified" || { echo "::error::The bundle is not signed"; exit 1; }
           keytool -printcert -jarfile "$AAB" | grep -E "Owner|SHA256:" | head -2
           ls -la "$AAB"
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | grep -E "Verifies|Verified using|SHA-256" | head -5 || { echo "::error::The APK is not signed"; exit 1; }
+          unzip -l "$APK" | grep -E "classes.dex|AndroidManifest.xml"
+          ls -la "$APK"
 
       - uses: actions/upload-artifact@v4
         with:
           name: android-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 7
 
       - name: Remove the key
         if: always()
