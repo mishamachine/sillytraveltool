@@ -3,6 +3,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 // accept-invite Edge Function
 // Uses SERVICE_ROLE_KEY to bypass RLS and write user_id onto the
 // trip_collaborators row. Anon client in the browser cannot do this.
+// Body shapes (all need a signed-in caller):
+//   { token }                     email-link accept
+//   { action: 'list' }            caller's pending invites (RLS hides rows matched only by invited_email)
+//   { collaboratorId, accept }    accept or decline from the trip list
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -33,17 +37,81 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
     }
 
-    // 2. Get the invite token from request body
-    const { token } = await req.json()
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'token required' }), { status: 400, headers: CORS })
-    }
+    // 2. Read the request body
+    const { token, action, collaboratorId, accept } = await req.json()
 
     // 3. Service role client — bypasses RLS
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
+    const email = (user.email || '').toLowerCase()
+    const now = new Date().toISOString()
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
+
+    // In-app list: pending, unexpired invites sent to the caller's address or already bound to them
+    if (action === 'list') {
+      const cols = 'id, role, invited_at, trips(id, title, destination_city, destination_country, destination_country_code, start_date, end_date)'
+      const pending = () => adminClient.from('trip_collaborators').select(cols)
+        .eq('status', 'pending').neq('role', 'owner').gt('invite_expires_at', now)
+      const [byUser, byEmail] = await Promise.all([
+        pending().eq('user_id', user.id),
+        email ? pending().eq('invited_email', email) : Promise.resolve({ data: [], error: null }),
+      ])
+      const listErr = byUser.error || byEmail.error
+      if (listErr) {
+        console.error('Invite list failed:', listErr.message)
+        return json({ error: 'Could not load invites' }, 500)
+      }
+      const seen = new Set()
+      const invites = [...(byUser.data || []), ...(byEmail.data || [])]
+        .filter(i => !seen.has(i.id) && seen.add(i.id))
+      return json({ invites })
+    }
+
+    // In-app accept or decline, same email binding as the token path
+    if (collaboratorId) {
+      if (typeof accept !== 'boolean') return json({ error: 'accept must be true or false' }, 400)
+      const { data: row, error: rowErr } = await adminClient
+        .from('trip_collaborators')
+        .select('id, trip_id, invited_email, user_id, role, trips(title, destination_city)')
+        .eq('id', collaboratorId)
+        .eq('status', 'pending')
+        .gt('invite_expires_at', now)
+        .maybeSingle()
+      const mine = row && row.role !== 'owner' &&
+        ((row.invited_email || '').toLowerCase() === email || row.user_id === user.id)
+      if (rowErr || !mine) {
+        console.error('Invite respond refused:', collaboratorId, rowErr?.message || (row ? 'not this user' : 'no pending unexpired row'))
+        return json({ error: 'Invite not found, already answered, or expired' }, 404)
+      }
+
+      const { error: respondErr } = await adminClient
+        .from('trip_collaborators')
+        .update(accept
+          ? { status: 'accepted', user_id: user.id, accepted_at: now }
+          : { status: 'declined' })
+        .eq('id', row.id)
+        .eq('status', 'pending')
+      if (respondErr) {
+        console.error('Invite respond failed:', respondErr.message)
+        return json({ error: `Failed to ${accept ? 'accept' : 'decline'} invite` }, 500)
+      }
+
+      console.log(`${accept ? '✅ Invite accepted' : '✖️ Invite declined'} (in app): user=${user.id} trip=${row.trip_id} collab=${row.id}`)
+      return json({
+        success: true,
+        trip_id: row.trip_id,
+        trip_title: (row.trips as any)?.title || null,
+        trip_city: (row.trips as any)?.destination_city || null,
+      })
+    }
+
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'token required' }), { status: 400, headers: CORS })
+    }
 
     // 4. Look up the pending invite
     const { data: collab, error: lookupErr } = await adminClient
