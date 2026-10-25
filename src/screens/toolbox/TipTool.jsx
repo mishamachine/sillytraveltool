@@ -10,7 +10,8 @@ const PRESETS = ['10', '15', '18', '20']
 export default function TipTool() {
   const profile = useAuthStore(s => s.profile)
   const trips = useTripsStore(s => s.trips)
-  const currency = currencyForCountry(currentPlace(trips)?.country_code) || profile?.home_currency || 'USD'
+  const place = currentPlace(trips)
+  const currency = currencyForCountry(place?.country_code) || profile?.home_currency || 'USD'
 
   const [bill, setBill] = useState('50')
   const [tipPct, setTipPct] = useState(18)
@@ -24,8 +25,8 @@ export default function TipTool() {
 
   return (
     <Stack gap={4}>
-      {trip && (
-        <Banner icon="lightbulb" title={`Tipping in ${trip.destination_country || trip.destination_city}`}>
+      {place && (place.country || place.city) && (
+        <Banner icon="lightbulb" title={`Tipping in ${place.country || place.city}`}>
           Customs vary. When in doubt, ask staff or check the bill for a service charge.
         </Banner>
       )}

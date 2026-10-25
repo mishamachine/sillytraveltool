@@ -49,12 +49,12 @@ function useCountUp(target, ms = 1200, delay = 300) {
   return v
 }
 
-// Delay helper for staggered entrances
-const d = (ms) => ({ animationDelay: `${ms}ms` })
+// Delay helper for staggered entrances: the class name for an animation-delay of `ms` (.tour-delay-N in tour.css)
+const d = (ms) => `tour-delay-${ms}`
 
 function MockRow({ icon, tone, title, meta, trailing, delay = 0, className, tap }) {
   return (
-    <div className={cx('c-row c-row--tile tour-in', className)} style={d(delay)} data-tap={tap}>
+    <div className={cx('c-row c-row--tile tour-in', className, d(delay))} data-tap={tap}>
       <IconTile icon={icon} tone={tone} size="sm" />
       <span className="c-row__body">
         <span className="c-row__title">{title}</span>
@@ -82,6 +82,7 @@ function Caption({ cap }) {
  */
 function Phone({ tap, stage, children, className }) {
   const ref = useRef(null)
+  const fingerRef = useRef(null)
   const [pos, setPos] = useState(null)
   useLayoutEffect(() => {
     const frame = ref.current
@@ -97,10 +98,15 @@ function Phone({ tap, stage, children, className }) {
     })
     return () => { cancelAnimationFrame(raf); clearTimeout(timer) }
   }, [tap, stage])
+  // The finger's position is measured, so it is set on the element rather than through a class
+  useLayoutEffect(() => {
+    const el = fingerRef.current
+    if (el) { el.style.left = pos ? `${pos.x}px` : ''; el.style.top = pos ? `${pos.y}px` : '' }
+  }, [pos])
   return (
     <div ref={ref} className={cx('tour-phone', className)}>
       {children}
-      <span className={cx('tour-tap', !pos && 'is-hidden')} style={pos ? { left: pos.x, top: pos.y } : undefined}>
+      <span ref={fingerRef} className={cx('tour-tap', !pos && 'is-hidden')}>
         {pos && <span key={stage} className="tour-tap__ring" />}
       </span>
     </div>
@@ -157,7 +163,7 @@ export function WelcomeArt() {
     <div className="tour-stage tour-welcome" aria-hidden="true">
       <div className="tour-welcome__tag tour-swing"><TagMark size={150} /></div>
       {orbit.map((o, i) => (
-        <span key={o.pos} className={`tour-welcome__chip tour-welcome__chip--${o.pos} tour-pop`} style={d(400 + i * 220)}>
+        <span key={o.pos} className={cx('tour-welcome__chip tour-pop', `tour-welcome__chip--${o.pos}`, d(400 + i * 220))}>
           <IconTile icon={o.icon} tone={o.tone} size="md" />
         </span>
       ))}
@@ -330,7 +336,7 @@ export function WeatherPackArt() {
           {!pack ? (<>
             <div className="tour-panel tour-forecast" key="w">
               {DAYS.map(([day, city, ic, t], k) => (
-                <span key={day} className={cx('tour-forecast__day tour-in', ic === 'rain' && 'is-flag')} style={d(k * 180)}>
+                <span key={day} className={cx('tour-forecast__day tour-in', ic === 'rain' && 'is-flag', d(k * 180))}>
                   <span className="t-label">{day}</span>
                   <span className="t-micro tone-muted">{city}</span>
                   <Icon name={ic} size={28} className={ic === 'rain' ? 'tone-info' : 'tone-sun'} />
@@ -338,7 +344,7 @@ export function WeatherPackArt() {
                 </span>
               ))}
             </div>
-            <div className="tour-summary tour-in" style={d(900)}>
+            <div className={cx('tour-summary tour-in', d(900))}>
               <span className="tour-summary__row t-caption"><Icon name="rain" size={18} className="tone-info" />Madrid: hot, with rain on Wednesday</span>
               <span className="tour-summary__row t-caption"><Icon name="sun" size={18} className="tone-sun" />Granada: warm and dry, cool nights</span>
               <span className="tour-summary__row t-caption"><Icon name="thermometer" size={18} className="tone-accent" />Highs 19–31°, lows 12–17°</span>
@@ -350,7 +356,7 @@ export function WeatherPackArt() {
                 {PACK.map(([id, item, why, icon], k) => {
                   const done = id === 'jacket' && s === 4
                   return (
-                    <div key={id} data-tap={id} className="tour-pack tour-in" style={d(k * 260)}>
+                    <div key={id} data-tap={id} className={cx('tour-pack tour-in', d(k * 260))}>
                       <Icon name={done ? 'checkbox-checked' : 'checkbox'} size={20} className={done ? 'tone-accent' : 'tone-muted'} />
                       <span className="tour-pack__body">
                         <span className={cx('t-label', done && 'tour-pack--done')}>{item}</span>
@@ -384,7 +390,7 @@ export function InboxArt() {
       <div className="c-card c-card--group tour-card-flat tour-inbox__trip">
         <div className="tour-inbox__head">
           <span className="t-overline">Spain · May</span>
-          <span className="tour-inbox__goose tour-pop" style={d(1900)}><GooseMark expression="reading" size={30} tile tileSize="sm" /></span>
+          <span className={cx('tour-inbox__goose tour-pop', d(1900))}><GooseMark expression="reading" size={30} tile tileSize="sm" /></span>
         </div>
         <MockRow icon="plane" tone="info" title="Lisbon → Madrid" meta="TP 1026 · 09:40" />
         <MockRow icon="train" tone="accent" title="Madrid → Granada" meta="AVE 03082 · 08:05" />
@@ -535,10 +541,10 @@ function KnowPanel() {
     <div className="tour-panel" key="know">
       <div className="tour-facts">
         {[['Population', '684k'], ['Language', 'Spanish'], ['Currency', 'Euro'], ['Summer high', '36°']].map(([k, v], i) => (
-          <span key={k} className="tour-fact tour-in" style={d(i * 120)}><span className="t-micro tone-muted">{k}</span><b>{v}</b></span>
+          <span key={k} className={cx('tour-fact tour-in', d(i * 120))}><span className="t-micro tone-muted">{k}</span><b>{v}</b></span>
         ))}
       </div>
-      <div className="tour-goose-note tour-in" style={d(600)}>
+      <div className={cx('tour-goose-note tour-in', d(600))}>
         <GooseMark expression="reading" size={26} tile tileSize="sm" />
         <span className="t-caption"><b>Goose on Sevilla:</b> lunch is at 2, dinner at 9:30, and shops nap from 2 to 5. Plan around it.</span>
       </div>
@@ -734,7 +740,7 @@ export function ToolsArt() {
               <div className="tour-chips">{['Food & dining', 'Transport', 'Hotel'].map((c, k) => <span key={c} className={cx('c-chip c-chip--neutral', k === 0 && 'tour-chip--on')}>{c}</span>)}</div>
               <div className="c-card c-card--group tour-card-flat">
                 {[['La cuenta, por favor', 'The bill, please'], ['Una mesa para dos', 'A table for two'], ['¿Qué me recomienda?', 'What do you recommend?']].map(([es, en], k) => (
-                  <div key={es} className="tour-phrase tour-in" style={d(k * 150)}>
+                  <div key={es} className={cx('tour-phrase tour-in', d(k * 150))}>
                     <span className="tour-pack__body"><span className="t-label">{es}</span><span className="t-micro tone-muted">{en}</span></span>
                     <span className={cx('tour-speak', k === 0 && 'is-playing')}><Icon name="volume" size={16} /></span>
                   </div>
@@ -792,7 +798,7 @@ function ProfileHomeMock() {
         <span className="tour-score__num tabular">{score.toLocaleString()}</span>
         <span className="tour-score__badges">
           {[['plane', 'info'], ['globe', 'success'], ['mountain', 'stay'], ['trophy', 'accent']].map(([ic, tone], k) => (
-            <span key={ic} className={`tour-score__badge c-tile--${tone} tour-pop`} style={d(500 + k * 150)}><Icon name={ic} size={16} /></span>
+            <span key={ic} className={cx('tour-score__badge tour-pop', `c-tile--${tone}`, d(500 + k * 150))}><Icon name={ic} size={16} /></span>
           ))}
         </span>
       </div>
