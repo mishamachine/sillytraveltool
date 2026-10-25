@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
-import { supabase } from './supabase'
+import { supabase, isDemo } from './supabase'
+import { demoParams } from '../dev/demoClient'
 import { track } from './analytics'
 
 // How a member pays for First Class on this platform (docs/STRIPE_BILLING.md, plan A):
@@ -10,7 +11,10 @@ import { track } from './analytics'
 // (stripe-webhook / store-webhook), so buying on one platform unlocks all of them.
 const native = Capacitor.isNativePlatform()
 const ios = Capacitor.getPlatform() === 'ios'
-const RC_KEY = (ios ? import.meta.env.VITE_REVENUECAT_IOS_KEY : import.meta.env.VITE_REVENUECAT_ANDROID_KEY) || ''
+// Demo app builds (cloud emulator checks): ?store=none stands in for a store that sends no prices, ?store=prices
+// for one that does. Production builds compile this to null.
+const demoStore = isDemo && native ? demoParams().get('store') : null
+const RC_KEY = demoStore ? 'demo' : (ios ? import.meta.env.VITE_REVENUECAT_IOS_KEY : import.meta.env.VITE_REVENUECAT_ANDROID_KEY) || ''
 
 export const STORE = native ? (ios ? 'app_store' : 'play_store') : 'stripe'
 /** False in an app build without store billing set up yet (no RevenueCat key). */
@@ -22,7 +26,8 @@ let configured
 async function revenueCat(userId) {
   const { Purchases } = await import('@revenuecat/purchases-capacitor')
   // appUserID = Supabase user id, so the webhook knows whose purchase it is
-  configured ||= Purchases.configure({ apiKey: RC_KEY, appUserID: userId })
+  // A failed configure is forgotten, so "Try again" on the paywall really tries again
+  configured ||= Purchases.configure({ apiKey: RC_KEY, appUserID: userId }).catch(e => { configured = null; throw e })
   await configured
   // Wrapped: a Capacitor plugin proxy answers every property, so returning it bare from an async function makes
   // JS treat it as a promise and call Purchases.then(), which throws "not implemented"
@@ -35,10 +40,15 @@ async function storePackages(userId) {
   return { Purchases, packages: current?.availablePackages || [] }
 }
 
-/** Local store prices for the two plans (apps only; the web shows the Stripe prices). */
+/**
+ * Local store prices for the two plans (apps only; the web shows the Stripe prices). A plan the store doesn't offer
+ * is null; throws when the store hasn't answered in 15 s. Callers never substitute a web price.
+ */
 export async function storePrices(userId) {
   if (!native || !RC_KEY) return null
-  const { packages } = await storePackages(userId)
+  if (demoStore) { await new Promise(r => setTimeout(r, 1500)); return demoStore === 'prices' ? { yearly: '€13,99', lifetime: '€27,99' } : null }
+  const late = new Promise((_, reject) => setTimeout(() => reject(new Error('The store didn’t answer.')), 15000))
+  const { packages } = await Promise.race([storePackages(userId), late])
   const price = (id) => packages.find(p => p.identifier === id)?.product?.priceString || null
   return { yearly: price(PACKAGE.yearly), lifetime: price(PACKAGE.lifetime) }
 }
@@ -53,6 +63,7 @@ export async function buy(plan, { trigger, userId }) {
     window.location.assign(`/upgrade/?from=${encodeURIComponent(trigger || 'app')}`)
     return { left: true }
   }
+  if (demoStore) throw new Error('Demo build: nothing to buy.')
   const { Purchases, packages } = await storePackages(userId)
   const aPackage = packages.find(p => p.identifier === PACKAGE[plan])
   if (!aPackage) throw new Error('This plan isn’t available in the store yet.')
@@ -68,7 +79,7 @@ export async function buy(plan, { trigger, userId }) {
 
 /** Apps: asks the store for earlier purchases (new phone, reinstall). The webhook then updates the plan. */
 export async function restore(userId) {
-  if (!native || !RC_KEY) return
+  if (!native || !RC_KEY || demoStore) return
   const { Purchases } = await revenueCat(userId)
   await Purchases.restorePurchases()
   track('purchase_restored', { store: STORE })
