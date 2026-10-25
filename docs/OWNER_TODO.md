@@ -23,9 +23,9 @@ Format: what to do · where · what Claude does once it's ticked.
   developer.apple.com → Identifiers / Keys; Supabase dashboard · the button appears by itself; Claude tests Apple
   sign-in on web and iOS.
 
-- [ ] **TestFlight public link:** TestFlight → Silly Travel Tool beta → Create Public Link (tester limit ~100), once
-  Beta App Review approves build 0.20.0 (5) · appstoreconnect.apple.com → the app → TestFlight · paste it into Cockpit →
-  Growth → Beta waitlist as the iOS link; Claude updates /beta.
+- [ ] **TestFlight link on /beta:** once Beta App Review approves build 0.20.0 (5), paste
+  https://testflight.apple.com/join/rFv9QAA4 into Cockpit → Growth → Beta waitlist as the iOS link (the link exists, limit
+  100; it only works after approval) · Claude can do it when you say so.
 
 ## Google Play
 - [ ] **Play Console:** developer account, payments profile, tax and bank forms · play.google.com/console · Claude

@@ -9,10 +9,10 @@
   the owner) and external group "Silly Travel Tool beta". Both were made by the store-setup session; the group names
   differ from the "STT team" wording in the brief.
 - **Review status:** build 5 is **Waiting for Review** (Beta App Review) as of this entry.
-- **Public link: NOT created yet.** The external group's Public Link section still shows "Create Public Link". The
-  tool's safety classifier refused to click it (creating a public surface), so it needs the owner: TestFlight →
-  Silly Travel Tool beta → Create Public Link (set a tester limit, e.g. 100; the link goes live once Beta App Review
-  approves). Then paste it into Cockpit → Growth → Beta waitlist as the iOS link.
+- **Public link (created 2026-10-25 after the owner approved it in chat):** https://testflight.apple.com/join/rFv9QAA4
+  ("Open to Anyone", tester limit 100, 0 joined). It shows "Testers cannot join public link until this group has an
+  approved build": it starts working once Beta App Review approves build 5. Paste it into Cockpit → Growth → Beta
+  waitlist as the iOS link.
 - Not touched: pricing, availability, App Store submission, in-app purchases.
 
 ## Update — Stripe web billing is LIVE (2026-10-25, live account `acct_1UTcxRJ3Q35Z71yD`)
