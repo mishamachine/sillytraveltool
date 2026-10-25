@@ -1,5 +1,20 @@
 # STT Handoff — 2026-10-21
 
+## Update — TestFlight beta group and Beta App Review (2026-10-25, testflight-beta session)
+- **State in App Store Connect (checked, nothing re-created):** Test Information is filled (beta description says "Silly
+  Travel Tool beta", feedback hello@sillytraveltool.com, marketing https://sillytraveltool.com/, privacy
+  https://sillytraveltool.com/privacy/, reviewer sign-in on machinemisha). Build 0.20.0 (5) has "What to Test" (start a
+  trip, forward a booking email, paste a confirmation, invite a friend, a city guide, the First Class paywall in
+  sandbox; report from Profile > Report an issue) and sits in internal group "Silly Travel Tool internal" (1 tester,
+  the owner) and external group "Silly Travel Tool beta". Both were made by the store-setup session; the group names
+  differ from the "STT team" wording in the brief.
+- **Review status:** build 5 is **Waiting for Review** (Beta App Review) as of this entry.
+- **Public link (created 2026-10-25 after the owner approved it in chat):** https://testflight.apple.com/join/rFv9QAA4
+  ("Open to Anyone", tester limit 100, 0 joined). It shows "Testers cannot join public link until this group has an
+  approved build": it starts working once Beta App Review approves build 5. Paste it into Cockpit → Growth → Beta
+  waitlist as the iOS link.
+- Not touched: pricing, availability, App Store submission, in-app purchases.
+
 ## Update — Stripe web billing is LIVE (2026-10-25, live account `acct_1UTcxRJ3Q35Z71yD`)
 - **Owner did:** Supabase org → **Pro**; Stripe activation (business, bank, identity; Payments + Payouts active, no open
   tasks); the restricted key and the three Supabase secrets; the real purchase and refund. Claude filled the public details
