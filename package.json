@@ -2,6 +2,7 @@
   "name": "silly-travel-tool",
   "private": true,
   "version": "0.20.0",
+  "versionCode": 5,
   "type": "module",
   "scripts": {
     "tokens": "node scripts/build-tokens.mjs",
@@ -11,12 +12,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives",
-    "build:native": "vite build --mode native && npx cap sync android",
+    "build:native": "vite build --mode native --outDir dist-native && npx cap sync android",
     "android": "npm run build:native && npx cap run android",
     "android:open": "npm run build:native && npx cap open android",
     "check:clay": "node scripts/check-clay.mjs",
     "postbuild": "node scripts/check-dist.mjs",
-    "build:ios": "vite build --mode native && npx cap sync ios"
+    "build:ios": "vite build --mode native --outDir dist-native && npx cap sync ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

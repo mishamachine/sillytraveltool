@@ -9,6 +9,7 @@ import GetThereSheet from '../../../components/shared/GetThereSheet'
 import { ACTIVITY_CATEGORIES } from './planKinds'
 import { hasFirstClass } from '../../../lib/firstClass'
 import { usePlanStore } from '../../../store/planStore'
+import { canBuy } from '../../../lib/purchases'
 import { safeUrl } from '../../../lib/safeUrl'
 import { placeDetails, findPlace } from '../../../lib/places'
 import { StaticMap, GoogleRating, OpenNow, GoogleAttribution } from '../../../components/shared/PlaceMedia'
@@ -107,7 +108,7 @@ export default function BookingDetailSheet({ item, tripTz, countryCode, isActivi
             <Text variant="body" tone="secondary" className="grow">Goose saved this booking from your email. The free plan includes {usePlanStore.getState().settings.free_limits.email_imports} forwarded emails; First Class opens this one and every one after it.</Text>
           </Stack>
         </Card>
-        <Button variant="primary" block onClick={() => { onClose(); usePlanStore.getState().openPaywall('limit_emails') }}>See First Class</Button>
+        {canBuy && <Button variant="primary" block onClick={() => { onClose(); usePlanStore.getState().openPaywall('limit_emails') }}>See First Class</Button>}
       </Sheet>
     )
   }

@@ -23,8 +23,9 @@ const LEAD = {
   handwritten_import: () => 'Reading handwritten agendas is part of First Class.',
 }
 
+// Web only. The apps show the store's own local prices and nothing else (Apple 3.1.1, Play billing policy)
 const WEB_PRICES = { yearly: '$14.99', lifetime: '$29.99' }
-const STORE_NAME = { app_store: 'the App Store', play_store: 'Google Play' }
+const native = STORE !== 'stripe'
 
 export default function PaywallSheet() {
   const { paywall, closePaywall, load, plan, settings } = usePlanStore()
@@ -32,22 +33,30 @@ export default function PaywallSheet() {
   const founders = settings.founders_offer?.active !== false
   const user = useAuthStore(s => s.user)
   const [choice, setChoice] = useState('yearly')
-  // Same prices everywhere; the stores' local prices replace these once they load
-  const [prices, setPrices] = useState(WEB_PRICES)
+  // Apps: null until the store answers; pricesFailed when it sends nothing (Buy stays off, never a web figure)
+  const [prices, setPrices] = useState(native ? null : WEB_PRICES)
+  const [pricesFailed, setPricesFailed] = useState(false)
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState(null)
   const [welcome, setWelcome] = useState(false)
   const trigger = paywall?.trigger
 
+  const loadPrices = () => {
+    setPricesFailed(false)
+    storePrices(user?.id).then(p => p?.yearly ? setPrices(p) : setPricesFailed(true)).catch(() => setPricesFailed(true))
+  }
+
   useEffect(() => {
     if (!paywall) return
+    // An app build without store billing (no RevenueCat key) has no paywall: entry points are hidden, limits say so inline
+    if (!canBuy) { closePaywall(); return }
     setError(null); setWelcome(false); setChoice('yearly')
     load()
     track('paywall_view', { trigger, store: STORE })
-    if (STORE !== 'stripe' && canBuy && user) storePrices(user.id).then(p => p?.yearly && setPrices(p)).catch(() => {})
+    if (native && user && !prices) loadPrices()
   }, [paywall])
 
-  if (!paywall) return null
+  if (!paywall || !canBuy) return null
 
   // After a store purchase the webhook updates the server; wait for it (up to ~30 s)
   const waitForPlan = async () => {
@@ -61,7 +70,7 @@ export default function PaywallSheet() {
   const purchase = async () => {
     setError(null); setBusy('buy')
     try {
-      const r = await buy(founders ? choice : 'yearly', { trigger, userId: user?.id })
+      const r = await buy(lifetime ? choice : 'yearly', { trigger, userId: user?.id })
       if (r.left || r.cancelled) return
       if (await waitForPlan()) setWelcome(true)
       else setError('Payment went through. First Class can take a minute to arrive; it will appear on its own.')
@@ -92,22 +101,32 @@ export default function PaywallSheet() {
     )
   }
 
-  const price = (p) => prices?.[p] || '…'
+  // Lifetime shows while the Flock is open, except in an app whose store has no lifetime product
+  const lifetime = founders && !(prices && !prices.lifetime)
+  const wait = <span className="c-skeleton__block paywall__price-wait" aria-label="Loading price" />
   const footer = (
     <Stack gap={3} grow>
       {error && <Banner tone="danger" icon="alert-circle" role="alert">{error}</Banner>}
-      {canBuy ? (
-        <Button variant="primary" size="lg" block loading={busy === 'buy'} disabled={!!busy || !prices} onClick={purchase}>
-          {STORE === 'stripe' ? 'Continue to secure payment' : choice === 'yearly' ? `Subscribe for ${price('yearly')} a year` : `Buy for ${price('lifetime')}`}
-        </Button>
-      ) : (
-        <Banner tone="accent" icon="info">First Class in the app is coming soon.</Banner>
+      {pricesFailed && (
+        <Banner tone="neutral" icon="info" title="Prices are loading" action={<Button size="sm" onClick={loadPrices}>Try again</Button>}>
+          The store hasn’t sent them yet.
+        </Banner>
       )}
-      {STORE !== 'stripe' && canBuy && (
+      <Button variant="primary" size="lg" block loading={busy === 'buy'} disabled={!!busy || !prices} onClick={purchase}>
+        {!native ? 'Continue to secure payment' : !prices ? 'Subscribe' : choice === 'lifetime' && lifetime ? `Buy for ${prices.lifetime}` : `Subscribe for ${prices.yearly} a year`}
+      </Button>
+      {native && (
         <LinkButton className="paywall__restore" onClick={doRestore} disabled={!!busy}>{busy === 'restore' ? 'Checking…' : 'Restore purchases'}</LinkButton>
       )}
     </Stack>
   )
+  // Renewal terms per store: price, period, auto-renew, how to cancel (App Store Review 3.1.2, Play subscriptions policy)
+  const yearly = prices ? `Yearly is ${prices.yearly} a year` : 'Yearly is a one-year subscription'
+  const renewal = !native
+    ? `${yearly} and renews automatically until you cancel in Settings → Plan, at least a day before it renews; you keep First Class to the end of the year you paid for.`
+    : STORE === 'app_store'
+      ? `${yearly}, charged to your Apple Account when you confirm. It renews automatically unless cancelled at least 24 hours before the end of the period, and the renewal is charged within the 24 hours before the period ends. Manage or cancel it in your App Store account settings; you keep First Class to the end of the year you paid for.`
+      : `${yearly}, charged to your Google Play account when you confirm. It renews automatically each year unless you cancel before the renewal date. Manage or cancel it in Google Play under Payments and subscriptions; you keep First Class to the end of the year you paid for.`
 
   return (
     <Sheet title="First Class" subtitle="Silly Travel Tool" onClose={closePaywall} footer={footer} size="tall">
@@ -127,16 +146,14 @@ export default function PaywallSheet() {
         </ul>
 
         <div className="paywall__plans" role="radiogroup" aria-label="Choose a plan">
-          <PlanCard id="yearly" choice={choice} onPick={setChoice} title="Yearly" price={`${price('yearly')} / year`} note="Renews each year. Cancel any time." />
-          {founders && <PlanCard id="lifetime" choice={choice} onPick={setChoice} title="Founders Flock" price={`${price('lifetime')} once`} note="LIFETIME First Class for one payment: about what two years of Yearly cost, then it’s yours for good. Only while the Flock is open." />}
+          <PlanCard id="yearly" choice={choice} onPick={setChoice} title="Yearly" price={prices ? `${prices.yearly} / year` : wait} note="Renews each year. Cancel any time." />
+          {lifetime && <PlanCard id="lifetime" choice={choice} onPick={setChoice} title="Founders Flock" price={prices ? `${prices.lifetime} once` : wait} note="LIFETIME First Class for one payment: about what two years of Yearly cost, then it’s yours for good. Only while the Flock is open." />}
         </div>
 
         <Text variant="caption" tone="secondary">We keep STT as affordable as we can so more people travel, well informed and organised. Your subscription keeps the lights on (and the dog fed).</Text>
 
         <Text variant="micro" tone="muted" as="p">
-          Yearly is {price('yearly')} a year and renews automatically until you cancel
-          {STORE === 'stripe' ? ' in Settings → Plan' : ` in your ${STORE_NAME[STORE]} subscriptions`}, at least a day before it renews;
-          you keep First Class to the end of the year you paid for.{founders && ' Founders Flock is a one-time payment.'}{' '}
+          {renewal}{lifetime && ' Founders Flock is a one-time payment, not a subscription.'}{' '}
           <a href="https://sillytraveltool.com/terms/" target="_blank" rel="noreferrer">Terms</a> ·{' '}
           <a href="https://sillytraveltool.com/privacy/" target="_blank" rel="noreferrer">Privacy</a>
         </Text>

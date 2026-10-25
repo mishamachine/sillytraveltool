@@ -52,13 +52,14 @@ async function js(expression) {
 }
 const shot = async (name) => { await sleep(700); execSync(`adb exec-out screencap -p > ${OUT}/${name}.png`) }
 
-// Page helpers: find by visible text, click, wait, set React inputs
-await js(`
+// Page helpers: find by visible text, click, wait, set React inputs (again after each reload)
+const helpers = () => js(`
   window.__t = {
     byText: (t, sel = 'button, a, [role=button], [role=radio]') => [...document.querySelectorAll(sel)].find(e => e.innerText?.trim().startsWith(t) || e.getAttribute('aria-label') === t),
     has: (t) => document.body.innerText.includes(t),
     set: (el, v) => { const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value'); d.set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })) },
   }; return true`)
+await helpers()
 async function waitText(t, ms = 15000) {
   for (let i = 0; i < ms / 250; i++) { if (await js(`return __t.has(${JSON.stringify(t)})`)) return true; await sleep(250) }
   return false
@@ -71,21 +72,37 @@ try {
   check('app loads', await waitText('Trips', 30000))
   await shot('01-trips')
 
-  // ── 2. Settings → Plan → paywall ──
+  // ── 2. Settings → Plan → paywall. The apps never show a web price: only the store's, once it answers ──
+  const noDollars = () => js(`return !/\\$\\s?\\d/.test(document.body.innerText)`)
+  const openPaywall = async (store) => {
+    // Demo stand-in for the store (src/lib/purchases.js): none = sends no prices, prices = sends local prices
+    await js(`setTimeout(() => location.replace('/?store=${store}'), 100); return true`)
+    await sleep(3000); await helpers(); await waitText('Trips', 30000)
+    await tab('profile'); await sleep(800)
+    await click('Settings'); await waitText('Get First Class')
+    await click('Get First Class')
+    await waitText('Unlimited reservations'); await sleep(800) // sheet slide-in
+  }
   await tab('profile'); await sleep(800)
   await click('Settings')
-  check('settings shows Get First Class', await waitText('Get First Class'))
+  check('app build without a store key shows the plan, no way to buy', await waitText('Current plan') && !(await js(`return __t.has('Get First Class')`)))
+  check('no dollar prices without a store key', await noDollars())
   await shot('02-settings')
-  await click('Get First Class')
-  check('paywall opens from Settings', await waitText('Unlimited reservations'))
-  await sleep(800) // sheet slide-in
-  check('app build without a store key says coming soon', await waitText('First Class in the app is coming soon'))
+  await openPaywall('none')
+  check('paywall opens from Settings', await js(`return __t.has('Unlimited reservations')`))
+  check('Buy waits for store prices', await js(`return __t.byText('Subscribe')?.disabled === true`))
+  check('store sends no prices: says so, offers a retry', await waitText('Prices are loading') && await js(`return !!__t.byText('Try again')`))
+  check('no dollar prices while the store has none', await noDollars())
   check('paywall never mentions web checkout in the app', !(await js(`return /secure payment|sillytraveltool\\.com\\/upgrade/i.test(document.querySelector('.c-sheet').innerText)`)))
   await shot('03-paywall')
+  await openPaywall('prices')
+  check('store prices shown', await waitText('€13,99 / year') && await noDollars())
+  check('Google Play renewal terms', await js(`return __t.has('Google Play') && __t.has('renews automatically')`))
   await js(`document.querySelector('.paywall__plans')?.scrollIntoView({ block: 'start' }); return true`)
-  await click('Founders offer', '[role=radio]')
+  await click('Founders Flock', '[role=radio]')
   await sleep(500)
-  check('founders plan selectable', await js(`return __t.byText('Founders offer', '[role=radio]')?.getAttribute('aria-checked') === 'true'`))
+  check('founders plan selectable', await js(`return __t.byText('Founders Flock', '[role=radio]')?.getAttribute('aria-checked') === 'true'`))
+  check('Buy shows the store price', await js(`return !!__t.byText('Buy for €27,99') && !__t.byText('Buy for €27,99').disabled`))
   await shot('04-paywall-plans')
   await js(`document.querySelector('.c-sheet [aria-label="Close"]')?.click(); return true`)
   await sleep(600)

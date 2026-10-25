@@ -1,0 +1,193 @@
+# iOS release: archive for devices, sign for the App Store and upload to TestFlight, on a GitHub macOS runner
+# (the owner's Intel Mac has no Xcode). Run: Actions → "iOS release" → Run workflow
+# (or `gh workflow run ios-release.yml --ref <branch>`). The build shows in App Store Connect → TestFlight after
+# Apple's processing (~10–30 min). Setup and secrets: docs/NATIVE_RELEASE.md.
+#
+# Signing, picked by which secrets exist:
+#   automatic (preferred)  ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_B64 (an App Store Connect API key with the Admin
+#                          role) + APPLE_TEAM_ID. Xcode makes the certificate and profile itself (cloud signing).
+#   manual (fallback)      the API key (for the upload) + IOS_CERT_P12_B64, IOS_CERT_PASSWORD (Apple Distribution
+#                          certificate) and IOS_PROFILE_B64 (App Store provisioning profile for com.sillytraveltool.app).
+# App secrets: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_REVENUECAT_IOS_KEY (appl_…), VITE_SENTRY_DSN (optional).
+# Without signing secrets the run still archives the app unsigned (proves the device build compiles), then stops.
+# Version = package.json "version"; build number = package.json "versionCode" (TestFlight refuses a number it has
+# seen: bump it, or use the build_number input for a one-off re-upload).
+name: iOS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Override the build number for this upload only (blank = package.json versionCode)
+        default: ''
+      upload:
+        description: Upload to TestFlight (off = sign and export the .ipa only)
+        type: boolean
+        default: true
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      HAS_KEY: ${{ secrets.ASC_KEY_P8_B64 != '' }}
+      HAS_CERT: ${{ secrets.IOS_CERT_P12_B64 != '' && secrets.IOS_PROFILE_B64 != '' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Web build (native) + cap sync ios
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_REVENUECAT_IOS_KEY: ${{ secrets.VITE_REVENUECAT_IOS_KEY }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+        run: |
+          test -n "$VITE_SUPABASE_URL" && test -n "$VITE_SUPABASE_ANON_KEY" || { echo "::error::VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY secrets are missing"; exit 1; }
+          [ -n "$VITE_REVENUECAT_IOS_KEY" ] || echo "::warning::VITE_REVENUECAT_IOS_KEY is not set: this build has no paywall (First Class can't be bought in it)"
+          case "$VITE_REVENUECAT_IOS_KEY" in test_*) echo "::warning::VITE_REVENUECAT_IOS_KEY is a RevenueCat Test Store key: purchases are not real";; esac
+          npm run build:ios
+
+      - name: Version
+        env:
+          BUILD_INPUT: ${{ inputs.build_number }}
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          BUILD=${BUILD_INPUT:-$(node -p 'require("./package.json").versionCode')}
+          echo "Silly Travel Tool $VERSION ($BUILD)"
+          { echo "VERSION=$VERSION"; echo "BUILD=$BUILD"; echo "ARCHIVE=$RUNNER_TEMP/App.xcarchive"; echo "EXPORT=$RUNNER_TEMP/export"; } >> "$GITHUB_ENV"
+
+      - name: API key
+        if: env.HAS_KEY == 'true'
+        env:
+          ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+        run: |
+          mkdir -p ~/private_keys   # where altool looks for AuthKey_<id>.p8
+          echo "$ASC_KEY_P8_B64" | base64 -d > ~/private_keys/AuthKey_$ASC_KEY_ID.p8
+          echo "ASC_KEY_PATH=$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
+
+      - name: Distribution certificate + profile (manual signing)
+        if: env.HAS_CERT == 'true'
+        env:
+          IOS_CERT_P12_B64: ${{ secrets.IOS_CERT_P12_B64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROFILE_B64: ${{ secrets.IOS_PROFILE_B64 }}
+        run: |
+          KC="$RUNNER_TEMP/stt.keychain-db"; KCPW=$(uuidgen)
+          echo "$IOS_CERT_P12_B64" | base64 -d > "$RUNNER_TEMP/dist.p12"
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          security import "$RUNNER_TEMP/dist.p12" -k "$KC" -P "$IOS_CERT_PASSWORD" -A -t cert -f pkcs12
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPW" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/dist.p12"
+          echo "$IOS_PROFILE_B64" | base64 -d > "$RUNNER_TEMP/stt.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/stt.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          TEAM=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$RUNNER_TEMP/stt.mobileprovision" ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+          echo "Profile: $NAME (team $TEAM)"
+          { echo "PROFILE_NAME=$NAME"; echo "APPLE_TEAM_ID=$TEAM"; echo "KEYCHAIN=$KC"; } >> "$GITHUB_ENV"
+
+      - name: Archive for devices
+        run: |
+          set -o pipefail
+          P=(-project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS'
+             -archivePath "$ARCHIVE" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD")
+          if [ "$HAS_CERT" = true ]; then
+            xcodebuild "${P[@]}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+              CODE_SIGN_IDENTITY="Apple Distribution" PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" archive | tail -40
+          elif [ "$HAS_KEY" = true ] && [ -n "$APPLE_TEAM_ID" ]; then
+            xcodebuild "${P[@]}" CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$APPLE_TEAM_ID" -allowProvisioningUpdates \
+              -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+              archive | tail -40
+          else
+            echo "No signing secrets: archiving unsigned to check the device build compiles"
+            xcodebuild "${P[@]}" CODE_SIGNING_ALLOWED=NO archive | tail -40
+          fi
+          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties' "$ARCHIVE/Info.plist"
+
+      - name: Sign for the App Store (export .ipa)
+        run: |
+          set -o pipefail
+          if [ "$HAS_CERT" != true ] && { [ "$HAS_KEY" != true ] || [ -z "$APPLE_TEAM_ID" ]; }; then
+            echo "::error::No signing secrets. Set ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_B64 and APPLE_TEAM_ID (docs/NATIVE_RELEASE.md)"; exit 1
+          fi
+          if [ "$HAS_CERT" = true ]; then
+            cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key><dict><key>com.sillytraveltool.app</key><string>$PROFILE_NAME</string></dict>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+            xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$EXPORT" \
+              -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" | tail -30
+          else
+            cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+            xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$EXPORT" \
+              -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -allowProvisioningUpdates \
+              -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tail -30
+          fi
+          ls -la "$EXPORT"
+          unzip -q -o "$EXPORT/App.ipa" -d "$RUNNER_TEMP/ipa"
+          codesign -dvv "$RUNNER_TEMP/ipa/Payload/App.app" 2>&1 | grep -E "Authority|TeamIdentifier"
+
+      - name: Upload to TestFlight
+        if: inputs.upload
+        run: |
+          [ "$HAS_KEY" = true ] || { echo "::error::ASC_KEY_P8_B64 is missing: the upload needs the App Store Connect API key"; exit 1; }
+          xcrun altool --upload-app -t ios -f "$EXPORT"/App.ipa --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" --output-format normal
+          echo "Uploaded $VERSION ($BUILD). It appears in App Store Connect → TestFlight once Apple has processed it."
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: ios-release-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Clean up keys
+        if: always()
+        run: |
+          rm -rf ~/private_keys "$RUNNER_TEMP/stt.mobileprovision" "$RUNNER_TEMP/profile.plist"
+          [ -n "$KEYCHAIN" ] && security delete-keychain "$KEYCHAIN" || true

@@ -7,6 +7,7 @@ import { editableTrips, withCoords } from '../../lib/tripPick'
 import { parseBookingEmail, parseBookingFile } from '../../lib/gemini'
 import { hasFirstClass } from '../../lib/firstClass'
 import { usePlanStore } from '../../store/planStore'
+import { canBuy } from '../../lib/purchases'
 import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
@@ -105,7 +106,11 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
     await read(() => parseBookingFile(file, { transcribe: handwritten }))
   }
   const pickHandwritten = () => {
-    if (!hasFirstClass()) { usePlanStore.getState().openPaywall('handwritten_import'); track('first_class_locked', { feature: 'handwritten_import' }, 'trips'); return }
+    if (!hasFirstClass()) {
+      // An app build without store billing has no paywall to open, so say it here
+      if (canBuy) usePlanStore.getState().openPaywall('handwritten_import'); else setError('Reading handwritten agendas is part of First Class.')
+      track('first_class_locked', { feature: 'handwritten_import' }, 'trips'); return
+    }
     handRef.current?.click()
   }
 
