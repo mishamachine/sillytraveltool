@@ -79,9 +79,9 @@ limits explain themselves). A `test_…` key gives RevenueCat's Test Store: fine
 5. Export compliance is answered in `Info.plist` (`ITSAppUsesNonExemptEncryption` = false), so builds don't wait
    on the encryption question.
 
-**Signing.** The workflow prefers automatic (cloud) signing with the API key: no certificate exports. Each run on a
-fresh runner may add an "Apple Development" certificate to the team; delete old ones in Certificates if the list
-grows. If automatic signing is refused, fall back to manual: create an Apple Distribution certificate and an App
+**Signing.** The workflow prefers automatic (cloud) signing with the API key: no certificate exports, no devices.
+It archives unsigned (signing an archive would need a development profile, which needs a registered device) and
+the export signs it "Apple Distribution" with Apple's cloud-managed certificate (checked: run 40166147809). If automatic signing is refused, fall back to manual: create an Apple Distribution certificate and an App
 Store provisioning profile for `com.sillytraveltool.app`, then set `IOS_CERT_P12_B64` (base64 of the `.p12`),
 `IOS_CERT_PASSWORD` and `IOS_PROFILE_B64` (base64 of the `.mobileprovision`); the workflow switches by itself.
 
@@ -110,5 +110,6 @@ Store provisioning profile for `com.sillytraveltool.app`, then set `IOS_CERT_P12
 - Renewal terms per store: iOS says Apple Account, "renews automatically unless cancelled at least 24 hours before
   the end of the period" and App Store account settings; Android says Google Play → Payments and subscriptions.
 - Restore purchases, Terms and Privacy stay on the sheet.
+- Proof (cloud emulator run 40165940574, all 14 checks passed): `docs/screenshots/android-paywall/`.
 - Demo builds only: `?store=none` / `?store=prices` stand in for the store so the cloud emulator can check both
   states (`scripts/android-emu-shots.mjs`). Production builds compile this away.
