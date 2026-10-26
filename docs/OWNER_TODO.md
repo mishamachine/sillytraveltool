@@ -53,9 +53,9 @@ Format: what to do · where · what Claude does once it's ticked.
 ## Legal and IP
 From `docs/legal/LEGAL_REVIEW_2026-10-25.md` (L…) and `docs/legal/IP_PROTECTION_PLAN.md` (IP…). Claude is not a lawyer;
 an attorney and a CPA should confirm.
-- [ ] **Say yes or no to the AI consent sheet and moving personal-data AI to Gemini** (L1, L2), and confirm Google AI
-  billing is on (free tier lets Google use inputs) · reply in chat; Google AI Studio → Billing · Claude builds both
-  before the next App Store submission.
+- [x] **AI consent sheet (L1)** · 2026-10-26: built in PR #42 (DeepSeek kept, L2 declined); deploy waits for your OK.
+- [ ] **Confirm Google AI Studio billing is on** (photos and PDFs go to Gemini; the free tier lets Google use inputs) ·
+  aistudio.google.com → Billing · nothing further.
 - [ ] **Washington health-data page for vaccine records** (L5): approve Claude's draft, ideally after an hour with a
   privacy attorney · chat · Claude publishes the page and the homepage link.
 - [ ] **CPA consult on sales tax** (L19, L20): Washington registration and Stripe Tax for WA; pick an EU/UK option
@@ -69,8 +69,9 @@ an attorney and a CPA should confirm.
 - [ ] **File the trademarks after the LLC exists:** SILLY TRAVEL TOOL (classes 42 and 9) and the luggage-tag logo,
   about $1,400 in USPTO fees (IP7 to IP9) · TEAS at uspto.gov, or a trademark attorney · Claude prepares specimens and
   the goods/services text.
-- [ ] **Make the GitHub repo private** (IP15) · GitHub → Settings → Change visibility · Claude checks CI and adds the
-  "All rights reserved" LICENSE.
+- [x] **Make the GitHub repo private** (IP15) · 2026-10-26, done by Claude at the owner's OK; CI still runs.
+- [ ] **GitHub spending limit for Actions** (private repos get 2,000 free minutes; macOS counts 10×) · github.com →
+  Settings → Billing and plans → Spending limit (e.g. $10) or GitHub Pro $4/month · nothing further.
 - [ ] **Domains and handles** (IP21, IP22): auto-renew and lock sillytraveltool.com; buy .app, .net, .co, .co.uk, .eu;
   reserve @sillytraveltool on GitHub, Bluesky, X, Threads, Reddit · Hostinger and each site · Claude sets up redirects.
 - [ ] **Tell Claude who drew the Goose** (IP11, IP14) · chat · Claude prepares the copyright filing or an assignment.
