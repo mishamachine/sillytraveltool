@@ -1,6 +1,6 @@
 # STT Handoff — 2026-10-21
 
-## Update — App Store version 0.20.0 filled, waiting on the owner for sign-in and iPad screenshots (2026-10-25, asc-submission session)
+## Update — App Store version 0.20.0 filled, waiting on the owner for the reviewer sign-in (2026-10-25, asc-submission session)
 - **State:** iOS version record renamed 1.0 → **0.20.0** (must match build 5) and still **Prepare for Submission**; nothing added for
   review. Build **0.20.0 (5)** attached; no export-compliance prompt came up.
 - **Filled:** description rewritten without prices (First Class named as the paid plan; Today, wallet and country-switching tools added);
@@ -16,12 +16,12 @@
   AI labels, location, "beta" wording explained for guideline 2.2).
 - **App Privacy:** already published by store-setup (15 types, Device ID and crash data included, nothing used for tracking); matches
   `STORE_PRIVACY_FORMS.md` with the audit's P1/P2 corrections, so unchanged.
-- **Blockers:** (1) **iPad 13" screenshots are required** because build 5 is universal (`TARGETED_DEVICE_FAMILY = "1,2"`); none exist and
-  this Mac has no Xcode, node or ffmpeg to capture them. Either ship an iPhone-only build 6 (`TARGETED_DEVICE_FAMILY = 1`, needs the
-  owner's go-ahead) or capture real iPad screens (2064×2752). (2) **Demo account:** ASC won't save "Sign-in required" without a password,
-  so the box is unticked; the owner sets a password on machinemisha@gmail.com, ticks it, types email + password, saves.
-- **Owner's remaining clicks:** fix the iPad blocker → version page: tick Sign-in required, enter machinemisha@gmail.com + password, Save →
-  "Add for Review" on the version (include both in-app purchases in the submission) → "Submit for Review" on the review page.
+- **iPad:** build 5 is universal, so iPad 13" screenshots were required; the audit session captured five real ones (2064×2752, demo
+  mode: Today, multi-city plan with the shared card, Explore, Tools, Profile) and uploaded them (5 of 10).
+- **Blocker — demo account:** ASC won't save "Sign-in required" without a password, so the box is unticked; the owner sets a password on
+  machinemisha@gmail.com, ticks it, types email + password, saves.
+- **Owner's remaining clicks:** version page: tick Sign-in required, enter machinemisha@gmail.com + password, Save → "Add for Review" on
+  the version (include both in-app purchases in the submission) → "Submit for Review" on the review page.
 - **Watch-outs:** machinemisha is an owner admin with no trips (reviewers see an empty account); "Founders Flock (lifetime)" in ASC vs
   "Founders offer" in the paywall; China mainland is in the 175 countries and may need an ICP filing.
 
