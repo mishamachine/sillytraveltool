@@ -1,11 +1,17 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, GUIDE_QUOTA_MESSAGE } from '../_shared/gemini.ts'
-import { geocode, searchText, withGoogleScope, setGoogleUser, type Place } from '../_shared/google.ts'
+import { geocode, searchText, cached, withGoogleScope, setGoogleUser, type Place, type Geo } from '../_shared/google.ts'
+import { validPlaceName, canonicalPlace, sanitizeSection, cleanText, excludeFromCache } from './validate.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+// Sections the AI writes on its own
+const AI_SECTIONS = ['overview', 'see_neighbourhoods', 'see_daytrips', 'move', 'events']
+// A section stops growing here: "load more" can't be used to pile up AI calls on one cache row
+const MAX_SECTION_ITEMS = 60
 
 // Sections built from real Google places; the AI only writes the Goose's words for them (stage 'voice').
 // Neighbourhoods, day trips, overview, move and events stay Gemini-written (Places has no good source).
@@ -25,12 +31,11 @@ const km = (a: { lat: number, lng: number }, b: { lat: number, lng: number }) =>
 }
 
 /** Up to 60 Google candidates for a section near the city, skipping closed places and names already shown. */
-async function placeCandidates(section: string, city: string, country: string, exclude: string[]): Promise<Place[] | null> {
+async function placeCandidates(section: string, city: string, country: string, center: Geo, exclude: string[]): Promise<Place[] | null> {
   const s = PLACE_SECTIONS[section]
   const skip = new Set(exclude.map(n => n.toLowerCase()))
   // Same-named cities exist (Granada, Spain / Nicaragua / Mexico City's Granada): stay within 40 km of this one
-  const center = await geocode(`${city}, ${country}`)
-  const near = (p: Place) => !center || p.lat == null || p.lng == null || km(center, { lat: p.lat, lng: p.lng }) <= 40
+  const near = (p: Place) => p.lat == null || p.lng == null || km(center, { lat: p.lat, lng: p.lng }) <= 40
   // Google doesn't always honour priceLevels: keep the section's price band (one step wider if that leaves too few)
   const band = s.price ? s.price.map(p => PRICE_RANK[p]) : null
   const inBand = (p: Place, slack = 0) => !band || p.price_level == null || (p.price_level >= Math.min(...band) - slack && p.price_level <= Math.max(...band) + slack)
@@ -39,7 +44,7 @@ async function placeCandidates(section: string, city: string, country: string, e
   for (let page = 0; page < 3; page++) {
     const r = await searchText(`${s.query} in ${city}, ${country}`, {
       includedType: s.type, priceLevels: s.price, minRating: s.minRating, pageToken,
-      near: center ? { lat: center.lat, lng: center.lng, radius: 20000 } : undefined,
+      near: { lat: center.lat, lng: center.lng, radius: 20000 },
     })
     if (!r) { if (page === 0) return null; break }
     out.push(...r.places.filter(p => !p.closed && near(p) && !skip.has(p.name.toLowerCase()) && !out.some(o => o.place_id === p.place_id)))
@@ -61,7 +66,10 @@ const placeScore = (p: { rating: number | null, rating_count: number | null }) =
  */
 function factItems(section: string, city: string, places: Place[]) {
   const restaurant = PLACE_SECTIONS[section].restaurant
-  return places.slice().sort((a, b) => placeScore(b) - placeScore(a)).slice(0, 15).map(p => ({
+  const top = places.slice().sort((a, b) => placeScore(b) - placeScore(a)).slice(0, 15)
+  // Google's data still goes through the cache guard (lengths, control characters); its websiteUri is trusted
+  const googleSites = new Map(top.map(p => [p.place_id, p.website]))
+  return sanitizeSection(top.map(p => ({
     name: p.name,
     ...(restaurant ? { cuisine: p.type_label || '', price_tier: p.price_level ?? null } : { type: p.type_label || '' }),
     address: p.short_address || p.address,
@@ -75,7 +83,7 @@ function factItems(section: string, city: string, places: Place[]) {
     official_url: p.website || '',
     place_id: p.place_id, maps_url: p.maps_url, rating: p.rating, rating_count: p.rating_count,
     photo: p.photo, lat: p.lat, lng: p.lng, hours: p.hours,
-  }))
+  })), { fromAi: false, googleSites }) as any[]
 }
 
 function voicePrompt(section: string, city: string, country: string, items: any[]): string {
@@ -103,10 +111,10 @@ function withVoice(section: string, items: any[], targets: any[], words: any[]) 
     if (!g) return { ...rest, description: rest.summary || '' } // no words for this one: show Google's summary
     return {
       ...rest,
-      ...(restaurant ? { cuisine: cap(g.cuisine, 60) || it.cuisine } : { type: cap(g.type, 60) || it.type }),
-      description: cap(g.description, 400) || it.summary || '',
-      goose_quip: cap(g.goose_quip, 200),
-      goose_score: typeof g.goose_score === 'number' ? g.goose_score : null,
+      ...(restaurant ? { cuisine: cleanText(g.cuisine, 60) || it.cuisine } : { type: cleanText(g.type, 60) || it.type }),
+      description: cleanText(g.description, 400) || it.summary || '',
+      goose_quip: cleanText(g.goose_quip, 200),
+      goose_score: typeof g.goose_score === 'number' && Number.isFinite(g.goose_score) ? g.goose_score : null,
       is_goose_pick: !!g.is_goose_pick,
     }
   })
@@ -254,11 +262,13 @@ Deno.serve(withGoogleScope(async (req) => {
     setGoogleUser(user.id)
 
     const raw = await req.json()
-    const city = cap(raw.city, 80), country = cap(raw.country, 80), section = cap(raw.section || 'overview', 40)
-    const exclude_names = (Array.isArray(raw.exclude_names) ? raw.exclude_names : []).slice(0, 40).map((n: unknown) => cap(n, 80))
-    // Cache key as computed by the client (guideStore): lowercase, spaces → dashes
-    const destinationKey = cap(raw.destination_key, 160).toLowerCase()
-    if (!city || !country) return new Response(JSON.stringify({ error: 'city and country required' }), { status: 400, headers: CORS })
+    const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
+    const section = cap(raw.section || 'overview', 40)
+    if (!PLACE_SECTIONS[section] && !AI_SECTIONS.includes(section)) return reply({ error: 'Unknown section' }, 400)
+    // Only plain place names reach the geocoder; the prompt and the cache key then use Google's names, never the
+    // body's (audit S3: a crafted city could otherwise steer the prompt or write into another city's cache)
+    const askedCity = validPlaceName(raw.city), askedCountry = validPlaceName(raw.country)
+    if (!askedCity || !askedCountry) return reply({ error: 'city and country must be plain place names' }, 400)
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
@@ -266,23 +276,35 @@ Deno.serve(withGoogleScope(async (req) => {
     // stage: 'facts' = Google cards only, fast, no AI; 'voice' = the Goose's words for pending cards;
     // omitted = both in one call (older app builds)
     const stage = raw.stage === 'facts' || raw.stage === 'voice' ? raw.stage : 'full'
-    const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
     // Shared cache is server-written only (clients have read access)
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-    const isLoadMore = exclude_names.length > 0
+    const query = `${askedCity}, ${askedCountry}`
+    const center = await cached(admin, `geo:${query.toLowerCase()}`, 30, () => geocode(query)).catch(() => null)
+    const place = canonicalPlace(center)
+    if (!center || !place) return reply({ error: 'We could not find that city' }, 422)
+    const { city, country, key: destinationKey } = place
+
     let cachedRow: any = null
     let freshIds: Set<string> | null = null // load-more in one call: older builds expect only the new items back
-    if (destinationKey) {
+    {
       const { data } = await admin.from('guide_cache_sections').select('data, expires_at')
         .eq('destination_key', destinationKey).eq('section', section).maybeSingle()
       cachedRow = data && new Date(data.expires_at) > new Date() ? data : null
+    }
+    // "Load more" only appends to a section already cached under this same key, and steers away from the names
+    // in that section; the request's exclude_names is just the trigger, never prompt text
+    const baseItems = Array.isArray(cachedRow?.data?.items) ? cachedRow.data.items : null
+    const wantsMore = Array.isArray(raw.exclude_names) && raw.exclude_names.length > 0
+    if (wantsMore && baseItems && baseItems.length >= MAX_SECTION_ITEMS) return reply({ section, items: [] }) // nothing more to add
+    const isLoadMore = wantsMore && !!baseItems
+    const exclude_names = isLoadMore ? excludeFromCache(baseItems) : []
+    {
       const needsVoice = stage !== 'facts' && cachedRow?.data?.voice_pending
       if (!isLoadMore && cachedRow?.data && !needsVoice && stage !== 'voice') return reply(cachedRow.data)
       if (stage === 'voice' && cachedRow?.data && !cachedRow.data.voice_pending) return reply(cachedRow.data)
     }
     const writeCache = async (data: any) => {
-      if (!destinationKey) return
       const expires = new Date(); expires.setDate(expires.getDate() + 7)
       const { error: cacheErr } = await admin.from('guide_cache_sections').upsert({
         destination_key: destinationKey, destination_city: city, destination_country: country,
@@ -293,7 +315,7 @@ Deno.serve(withGoogleScope(async (req) => {
 
     // ── Facts: real places from Google, no AI ──
     if (PLACE_SECTIONS[section] && stage !== 'voice' && (isLoadMore || !cachedRow?.data)) {
-      const places = await placeCandidates(section, city, country, exclude_names)
+      const places = await placeCandidates(section, city, country, center, exclude_names)
       if (places?.length) {
         const fresh = factItems(section, city, places)
         const data = isLoadMore && Array.isArray(cachedRow?.data?.items)
@@ -346,7 +368,9 @@ Deno.serve(withGoogleScope(async (req) => {
       console.warn(`guide ${section}: ${(e as Error).message}`)
       return reply({ error: (e as Error).message }, 502)
     }
-    const content = { section, ...result }
+    // Everything the AI wrote is checked before anyone sees it: links allow-listed, text capped and cleaned
+    result = sanitizeSection(result && typeof result === 'object' && !Array.isArray(result) ? result : {})
+    const content = { ...result, section }
     // Load-more appends to the cached section; a fresh load replaces it
     await writeCache(isLoadMore && Array.isArray(cachedRow?.data?.items)
       ? { ...cachedRow.data, items: [...cachedRow.data.items, ...(Array.isArray(result?.items) ? result.items : [])] }
