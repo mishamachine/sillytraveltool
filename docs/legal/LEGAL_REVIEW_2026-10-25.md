@@ -15,6 +15,12 @@ pending), as of `main` at `4ff50e4`. Read: `public/privacy/`, `public/terms/`, `
 
 The companion document is [`IP_PROTECTION_PLAN.md`](IP_PROTECTION_PLAN.md) (trademarks, copyright, trade secrets).
 
+> **Owner decision, 2026-10-26 (L1/L2):** DeepSeek stays the AI for everything, including booking emails, pastes and
+> typed translations. L2 (moving personal data to Gemini) is declined. L1 is built with a clear, separate
+> "DeepSeek, China" Allow step in onboarding (asked again at the first import if skipped), and the privacy page says
+> plainly that the transfer to China relies on the member's explicit consent, without contractual safeguards. The owner
+> accepts the remaining EU/UK GDPR risk (R1 stays High for EU/UK members; Apple 5.1.2(i) is met by the Allow step).
+
 ---
 
 ## Top five actions (do these first)
