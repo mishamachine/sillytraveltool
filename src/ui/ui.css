@@ -415,7 +415,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
 .c-toast--top { top: calc(var(--safe-top) + var(--space-4)); }
 .c-toast__icon { color: var(--accent-on-inverse); }
 .c-toast__body { flex: 1; min-width: 0; }
-.c-toast__title { margin: 0; font-weight: 600; font-size: 0.9375rem; }
+.c-toast__title { margin: 0; font-weight: 600; font-size: 0.9375rem; color: var(--ink-inverse); }
 .c-toast__text { margin: 0; font-size: 0.8125rem; color: var(--ink-inverse-muted); }
 
 /* ---------- goose + logo ---------- */

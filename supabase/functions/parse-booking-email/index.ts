@@ -3,6 +3,7 @@ import { checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
 import { attachPlace, withGoogleScope, setGoogleUser } from '../_shared/google.ts'
 import { fixConnectingLegs, pickDestination, readItinerary } from '../_shared/itinerary.ts'
+import { aiConsentGiven, CONSENT_REQUIRED } from '../_shared/consent.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -32,6 +33,7 @@ Deno.serve(withGoogleScope(async (req) => {
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
     if (!GEMINI_API_KEY) return new Response(JSON.stringify({ error: 'Gemini key not configured' }), { status: 500, headers: CORS })
 
+    if (!(await aiConsentGiven(user.id))) return new Response(JSON.stringify(CONSENT_REQUIRED), { status: 403, headers: CORS })
     if (!(await checkAiQuota(user.id))) {
       return new Response(JSON.stringify({ error: QUOTA_MESSAGE }), { status: 429, headers: CORS })
     }
