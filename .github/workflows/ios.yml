@@ -27,8 +27,9 @@ on:
       demo_params:
         description: "Demo build instead (no account, fixture data), e.g. flagship=10 for the shared-traveller card. Skips sign-in"
         default: ""
-  # The repo is private since 2026-10-26: macOS runners bill 10x Actions minutes, so the iOS simulator run is manual
-  # (Run workflow) rather than on every PR. Android still runs on PRs; the Check workflow covers lint, simulators and build.
+  pull_request:
+    branches: [main]
+    paths: [src/**, ios/**, package.json, package-lock.json, scripts/ios-sim-shots.py, .github/workflows/ios.yml]
 
 concurrency:
   group: ios-${{ github.ref }}
