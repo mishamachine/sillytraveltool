@@ -29,9 +29,13 @@ Format: what to do · where · what Claude does once it's ticked.
 
 ## Google Play
 - [x] **Play phone verification** done 2026-10-27; app and closed track "Closed beta" created (see HANDOFF).
-- [ ] **Play app content and review** (2026-10-27: all four still open, nothing submitted): Sign in details (reviewer test account decision), Content rating (IARC terms),
-  Target audience 18+, Data safety (`docs/STORE_PRIVACY_FORMS.md`), then Publishing overview → Submit 12 changes for
-  review · Play Console → Silly Travel Tool · after approval, copy the join link from Closed beta → Testers.
+- [x] **Play app content and review** submitted 2026-10-27 08:50 UTC: Sign in details (machinemisha reviewer account,
+  lifetime First Class grant), Content rating (IARC: Everyone / PEGI 3 / USK all ages / 3+ / Brazil 14+), Target audience
+  18+, Data safety, then Publishing overview → "Send 15 changes for review". Dashboard shows **In review**.
+- [ ] **After Google approves the closed test:** copy the join link from Closed beta → Testers, put it in `app_settings.beta`
+  (android_url, show_android = true) and on /beta. Production needs 12 opted-in testers for 14 days first.
+- [ ] **Search Console:** verify https://bbprojectfactory.com/ (the developer-account website) or switch it to
+  https://sillytraveltool.com/.
 - [ ] **Play products:** `stt_first_class_yearly` (subscription, $14.99/yr) and `stt_first_class_lifetime_founding`
   (one-time product, $29.99) · Play Console → the app → Monetize · Claude maps them in RevenueCat and runs a Play
   internal-testing purchase.

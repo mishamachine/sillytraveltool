@@ -1,5 +1,24 @@
 # STT Handoff — 2026-10-21
 
+## Update — Google Play: closed beta submitted for review (2026-10-27 08:50 UTC, audit session)
+- All four App content declarations are complete and the 15 pending changes were sent to Google: dashboard
+  **Update status: In review**, Production inactive. Reviews usually take up to 7 days.
+- Done in the owner's Chrome, on the `/console/u/1/` tab (babar54@gmail.com, developer 6830777302621607998):
+  Sign in details = "Reviewer account (full access, First Class)", machinemisha@gmail.com, password typed by the owner,
+  instructions say Continue with email, no 2-step, First Class already on the account. Target audience 18+ only
+  (child-appeal steps skipped). Data safety: the session's draft (17 data types from `docs/STORE_PRIVACY_FORMS.md`)
+  given its final Save. Content rating (owner-approved IARC terms): category All Other App Types; user content sharing
+  yes (invite-only, no block/report/chat moderation); online content yes (AI-generated guides, nothing ratings-relevant);
+  digital goods yes, no loot boxes; everything else no. Ratings: Everyone (NA), PEGI 3, USK all ages, 3+, Brazil 14+.
+- Reviewer account: machinemisha has a **lifetime First Class admin grant** (entitlement_grants 7f36d71c, admin_audit
+  #43, reason "reviewer"); never end it or "Start fresh" that account while the apps are in review or on sale.
+- Why the owner's own clicks never stuck: Chrome's default Google account (/u/0/) is machinemisha, which has no Play
+  account; the app is under babar54 at /u/1/. Also every form needs its own Save, and the content-rating Next button
+  stays disabled until Save is clicked.
+- Still to do: join link after approval (Closed beta → Testers) → `app_settings.beta` + /beta; 12 opted-in testers for
+  14 days before production; developer website https://bbprojectfactory.com/ is unverified in Search Console.
+
+
 ## Update — Google Play: app created, closed track ready, waiting on owner clicks (2026-10-27, play-console session)
 - Phone verification passed. App **Silly Travel Tool** created in Play Console (developer **Bodhi Studios**, account
   6830777302621607998, app ID 4975168874414148202, package `com.sillytraveltool.app`, free to download, English US).
