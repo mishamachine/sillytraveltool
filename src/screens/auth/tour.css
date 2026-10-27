@@ -11,7 +11,7 @@
 .tour-card { display: flex; flex-direction: column; gap: var(--space-4); flex: 1; animation: tour-enter 0.35s ease-out both; }
 .tour-card.is-back { animation-name: tour-enter-back; }
 .tour-copy { display: flex; flex-direction: column; gap: var(--space-2); }
-.tour-beta { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; }
+.tour-pill-welcome { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; }
 .tour-note { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) 14px; border-radius: 18px; background: var(--accent-soft); }
 .tour-note p { margin: 0; }
 .tour-report { align-self: center; }

@@ -224,7 +224,7 @@ export const HELP_FAQ = [
   },
   {
     q: 'Something isn\'t working. How do I tell you?',
-    a: 'STT is in beta, and every report helps. Tap Report an issue at the bottom of Profile or Help: it opens an email with your app version filled in. Say what happened and what you expected, and add a screenshot if you can.',
+    a: 'Every report helps. Tap Report an issue at the bottom of Profile or Help: it opens an email with your app version filled in. Say what happened and what you expected, and add a screenshot if you can.',
   },
   {
     q: 'I forwarded an email but nothing showed up.',

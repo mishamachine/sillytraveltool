@@ -3,7 +3,7 @@ import { HELP_GROUPS, HELP_TOPICS, HELP_FAQ, HELP_CONTACT, searchHelp } from '..
 import { track } from '../../lib/analytics'
 import { useBackHandler } from '../../lib/backStack'
 import { useUIStore } from '../../store'
-import BetaCard from '../../components/shared/BetaCard'
+import FeedbackCard from '../../components/shared/FeedbackCard'
 import { Screen, ScreenHeader, Section, Card, ListRow, Field, Banner, EmptyState, Text, Stack, Icon, LinkButton } from '../../ui'
 
 function TopicView({ topic, onBack }) {
@@ -84,7 +84,7 @@ export default function HelpView({ onBack }) {
         </>
       )}
 
-      <BetaCard where="help" />
+      <FeedbackCard where="help" />
 
       <Stack gap={1} align="center" className="profile-about">
         <Text variant="caption" tone="muted">Still stuck? Goose reads every email.</Text>

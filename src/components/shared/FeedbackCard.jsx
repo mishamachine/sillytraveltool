@@ -1,18 +1,18 @@
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import { Card, Stack, Text, Overline, Icon, IconTile } from '../../ui'
 
-/** Beta thank-you + "Report an issue" (bottom of Profile and Help). `where` is a short screen code for the report. */
-export default function BetaCard({ where }) {
+/** Feedback card with "Report an issue" (bottom of Profile and Help). `where` is a short screen code for the report. */
+export default function FeedbackCard({ where }) {
   return (
     <Card>
       <Stack gap={3}>
         <Stack row gap={3} align="start">
           <IconTile icon="flag" tone="accent" size="sm" />
           <Stack gap={1} grow>
-            <Overline>Beta</Overline>
-            <Text variant="card-title" as="h2">Thanks for testing STT early</Text>
+            <Overline>Feedback</Overline>
+            <Text variant="card-title" as="h2">Help shape STT</Text>
             <Text variant="caption" tone="secondary" as="p">
-              You're helping shape it. If something breaks, looks odd or just annoys you, tell us and we'll fix it.
+              If something breaks, looks odd or just annoys you, tell us and we'll fix it.
             </Text>
           </Stack>
         </Stack>
