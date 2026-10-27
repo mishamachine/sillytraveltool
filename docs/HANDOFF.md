@@ -1,5 +1,19 @@
 # STT Handoff — 2026-10-21
 
+## Update — Google Play account status and package name (2026-10-25)
+- **Account:** developer name "Bodhi Studios", a *personal* account owned by babar54@gmail.com (Play Console `/u/1`,
+  account ID 6830777302621607998). machinemisha@gmail.com has no Play developer account (the console asks it to create one).
+- **Verification:** "Google is verifying your identity": documents are uploaded, Google emails the owner when done, "may take a
+  few days". The contact-phone check stays locked until that finishes. **While it is pending, "Create app" is disabled**
+  ("Complete account verifications to create new apps"), so no app record, upload or closed test is possible yet.
+- **Package `com.sillytraveltool.app`:** not in this account (its only app is an unrelated Jan 2026 draft, "GameDay Sync - BETA",
+  no bundle uploaded) and not on the public Play Store (store page is a 404). Whoever the "already in use" message pointed at, it
+  is not visible from here; the message could not be reproduced because Create app is locked. Re-try the create once verified;
+  if Play still refuses, the id is held elsewhere (or reserved by a deleted app) and the owner must choose a new id (a separate PR:
+  `android/app/build.gradle`, `capacitor.config.json`, deep-link intent filters, RevenueCat Android app, docs).
+- **Personal-account rule:** production needs a closed test with 12+ testers opted in for 14 days; the "Beta" closed track is allowed first.
+- **Meanwhile:** the debug APK in the public `releases` bucket (see "Android test builds") installs now. A signed *release* APK needs a
+  workflow change: `android-release.yml` only builds the AAB (one extra `./gradlew assembleRelease` step + artifact would do it).
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.

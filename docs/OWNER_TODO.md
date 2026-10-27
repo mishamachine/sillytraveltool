@@ -30,6 +30,10 @@ Format: what to do · where · what Claude does once it's ticked.
 ## Google Play
 - [ ] **Play Console:** developer account, payments profile, tax and bank forms · play.google.com/console · Claude
   uploads the first signed build to internal testing.
+  - 2026-10-25: Bodhi Studios (personal) created; identity documents uploaded, **waiting on Google's identity check** (email
+    when done, "a few days"); then verify the contact phone number (Account details → Verify). "Create app" unlocks after that.
+  - [ ] Then create the app with `com.sillytraveltool.app`; if Play says the id is in use, decide on a new id (see HANDOFF 2026-10-25).
+  - [ ] Back up `~/.stt/upload-keystore.jks` and `~/.stt/keystore.env` (Play app signing keeps the upload key recoverable only via support).
 - [ ] **Play products:** `stt_first_class_yearly` (subscription, $14.99/yr) and `stt_first_class_lifetime_founding`
   (one-time product, $29.99) · Play Console → the app → Monetize · Claude maps them in RevenueCat and runs a Play
   internal-testing purchase.
