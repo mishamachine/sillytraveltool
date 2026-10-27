@@ -1,16 +1,23 @@
 # STT Handoff — 2026-10-21
 
-## Update — Google Play: blocked on contact phone verification (2026-10-26, play-console session; nothing created)
-- Signed in to Play Console as babar54@gmail.com → developer account **Bodhi Studios** (personal, ID 6830777302621607998).
-  Identity is no longer the blocker. **Create app is still disabled** ("Complete account verifications to create new apps"):
-  the only open task is **Verify your contact phone number** (+1 617 510 9018, Action required). Google sends an SMS or call
-  code; only the owner can enter it (Home → Verify your contact phone number → Go to account details → Verify).
-- Not done, ready to go once it is verified: create app, listing, App content, closed track "Beta" with the signed
-  versionCode 5 bundle (`android-release.yml` run 40433516785 on main, artifact `app-release.aab`), email list "Beta testers".
-  No RevenueCat Android key secret exists, so that build hides the paywall (fine for a closed beta).
-- Listing text, graphics (icon 512, feature graphic 1024x500, four 1080x2160 real emulator screenshots), reviewer notes
-  and declarations are prepared in the session notes folder (`play-console-listing-pack.md`).
-- Data safety answers: `docs/STORE_PRIVACY_FORMS.md` already has both audit corrections (crash logs Optional, GA device ID).
+## Update — Google Play: app created, closed track ready, waiting on owner clicks (2026-10-27, play-console session)
+- Phone verification passed. App **Silly Travel Tool** created in Play Console (developer **Bodhi Studios**, account
+  6830777302621607998, app ID 4975168874414148202, package `com.sillytraveltool.app`, free to download, English US).
+- **Saved:** privacy policy, ads (none), government (no), financial (none), health (none), advertising ID (no), category
+  Travel & Local, contact email + website, default store listing (short + full description, 512 icon, 1024x500 feature
+  graphic, four real emulator screenshots 1080x2160; no AI-generated assets).
+- **Closed testing track "Closed beta"** (Play refused the name "Beta"): 178 countries, email list "Beta testers"
+  (babar54@gmail.com, machinemisha@gmail.com), feedback hello@sillytraveltool.com. Draft release **0.20.0 (5) beta** with
+  `app-release.aab` (versionCode 5, from `android-release.yml` run 40433516785) and the beta notes; saved to Publishing
+  overview with only symbol-file warnings. No tester cap field was found on the track.
+- **Owner clicks left, in order:** (1) Sign in details: decide on a reviewer test account (Play reviewers cannot use their
+  own accounts or create new ones; the form also requires ticking "full access to all features incl. premium");
+  (2) Content rating: tick the IARC Terms of Use and run the questionnaire (utility, no objectionable content);
+  (3) Target audience 18+ (unlocks after Sign in details); (4) Data safety: answers in `docs/STORE_PRIVACY_FORMS.md`
+  (the page also has Import from CSV); (5) Publishing overview → "Submit 12 changes for review". The opt-in join link
+  appears on the track's Testers tab once Google approves the closed test.
+- No RevenueCat Android key secret exists, so this build hides the paywall (fine for a closed beta).
+- Gotcha: the Play bundle upload field accepts files over the Chrome tool's 10 MB limit only via a local fetch + DataTransfer.
 
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the

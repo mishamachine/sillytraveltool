@@ -28,11 +28,10 @@ Format: what to do · where · what Claude does once it's ticked.
   100; it only works after approval) · Claude can do it when you say so.
 
 ## Google Play
-- [ ] **Play phone verification (blocks Create app):** Play Console → Home → "Verify your contact phone number" → Go to
-  account details → Verify, then enter the SMS or call code sent to +1 617 510 9018 · play.google.com/console · after that
-  Claude creates the app and starts the closed "Beta" track (listing pack and signed bundle are ready).
-- [ ] **Play Console:** developer account, payments profile, tax and bank forms · play.google.com/console · Claude
-  uploads the first signed build to internal testing.
+- [x] **Play phone verification** done 2026-10-27; app and closed track "Closed beta" created (see HANDOFF).
+- [ ] **Play app content and review:** Sign in details (reviewer test account decision), Content rating (IARC terms),
+  Target audience 18+, Data safety (`docs/STORE_PRIVACY_FORMS.md`), then Publishing overview → Submit 12 changes for
+  review · Play Console → Silly Travel Tool · after approval, copy the join link from Closed beta → Testers.
 - [ ] **Play products:** `stt_first_class_yearly` (subscription, $14.99/yr) and `stt_first_class_lifetime_founding`
   (one-time product, $29.99) · Play Console → the app → Monetize · Claude maps them in RevenueCat and runs a Play
   internal-testing purchase.
