@@ -211,7 +211,7 @@ try {
       await sleep(500)
       // The reload reopens the last tab (Tools): go to Trips, then into the plan
       card = await js(`document.querySelector('a[href="#trips"]:not([aria-current])')?.click()
-        const b = [...document.querySelectorAll('button')].find(e => e.innerText?.trim().startsWith('Full trip plan')); b?.click()
+        ;(document.querySelector('.today-plan') || [...document.querySelectorAll('button')].find(e => e.innerText?.trim().startsWith('Full trip plan')))?.click()
         const c = document.querySelector('.shared-leg'); c?.scrollIntoView({ block: 'center' }); return !!c`).catch(() => false)
     }
     check('shared flight is one card with three travellers', card && await js(`return document.querySelectorAll('.shared-leg__line').length === 3`))

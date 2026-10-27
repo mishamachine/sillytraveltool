@@ -24,6 +24,15 @@
   join link appears once the app is published, so there is no opt-in link yet.
 - No RevenueCat Android key secret exists, so this build hides the paywall (fine for a closed beta).
 - Gotcha: the Play bundle upload field accepts files over the Chrome tool's 10 MB limit only via a local fetch + DataTransfer.
+## Update — owner is now B&B Project Factory (2026-10-27, PR "Ownership: B&B Project Factory replaces Bodhi Studios and personal operator wording"; website deployed from main 0255391 and admin-email redeployed as v8 on 2026-10-27 07:15 UTC)
+- Privacy, Terms and Delete-account name **B&B Project Factory** (same Renton address) as the operator; footers read
+  "© 2026 B&B Project Factory · Silly Travel Tool"; `index.html` author meta and JSON-LD, the booking/marketing email
+  footer (`_shared/emailTemplate.js`; takes effect when the Edge Functions that use it are redeployed), the spec header
+  and the App Review checklist follow. Privacy and Terms "Last updated" now 27 October 2026. No entity suffix and no
+  claim that the company is registered: its legal registration is pending.
+- **TO DO (owner):** "B&B Project Factory: finish the entity switch" in `docs/OWNER_TODO.md` (suffix, Stripe, Play,
+  Apple tax/banking, Individual → Organization with D-U-N-S). Store consoles (Play developer name, App Store copyright)
+  are changed in the consoles, not in the repo.
 
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
