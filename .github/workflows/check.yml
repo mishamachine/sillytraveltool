@@ -10,6 +10,11 @@ on:
   push:
     branches: [main]
 
+# The repo is private: the token needs pull-requests: read for the changed-files filter below
+permissions:
+  contents: read
+  pull-requests: read
+
 concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
