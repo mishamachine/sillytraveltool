@@ -1,6 +1,6 @@
 # STT Handoff — 2026-10-21
 
-## Update — owner is now B&B Project Factory (2026-10-27, PR "Ownership: B&B Project Factory replaces Bodhi Studios and personal operator wording"; website + email function NOT redeployed)
+## Update — owner is now B&B Project Factory (2026-10-27, PR "Ownership: B&B Project Factory replaces Bodhi Studios and personal operator wording"; website deployed from main 0255391 and admin-email redeployed as v8 on 2026-10-27 07:15 UTC)
 - Privacy, Terms and Delete-account name **B&B Project Factory** (same Renton address) as the operator; footers read
   "© 2026 B&B Project Factory · Silly Travel Tool"; `index.html` author meta and JSON-LD, the booking/marketing email
   footer (`_shared/emailTemplate.js`; takes effect when the Edge Functions that use it are redeployed), the spec header
