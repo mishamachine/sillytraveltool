@@ -16,6 +16,12 @@
   (3) Target audience 18+ (unlocks after Sign in details); (4) Data safety: answers in `docs/STORE_PRIVACY_FORMS.md`
   (the page also has Import from CSV); (5) Publishing overview → "Submit 12 changes for review". The opt-in join link
   appears on the track's Testers tab once Google approves the closed test.
+- **Checked 2026-10-27 (read-only):** developer name now saved as **B&B Project Factory** (website shows
+  https://bbprojectfactory.com/, Search Console verification still to do). App content: 4 items still need attention:
+  Sign in details (not started), Content rating (questionnaire in progress, IARC terms not accepted), Target audience (not
+  started), Data safety (not started, flagged overdue). Publishing overview: **not submitted**; "3 issues found" block
+  sending. Closed beta shows Active with release 0.20.0 (5) beta "not yet sent for review". The Testers tab still says the
+  join link appears once the app is published, so there is no opt-in link yet.
 - No RevenueCat Android key secret exists, so this build hides the paywall (fine for a closed beta).
 - Gotcha: the Play bundle upload field accepts files over the Chrome tool's 10 MB limit only via a local fetch + DataTransfer.
 

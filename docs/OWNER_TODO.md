@@ -29,7 +29,7 @@ Format: what to do · where · what Claude does once it's ticked.
 
 ## Google Play
 - [x] **Play phone verification** done 2026-10-27; app and closed track "Closed beta" created (see HANDOFF).
-- [ ] **Play app content and review:** Sign in details (reviewer test account decision), Content rating (IARC terms),
+- [ ] **Play app content and review** (2026-10-27: all four still open, nothing submitted): Sign in details (reviewer test account decision), Content rating (IARC terms),
   Target audience 18+, Data safety (`docs/STORE_PRIVACY_FORMS.md`), then Publishing overview → Submit 12 changes for
   review · Play Console → Silly Travel Tool · after approval, copy the join link from Closed beta → Testers.
 - [ ] **Play products:** `stt_first_class_yearly` (subscription, $14.99/yr) and `stt_first_class_lifetime_founding`
