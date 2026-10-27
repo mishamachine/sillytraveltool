@@ -37,6 +37,7 @@ export default function Members({ filters, view, go, role }) {
 
   const cols = [
     { key: 'name', label: 'Member', render: m => <div className="a-who"><strong>{m.name || '—'}{m.is_me && <> <Badge tone="info">You</Badge></>}</strong><span>{m.email}</span></div>, sortValue: m => (m.name || m.email || '').toLowerCase() },
+    { key: 'joined', label: 'Joined', render: m => <span className="a-nowrap">{fmtDate(m.joined)}</span>, sortValue: m => m.joined || '' },
     { key: 'country', label: 'Where', render: m => m.country ? <div className="a-who" title={`From ${m.location_from}: ${m.tz}`}><strong>{country(m.country)}</strong>{m.area && <span>{m.area} area</span>}</div> : '—', sortValue: m => m.country || '' },
     { key: 'platforms', label: 'Platforms', render: m => (m.platforms || []).length ? <span>{m.platforms.map((p, i) => i === 0 ? <strong key={p}>{p}</strong> : <span key={p} className="a-muted">, {p}</span>)}</span> : '—', sortValue: m => m.main_platform || '' },
     { key: 'stage', label: 'Trip stage', render: m => <Badge tone={stageTone(m.stage)}>{STAGE_LABEL[m.stage] || m.stage}</Badge> },

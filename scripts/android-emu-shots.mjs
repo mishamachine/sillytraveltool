@@ -202,6 +202,21 @@ try {
     check('tip tool shows no error screen', !(await js(`return __t.has(${JSON.stringify(ERROR_SCREEN)})`)))
     await shot('08-tip-split')
   })
+
+  // ── 7. Shared-traveller card: the flagship trip's BCN → BER flight, three travellers, one card. Last: it reloads ──
+  await section('shared-leg', async () => {
+    await js(`location.href = location.origin + '/?flagship=10'; return true`).catch(() => {}) // page helpers gone after this
+    let card = false
+    for (let i = 0; i < 60 && !card; i++) {
+      await sleep(500)
+      // The reload reopens the last tab (Tools): go to Trips, then into the plan
+      card = await js(`document.querySelector('a[href="#trips"]:not([aria-current])')?.click()
+        const b = [...document.querySelectorAll('button')].find(e => e.innerText?.trim().startsWith('Full trip plan')); b?.click()
+        const c = document.querySelector('.shared-leg'); c?.scrollIntoView({ block: 'center' }); return !!c`).catch(() => false)
+    }
+    check('shared flight is one card with three travellers', card && await js(`return document.querySelectorAll('.shared-leg__line').length === 3`))
+    await shot('09-shared-leg')
+  })
 } catch (e) {
   check('script ran', false, e.message)
   await shot('99-error').catch(() => {})

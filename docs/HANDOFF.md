@@ -14,6 +14,95 @@
 - **Personal-account rule:** production needs a closed test with 12+ testers opted in for 14 days; the "Beta" closed track is allowed first.
 - **Meanwhile:** the debug APK in the public `releases` bucket (see "Android test builds") installs now. A signed *release* APK needs a
   workflow change: `android-release.yml` only builds the AAB (one extra `./gradlew assembleRelease` step + artifact would do it).
+## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
+- **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
+  member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.
+  Addresses normalised (display name off, lowercase, plus-tag off, Gmail dots off, googlemail → gmail). Others are
+  dropped silently with a `function_errors` row (`kind = inbox_rejected_sender`, sender domain only, no body).
+  Attachments download only after the check.
+- **Per-inbox budget:** `consume_inbox_quota(p_user, p_limit)` (service role), 30 AI reads a day per inbox, counted in
+  `ai_usage` as kind `inbox` (separate from the member's in-app `ai` allowance; override with `ai_limits.inbox_daily`).
+  Same AI kill switch, member-status check and project-wide `global_usage` AI cap as `consume_ai_quota` (PR #33); fails
+  closed like it (`quotaUnavailable`). Needs migration `20261025150000_global_daily_caps` applied first.
+- **Cancellation emails** only stamp `bookings.cancellation_received_at` and add a note; the title is no longer changed to
+  "Cancelled · …". BookingDetailSheet shows one line asking the traveller to check with the provider.
+- **Tokens:** 12 hex (48 bits) from `gen_random_bytes`, made by a trigger on profile insert; clients can't set or change
+  them (trigger `guard_booking_email_token`). Settings → Goose inbox → **New address** calls `my_rotate_inbox_token()`.
+  The 18 existing 8-hex tokens keep working until rotated; the webhook reads 12- or 8-hex tokens. Client token code in
+  `authStore.js` removed. Settings also has **Accept from any sender**.
+- **Order matters in the morning:** apply migration `20261026090000_inbox_trust.sql` first, then deploy
+  `receive-booking-email`, then ship the web/app build. The live webhook test (`test-email-ingest.mjs webhook`) needs
+  `inbox_accept_any = true` on machinemisha (fixtures come from airline addresses).
+- **Follow-ups:** a Settings editor for `inbox_allowed_senders` (DB-only today); `From:` can be forged, so a DKIM/SPF
+  check on Resend's inbound headers would harden it further; optionally rotate all 8-hex tokens once members are told.
+## Update — website deployed from main 1efb131: shared-traveller card, tour plan slide, privacy fixes (2026-10-25)
+- Deployed by the audit session with the owner's go-ahead: clean `git archive` of `origin/main` (1efb131), `npm ci && npm run build`
+  (dist check passed), no pre-deploy backup (the backup step silently failed in zsh; the nearest earlier one is `~/backups/stt-202610250652-pre-invitefix.tar.gz` from tonight) and a post-deploy backup `~/backups/stt-<timestamp>-post-card.tar.gz`, dry run showed 89 changed files and no deletions,
+  rsync **without** `--delete`. Verified: /, /help/, /beta/, /upgrade/, /redeem/, /delete-account/, /privacy/, /terms/, /admin/ all 200;
+  live `main-*.js` hash equals the build; the Plan tab chunk with the shared-leg card is served.
+- Live since this deploy: shared-traveller card (PR #19), tour plan slide leading with First Class (PR #12), Sentry email scrubbing and
+  GA in native builds (PR #13), Tip tool crash fix (PR #14, deployed earlier tonight), cockpit join date (PR #25) and live-only Stripe
+  reporting (PR #26) in the admin bundle.
+## Update — TestFlight beta group and Beta App Review (2026-10-25, testflight-beta session)
+- **State in App Store Connect (checked, nothing re-created):** Test Information is filled (beta description says "Silly
+  Travel Tool beta", feedback hello@sillytraveltool.com, marketing https://sillytraveltool.com/, privacy
+  https://sillytraveltool.com/privacy/, reviewer sign-in on machinemisha). Build 0.20.0 (5) has "What to Test" (start a
+  trip, forward a booking email, paste a confirmation, invite a friend, a city guide, the First Class paywall in
+  sandbox; report from Profile > Report an issue) and sits in internal group "Silly Travel Tool internal" (1 tester,
+  the owner) and external group "Silly Travel Tool beta". Both were made by the store-setup session; the group names
+  differ from the "STT team" wording in the brief.
+- **Review status:** build 5 is **Waiting for Review** (Beta App Review) as of this entry.
+- **Public link (created 2026-10-25 after the owner approved it in chat):** https://testflight.apple.com/join/rFv9QAA4
+  ("Open to Anyone", tester limit 100, 0 joined). It shows "Testers cannot join public link until this group has an
+  approved build": it starts working once Beta App Review approves build 5. Paste it into Cockpit → Growth → Beta
+  waitlist as the iOS link.
+- Not touched: pricing, availability, App Store submission, in-app purchases.
+
+## Update — Stripe web billing is LIVE (2026-10-25, live account `acct_1UTcxRJ3Q35Z71yD`)
+- **Owner did:** Supabase org → **Pro**; Stripe activation (business, bank, identity; Payments + Payouts active, no open
+  tasks); the restricted key and the three Supabase secrets; the real purchase and refund. Claude filled the public details
+  (support email hello@sillytraveltool.com, support URL /help/, privacy + terms URLs; descriptor `SILLY TRAVEL TOOL`).
+- **Tax:** owner chose threshold monitoring only (no `automatic_tax`, no code change).
+- **Live objects** (dashboard; the Stripe MCP still only sees the sandbox, Workbench shell is read-only in live):
+  product `prod_VVMUdDYZ1m1GP0` (dashboard can't set the id `stt_first_class`, so Supabase secret
+  `STRIPE_PRODUCT_ID` holds it for admin-stripe's coupon `applies_to`), tax code `txcd_10103001`, metadata `app=stt`;
+  prices `price_1UULlzJ3Q35Z71yDHOuJzytY` (`stt_first_class_yearly`, $14.99/yr) and `price_1UULlzJ3Q35Z71yDeB8Qt8S6`
+  (`stt_first_class_lifetime_founding`, $29.99 once), both tax-exclusive with `metadata.plan`; default portal
+  `bpc_1UULpdJ3Q35Z71yD1SDkNn2G` (cancel at period end + reasons, card update, invoices, email/address, no plan
+  switching, return /upgrade/); webhook `we_1UULrbJ3Q35Z71yDpvVuWo8N` → `/functions/v1/stripe-webhook`, same 18 events,
+  API `2026-09-30.endive` (= account default). No cockpit codes to recreate (`promo_codes` empty); STTTEST50 stays sandbox.
+- **Key:** restricted `stt-supabase-functions` (the account's only secret key), 13 permissions. Write: Customers, Checkout
+  Sessions, Customer Portal, Subscriptions (delete-account), Coupons, Promotion Codes. Read: Prices, Products, Charges and
+  Refunds, Payment Intents, Invoices, Balance, Payment Disputes.
+- **Supabase secrets** (names): `STRIPE_SECRET_KEY` (07:45 UTC), `STRIPE_WEBHOOK_SECRET` (07:52), `STRIPE_PRODUCT_ID` (09:04).
+- **Smoke test:** `billing` returned `cs_live_` Checkout for lifetime and yearly; live `customer.created` → `stripe-webhook`
+  200 (signature OK); cockpit Sync now OK, `stripe_sync.livemode = true`.
+- **Real purchase (owner's card, machinemisha, `/upgrade/`):** sub `sub_1UUMJ6J3Q35Z71yDW35GCTLx`, charge
+  `ch_3UUMJ3J3Q35Z71yD0DolPluo` $14.99 (plan yearly, invoice `in_1UUMJ2J3Q35Z71yDzEFg3Gec`, fee $0.73) →
+  `entitlement()` first_class; 6/6 webhook deliveries 200. Then cancel now + full refund in the dashboard: refund
+  `re_3UUMJ3J3Q35Z71yD0CO9rndV` → entitlement `free`, sub canceled, ledger shows −$14.99 refund. Net cost: the $0.73 fee.
+- **Open:** Checkout still offers Link's **Bank** and **Klarna** (not covered by `excluded_payment_method_types`); turn them
+  off in Stripe → Settings → Payment methods if wanted. Sandbox webhook `we_1UTo8y…` can be disabled.
+
+## Update — signed Android beta APK for sideloading (2026-10-25, PR "Android release: also build a signed universal APK")
+- `android-release.yml` now also runs `./gradlew assembleRelease` (same upload key, same versionCode) and uploads the universal APK as the `android-release-apk` artifact (7-day retention; the AAB artifact is unchanged).
+- Private hand-off only: the APK goes to the owner's Google Drive folder "STT Android beta" (not shared) and the Actions artifact (needs GitHub login). Never a public URL.
+- This build has no paywall: `VITE_REVENUECAT_ANDROID_KEY` is not set in repo secrets. The earlier debug APK must be uninstalled first (different signing key).
+## Update — cockpit Stripe data is live-only (2026-10-25, migration `20261025140000_stripe_live_only`, applied)
+- **Why:** Stripe went live tonight; every `stripe_*` row synced before that came from the sandbox.
+- **Purged** (`livemode = false`, applied after a rolled-back dry run): balance_txns 8, charges 7, checkouts 8, customers 2,
+  invoices 7, promotion_codes 1, subscriptions 5 (38 rows). Live rows untouched. `promo_codes` had no Stripe ids (0 rows in
+  total); the migration still nulls any sandbox coupon/promo ids with a note so codes re-push to live from Codes.
+  `admin_audit`, `entitlement_grants`, `code_redemptions` untouched.
+- **`stripe_sync`:** last_sync/counts/balance cleared (livemode stays true); the sync is a full pull, so the next one is
+  unthrottled. A forced "Sync now" then pulled live only: 1 charge, 1 invoice, 2 checkouts, 1 customer, 1 sub, 1 balance txn.
+- **Filters added** (`livemode = stripe_sync.livemode`): `admin_code_stripe` (Codes Stripe stats), `experiment_traffic`
+  (checkout counts), `member_rows_plus` (customer country). Already filtered: `admin_stripe`, `admin_financials`,
+  `admin_costs`, `admin_insight_rows`, `my_entitlement`, `stripe_first_class`.
+- **Verified** on /admin Money: Statement $14.99 gross, −$0.73 fees, $14.26 net, badge Live; Cash pending $14.26.
+- **Sandbox can't come back:** `stripe-webhook` checks signatures with the live `STRIPE_WEBHOOK_SECRET`, so sandbox events get
+  a 400 and write nothing, and the sync uses the live key. If the sandbox endpoint is still enabled in Stripe (test mode →
+  Webhooks), disable it so Stripe stops retrying and emailing about failed deliveries.
 
 ## Update — trip-list invite Accept/Decline fixed (2026-10-25, accept-invite **v14**)
 - **Bug:** after the RLS hardening (PR #16) clients may only `UPDATE (role)` on `trip_collaborators`, so the trip-list

@@ -4,6 +4,8 @@
 //
 // day(n) → 'YYYY-MM-DD' for trip day n (0 = departure from Seattle); wall(n, 'HH:MM', tz) → ISO instant.
 export const SEA = 'America/Los_Angeles', MAD = 'Europe/Madrid', BER = 'Europe/Berlin', ROM = 'Europe/Rome'
+// Maria joined the trip and forwarded her family's booking for the Berlin flight: three travellers, one card
+export const MARIA = '00000000-0000-4000-8000-0000000000bb'
 
 export function flagshipTrip({ id = 'trip-flagship', owner, day, wall }) {
   const trip = {
@@ -39,7 +41,9 @@ export function flagshipTrip({ id = 'trip-flagship', owner, day, wall }) {
     leg('transport', 'train', 'Sevilla → Barcelona', 'Sevilla Santa Justa', 'Barcelona Sants', [8, '08:45'], [8, '14:20'], MAD, MAD, { airline: 'Renfe AVE', confirmation_number: 'RNF1044' }),
     hotel('Hotel Neri', 'Carrer de Sant Sever 5, Barcelona', 8, 10, MAD, 41.3834, 2.1762),
     visit('restaurant', 'Dinner · Cal Pep', 'Cal Pep', 'Plaça de les Olles 8, Barcelona', 9, '20:30', MAD, 41.3840, 2.1828, { party_size: 2 }),
-    leg('flight', null, 'BCN → BER', 'BCN', 'BER', [10, '10:15'], [10, '12:50'], MAD, BER, { airline: 'Vueling', flight_number: 'VY 1886', confirmation_number: 'VY77QK' }),
+    leg('flight', null, 'BCN → BER', 'BCN', 'BER', [10, '10:15'], [10, '12:50'], MAD, BER, { airline: 'Vueling', flight_number: 'VY 1886', confirmation_number: 'VY77QK', seat_number: '14A', passenger_name: 'Sam Rivera' }),
+    leg('flight', null, 'BCN → BER', 'BCN', 'BER', [10, '10:15'], [10, '12:50'], MAD, BER, { airline: 'Vueling', flight_number: 'VY1886', confirmation_number: 'VY88RT', seat_number: '14B', passenger_name: 'Maria Silva', created_by: MARIA }),
+    leg('flight', null, 'BCN → BER', 'BCN', 'BER', [10, '10:15'], [10, '12:50'], MAD, BER, { airline: 'Vueling', flight_number: 'VY1886', confirmation_number: 'VY88RT', seat_number: '14C', passenger_name: 'Tom Silva', created_by: MARIA }),
     hotel('Hotel Oderberger', 'Oderberger Str. 57, Berlin', 10, 12, BER, 52.5390, 13.4080),
     leg('transport', 'train', 'Berlin → Dresden', 'Berlin Hauptbahnhof', 'Dresden Hbf', [12, '09:40'], [12, '11:44'], BER, BER, { airline: 'Deutsche Bahn', confirmation_number: 'DB55120' }),
     hotel('Hotel Taschenbergpalais', 'Taschenberg 3, Dresden', 12, 13, BER, 51.0530, 13.7360),

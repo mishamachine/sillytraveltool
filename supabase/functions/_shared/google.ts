@@ -5,6 +5,7 @@
 // it is refused when the owner pauses Google or the member's daily cap is used up, and the caller falls back.
 
 import { requestUser, serviceRpc, setRequestUser, withRequestScope } from './usage.ts'
+import { quotaUnavailable, rememberQuota } from './quota.ts'
 
 const KEY = () => Deno.env.get('GOOGLE_MAPS_SERVER_KEY') || ''
 export const hasGoogle = () => !!KEY()
@@ -33,19 +34,25 @@ export function googleEndpoint(url: string): string {
   return 'other'
 }
 
-/** Count one Google call; false = paused or over the member's daily cap. Fails open (like checkAiQuota). */
+/**
+ * Count one Google call; false = paused, over the member's daily cap, or over the project-wide daily cap.
+ * Fails CLOSED (unlike before): if the quota RPC errors or takes longer than 2 s, the member's last answer
+ * (under 60 s old) is used; with none, the call is refused and a quota_check_failed row is logged. Callers already
+ * fall back when this is false.
+ */
 export async function allowGoogle(endpoint: string): Promise<boolean> {
+  const user = requestUser()
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 2000)
   try {
-    const res = await serviceRpc('consume_api_call', { p_user_id: requestUser(), p_endpoint: endpoint, p_service: 'google' }, ctrl.signal)
-    if (!res.ok) { console.error('consume_api_call failed:', res.status, (await res.text()).slice(0, 200)); return true }
+    const res = await serviceRpc('consume_api_call', { p_user_id: user, p_endpoint: endpoint, p_service: 'google' }, ctrl.signal)
+    if (!res.ok) return quotaUnavailable('google', user, `consume_api_call ${res.status} ${(await res.text()).slice(0, 120)}`)
     const ok = (await res.json()) !== false
+    rememberQuota('google', user, ok)
     if (!ok) console.warn(`google ${endpoint} refused: paused or daily cap reached`)
     return ok
   } catch (e) {
-    console.error('consume_api_call error:', (e as Error).message)
-    return true
+    return quotaUnavailable('google', user, (e as Error)?.name === 'AbortError' ? 'consume_api_call timed out after 2s' : `consume_api_call error: ${(e as Error)?.message}`)
   } finally { clearTimeout(timer) }
 }
 

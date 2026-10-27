@@ -1,7 +1,8 @@
 // The work after an inbound email is authenticated and mapped to a user: parse it with the AI, match it to a
 // trip by dates and distance (extending or joining trips that are one journey), and insert the booking.
 // Shared by the Resend webhook (index.ts) so it can be exercised without a signed webhook.
-import { geminiFetch, checkAiQuota } from '../_shared/gemini.ts'
+import { geminiFetch } from '../_shared/gemini.ts'
+import { quotaUnavailable, rememberQuota } from '../_shared/quota.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
 import { attachPlace, geocode, cached, setGoogleUser } from '../_shared/google.ts'
 import { rankTrips, wallSpan, distanceKm, gapDays, routeKm, NEAR_KM, EDGE_DAYS } from '../_shared/tripMatch.js'
@@ -167,7 +168,79 @@ async function widenTrip(admin: any, tripId: string, start: string, end: string)
  * One email per traveller at a time (public.take_ingest_lock): several confirmations forwarded together are filed in
  * turn, so they extend one trip instead of each starting their own. Waits up to a minute, then goes ahead anyway.
  */
-export async function ingestEmail(supabase: any, profile: { id: string, home_city?: string | null }, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
+// ── Who may mail an inbox (audit S4) ──
+// The member's account email always; the addresses they added (inbox_allowed_senders); anyone only when they
+// turned on inbox_accept_any (auto-forwarding rules keep the airline as the sender). Checked before any AI call.
+
+export type InboxProfile = {
+  id: string, home_city?: string | null,
+  account_email?: string | null, // filled from auth.users when absent
+  inbox_allowed_senders?: string[] | null, inbox_accept_any?: boolean | null,
+}
+
+/**
+ * "Sam Rivera <Sam.Rivera+trips@GoogleMail.com>" → "samrivera@gmail.com": the address only (display name removed),
+ * lowercased, plus-tag stripped, and for Gmail the dots too. Null when it isn't one plain address.
+ */
+export function normalizeAddress(raw: unknown): string | null {
+  const s = String(raw ?? '').trim()
+  const bracket = s.match(/<([^<>]*)>\s*$/)
+  const addr = (bracket ? bracket[1] : s).trim().toLowerCase()
+  const m = addr.match(/^([^\s@<>",;]+)@([a-z0-9.-]+\.[a-z]{2,})$/)
+  if (!m) return null
+  let [, local, domain] = m
+  local = local.split('+')[0]
+  if (domain === 'googlemail.com') domain = 'gmail.com'
+  if (domain === 'gmail.com') local = local.replace(/\./g, '')
+  return local ? `${local}@${domain}` : null
+}
+
+async function accountEmailOf(supabase: any, profile: InboxProfile): Promise<string | null> {
+  if (profile.account_email !== undefined) return profile.account_email
+  try {
+    const { data } = await supabase.auth.admin.getUserById(profile.id)
+    return data?.user?.email || null
+  } catch { return null }
+}
+
+/** True when this inbox takes mail from `fromAddress`. */
+export async function senderAllowed(supabase: any, profile: InboxProfile, fromAddress: string): Promise<boolean> {
+  if (profile.inbox_accept_any === true) return true
+  const from = normalizeAddress(fromAddress)
+  if (!from) return false
+  if ((profile.inbox_allowed_senders || []).some(a => normalizeAddress(a) === from)) return true
+  return normalizeAddress(await accountEmailOf(supabase, profile)) === from
+}
+
+// AI reads (the email, each attachment) one inbox may use a day: its own budget, not the member's in-app AI quota
+export const INBOX_DAILY_PARSES = 30
+
+/**
+ * One unit of today's inbox budget; false once it's spent (or AI is paused, or the project-wide cap is reached).
+ * Fails closed like the AI quota: if the RPC errors, the last answer (under a minute old) stands, else refuse.
+ */
+async function inboxBudget(supabase: any, userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc('consume_inbox_quota', { p_user: userId, p_limit: INBOX_DAILY_PARSES })
+    if (error) return quotaUnavailable('inbox', userId, `consume_inbox_quota: ${error.message}`.slice(0, 200))
+    const ok = data !== false
+    rememberQuota('inbox', userId, ok)
+    return ok
+  } catch (e) {
+    return quotaUnavailable('inbox', userId, `consume_inbox_quota error: ${(e as Error).message}`)
+  }
+}
+
+export async function ingestEmail(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
+  // Not from this member or someone they allowed: dropped without a word, nothing parsed, no body kept
+  if (!(await senderAllowed(supabase, profile, input.fromAddress))) {
+    const domain = normalizeAddress(input.fromAddress)?.split('@')[1] || 'unreadable'
+    console.log(`🚫 Inbox of ${profile.id}: sender not allowed (${domain}), dropped`)
+    try {
+      await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_rejected_sender', status: 403, user_id: profile.id, message: `sender domain ${domain}`.slice(0, 120) })
+    } catch { /* logging is best-effort */ }
+    return ok({ success: true, ignored: true, reason: 'sender' })
+  }
   let locked = false
   for (let i = 0; i < 40 && !locked; i++) {
     const { data, error } = await supabase.rpc('take_ingest_lock', { p_user: profile.id, p_seconds: 90 })
@@ -184,18 +257,26 @@ export async function ingestEmail(supabase: any, profile: { id: string, home_cit
 
 async function ingestOne(
   supabase: any,
-  profile: { id: string, home_city?: string | null },
-  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [] }: {
+  profile: InboxProfile,
+  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [], loadAttachments, emailId = null }: {
     subject: string, fromAddress: string, bodyText: string, GEMINI_API_KEY: string,
     attachments?: { name: string, mime: string, bytes: Uint8Array }[],
+    // The webhook downloads files only once the sender is accepted
+    loadAttachments?: () => Promise<{ name: string, mime: string, bytes: Uint8Array }[]>,
+    emailId?: string | null,  // the Resend email id: stamped on every booking from this email (raw_email_id)
   },
 ): Promise<Response> {
   const userId = profile.id
   setGoogleUser(userId)
 
-  if (!(await checkAiQuota(userId))) {
-    console.warn(`AI quota exceeded for user ${userId} — inbound email not parsed`)
-    return err('Daily AI limit reached', 429)
+  if (!attachments.length && loadAttachments) attachments = await loadAttachments()
+  if (!bodyText && !attachments.length) {
+    console.warn('No email body or readable attachment')
+    return ok({ success: true, ignored: true })
+  }
+  if (!(await inboxBudget(supabase, userId))) {
+    console.warn(`Inbox budget spent for user ${userId}: inbound email not parsed`)
+    return err('Daily inbox limit reached', 429)
   }
 
   // ── 4. Fetch user's trips for matching ────────────────────
@@ -227,7 +308,7 @@ async function ingestOne(
   for (const a of attachments) {
     const sheet = await sheetToText(a.bytes, { name: a.name, mime: a.mime }).catch(() => null)
     if (sheet == null && !VISION_TYPES.test(a.mime)) continue
-    if (fromFiles.length && !(await checkAiQuota(userId))) break
+    if (fromFiles.length && !(await inboxBudget(supabase, userId))) break
     const read = await readItinerary(GEMINI_API_KEY, sheet != null
       ? { text: `Spreadsheet itinerary (${a.name}):\n${sheet}`.slice(0, 20000) }
       : { file: { mime: a.mime, data: toBase64(a.bytes) } })
@@ -236,7 +317,7 @@ async function ingestOne(
   }
   if (fromFiles.length) {
     const results: any[] = []
-    for (const parsed of fromFiles.slice(0, 40)) results.push(await fileBooking(supabase, profile, tripList, parsed))
+    for (const parsed of fromFiles.slice(0, 40)) results.push(await fileBooking(supabase, profile, tripList, parsed, emailId))
     const saved = results.filter(r => r.booking_id && !r.duplicate).length
     console.log(`📎 ${saved} of ${results.length} bookings from attachments for user ${userId}`)
     return ok({ success: true, from_attachments: true, count: saved, bookings: results, trip_ids: [...new Set(results.map(r => r.trip_id).filter(Boolean))] })
@@ -363,19 +444,19 @@ activity_time, ticket_quantity
   delete parsed.more_legs
   const shared = { type: parsed.type, confirmation_number: parsed.confirmation_number, airline: parsed.airline, transport_mode: parsed.transport_mode,
     passenger_name: parsed.passenger_name, flight_class: parsed.flight_class, change_type: parsed.change_type, currency: parsed.currency }
-  const filed = await fileBooking(supabase, profile, tripList, parsed)
+  const filed = await fileBooking(supabase, profile, tripList, parsed, emailId)
   if (filed.error || !more.length) return filed.error ? err(filed.error, filed.status || 500) : ok(filed)
   const legs = [filed]
   for (const l of more) {
     const leg = { ...shared, ...l, destination_city: l.destination_city || l.arrival_airport || null }
     leg.title = leg.title || [l.departure_airport, l.arrival_airport].filter(Boolean).join(' -> ')
-    legs.push(await fileBooking(supabase, profile, tripList, leg))
+    legs.push(await fileBooking(supabase, profile, tripList, leg, emailId))
   }
   return ok({ ...filed, legs: legs.map(r => ({ booking_id: r.booking_id, trip_id: r.trip_id, duplicate: r.duplicate, error: r.error })) })
 }
 
 /** Match one parsed booking to a trip (extend, fold or create one) and insert it. Updates `trips` in place. */
-async function fileBooking(supabase: any, profile: { id: string, home_city?: string | null }, trips: any[], parsed: any): Promise<Record<string, any>> {
+async function fileBooking(supabase: any, profile: { id: string, home_city?: string | null }, trips: any[], parsed: any, emailId: string | null = null): Promise<Record<string, any>> {
   const userId = profile.id
   setGoogleUser(userId)
   // ── 5b. The same confirmation forwarded again: keep the booking we already have ──
@@ -511,6 +592,8 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
     source: 'email_import',
     is_shared: false,
     locked: !!locked,
+    // One email = one import for the free-plan counter, however many legs it filed (set here, never from the AI's output)
+    raw_email_id: emailId ? String(emailId).slice(0, 200) : null,
   }
 
   const { data: booking, error: insertErr } = await supabase
@@ -591,25 +674,48 @@ const sameValue = (k: string, a: unknown, b: unknown) => {
 }
 const normRef = (v: unknown) => String(v ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase()
 
+/** The calendar day a stored instant falls on in the place it left from (UTC when no zone was stored). */
+const localDay = (iso: string, tz: string | null) => {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d) }
+  catch { return d.toISOString().slice(0, 10) }
+}
+
+/**
+ * Two legs under one confirmation number: the same leg only when it is the same service. Without a service number on
+ * either side (ferry and bus e-tickets: one reference for out and back), the same origin and departure day must match
+ * as well, or the return leg would overwrite the outbound one. `parsed` carries the day as printed (local).
+ */
+function sameLeg(stored: Record<string, any>, parsed: Record<string, any>): boolean {
+  const a = normRef(stored.flight_number), b = normRef(parsed.flight_number)
+  if (a && b) return a === b
+  const from = normRef(parsed.departure_airport)
+  const day = typeof parsed.departure_time === 'string' ? parsed.departure_time.slice(0, 10) : ''
+  return !!from && !!day && normRef(stored.departure_airport) === from && !!stored.departure_time && localDay(stored.departure_time, stored.departure_tz || null) === day
+}
+
 /**
  * The same reservation forwarded again, changed or cancelled: same confirmation number and type (and, for a flight or
- * train, the same service: outbound and return legs share a confirmation number). Returns the action taken, or null
- * when it's a new reservation.
+ * train, the same leg: see sameLeg; outbound and return legs share a confirmation number). Returns the action taken,
+ * or null when it's a new reservation.
  */
 async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null, isShared: (id: string) => boolean = () => false) {
   const ref = normRef(parsed.confirmation_number)
   if (!ref || !tripIds.length) return null
   const { data: rows } = await supabase.from('bookings').select('*').in('trip_id', tripIds).eq('created_by', userId).eq('type', parsed.type)
-  const legNo = normRef(parsed.flight_number)
-  const existing = (rows || []).find((b: any) => normRef(b.confirmation_number) === ref &&
-    (!MOVES.has(parsed.type) || !legNo || !normRef(b.flight_number) || normRef(b.flight_number) === legNo))
+  const existing = (rows || []).find((b: any) => normRef(b.confirmation_number) === ref && (!MOVES.has(parsed.type) || sameLeg(b, parsed)))
   if (!existing) return null
 
+  // A cancellation email never cancels or renames the booking (an email can be forged or wrong): it is noted,
+  // and the app shows the note so the traveller checks with the provider
   if (parsed.change_type === 'cancellation') {
-    const title = /^Cancelled · /.test(existing.title || '') ? existing.title : `Cancelled · ${existing.title || parsed.title || 'Booking'}`
-    await supabase.from('bookings').update({ title, notes: [existing.notes, `Cancelled by email on ${new Date().toISOString().slice(0, 10)}`].filter(Boolean).join('\n') }).eq('id', existing.id)
-    console.log(`🚫 Booking ${existing.id} marked cancelled for user ${userId}`)
-    return { success: true, cancelled: true, booking_id: existing.id, trip_id: existing.trip_id }
+    const now = new Date().toISOString()
+    const note = `Cancellation email received on ${now.slice(0, 10)}`
+    const notes = (existing.notes || '').includes(note) ? existing.notes : [existing.notes, note].filter(Boolean).join('\n')
+    await supabase.from('bookings').update({ cancellation_received_at: now, notes }).eq('id', existing.id)
+    console.log(`📮 Booking ${existing.id}: cancellation email noted for user ${userId}`)
+    return { success: true, cancellation_noted: true, booking_id: existing.id, trip_id: existing.trip_id }
   }
 
   // Compare in the same terms as the saved row: local times turned into instants in each place's zone
