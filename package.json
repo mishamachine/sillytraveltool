@@ -2,7 +2,7 @@
   "name": "silly-travel-tool",
   "private": true,
   "version": "0.20.0",
-  "versionCode": 5,
+  "versionCode": 6,
   "type": "module",
   "scripts": {
     "tokens": "node scripts/build-tokens.mjs",
