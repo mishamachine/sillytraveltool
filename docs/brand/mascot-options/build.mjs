@@ -9,19 +9,19 @@ import { fileURLToPath } from 'node:url'
 const HERE = dirname(fileURLToPath(import.meta.url))
 
 // ---- Tokens (light: brand-tokens.json, dark: dark-tokens.json) ----
-const L = {
+export const L = {
   page: '#F4EEE6', card: '#FFFDF9', sunk: '#E9E0D4', lineStrong: '#D6C8B8', ink: '#2A2520',
   accent: '#B24A17', accentHover: '#8E3A12', accentSoft: '#F6E9DF', terra: '#C4561E',
   info: '#3E5C8A', infoSoft: '#E6EEF8', success: '#2D6E4A',
   feather: '#F0EBE3', wing: '#E8E3DB', beak: '#E8A820', beakShade: '#D4910A',
 }
-const DK = {
+export const DK = {
   page: '#1C1814', card: '#28221C', sunk: '#13100D', inverse: '#3A3129', lineStrong: '#5A5045',
   ink: '#F4EEE6', accent: '#F0895A', accentSoft: '#3D2619', info: '#9DB9E3',
 }
 
 // Palettes map roles to tokens. `ground` is what the goose sits on; mono palettes use one ink plus the ground.
-const PALETTES = {
+export const PALETTES = {
   light: {
     name: 'light', ground: L.card, line: L.ink, body: L.feather, body2: L.wing, shade: L.sunk, hi: L.card,
     beak: L.beak, beak2: L.beakShade, acc: L.accent, acc2: L.terra, blush: L.terra, eye: L.ink, eyeW: L.card,
@@ -45,12 +45,12 @@ const PALETTES = {
   },
 }
 
-const svg = (inner, { size = 256, view = '0 0 256 256', bg } = {}) =>
+export const svg = (inner, { size = 256, view = '0 0 256 256', bg } = {}) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${view}" fill="none">` +
   (bg ? `<rect x="-1000" y="-1000" width="3000" height="3000" fill="${bg}"/>` : '') + inner + '</svg>\n'
 
 // Outline stroke attributes at 256 scale.
-const ol = (p, w = 7) => `stroke="${p.line}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"`
+export const ol = (p, w = 7) => `stroke="${p.line}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"`
 
 // ============================================================================================
 // 1. Three-Piece: a bold geometric goose from a half-disc, a capsule and a triangle.
@@ -398,7 +398,7 @@ export const DIRECTIONS = [
 // ---- Tag (logo mark) and app-icon tile ---------------------------------------------------------
 const TAG = 'M88 22 L168 22 L212 66 L212 214 Q212 234 192 234 L64 234 Q44 234 44 214 L44 66 Z'
 const inTag = (inner) => `<g transform="translate(52 76) scale(.6)">${inner}</g>`
-function tagMark(dir) {
+export function tagMark(dir) {
   return svg(
     `<path d="M128 40 C126 20 140 6 162 8" stroke="${L.ink}" stroke-width="5" stroke-linecap="round"/>` +
     `<path d="${TAG}" fill="${L.accent}" stroke="${L.ink}" stroke-width="5" stroke-linejoin="round"/>` +
@@ -406,7 +406,7 @@ function tagMark(dir) {
     inTag(dir.draw(PALETTES.tag, 'normal', `${dir.slug}-t`)),
     { bg: L.page })
 }
-function appTile(dir) {
+export function appTile(dir) {
   return svg(
     `<path d="${TAG}" fill="${L.card}"/>` +
     `<circle cx="128" cy="48" r="11" fill="${L.accent}"/>` +

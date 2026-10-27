@@ -1,6 +1,43 @@
 # Goose mascot directions (exploration)
 
-Eight new ways to draw Goose, for the owner to pick from. **Nothing in the app uses these files.**
+Ways to draw Goose, for the owner to pick from. **Nothing in the app uses these files.**
+
+- **Round two** (after the owner passed on round one): `index-2.html` / `contact-sheet-2.png`, built by `build2.mjs`. See the next section.
+- **Round one**: the eight directions further down (`index.html` / `contact-sheet.png`, built by `build.mjs`).
+
+## Round two
+
+The owner's brief was "one that is like an old 8-bit video game, and one that is a little more silly but cute". Each direction is pushed further and comes with variants.
+
+### A. Arcade (8-bit sprite)
+
+A real 32 x 32 sprite, not vector styled to look pixelated. Every pixel is hand-placed in a character grid in `build2.mjs` and exported as a true PNG at whole-number scales (1x, 4x, 8x, nearest-neighbour) and as SVG `<rect>` runs with `crispEdges`. It has NES and Game Boy proportions: a big head, a stubby body, a chunky two-tone beak, a one-pixel glint in the eye and a terracotta scarf.
+
+- **Variants:** **NES** (ink, cream, shadow, beak yellow, terracotta: five colours, plus the sky colour on the title screen only); **Game Boy** (four greens from the success tokens: ink, `#2D6E4A`, `#86C9A0`, `#E7F2EC`); and the **title-screen tag** (the sprite in a pixel luggage tag with three lives, 40 x 52) used for the app icon.
+- **Frames:** idle, blink, walk 1, walk 2, and honk (48 x 32, with a pixel speech bubble). The sheet plays the walk cycle and blink live.
+- **Files:** `svg/9-arcade/{nes,gb}-{idle,blink,walkA,walkB,honk,title,icon,app-icon}.svg`; `png/arcade/{nes,gb}-<frame>@{1,4,8}x.png` plus a walk strip; close-up `png/arcade-nes-idle-512.png` (16x).
+- **24 px:** a separate 12 x 12 sprite drawn at 2x (`icon`), because the 32 px sprite can't be scaled down cleanly.
+
+### B. Waddle (silly but cute)
+
+Rounder and goofier than Clay Pebble. It has oversized eyes with a lazy half-lid wink, a too-big orange bill with a cheeky grin crease, a tiny tuft, short legs with huge orange feet, a terracotta scarf and a blush. The ink outline and cream fill keep it in the Clay system.
+
+- **Variants:** **Proud** (chest out, wings on hips, lazy wink); **Mid-waddle** (leaning into the step, one foot up, scarf streaming); **Lost the plot** (spiral eyes, beak agape, map upside down with the north arrow pointing at the floor, orbiting stars).
+- **Files:** `svg/10-waddle/{proud,waddle,lost}{,-dark,-mono}.svg`, `tag.svg`, `app-icon.svg`, `icon-24.svg`, `icon-24-dark.svg`; close-ups `png/waddle-proud-512.png` and `png/waddle-lost-512.png`.
+
+### My take on round two
+
+- **Waddle is the stronger mascot.** It has real comedy and range: the three poses already cover the "excited", "lost" and "smug" beats the app uses. It drops straight into `GooseMark` as the same outline-and-fill system, and the big bill and feet read as a goose, not a chick. Its weak spot is 24 px, where only the face survives (the icon is head, eyes and bill).
+- **Arcade is the stronger icon system.** It is perfect at 32, 64 and 128 px, the Game Boy variant gives a striking app-store tile, and sprite frames make loading and empty-state animation cheap (swap two PNGs). It fights the soft Clay UI if used everywhere. Best use: as the app icon and a delight layer (loading, the HONK card, an easter egg), or as the whole personality if the owner wants the app to lean retro.
+- **Recommendation:** Waddle as the in-app Goose (Proud as the master pose), with the Arcade NES sprite kept for loading and celebration moments. If the owner wants one look across everything, choose Waddle.
+
+Adopting either touches the same places listed under "What adopting one would touch" below. Arcade also needs `image-rendering: pixelated` wherever it renders and integer-scale exports for every icon size (iOS and Android icon sizes that aren't multiples of 32 need the 12 x 12 or a hand-tuned sprite).
+
+---
+
+# Round one: eight directions
+
+Eight new ways to draw Goose.
 
 - `index.html`: the contact sheet (open it in a browser). `contact-sheet.png` is the same page rendered at 2x.
 - `svg/<direction>/`: per direction, `goose.svg` (light), `goose-dark.svg`, `goose-mono.svg` (ink on cream), `expression.svg`, `tag.svg` (cream Goose in the terracotta tag), `app-icon.svg`, `icon-24.svg` and `icon-24-dark.svg`.
