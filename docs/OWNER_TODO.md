@@ -7,6 +7,10 @@ Other sessions: send new owner items to the owner-todo session rather than editi
 Format: what to do · where · what Claude does once it's ticked.
 
 ## Review & merge
+- [ ] **Beta links (2026-10-25):** (1) approve hosting the Android APK in the public `releases` bucket (the session's
+  temporary insert policy was refused by the permission check; or upload `SillyTravelTool-0.20.0-5-beta.apk` yourself in
+  Supabase → Storage → releases) · Claude then sets `android_url` + `show_android` · the GitHub artifact copy expires about
+  2026-11-01. (2) When Apple approves build 0.20.0 (5), run the one-line `show_ios` SQL in `docs/HANDOFF.md` ("Beta links").
 - [ ] **Confirm the Terms choices in PR #5:** governing law = State of Washington; 14-day refund on website purchases
   · PR #5 → `public/terms/` · Claude adjusts the wording if you pick differently.
 

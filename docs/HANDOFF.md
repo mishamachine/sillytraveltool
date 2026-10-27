@@ -1,5 +1,20 @@
 # STT Handoff — 2026-10-21
 
+## Update — beta links: TestFlight cap 1,000, Android file hosting pending (2026-10-25)
+- **TestFlight:** public link `https://testflight.apple.com/join/rFv9QAA4` (group "Silly Travel Tool beta") tester limit raised
+  100 → **1,000** (App Store Connect → TestFlight → group → Public Link → Manage). Build 0.20.0 (5) is **Waiting for Review**;
+  the link only admits testers once Apple approves it. Apple expires each build after 90 days, so upload a fresh build before then.
+- **Android APK:** signed universal `app-release.apk` (versionCode 5, versionName 0.20.0, 19 MB, `classes.dex` present) taken from
+  the `android-release-apk` artifact of run 40173197371 (7-day retention, needs a GitHub login; SHA-256 `5cf5e233…24e9`).
+  The permanent copy in the public `releases` bucket (`SillyTravelTool-0.20.0-5-beta.apk`) is **not done**: the temporary
+  storage insert policy was refused by the permission check. Finish by approving it, or by uploading the file in the Supabase
+  dashboard, then run:
+  `update app_settings set value = value || '{"android_url":"https://swywrvbuswylvqlktsym.supabase.co/storage/v1/object/public/releases/SillyTravelTool-0.20.0-5-beta.apk","show_android":true}'::jsonb where key='beta';`
+- **Beta page (`/beta/`, `app_settings.beta`):** `ios_url` is saved to the TestFlight link; `show_ios` and `show_android` stay
+  **false** (no approved build yet; no public APK link yet). When Apple approves:
+  `update app_settings set value = value || '{"show_ios":true}'::jsonb where key='beta';`
+- Owner email with both links sent from machinemisha@gmail.com to babar54@gmail.com (Gmail id 1a1740e4252552f2).
+
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.
