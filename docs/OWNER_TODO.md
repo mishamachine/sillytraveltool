@@ -47,6 +47,13 @@ Format: what to do · where · what Claude does once it's ticked.
   Store key crashes release builds) · RevenueCat → API keys · Claude puts them in the builds.
 
 ## Legal & copy
+- [ ] **B&B Project Factory: finish the entity switch (added 2026-10-27):** the company was set up on 2026-10-27 but
+  its legal registration is still pending, so the repo says "B&B Project Factory" with no entity suffix. Once it
+  completes: (1) add the suffix to `public/privacy/`, `public/terms/`, `public/delete-account/`, the email footer
+  (`supabase/functions/_shared/emailTemplate.js`), `index.html` and the © lines; (2) Stripe business profile (name,
+  tax ID, bank); (3) Google Play payments profile and developer legal name; (4) Apple agreements, tax and banking;
+  (5) decide whether to convert the Apple Individual enrollment to an Organization (needs a D-U-N-S number) so the
+  App Store "Seller" line reads B&B Project Factory · Claude does the repo part and `BRAND.md` if it names the owner.
 - [ ] **Business address:** get a PO box or virtual business address to replace the home address on the privacy and
   terms pages · any mailbox provider · Claude swaps it into `public/privacy/` and `public/terms/` and deploys.
 
