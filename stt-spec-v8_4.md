@@ -1,7 +1,7 @@
 # Silly Travel Tool — Master Spec v8.3
 **Last Updated:** 2026-03-11  
 **Version:** v0.18.x (local dev, not yet deployed)  
-**Owner:** Babar Ali  
+**Owner:** B&B Project Factory  
 **Live URL:** https://sillytraveltool.com  
 **Local dev path:** ~/Downloads/stt-fixed  
 **Supabase project:** swywrvbuswylvqlktsym  

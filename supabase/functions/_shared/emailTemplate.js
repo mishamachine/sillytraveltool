@@ -48,8 +48,8 @@ export function render(tpl, vars, { kind, unsubscribeUrl, why }) {
 <tr><td style="padding:28px 28px 8px;"><img src="https://sillytraveltool.com/apple-touch-icon.png" width="40" height="40" alt="Silly Travel Tool" style="border-radius:10px;display:block;"></td></tr>
 <tr><td style="padding:12px 28px 24px;">${bodyHtml(body)}${cta}</td></tr>
 </table>
-<p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">${foot}<br>Silly Travel Tool · Babar Ali, 402 Grandey Way NE, Renton, WA 98056, USA</p>
+<p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">${foot}<br>Silly Travel Tool · B&amp;B Project Factory, 402 Grandey Way NE, Renton, WA 98056, USA</p>
 </td></tr></table></body></html>`
-  const text = `${bodyText(body)}${tpl.cta_label && ctaUrl ? `\n\n${fill(tpl.cta_label, vars)}: ${ctaUrl}` : ''}\n\n--\n${kind === 'marketing' ? `${why ? `${why}\n` : ''}Unsubscribe: ${unsubscribeUrl}` : reason}\nSilly Travel Tool · Babar Ali, 402 Grandey Way NE, Renton, WA 98056, USA`
+  const text = `${bodyText(body)}${tpl.cta_label && ctaUrl ? `\n\n${fill(tpl.cta_label, vars)}: ${ctaUrl}` : ''}\n\n--\n${kind === 'marketing' ? `${why ? `${why}\n` : ''}Unsubscribe: ${unsubscribeUrl}` : reason}\nSilly Travel Tool · B&B Project Factory, 402 Grandey Way NE, Renton, WA 98056, USA`
   return { subject, html, text }
 }

@@ -28,7 +28,7 @@ sets one.
 | Age rating | Pass | 12+ (alcohol references infrequent: bars in guides). No gambling, contests, web browsing, chat. |
 | 5.3 Gaming, contests | N/A | None. |
 | Export compliance | Pass | `ITSAppUsesNonExemptEncryption = false` in Info.plist; build 5 reports `usesNonExemptEncryption: false`. HTTPS only. |
-| 5.6 Developer identity (note) | FYI | The developer account is an individual: the store shows **Babar Ali** as seller, and the EU Digital Services Act trader page shows the Redmond address. Copyright line says "2026 Bodhi Studios". Fine for review; an organisation account is needed to show Bodhi Studios as seller. |
+| 5.6 Developer identity (note) | FYI | The developer account is an individual: the store shows **Babar Ali** as seller, and the EU Digital Services Act trader page shows the Redmond address. Copyright line says "2026 B&B Project Factory". Fine for review; an organisation account is needed to show B&B Project Factory as seller. |
 
 ## Changed in App Store Connect today (text fields only)
 - **App Review notes**: rewritten. Says the demo account is email and password, Google works with any Google account and
