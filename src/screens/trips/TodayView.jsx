@@ -2,17 +2,17 @@ import { useEffect, useState } from 'react'
 import { format, addDays } from 'date-fns'
 import { useTripsStore, useUIStore, useAuthStore } from '../../store'
 import { parseLocalDate, tripZoneToday } from '../../lib/dates'
-import { tripPlace, computeLegs } from '../../lib/stops'
+import { tripPlace, computeLegs, routeCities } from '../../lib/stops'
 import { weekdayIn } from '../../lib/localTime'
 import {
   tripDay, tripToday, sortByStart, bookingStart, bookingDay, bookingTime, bookingZone, zoneHint, bookingKind, bookingMeta,
-  hasClockTime, relativeIn, mapsUrl,
+  hasClockTime, relativeIn, mapsUrl, nightsOf, plural,
 } from '../../lib/trips'
 import BookingDetailSheet from './detail/BookingDetailSheet'
 import { useTripZone } from './useTripZone'
 import { tripCoords, fetchTodayWeather, weatherInfo, weatherHint } from '../../lib/weather'
 import {
-  Screen, ScreenHeader, Section, Card, Button, IconButton, IconTile, ListRow, Text, Overline, Stack, Icon, GooseMark, category,
+  Screen, ScreenHeader, Section, Card, Chip, Button, LinkButton, IconTile, ListRow, Text, Overline, Stack, Icon, GooseMark, category,
 } from '../../ui'
 import { safeUrl } from '../../lib/safeUrl'
 import { groupSharedLegs, travellerName } from '../../lib/sharedLegs'
@@ -58,6 +58,44 @@ function NextUp({ item, tz, companions, onShow }) {
           : <Button variant="primary" className="today-action" onClick={onShow}>{item._activity ? 'Show plan' : SHOW_LABEL[item.type] || 'Show booking'}</Button>}
         {place && <a className="c-btn c-btn--secondary c-btn--md today-action" href={mapsUrl(place)} target="_blank" rel="noreferrer">Directions</a>}
       </Stack>
+    </Card>
+  )
+}
+
+/** The end of Today: the whole trip at a glance, and the way on to the Plan tab. One tap anywhere on the card. */
+function PlanCard({ trip, stops, here, confirmed, onOpen }) {
+  // From today's stop onwards: where you are, and the next two
+  const at = Math.max(0, stops.findIndex(s => s.city === here.city || s.city === here.to?.city))
+  const route = stops.slice(at, at + 3)
+  const more = stops.length - at - route.length
+  const nights = nightsOf(trip)
+  const summary = [
+    nights ? plural(nights, 'night') : null,
+    stops.length > 1 ? plural(stops.length, 'stop') : null,
+    confirmed ? `${confirmed} confirmed` : null,
+  ].filter(Boolean).join(' · ')
+  return (
+    <Card variant="plain" onClick={onOpen} className="today-plan" aria-label={`${trip.title}, open the full plan`}>
+      <Stack gap={1}>
+        <Overline tone="accent">The whole trip</Overline>
+        <Text variant="title" as="p">{trip.title}</Text>
+        {summary && <Text variant="caption" tone="muted" as="p">{summary}</Text>}
+      </Stack>
+      {route.length > 1 && (
+        <div className="today-route" aria-hidden="true">
+          {route.map((s, i) => (
+            <span key={`${s.city}-${i}`} className="today-route__stop">
+              <Chip tone={i === 0 ? 'accent' : 'neutral'}>{s.city}</Chip>
+              {(i < route.length - 1 || more > 0) && <Icon name="chevron-right" size={16} className="tone-muted" />}
+            </span>
+          ))}
+          {more > 0 && <Chip tone="neutral">+{more}</Chip>}
+        </div>
+      )}
+      <span className="c-btn c-btn--primary c-btn--md c-btn--block" aria-hidden="true">
+        <span className="c-btn__label">Open the full plan</span>
+        <Icon name="chevron-right" size={18} strokeWidth={2} />
+      </span>
     </Card>
   )
 }
@@ -116,19 +154,21 @@ export default function TodayView({ trip, onShowAll }) {
   const { n, total } = tripDay(trip)
   const w = weather && weatherInfo(weather.now.code)
   const openPlan = () => setActiveTrip(trip)
+  const stays = routeCities(trip.trip_stops || []).filter(s => s.kind === 'stay')
 
   return (
     <Screen gap={4} labelledBy="today-title">
+      <div className="today-top">
+        <Button variant="secondary" size="sm" icon="chevron-left" className="today-back" onClick={onShowAll}>
+          <Icon name="trips" size={20} strokeWidth={2} />
+          All trips
+        </Button>
+        <GooseMark expression="happy" size={44} tile tileSize="sm" />
+      </div>
       <ScreenHeader
         overline={`Day ${n} of ${total} · ${weekdayIn(now, tz)}${here.kind === 'travel' && here.inTransit ? ' · On the way' : ''}`}
         title={here.label || trip.destination_city}
         titleId="today-title"
-        actions={(
-          <>
-            <IconButton icon="trips" label="All trips" onClick={onShowAll} />
-            <GooseMark expression="happy" size={44} tile tileSize="sm" />
-          </>
-        )}
       />
 
       {next ? <NextUp item={next} tz={tz} companions={companions} onShow={() => setDetail(next)} /> : (
@@ -182,7 +222,8 @@ export default function TodayView({ trip, onShowAll }) {
         </Section>
       )}
 
-      <Button variant="ghost" icon="calendar" onClick={openPlan}>Full trip plan</Button>
+      <PlanCard trip={trip} stops={stays} here={here} confirmed={tripBookings.length} onOpen={openPlan} />
+      <LinkButton icon="trips" onClick={onShowAll} className="today-all">Back to all trips</LinkButton>
       {detail && <BookingDetailSheet item={detail} tripTz={tz} countryCode={trip.destination_country_code} isActivity={!!detail._activity} canDelete={false} onClose={() => setDetail(null)} />}
     </Screen>
   )
