@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { useAuthStore, useUIStore } from '../../store'
-import BetaCard from '../../components/shared/BetaCard'
+import FeedbackCard from '../../components/shared/FeedbackCard'
 import { BADGES, BADGE_TIER_TONE } from '../../lib/tokens'
 import { Screen, Section, Card, ListRow, IconButton, LinkButton, Text, Overline, Stack, GooseMark, Icon } from '../../ui'
 
@@ -88,7 +88,7 @@ export default function ProfileHome({ docCount, cardCount, onOpen }) {
         <ListRow icon="settings" tone="neutral" title="Settings and privacy" chevron onClick={() => onOpen('settings')} />
       </Card>
 
-      <BetaCard where="profile" />
+      <FeedbackCard where="profile" />
     </Screen>
   )
 }

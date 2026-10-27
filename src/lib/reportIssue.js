@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core'
 import { track } from './analytics'
 
-// Beta "Report an issue": a pre-filled email to the team. The footer carries only the version, platform and
+// "Report an issue": a pre-filled email to the team. The footer carries only the version, platform and
 // screen, never the member's email, trips or bookings.
 export const REPORT_EMAIL = 'hello@sillytraveltool.com'
 
@@ -13,7 +13,7 @@ function platform() {
 
 /** mailto link for a bug report; `where` is a short code for the screen it came from (profile, help, settings, tour). */
 export function reportIssueHref(where) {
-  const subject = `STT beta issue (${where})`
+  const subject = `STT issue (${where})`
   const body = [
     'What happened:', '', '',
     'What you expected:', '', '',

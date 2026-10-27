@@ -285,7 +285,7 @@ export default function Onboarding({ onDone, replay = false }) {
           <>
             <div className="tour-copy">
               {step.id === 'welcome'
-                ? <Chip tone="accent" className="tour-beta" icon="flag">Beta</Chip>
+                ? <Chip tone="accent" className="tour-pill-welcome" icon="flag">Welcome aboard</Chip>
                 : <Overline>{step.overline}</Overline>}
               <Text variant="h1" id="onb-title">{step.title}</Text>
               <Text variant="body-lg" tone="secondary">{step.body}</Text>
@@ -293,7 +293,7 @@ export default function Onboarding({ onDone, replay = false }) {
             {step.id === 'welcome' && (
               <div className="tour-note">
                 <Icon name="users" size={20} className="tone-accent" />
-                <Text variant="caption" tone="secondary">You’re one of our first travellers, so thank you for testing STT with us. If anything looks off, tap <strong>Report an issue</strong> in Profile or Help.</Text>
+                <Text variant="caption" tone="secondary">You’re one of our first travellers, so thank you for flying with us. If anything looks off, tap <strong>Report an issue</strong> in Profile or Help.</Text>
               </div>
             )}
             {step.id === 'inbox' && (
