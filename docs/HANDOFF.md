@@ -1,5 +1,37 @@
 # STT Handoff — 2026-10-21
 
+## Update — App Store version 0.20.0 filled, waiting on the owner for the reviewer sign-in (2026-10-25, asc-submission session)
+- **State:** iOS version record renamed 1.0 → **0.20.0** (must match build 5) and still **Prepare for Submission**; nothing added for
+  review. Build **0.20.0 (6)** attached on 2026-10-26 (replaced build 5; early-access wording from PR #48); build 6 shows "Ready to
+  Submit" in TestFlight, so export compliance is answered. Build 6 is not in the external beta group (that would need a new beta
+  review); build 5 stays approved there.
+- **Filled:** description rewritten without prices (First Class named as the paid plan; Today, wallet and country-switching tools added);
+  promo text, keywords, support/marketing URLs, copyright now "2026 B&B Project Factory" (changed 2026-10-27; no other Bodhi Studios mention in App Information, version
+  metadata, reviewer notes, products or TestFlight test information); subtitle stays the
+  owner's "Trip planner & itinerary". Content rights: uses third-party content with rights (Google Places data). Age rating saved:
+  all none/no except **alcohol references = infrequent** (bars in guides, HONK "Night out") → **13+**, matches the Terms minimum.
+  App price **$0.00**, all **175** countries, available on release; release type "Automatically release". 7 iPhone 6.3" screenshots
+  (1206×2622: Today, Plan shared card, forward-lands-in-trip, multi-city plan, Explore/HONK, Tools, Profile) from the
+  iPhone 17 Pro captures and the app-footage frames resized; ASC uses them for every iPhone size. Subscription group "First Class"
+  en-US localisation added. Review screenshot on both products: the native iPhone paywall capture (`ci/revenuecat-iphone`
+  `docs/screenshots/paywall/iphone-paywall.png`) with its old "coming soon" line painted over in the sheet colour. App Review contact
+  Babar Ali, phone from the TestFlight review info, hello@sillytraveltool.com; reviewer notes (sign-in, paywall path, restore, deletion,
+  AI labels, location, "beta" wording explained for guideline 2.2).
+- **App Privacy:** already published by store-setup (15 types, Device ID and crash data included, nothing used for tracking); matches
+  `STORE_PRIVACY_FORMS.md` with the audit's P1/P2 corrections, so unchanged.
+- **iPad:** build 5 is universal, so iPad 13" screenshots were required; the audit session captured five real ones (2064×2752, demo
+  mode: Today, multi-city plan with the shared card, Explore, Tools, Profile) and uploaded them (5 of 10).
+- **Blocker — demo account:** ASC won't save "Sign-in required" without a password, so the box is unticked; the owner sets a password on
+  machinemisha@gmail.com, ticks it, types email + password, saves.
+- **Owner's remaining clicks:** version page: tick Sign-in required, enter machinemisha@gmail.com + password, Save → "Add for Review" on
+  the version (include both in-app purchases in the submission) → "Submit for Review" on the review page.
+- **Seller name:** the membership is enrolled as **Individual** (team RG3Y77A9ZZ), so the App Store "Seller" is the owner's legal name,
+  not a company, and ASC has no field to change it. Showing "B&B Project Factory" needs the company legally registered with a
+  D-U-N-S number, then a request to Apple to convert the membership to an Organization (founder/co-founder only; Apple may ask for
+  business documents). Agreements, Tax and Banking untouched.
+- **Watch-outs:** machinemisha is an owner admin with no trips (reviewers see an empty account); "Founders Flock (lifetime)" in ASC vs
+  "Founders offer" in the paywall; China mainland is in the 175 countries and may need an ICP filing.
+
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.
