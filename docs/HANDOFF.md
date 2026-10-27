@@ -2,7 +2,9 @@
 
 ## Update — App Store version 0.20.0 filled, waiting on the owner for the reviewer sign-in (2026-10-25, asc-submission session)
 - **State:** iOS version record renamed 1.0 → **0.20.0** (must match build 5) and still **Prepare for Submission**; nothing added for
-  review. Build **0.20.0 (5)** attached; no export-compliance prompt came up.
+  review. Build **0.20.0 (6)** attached on 2026-10-26 (replaced build 5; early-access wording from PR #48); build 6 shows "Ready to
+  Submit" in TestFlight, so export compliance is answered. Build 6 is not in the external beta group (that would need a new beta
+  review); build 5 stays approved there.
 - **Filled:** description rewritten without prices (First Class named as the paid plan; Today, wallet and country-switching tools added);
   promo text, keywords, support/marketing URLs, copyright "2026 Bodhi Studios" kept from the store-setup session; subtitle stays the
   owner's "Trip planner & itinerary". Content rights: uses third-party content with rights (Google Places data). Age rating saved:
