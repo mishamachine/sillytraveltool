@@ -1,5 +1,17 @@
 # STT Handoff — 2026-10-21
 
+## Update — Google Play: blocked on contact phone verification (2026-10-26, play-console session; nothing created)
+- Signed in to Play Console as babar54@gmail.com → developer account **Bodhi Studios** (personal, ID 6830777302621607998).
+  Identity is no longer the blocker. **Create app is still disabled** ("Complete account verifications to create new apps"):
+  the only open task is **Verify your contact phone number** (+1 617 510 9018, Action required). Google sends an SMS or call
+  code; only the owner can enter it (Home → Verify your contact phone number → Go to account details → Verify).
+- Not done, ready to go once it is verified: create app, listing, App content, closed track "Beta" with the signed
+  versionCode 5 bundle (`android-release.yml` run 40433516785 on main, artifact `app-release.aab`), email list "Beta testers".
+  No RevenueCat Android key secret exists, so that build hides the paywall (fine for a closed beta).
+- Listing text, graphics (icon 512, feature graphic 1024x500, four 1080x2160 real emulator screenshots), reviewer notes
+  and declarations are prepared in the session notes folder (`play-console-listing-pack.md`).
+- Data safety answers: `docs/STORE_PRIVACY_FORMS.md` already has both audit corrections (crash logs Optional, GA device ID).
+
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.

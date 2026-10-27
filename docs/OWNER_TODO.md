@@ -28,6 +28,9 @@ Format: what to do · where · what Claude does once it's ticked.
   100; it only works after approval) · Claude can do it when you say so.
 
 ## Google Play
+- [ ] **Play phone verification (blocks Create app):** Play Console → Home → "Verify your contact phone number" → Go to
+  account details → Verify, then enter the SMS or call code sent to +1 617 510 9018 · play.google.com/console · after that
+  Claude creates the app and starts the closed "Beta" track (listing pack and signed bundle are ready).
 - [ ] **Play Console:** developer account, payments profile, tax and bank forms · play.google.com/console · Claude
   uploads the first signed build to internal testing.
 - [ ] **Play products:** `stt_first_class_yearly` (subscription, $14.99/yr) and `stt_first_class_lifetime_founding`
