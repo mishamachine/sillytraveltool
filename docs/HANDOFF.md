@@ -6,7 +6,8 @@
   Submit" in TestFlight, so export compliance is answered. Build 6 is not in the external beta group (that would need a new beta
   review); build 5 stays approved there.
 - **Filled:** description rewritten without prices (First Class named as the paid plan; Today, wallet and country-switching tools added);
-  promo text, keywords, support/marketing URLs, copyright "2026 Bodhi Studios" kept from the store-setup session; subtitle stays the
+  promo text, keywords, support/marketing URLs, copyright now "2026 B&B Project Factory" (changed 2026-10-27; no other Bodhi Studios mention in App Information, version
+  metadata, reviewer notes, products or TestFlight test information); subtitle stays the
   owner's "Trip planner & itinerary". Content rights: uses third-party content with rights (Google Places data). Age rating saved:
   all none/no except **alcohol references = infrequent** (bars in guides, HONK "Night out") → **13+**, matches the Terms minimum.
   App price **$0.00**, all **175** countries, available on release; release type "Automatically release". 7 iPhone 6.3" screenshots
@@ -24,6 +25,10 @@
   machinemisha@gmail.com, ticks it, types email + password, saves.
 - **Owner's remaining clicks:** version page: tick Sign-in required, enter machinemisha@gmail.com + password, Save → "Add for Review" on
   the version (include both in-app purchases in the submission) → "Submit for Review" on the review page.
+- **Seller name:** the membership is enrolled as **Individual** (team RG3Y77A9ZZ), so the App Store "Seller" is the owner's legal name,
+  not a company, and ASC has no field to change it. Showing "B&B Project Factory" needs the company legally registered with a
+  D-U-N-S number, then a request to Apple to convert the membership to an Organization (founder/co-founder only; Apple may ask for
+  business documents). Agreements, Tax and Banking untouched.
 - **Watch-outs:** machinemisha is an owner admin with no trips (reviewers see an empty account); "Founders Flock (lifetime)" in ASC vs
   "Founders offer" in the paywall; China mainland is in the 175 countries and may need an ICP filing.
 
