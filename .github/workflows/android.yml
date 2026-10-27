@@ -28,6 +28,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          echo "cores: $(nproc)"; ls -l /dev/kvm || echo 'no /dev/kvm on this runner'
 
       - uses: actions/setup-java@v4
         with:
@@ -60,6 +61,8 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
+          # Private-repo runners have 2 cores (public: 4); boot takes longer
+          emulator-boot-timeout: 1200
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: node scripts/android-emu-shots.mjs
 
