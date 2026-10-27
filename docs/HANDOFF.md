@@ -25,6 +25,27 @@
 - **Watch-outs:** machinemisha is an owner admin with no trips (reviewers see an empty account); "Founders Flock (lifetime)" in ASC vs
   "Founders offer" in the paywall; China mainland is in the 175 countries and may need an ICP filing.
 
+## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
+- **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
+  member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.
+  Addresses normalised (display name off, lowercase, plus-tag off, Gmail dots off, googlemail → gmail). Others are
+  dropped silently with a `function_errors` row (`kind = inbox_rejected_sender`, sender domain only, no body).
+  Attachments download only after the check.
+- **Per-inbox budget:** `consume_inbox_quota(p_user, p_limit)` (service role), 30 AI reads a day per inbox, counted in
+  `ai_usage` as kind `inbox` (separate from the member's in-app `ai` allowance; override with `ai_limits.inbox_daily`).
+  Same AI kill switch, member-status check and project-wide `global_usage` AI cap as `consume_ai_quota` (PR #33); fails
+  closed like it (`quotaUnavailable`). Needs migration `20261025150000_global_daily_caps` applied first.
+- **Cancellation emails** only stamp `bookings.cancellation_received_at` and add a note; the title is no longer changed to
+  "Cancelled · …". BookingDetailSheet shows one line asking the traveller to check with the provider.
+- **Tokens:** 12 hex (48 bits) from `gen_random_bytes`, made by a trigger on profile insert; clients can't set or change
+  them (trigger `guard_booking_email_token`). Settings → Goose inbox → **New address** calls `my_rotate_inbox_token()`.
+  The 18 existing 8-hex tokens keep working until rotated; the webhook reads 12- or 8-hex tokens. Client token code in
+  `authStore.js` removed. Settings also has **Accept from any sender**.
+- **Order matters in the morning:** apply migration `20261026090000_inbox_trust.sql` first, then deploy
+  `receive-booking-email`, then ship the web/app build. The live webhook test (`test-email-ingest.mjs webhook`) needs
+  `inbox_accept_any = true` on machinemisha (fixtures come from airline addresses).
+- **Follow-ups:** a Settings editor for `inbox_allowed_senders` (DB-only today); `From:` can be forged, so a DKIM/SPF
+  check on Resend's inbound headers would harden it further; optionally rotate all 8-hex tokens once members are told.
 ## Update — website deployed from main 1efb131: shared-traveller card, tour plan slide, privacy fixes (2026-10-25)
 - Deployed by the audit session with the owner's go-ahead: clean `git archive` of `origin/main` (1efb131), `npm ci && npm run build`
   (dist check passed), no pre-deploy backup (the backup step silently failed in zsh; the nearest earlier one is `~/backups/stt-202610250652-pre-invitefix.tar.gz` from tonight) and a post-deploy backup `~/backups/stt-<timestamp>-post-card.tar.gz`, dry run showed 89 changed files and no deletions,

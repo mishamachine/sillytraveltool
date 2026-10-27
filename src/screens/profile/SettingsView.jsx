@@ -5,6 +5,7 @@ import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
+import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Switch, Text, Stack, Logo, LinkButton, Icon,
 } from '../../ui'
@@ -67,7 +68,7 @@ function PlanSection() {
 }
 
 export default function SettingsView({ onBack, onDelete }) {
-  const { profile, user, updateProfile, signOut } = useAuthStore()
+  const { profile, user, updateProfile, rotateInboxAddress, signOut } = useAuthStore()
   const { themePref, setThemePref } = useUIStore()
   const [name, setName] = useState(profile?.display_name || '')
   const [currency, setCurrency] = useState(profile?.home_currency || 'USD')
@@ -77,6 +78,8 @@ export default function SettingsView({ onBack, onDelete }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [confirmRotate, setConfirmRotate] = useState(false)
+  const [inboxError, setInboxError] = useState(null)
   const [shareStats, setShareStats] = useState(analyticsEnabled)
 
   useEffect(() => {
@@ -127,6 +130,12 @@ export default function SettingsView({ onBack, onDelete }) {
     })
   }
 
+  const handleRotate = async () => {
+    setInboxError(null)
+    try { await rotateInboxAddress() } catch (e) { setInboxError(e?.message || 'Could not make a new address. Try again.') }
+    setConfirmRotate(false)
+  }
+
   const provider = user?.app_metadata?.provider
 
   return (
@@ -155,9 +164,19 @@ export default function SettingsView({ onBack, onDelete }) {
           ) : (
             <Text variant="caption" tone="muted">Setting up your address</Text>
           )}
-          <Text variant="micro" tone="muted">Only mail sent to your own address appears in your trips. Keep it private.</Text>
+          <Text variant="micro" tone="muted">Goose reads mail you forward from {user?.email || 'your account email'}. Keep the address private.</Text>
+          {inboxError && <Banner tone="danger" icon="alert-circle" role="alert">{inboxError}</Banner>}
+        </Card>
+        <Card variant="group">
+          <Switch label="Accept from any sender" description="For automatic forwarding rules that keep the airline or hotel as the sender. Anyone who learns your address can then add bookings."
+            checked={!!profile?.inbox_accept_any} onChange={on => updateProfile({ inbox_accept_any: on }).catch(e => setInboxError(e?.message || 'Could not save. Try again.'))} />
+          <ListRow title="New address" meta="The old address stops working at once" chevron onClick={() => setConfirmRotate(true)} />
         </Card>
       </Section>
+      {confirmRotate && (
+        <ConfirmDialog message="Get a new inbox address?" detail="Mail sent to the old address is no longer read. Update any forwarding rules. Bookings already filed stay."
+          confirmLabel="New address" onConfirm={handleRotate} onCancel={() => setConfirmRotate(false)} />
+      )}
 
       <Section title="Profile">
         <Card>

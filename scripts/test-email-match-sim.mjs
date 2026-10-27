@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Offline replay of the 14 booking-email fixtures through receive-booking-email/ingest.ts: the AI, Google and the
-// database are faked, so this checks trip matching only (dates + distance, extend, fold), in order and shuffled.
+// database are faked, so this checks trip matching (dates + distance, extend, fold), in order and shuffled, and the
+// inbox gate (audit S4): who may mail an inbox, the daily parse budget, cancellation emails only noted.
 //   node scripts/test-email-match-sim.mjs
 import { build } from 'esbuild'
 import { readFileSync, mkdtempSync } from 'node:fs'
@@ -59,7 +60,8 @@ const lookup = q => { const s = q.toLowerCase(); const g = GEO.find(([k]) => s.i
 
 // ── Minimal in-memory Supabase ──
 function makeDb() {
-  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [] }
+  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [] }
+  const inbox = { parses: 0 } // consume_inbox_quota's counter for today
   let seq = 0
   function q(table) {
     const filters = []; let op = 'select', payload = null, single = false, lim = Infinity
@@ -99,19 +101,26 @@ function makeDb() {
       t.end_date = !t.end_date || args.p_end > t.end_date ? args.p_end : t.end_date
       return { data: [{ start_date: t.start_date, end_date: t.end_date }], error: null }
     }
+    if (name === 'consume_inbox_quota') { inbox.parses++; return { data: inbox.parses <= args.p_limit, error: null } }
     return { data: name === 'take_ingest_lock' ? true : null, error: null }
   }
-  return { tables, from: q, rpc }
+  // auth.users: the account email the inbox accepts mail from
+  const auth = { admin: { getUserById: async id => ({ data: { user: { id, email: ACCOUNT_EMAIL[id] ?? null } }, error: null }) } }
+  return { tables, from: q, rpc, auth, inbox }
 }
+
+const ACCOUNT_EMAIL = { u1: 'Sam.Rivera@gmail.com', u2: 'alex@example.com', u3: 'kim@example.com' }
 
 // ── Fake network: AI, geocoding, places, time zones ──
 let current = null
+let aiCalls = 0
 globalThis.Deno = { env: { get: k => ({ GOOGLE_MAPS_SERVER_KEY: 'fake', DEEPSEEK_API_KEY: 'fake', SUPABASE_URL: 'http://db' })[k] } }
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), json = b => new Response(JSON.stringify(b), { status: 200 })
   if (u.includes('consume_ai_quota')) return json(true)
   if (u.includes('consume_api_call')) return json(true) // Google quota check (fails closed when it errors)
   if (u.includes('deepseek')) {
+    aiCalls++
     const prompt = JSON.parse(init.body).messages[0].content
     const answer = prompt.includes('Spreadsheet itinerary') ? { bookings: SHEET_BOOKINGS } : current === 'loyalty' ? LOYALTY : current === 'newsletter' ? { email_kind: 'other', title: 'Deals' } : PARSED[current]
     return json({ choices: [{ message: { content: JSON.stringify(answer) } }] })
@@ -130,7 +139,10 @@ globalThis.fetch = async (url, init = {}) => {
 
 const dir = mkdtempSync(join(tmpdir(), 'stt-sim-'))
 await build({ entryPoints: [`${root}supabase/functions/receive-booking-email/ingest.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/ingest.mjs`, logLevel: 'error' })
-const { ingestEmail } = await import(`${dir}/ingest.mjs`)
+const { ingestEmail, normalizeAddress, INBOX_DAILY_PARSES } = await import(`${dir}/ingest.mjs`)
+// The trip-matching replays below forward from airline addresses: their inbox takes any sender. The sender rules
+// have their own section at the end.
+const ingestAsMember = (db, profile, input) => ingestEmail(db, { inbox_accept_any: true, ...profile }, input)
 
 async function replay(order, label, { home_city = null } = {}) {
   const db = makeDb()
@@ -138,7 +150,7 @@ async function replay(order, label, { home_city = null } = {}) {
   for (const id of order) {
     const f = fixtures.find(x => x.id === id)
     current = id
-    const res = await ingestEmail(db, profile, { subject: f.subject, fromAddress: f.from, bodyText: f.text, GEMINI_API_KEY: '' })
+    const res = await ingestAsMember(db, profile, { subject: f.subject, fromAddress: f.from, bodyText: f.text, GEMINI_API_KEY: '' })
     const out = await res.json()
     assert.ok(out.success, `${id}: ${out.error}`)
   }
@@ -171,7 +183,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   PARSED['14c-home-early'] = { ...PARSED['14-flight-delta-multileg-home'], departure_time: '2027-04-13T11:30', arrival_time: '2027-04-13T19:05' }
   for (const id of ['14c-home-early', '01-flight-united-sfo-lhr']) {
     current = id
-    const out = await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+    const out = await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
     assert.ok(out.success, out.error)
   }
   assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].title, 'Trip to London')
@@ -190,7 +202,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   const db = makeDb()
   for (const id of ['02-hotel-hoxton-london', '05-train-eurostar-london-paris', '06-hotel-airbnb-paris']) {
     current = id
-    const out = await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+    const out = await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
     assert.ok(out.success, out.error)
   }
   assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].title, 'Trip to London')
@@ -203,7 +215,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   PARSED['14m-two-legs'] = { type: 'flight', title: 'LIS -> JFK', confirmation_number: 'GV5T2K', airline: 'Delta', flight_number: 'DL 263',
     departure_airport: 'LIS', arrival_airport: 'JFK', departure_time: '2027-04-20T11:15', arrival_time: '2027-04-20T14:05', destination_city: 'New York',
     more_legs: [{ title: 'JFK -> SFO', flight_number: 'DL 416', departure_airport: 'JFK', arrival_airport: 'SFO', departure_time: '2027-04-20T17:30', arrival_time: '2027-04-20T21:02' }] }
-  const send = async id => { current = id; return (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const send = async id => { current = id; return (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
   const a = await send('14m-two-legs')
   assert.equal(a.legs.length, 2, JSON.stringify(a))
   assert.deepEqual(db.tables.bookings.map(b => b.flight_number).sort(), ['DL 263', 'DL 416'])
@@ -220,7 +232,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   for (const id of ['01-flight-united-sfo-lhr', '05-train-eurostar-london-paris', '02-hotel-hoxton-london']) {
     current = id
     const f = fixtures.find(x => x.id === id)
-    const out = await (await ingestEmail(db, { id: 'u1' }, { subject: f.subject, fromAddress: f.from, bodyText: f.text, GEMINI_API_KEY: '' })).json()
+    const out = await (await ingestAsMember(db, { id: 'u1' }, { subject: f.subject, fromAddress: f.from, bodyText: f.text, GEMINI_API_KEY: '' })).json()
     assert.equal(out.duplicate, true, `${id} should be a duplicate: ${JSON.stringify(out)}`)
   }
   assert.equal(db.tables.bookings.length, 14)
@@ -228,31 +240,38 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   // A change email: the hotel now checks out a day later (same booking number) → updated in place, not a 15th booking
   PARSED['02b-hotel-change'] = { ...PARSED['02-hotel-hoxton-london'], change_type: 'change', check_out_date: '2027-04-15' }
   current = '02b-hotel-change'
-  let out = await (await ingestEmail(db, { id: 'u1' }, { subject: 'Your booking has changed', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  let out = await (await ingestAsMember(db, { id: 'u1' }, { subject: 'Your booking has changed', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
   assert.equal(out.updated, true, JSON.stringify(out)); assert.deepEqual(out.changed, ['check_out_date'])
   assert.equal(db.tables.bookings.length, 14)
   assert.equal(db.tables.bookings.find(b => b.confirmation_number === '4471.902.385').check_out_date, '2027-04-15')
   // A flight time change: same flight, new departure time → updated
   PARSED['01b-flight-change'] = { ...PARSED['01-flight-united-sfo-lhr'], change_type: 'change', departure_time: '2027-04-10T17:10', arrival_time: '2027-04-11T11:30' }
   current = '01b-flight-change'
-  out = await (await ingestEmail(db, { id: 'u1' }, { subject: 'Schedule change', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  out = await (await ingestAsMember(db, { id: 'u1' }, { subject: 'Schedule change', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
   assert.equal(out.updated, true, JSON.stringify(out)); assert.ok(out.changed.includes('departure_time'))
   assert.equal(db.tables.bookings.length, 14)
-  // A cancellation: marked, not deleted
+  // A cancellation email: noted (cancellation_received_at + a note), never renamed, cancelled or deleted
   PARSED['11b-cancel'] = { ...PARSED['11-restaurant-sevenrooms-belcanto'], change_type: 'cancellation' }
   current = '11b-cancel'
-  out = await (await ingestEmail(db, { id: 'u1' }, { subject: 'Reservation cancelled', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
-  assert.equal(out.cancelled, true)
-  assert.match(db.tables.bookings.find(b => b.confirmation_number === '7RX-339104').title, /^Cancelled · /)
+  out = await (await ingestAsMember(db, { id: 'u1' }, { subject: 'Reservation cancelled', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  assert.equal(out.cancellation_noted, true, JSON.stringify(out))
+  const belcanto = db.tables.bookings.find(b => b.confirmation_number === '7RX-339104')
+  assert.equal(belcanto.title, 'Dinner at Belcanto')
+  assert.ok(belcanto.cancellation_received_at && !Number.isNaN(Date.parse(belcanto.cancellation_received_at)))
+  assert.match(belcanto.notes, /Cancellation email received on \d{4}-\d{2}-\d{2}/)
+  assert.ok(!('status' in belcanto))
+  // The same cancellation again: one note, not two
+  await ingestAsMember(db, { id: 'u1' }, { subject: 'Reservation cancelled', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })
+  assert.equal(belcanto.notes.match(/Cancellation email received/g).length, 1)
   assert.equal(db.tables.bookings.length, 14)
-  console.log('change emails: hotel check-out and flight time updated in place; cancellation marked; still 14 bookings')
+  console.log('change emails: hotel check-out and flight time updated in place; cancellation noted, not applied; still 14 bookings')
 }
 // An emailed spreadsheet itinerary: every row filed, one trip
 {
   const db = makeDb()
   const bytes = new Uint8Array(readFileSync(`${root}supabase/tests/files/flagship-itinerary.xlsx`))
   current = null
-  const out = await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 'Our trip', fromAddress: 'me', bodyText: 'see attached', GEMINI_API_KEY: '',
+  const out = await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 'Our trip', fromAddress: 'me', bodyText: 'see attached', GEMINI_API_KEY: '',
     attachments: [{ name: 'flagship-itinerary.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes }] })).json()
   assert.equal(out.from_attachments, true); assert.equal(out.count, 4)
   assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].start_date, '2026-11-10'); assert.equal(db.tables.trips[0].end_date, '2026-11-16')
@@ -261,7 +280,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
 // Loyalty statements file into the Loyalty wallet (and update the same card next time); newsletters are ignored
 {
   const db = makeDb()
-  const send = async (id) => { current = id; return (await ingestEmail(db, { id: 'u1' }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const send = async (id) => { current = id; return (await ingestAsMember(db, { id: 'u1' }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
   const a = await send('loyalty')
   assert.equal(a.loyalty, true); assert.equal(db.tables.loyalty_cards.length, 1); assert.equal(db.tables.loyalty_cards[0].points_balance, 18250)
   LOYALTY = { email_kind: 'loyalty', loyalty: { ...LOYALTY.loyalty, member_number: 'IB552219004', tier: 'Gold', points_balance: 21000, points_as_of: '2026-11-01' } }
@@ -274,7 +293,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
 
 // Shared trips: a traveller who joined someone else's trip with edit rights forwards their own bookings
 {
-  const send = async (db, user, id) => { current = id; return (await ingestEmail(db, { id: user, home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const send = async (db, user, id) => { current = id; return (await ingestAsMember(db, { id: user, home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
   // Owner's London trip, 11–17 Apr, with their hotel; `role`/`status` for u2 vary per case
   const sharedDb = (role, status = 'accepted') => {
     const db = makeDb()
@@ -344,7 +363,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   PARSED['15-ferry-out'] = out1
   PARSED['15-ferry-back'] = { ...out1, title: 'Ferry to Tarifa', departure_airport: 'Tangier Med', arrival_airport: 'Tarifa', departure_time: '2027-04-15T17:00', arrival_time: '2027-04-15T18:00', destination_city: 'Tarifa' }
   PARSED['15-ferry-out-later'] = { ...out1, change_type: 'change', departure_time: '2027-04-12T11:00', arrival_time: '2027-04-12T12:00' }
-  const send = async id => { current = id; return (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const send = async id => { current = id; return (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
   const a = await send('15-ferry-out'), b = await send('15-ferry-back')
   assert.ok(a.success && b.success && !a.duplicate && !b.duplicate && !b.updated, JSON.stringify([a, b]))
   assert.equal(db.tables.bookings.length, 2, 'ferry out and back: two bookings')
@@ -369,7 +388,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   PARSED['16-train-a'] = { ...ref, title: 'Madrid -> Granada', flight_number: 'AVE 03', departure_airport: 'Madrid Atocha', arrival_airport: 'Granada', departure_time: '2027-04-12T07:05', arrival_time: '2027-04-12T10:25' }
   PARSED['16-train-a-moved'] = { ...PARSED['16-train-a'], change_type: 'change', departure_time: '2027-04-13T07:05', arrival_time: '2027-04-13T10:25' }
   PARSED['16-train-b-nonumber'] = { ...ref, title: 'Granada -> Madrid', departure_airport: 'Granada', arrival_airport: 'Madrid Atocha', departure_time: '2027-04-14T16:00', arrival_time: '2027-04-14T19:20', destination_city: 'Madrid' }
-  const send = async id => { current = id; return (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
+  const send = async id => { current = id; return (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json() }
   const a = await send('16-train-a')
   const moved = await send('16-train-a-moved')
   assert.equal(moved.updated, true, JSON.stringify(moved)); assert.equal(moved.booking_id, a.booking_id)
@@ -389,30 +408,122 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
       { title: 'ATL -> SFO', flight_number: 'DL 902', departure_airport: 'ATL', arrival_airport: 'SFO', departure_time: '2027-04-20T21:15', arrival_time: '2027-04-20T23:30' },
     ] }
   current = '17-three-legs'
-  const out = await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-111' })).json()
+  const out = await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-111' })).json()
   assert.equal(out.legs.length, 3, JSON.stringify(out))
   assert.equal(db.tables.bookings.length, 3)
   assert.ok(db.tables.bookings.every(b => b.raw_email_id === 'resend-email-111'), JSON.stringify(db.tables.bookings.map(b => b.raw_email_id)))
   // A different email gets its own id; with no id (a test harness, an old caller) the column stays null
   current = '01-flight-united-sfo-lhr'
-  await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-222' })).json()
+  await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-222' })).json()
   current = '03-museum-british-museum'
-  await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
   assert.equal(new Set(db.tables.bookings.map(b => b.raw_email_id).filter(Boolean)).size, 2)
   assert.equal(db.tables.bookings.filter(b => b.raw_email_id == null).length, 1)
   // The AI cannot set it
   PARSED['17b-injected'] = { ...PARSED['04-restaurant-opentable-dishoom'], raw_email_id: 'attacker' }
   current = '17b-injected'
-  await (await ingestEmail(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-333' })).json()
+  await (await ingestAsMember(db, { id: 'u1', home_city: null }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'resend-email-333' })).json()
   assert.ok(!db.tables.bookings.some(b => b.raw_email_id === 'attacker'))
   // A spreadsheet of several rows is one email too
   const sheet = makeDb()
   const bytes = new Uint8Array(readFileSync(`${root}supabase/tests/files/flagship-itinerary.xlsx`))
   current = null
-  await ingestEmail(sheet, { id: 'u1', home_city: null }, { subject: 'Our trip', fromAddress: 'me', bodyText: 'see attached', GEMINI_API_KEY: '', emailId: 'resend-email-444',
+  await ingestAsMember(sheet, { id: 'u1', home_city: null }, { subject: 'Our trip', fromAddress: 'me', bodyText: 'see attached', GEMINI_API_KEY: '', emailId: 'resend-email-444',
     attachments: [{ name: 'flagship-itinerary.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes }] })
   assert.equal(sheet.tables.bookings.length, 4); assert.ok(sheet.tables.bookings.every(b => b.raw_email_id === 'resend-email-444'))
   console.log('raw_email_id: a 3-leg email and a 4-row spreadsheet each stamp one id on every row; none from the AI; null when no id')
 }
 
-console.log('\nall replays: one trip, 14 bookings, 10–20 Apr; attachments filed')
+// ── Inbox gate (audit S4): who may mail an inbox, checked before any AI call ──
+{
+  const flight = fixtures.find(x => x.id === '01-flight-united-sfo-lhr')
+  const send = async (db, profile, fromAddress) => {
+    current = flight.id
+    const before = aiCalls
+    const out = await (await ingestEmail(db, profile, { subject: flight.subject, fromAddress, bodyText: flight.text, GEMINI_API_KEY: '' })).json()
+    return { out, ai: aiCalls - before }
+  }
+
+  // Normalising: display name, case, plus-tags, Gmail dots and googlemail.com
+  assert.equal(normalizeAddress('Sam Rivera <Sam.Rivera+trips@GoogleMail.com>'), 'samrivera@gmail.com')
+  assert.equal(normalizeAddress('"Rivera, Sam" <sam.rivera@gmail.com>'), 'samrivera@gmail.com')
+  assert.equal(normalizeAddress('alex+stt@Example.com'), 'alex@example.com')
+  assert.equal(normalizeAddress('a.lex@example.com'), 'a.lex@example.com') // dots only matter at Gmail
+  assert.equal(normalizeAddress('sam@gmail.com <attacker@evil.example>'), 'attacker@evil.example') // the bracket wins
+  for (const bad of ['', 'f', 'Sam Rivera', 'a@b', 'a@b.com, c@d.com', '<>', null]) assert.equal(normalizeAddress(bad), null, String(bad))
+
+  // 1. The member forwards it from their own account email (written differently): accepted, parsed
+  {
+    const db = makeDb()
+    const { out, ai } = await send(db, { id: 'u1' }, 'Sam Rivera <samrivera+fwd@gmail.com>')
+    assert.ok(out.booking_id && !out.ignored, JSON.stringify(out))
+    assert.equal(ai, 1)
+    assert.equal(db.tables.bookings.length, 1)
+    assert.equal(db.tables.function_errors.length, 0)
+  }
+  // 2. Unknown sender: dropped silently, no AI call, nothing filed, one function_errors row with no body in it
+  {
+    const db = makeDb()
+    const { out, ai } = await send(db, { id: 'u1' }, 'United Airlines <unitedairlines@united.com>')
+    assert.deepEqual(out, { success: true, ignored: true, reason: 'sender' })
+    assert.equal(ai, 0)
+    assert.equal(db.inbox.parses, 0, 'no budget spent')
+    assert.equal(db.tables.bookings.length + db.tables.trips.length, 0)
+    assert.equal(db.tables.function_errors.length, 1)
+    const row = db.tables.function_errors[0]
+    assert.equal(row.kind, 'inbox_rejected_sender'); assert.equal(row.user_id, 'u1'); assert.equal(row.fn, 'receive-booking-email')
+    assert.ok(!row.message.includes('K7QW2M') && row.message.length <= 120, 'no body stored')
+    // A forged look-alike of the member is not the member
+    assert.equal((await send(db, { id: 'u1' }, 'samrivera@gmail.com.evil.example')).ai, 0)
+    assert.equal((await send(db, { id: 'u1' }, 'Sam <sam.rivera@gmail.co>')).ai, 0)
+    // No account email on file and no allow list: nothing gets in
+    assert.equal((await send(makeDb(), { id: 'u9' }, 'anyone@example.com')).ai, 0)
+  }
+  // 3. Sender on the member's allow list: accepted
+  {
+    const db = makeDb()
+    const profile = { id: 'u1', inbox_allowed_senders: ['Partner <jo.partner@gmail.com>', 'trips@agency.example'] }
+    const { out, ai } = await send(db, profile, 'jopartner+x@googlemail.com')
+    assert.ok(out.booking_id, JSON.stringify(out)); assert.equal(ai, 1)
+    assert.equal((await send(db, profile, 'TRIPS@agency.example')).ai, 1)
+    assert.equal((await send(db, profile, 'other@agency.example')).ai, 0)
+  }
+  // 4. Accept-any on: an airline's own address gets in (automatic forwarding rules)
+  {
+    const db = makeDb()
+    const { out, ai } = await send(db, { id: 'u1', inbox_accept_any: true }, 'unitedairlines@united.com')
+    assert.ok(out.booking_id, JSON.stringify(out)); assert.equal(ai, 1)
+  }
+  // 5. Daily inbox budget spent: rejected before the AI, separate from the in-app AI quota
+  {
+    const db = makeDb()
+    db.inbox.parses = INBOX_DAILY_PARSES
+    const res = await ingestEmail(db, { id: 'u1' }, { subject: flight.subject, fromAddress: 'samrivera@gmail.com', bodyText: flight.text, GEMINI_API_KEY: '' })
+    assert.equal(res.status, 429)
+    assert.match((await res.json()).error, /inbox limit/)
+    assert.equal(db.tables.bookings.length, 0)
+    // The last unit of the day still works
+    const db2 = makeDb(); db2.inbox.parses = INBOX_DAILY_PARSES - 1
+    assert.equal((await send(db2, { id: 'u1' }, 'samrivera@gmail.com')).ai, 1)
+  }
+  // 5b. The budget RPC is down and this inbox has no recent answer: refused (fails closed like the AI quota)
+  {
+    const db = makeDb()
+    db.rpc = async name => name === 'consume_inbox_quota' ? { data: null, error: { message: 'connection refused' } } : { data: name === 'take_ingest_lock' ? true : null, error: null }
+    const res = await ingestEmail(db, { id: 'u3' }, { subject: flight.subject, fromAddress: 'kim@example.com', bodyText: flight.text, GEMINI_API_KEY: '' })
+    assert.equal(res.status, 429)
+    assert.equal(db.tables.bookings.length, 0)
+  }
+  // 6. Attachments are fetched only after the sender is accepted
+  {
+    let fetched = 0
+    const loadAttachments = async () => { fetched++; return [] }
+    await ingestEmail(makeDb(), { id: 'u1' }, { subject: 's', fromAddress: 'evil@example.com', bodyText: '', GEMINI_API_KEY: '', loadAttachments })
+    assert.equal(fetched, 0)
+    const out = await (await ingestEmail(makeDb(), { id: 'u1' }, { subject: 's', fromAddress: 'samrivera@gmail.com', bodyText: '', GEMINI_API_KEY: '', loadAttachments })).json()
+    assert.equal(fetched, 1); assert.equal(out.ignored, true) // nothing readable: no AI call either
+  }
+  console.log('inbox gate: member accepted, unknown sender dropped before the AI (logged, no body), allow list and accept-any accepted, budget enforced')
+}
+
+console.log('\nall replays: one trip, 14 bookings, 10–20 Apr; attachments filed; inbox gate holds')

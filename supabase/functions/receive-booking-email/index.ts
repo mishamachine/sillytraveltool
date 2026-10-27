@@ -9,7 +9,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // token embedded in the recipient address. No other fallback.
 //
 // Inbound address scheme:
-//   {8-char-token}@bookings.sillytraveltool.com
+//   {12-hex token}@bookings.sillytraveltool.com (server-made; older 8-hex tokens work until rotated)
+// Only mail from the member's account email, their allowed senders, or anyone if they opted in, is read
+// (ingest.ts senderAllowed).
 // ============================================================
 
 import { CORS, ok, err, ingestEmail } from './ingest.ts'
@@ -65,9 +67,10 @@ function htmlToText(html: string): string {
 }
 
 // Extract the booking_email_token from To: address
-// Matches: token@bookings.sillytraveltool.com
+// Matches: token@bookings.sillytraveltool.com, 12 hex (current) or 8 hex (older addresses). The token must start
+// the address, so the last 8 characters of a 12-hex token are never read as a token on their own.
 function extractToken(toHeader: string): string | null {
-  const match = toHeader.match(/([a-f0-9]{8})@bookings\.sillytraveltool\.com/i)
+  const match = toHeader.match(/(?:^|[^a-f0-9])([a-f0-9]{12}|[a-f0-9]{8})@bookings\.sillytraveltool\.com/i)
   return match ? match[1].toLowerCase() : null
 }
 
@@ -179,7 +182,9 @@ Deno.serve(withGoogleScope(async (req) => {
 
     const { data: profile, error: profileErr } = await supabase
       .from('user_profiles')
-      .select('id, display_name, home_city')
+      // '*' so the sender settings (inbox_allowed_senders, inbox_accept_any) come along once the migration is in;
+      // before it, only the account email is accepted
+      .select('*')
       .eq('booking_email_token', token)
       .single()
     if (profileErr || !profile) {
@@ -201,9 +206,8 @@ Deno.serve(withGoogleScope(async (req) => {
     // Answer Resend at once and file in the background: filing waits its turn behind the traveller's other emails,
     // and a slow answer makes Resend send the email again
     const work = (async () => {
-      const attachments = await fetchAttachments((rawBody?.data ?? rawBody)?.email_id, payload.attachments)
-      if (!bodyText && !attachments.length) { console.warn('No email body or readable attachment'); return }
-      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments, emailId: (rawBody?.data ?? rawBody)?.email_id || null })
+      const loadAttachments = () => fetchAttachments((rawBody?.data ?? rawBody)?.email_id, payload.attachments)
+      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, loadAttachments, emailId: (rawBody?.data ?? rawBody)?.email_id || null })
       console.log(`📨 Filed: ${res.status} ${(await res.text()).slice(0, 300)}`)
     })().catch(e => console.error('receive-booking-email background error:', e))
     // @ts-ignore EdgeRuntime is provided by Supabase Edge Functions

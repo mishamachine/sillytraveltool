@@ -123,6 +123,7 @@ export default function BookingDetailSheet({ item, tripTz, countryCode, isActivi
               {item.source === 'email_import' ? 'Added from a forwarded email' : isActivity && item.source === 'goosey' ? 'Saved from HONK' : isActivity && item.source === 'guide' ? 'Saved from the guide' : 'Added by hand'}
             </Text>
           </Stack>
+          {item.cancellation_received_at && <Text variant="caption" tone="danger">A cancellation email arrived on {format(new Date(item.cancellation_received_at), 'MMM d')}. Check with the provider, then delete this booking if it is cancelled.</Text>}
           {rows.length > 0 && <dl className="detail-kvs">{rows.map(([k, v], i) => <Detail key={`${k}-${i}`} label={k} value={v} />)}</dl>}
         </Card>
 
