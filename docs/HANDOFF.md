@@ -1,5 +1,29 @@
 # STT Handoff — 2026-10-21
 
+## Update — Google Play: app created, closed track ready, waiting on owner clicks (2026-10-27, play-console session)
+- Phone verification passed. App **Silly Travel Tool** created in Play Console (developer **Bodhi Studios**, account
+  6830777302621607998, app ID 4975168874414148202, package `com.sillytraveltool.app`, free to download, English US).
+- **Saved:** privacy policy, ads (none), government (no), financial (none), health (none), advertising ID (no), category
+  Travel & Local, contact email + website, default store listing (short + full description, 512 icon, 1024x500 feature
+  graphic, four real emulator screenshots 1080x2160; no AI-generated assets).
+- **Closed testing track "Closed beta"** (Play refused the name "Beta"): 178 countries, email list "Beta testers"
+  (babar54@gmail.com, machinemisha@gmail.com), feedback hello@sillytraveltool.com. Draft release **0.20.0 (5) beta** with
+  `app-release.aab` (versionCode 5, from `android-release.yml` run 40433516785) and the beta notes; saved to Publishing
+  overview with only symbol-file warnings. No tester cap field was found on the track.
+- **Owner clicks left, in order:** (1) Sign in details: decide on a reviewer test account (Play reviewers cannot use their
+  own accounts or create new ones; the form also requires ticking "full access to all features incl. premium");
+  (2) Content rating: tick the IARC Terms of Use and run the questionnaire (utility, no objectionable content);
+  (3) Target audience 18+ (unlocks after Sign in details); (4) Data safety: answers in `docs/STORE_PRIVACY_FORMS.md`
+  (the page also has Import from CSV); (5) Publishing overview → "Submit 12 changes for review". The opt-in join link
+  appears on the track's Testers tab once Google approves the closed test.
+- **Checked 2026-10-27 (read-only):** developer name now saved as **B&B Project Factory** (website shows
+  https://bbprojectfactory.com/, Search Console verification still to do). App content: 4 items still need attention:
+  Sign in details (not started), Content rating (questionnaire in progress, IARC terms not accepted), Target audience (not
+  started), Data safety (not started, flagged overdue). Publishing overview: **not submitted**; "3 issues found" block
+  sending. Closed beta shows Active with release 0.20.0 (5) beta "not yet sent for review". The Testers tab still says the
+  join link appears once the app is published, so there is no opt-in link yet.
+- No RevenueCat Android key secret exists, so this build hides the paywall (fine for a closed beta).
+- Gotcha: the Play bundle upload field accepts files over the Chrome tool's 10 MB limit only via a local fetch + DataTransfer.
 ## Update — owner is now B&B Project Factory (2026-10-27, PR "Ownership: B&B Project Factory replaces Bodhi Studios and personal operator wording"; website deployed from main 0255391 and admin-email redeployed as v8 on 2026-10-27 07:15 UTC)
 - Privacy, Terms and Delete-account name **B&B Project Factory** (same Renton address) as the operator; footers read
   "© 2026 B&B Project Factory · Silly Travel Tool"; `index.html` author meta and JSON-LD, the booking/marketing email
