@@ -1,5 +1,7 @@
 # Next session: start here (2026-10-22)
 
+> **Partly historical (written 2026-10-22).** The to-do lists below predate the Stripe, store and Play work. For current state read `docs/HANDOFF.md` (newest entries on top) and `docs/OWNER_TODO.md`. The working notes at the bottom are still useful.
+
 Read in this order: `CLAUDE.md` → `docs/HANDOFF.md` (dated updates at the top are newest) → `docs/brand/BRAND.md`.
 Background reports: `docs/PHASE0_REPORT.md`, `docs/PHASE1_REPORT.md`, `docs/CLAY_REPORT.md`, `docs/TESTING_PASS.md`.
 
@@ -66,7 +68,7 @@ Background reports: `docs/PHASE0_REPORT.md`, `docs/PHASE1_REPORT.md`, `docs/CLAY
 ## Working notes
 
 - Tools live in user space, so put `~/.local/node/bin` and `~/.local/bin` on PATH.
-- Use `~/.local/git/bin/git`, not `/usr/bin/git`: the latter is a Command Line Tools stub.
+- `/usr/bin/git` (Apple git 2.50.1) is the git; the old `~/.local/bin/git` shortcut was removed 2026-10-28.
 - `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`. Android emulator AVD: `STT_Pixel`.
   It's slow, because the API 37 image uses software rendering.
 - Live production changes (migrations, Edge Function deploys) go through the Supabase MCP. Back up before data

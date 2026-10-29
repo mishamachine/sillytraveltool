@@ -22,8 +22,8 @@ gh workflow run android-release.yml --ref main
 gh run download <run id> -n android-release-aab
 ```
 
-Until the workflows are on `main`, pushes to `claude/fix-native-release-729fd6` run them instead (a push never
-uploads to TestFlight). `upload: false` signs and exports the `.ipa` without uploading.
+The workflows are on `main` (the temporary `claude/fix-native-release-729fd6` push trigger was dropped); a push never
+uploads to TestFlight. `upload: false` signs and exports the `.ipa` without uploading.
 
 ## Secrets
 
