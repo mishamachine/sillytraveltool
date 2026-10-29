@@ -28,11 +28,11 @@ export const HELP_TOPICS = [
   {
     id: 'goose-inbox', group: 'start', icon: 'inbox', tone: 'info',
     title: 'Forward booking emails',
-    summary: 'A quick way in. Goose reads the email and files it into the right trip.',
+    summary: 'The fastest way in. Goose reads the email and files it into the right trip.',
     steps: [
       'Find your private Goose inbox address in Profile → Settings → Goose inbox, and tap Copy.',
       'Forward any flight, hotel, train, restaurant or ticket confirmation to it.',
-      'It shows up in the matching trip. No trip for that city yet? Goose starts one.',
+      'It shows up in the matching trip, usually within a minute. No trip for that city yet? Goose starts one.',
     ],
     tips: [
       'Save the address as a contact called "Goose" so forwarding takes two taps.',
@@ -45,7 +45,7 @@ export const HELP_TOPICS = [
     summary: 'For bookings that live in an app, a PDF or a screenshot instead of your inbox.',
     steps: [
       'Open a trip, tap + and choose Paste confirmation text.',
-      'Paste the text and tap Read it. Goose pulls out times, places and confirmation numbers.',
+      'Paste the text and tap Read it. Goose pulls out times, places and confirmation numbers in about 15 seconds.',
       'Check the details, pick the trip (or New trip) and save.',
     ],
     tips: ['A whole itinerary works too: Goose splits it into flights, stays and the rest.'],
@@ -212,7 +212,7 @@ export const HELP_TOPICS = [
 export const HELP_FAQ = [
   {
     q: 'Do the people I invite need STT?',
-    a: 'Yes, they need an STT account. Goose emails them an invite; once they sign in with that email they tap Join trip under Invites on their Trips screen.',
+    a: 'Yes, a free account. Goose emails them an invite; once they sign in with that email they tap Join trip under Invites on their Trips screen.',
   },
   {
     q: 'Can my friends forward their own bookings to the trip?',
@@ -244,7 +244,7 @@ export const HELP_FAQ = [
   },
   {
     q: 'Who can see my trips?',
-    a: 'Only you and the people you invite can see your trips in the app. Goose\'s AI reads forwarded emails to pull out booking details; we keep the details, not the emails. See the Privacy Policy for the full list.',
+    a: 'Only you and the people you invite. Goose\'s AI reads forwarded emails to pull out booking details; we keep the details, not the emails. See the Privacy Policy for the full list.',
   },
 ]
 

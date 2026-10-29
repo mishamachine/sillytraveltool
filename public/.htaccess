@@ -1,16 +1,16 @@
 # Silly Travel Tool — Hostinger .htaccess
-# SPA routing: all routes → index.html (except real files/dirs)
+# The app lives at "/" only; other pages are real directories. The one rewrite below is /invite (see there).
 
 Options -MultiViews
 RewriteEngine On
 
+# www → apex, straight to https (301). Listed before the HTTPS rule so http://www.x goes to https://x in one hop.
+RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+RewriteRule ^(.*)$ https://%1/$1 [L,R=301]
+
 # Force HTTPS
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-# www → apex (301). Runs after the HTTPS rule above, so http://www goes https://www → apex in two hops at most.
-RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
-RewriteRule ^(.*)$ https://%1/$1 [L,R=301]
 
 # Invite emails link to /invite?token=... (supabase/functions/send-invite). There is no /invite folder; the app reads
 # ?token on "/" and rewrites the URL. Serve the app shell for this one path only (the query string passes through).

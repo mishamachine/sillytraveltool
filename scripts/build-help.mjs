@@ -12,7 +12,22 @@ const TOPIC_OVERRIDES = {
     'A trip without dates shows "Planning". Tap Add dates whenever you decide; adding a booking fills them in for you.',
     'Visiting several cities? Keep one trip and add a stay in each city. Weather follows you city by city.',
   ] },
-  paste: { tips: [] },
+  'goose-inbox': {
+    summary: 'A quick way in. Goose reads the email and files it into the right trip.',
+    steps: [
+      'Find your private Goose inbox address in Profile → Settings → Goose inbox, and tap Copy.',
+      'Forward any flight, hotel, train, restaurant or ticket confirmation to it.',
+      'It shows up in the matching trip. No trip for that city yet? Goose starts one.',
+    ],
+  },
+  paste: {
+    steps: [
+      'Open a trip, tap + and choose Paste confirmation text.',
+      'Paste the text and tap Read it. Goose pulls out times, places and confirmation numbers.',
+      'Check the details, pick the trip (or New trip) and save.',
+    ],
+    tips: [],
+  },
   'by-hand': { tips: ['Times are always the local time where the thing happens, not your phone\'s time. A 09:00 flight from Tokyo stays 09:00, wherever you are.'] },
   'trip-tabs': {
     title: 'Plan and Weather', summary: 'Each trip has two tabs.',
@@ -33,7 +48,7 @@ const TOPIC_OVERRIDES = {
 const HIDE_FAQ = ['Do the people I invite need STT?', 'Can my friends forward their own bookings to the trip?', 'How do I replay the tour?']
 const FAQ_OVERRIDES = {
   'Does it work offline?': 'Guides, imports and live rates need a connection, so screenshot SOS and your hotel address before you fly.',
-  'Who can see my trips?': 'Only you can see your trips in the app. Goose\'s AI reads forwarded emails to pull out booking details; we keep the booking details. See the Privacy Policy for the full list.',
+  'Who can see my trips?': 'Your trips are private to you unless you invite someone. Goose\'s AI reads forwarded emails to pull out booking details; we keep the booking details. See the Privacy Policy for the full list.',
 }
 const GROUPS = HELP_GROUPS.filter(g => !HIDE_GROUPS.includes(g.id))
 const TOPICS = HELP_TOPICS.filter(t => !HIDE_TOPICS.includes(t.id) && !HIDE_GROUPS.includes(t.group)).map(t => ({ ...t, ...TOPIC_OVERRIDES[t.id] }))
@@ -92,7 +107,7 @@ const html = `<!doctype html>
   </header>
 
   <h1>How to use Silly Travel Tool</h1>
-  <p class="meta">Short guides to every part of the app · Updated ${today}</p>
+  <p class="meta">Short guides to Silly Travel Tool · Updated ${today}</p>
 
   <div class="card summary">
     <p><strong>The short version.</strong> Start a trip, forward your booking emails to your Goose inbox, and Goose files
