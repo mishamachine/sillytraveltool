@@ -4,6 +4,41 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { HELP_GROUPS, HELP_TOPICS, HELP_FAQ, HELP_CONTACT } from '../src/lib/helpContent.js'
 
+// The public page describes only features that are live today. The in-app Help (same data file) is untouched.
+const HIDE_GROUPS = ['together']
+const HIDE_TOPICS = ['honk', 'score', 'ideas', 'get-there']
+const TOPIC_OVERRIDES = {
+  'new-trip': { tips: [
+    'A trip without dates shows "Planning". Tap Add dates whenever you decide; adding a booking fills them in for you.',
+    'Visiting several cities? Keep one trip and add a stay in each city. Weather follows you city by city.',
+  ] },
+  paste: { tips: [] },
+  'by-hand': { tips: ['Times are always the local time where the thing happens, not your phone\'s time. A 09:00 flight from Tokyo stays 09:00, wherever you are.'] },
+  'trip-tabs': {
+    title: 'Plan and Weather', summary: 'Each trip has two tabs.',
+    steps: ['Plan: everything booked, day by day.', 'Weather: the forecast for each day, for the city you\'re in that night.'],
+    tips: [],
+  },
+  tools: {
+    summary: 'Currency and SOS, set for the country of your current or next trip.',
+    steps: ['Currency: live rates between the local currency and your home currency.',
+      'SOS: emergency numbers, your embassy and an emergency card for the country you\'re in.'],
+  },
+  wallet: { title: 'Travel documents', summary: 'Passports, visas and insurance in one place.',
+    steps: ['Open Profile and tap Travel documents.',
+      'Add a document. Document numbers are encrypted and show only the last four digits until you tap Reveal.'] },
+  settings: { steps: ['Open Profile → Settings.', 'Turn off Share usage stats to stop anonymous feature counts from this device.',
+    'Delete account erases your trips and documents.'] },
+}
+const HIDE_FAQ = ['Do the people I invite need STT?', 'Can my friends forward their own bookings to the trip?', 'How do I replay the tour?']
+const FAQ_OVERRIDES = {
+  'Does it work offline?': 'Guides, imports and live rates need a connection, so screenshot SOS and your hotel address before you fly.',
+  'Who can see my trips?': 'Only you can see your trips in the app. Goose\'s AI reads forwarded emails to pull out booking details; we keep the details, not the emails. See the Privacy Policy for the full list.',
+}
+const GROUPS = HELP_GROUPS.filter(g => !HIDE_GROUPS.includes(g.id))
+const TOPICS = HELP_TOPICS.filter(t => !HIDE_TOPICS.includes(t.id) && !HIDE_GROUPS.includes(t.group)).map(t => ({ ...t, ...TOPIC_OVERRIDES[t.id] }))
+const FAQ = HELP_FAQ.filter(f => !HIDE_FAQ.includes(f.q)).map(f => FAQ_OVERRIDES[f.q] ? { ...f, a: FAQ_OVERRIDES[f.q] } : f)
+
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const today = new Date().toISOString().slice(0, 10)
 
@@ -17,7 +52,7 @@ const topic = (t) => `
 
 const faqLd = {
   '@context': 'https://schema.org', '@type': 'FAQPage',
-  mainEntity: HELP_FAQ.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  mainEntity: FAQ.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
 }
 
 const html = `<!doctype html>
@@ -26,7 +61,7 @@ const html = `<!doctype html>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>How to use Silly Travel Tool — Help</title>
-  <meta name="description" content="Short guides to Silly Travel Tool: start a trip, forward booking emails to Goose, city guides, HONK, sharing trips and travel tools." />
+  <meta name="description" content="Short guides to Silly Travel Tool: start a trip, forward booking emails to Goose, check the weather, use city guides, currency and SOS numbers." />
   <meta name="theme-color" content="#F4EEE6" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="canonical" href="https://sillytraveltool.com/help/" />
@@ -61,16 +96,16 @@ const html = `<!doctype html>
 
   <div class="card summary">
     <p><strong>The short version.</strong> Start a trip, forward your booking emails to your Goose inbox, and Goose files
-    them into the right trip with local times. Explore the city guide or ask HONK for something good nearby, save ideas in
-    one tap, and keep currency, phrases and SOS numbers in your pocket.</p>
+    them into the right trip with local times. Check the weather for your dates, explore the city guide, and keep currency
+    and SOS numbers in your pocket.</p>
   </div>
 
-  <ul class="toc">${HELP_GROUPS.map(g => `<li><a href="#${g.id}">${esc(g.title)}</a></li>`).join('')}<li><a href="#questions">Questions</a></li></ul>
-${HELP_GROUPS.map(g => `
-  <h2 id="${g.id}">${esc(g.title)}</h2>${HELP_TOPICS.filter(t => t.group === g.id).map(topic).join('')}`).join('\n')}
+  <ul class="toc">${GROUPS.map(g => `<li><a href="#${g.id}">${esc(g.title)}</a></li>`).join('')}<li><a href="#questions">Questions</a></li></ul>
+${GROUPS.map(g => `
+  <h2 id="${g.id}">${esc(g.title)}</h2>${TOPICS.filter(t => t.group === g.id).map(topic).join('')}`).join('\n')}
 
   <h2 id="questions">Questions</h2>
-  <div class="card">${HELP_FAQ.map(f => `
+  <div class="card">${FAQ.map(f => `
     <details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join('')}
   </div>
 
@@ -86,4 +121,4 @@ ${HELP_GROUPS.map(g => `
 const out = new URL('../public/help/', import.meta.url)
 mkdirSync(out, { recursive: true })
 writeFileSync(new URL('index.html', out), html)
-console.log(`help page written: public/help/index.html (${HELP_TOPICS.length} topics, ${HELP_FAQ.length} questions)`)
+console.log(`help page written: public/help/index.html (${TOPICS.length} topics, ${FAQ.length} questions)`)
