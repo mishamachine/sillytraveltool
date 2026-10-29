@@ -13,7 +13,7 @@ Format: what to do · where · what Claude does once it's ticked.
   2026-11-01. (2) When Apple approves build 0.20.0 (5), run the one-line `show_ios` SQL in `docs/HANDOFF.md` ("Beta links").
   Note (2026-10-29): the Play closed beta is now in review and may replace (1); decide which route you want.
 - [x] **Confirm the Terms choices in PR #5:** governing law = State of Washington; 14-day refund on website purchases
-  · PR #5 merged 2026-10-24 (`aad8a07`), Terms live with section 8 "Plans and payments". A lawyer's read of the Terms is still open.
+  · PR #5 merged 2026-10-24 (`aad8a07`). Live in Terms, verified 29 Oct by the business officer: Washington law (s12) and the 14-day website refund (s8) are in the live Terms dated 27 Oct. This is a check of the live text, not the owner's own confirmation. A lawyer's read of the Terms is still open.
 
 ## Apple
 - [x] **Apple Developer Program + App Store Connect:** enroll, sign the Paid Apps agreement, fill in tax and bank
