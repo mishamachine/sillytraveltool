@@ -10,6 +10,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 // (a temporary failure, put back for later) is set.
 // ============================================================
 
+import { consentCurrent } from '../_shared/consent.ts'
 import { releaseHeld } from './release.ts'
 import { fetchAttachments, fetchReceivedEmail } from '../receive-booking-email/resend.ts'
 import { withGoogleScope } from '../_shared/google.ts'
@@ -35,7 +36,7 @@ Deno.serve(withGoogleScope(async (req) => {
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const { data: profile } = await admin.from('user_profiles').select('*').eq('id', user.id).single()
     if (!profile) return json({ error: 'No profile' }, 404)
-    if (!profile.ai_consent_at) return json({ error: 'Allow Goose to read your imports first.', code: 'ai_consent' }, 403)
+    if (!consentCurrent(profile)) return json({ error: 'Allow Goose to read your imports first.', code: 'ai_consent' }, 403)
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || ''
 
     const result = await releaseHeld(admin, { ...profile, account_email: user.email ?? null }, { fetchEmail: fetchReceivedEmail, fetchAttachments, GEMINI_API_KEY })

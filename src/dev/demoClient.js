@@ -170,7 +170,7 @@ export function createDemoClient() {
         return { data: { plan: PLAN, until: fc ? new Date(Date.now() + 300 * 864e5).toISOString() : null,
           web: { lifetime: false, subscription: fc ? { status: 'active', canceling: false } : null, customer: fc }, store: null, limits_on: LIMITS }, error: null }
       }
-      if (fn === 'my_set_ai_consent') return { data: args?.p_on ? new Date().toISOString() : null, error: null }
+      if (fn === 'my_record_ai_consent') return { data: args?.p_event === 'granted' ? new Date().toISOString() : null, error: null }
       if (fn === 'reveal_document_number') return { data: db.revealed[args?.p_doc_id] || 'X1234567', error: null }
       return { data: null, error: null }
     },

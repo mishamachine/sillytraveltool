@@ -2,13 +2,19 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { track } from '../lib/analytics'
 import { useAuthStore } from './authStore'
+import { Capacitor } from '@capacitor/core'
+import { AI_CONSENT_VERSION, AI_CONSENT_ROUTING, consentCurrent } from '../lib/aiConsentPolicy'
+
+const platform = () => { try { return Capacitor.getPlatform() } catch { return 'web' } }
+const SOURCES = { tour: 'tour', settings: 'settings' }  // anything else is the sheet
 
 // Goose's AI reading permission (Apple 5.1.2(i), legal review L1): asked once in the tour, or at the first import or
-// typed translation. Stored on the profile (ai_consent_at, through my_set_ai_consent); the server checks it too.
+// typed translation. Stored on the profile (ai_consent_at, through my_record_ai_consent); the server checks it too.
 // Forwarded emails that arrive before the yes wait in held_inbox_emails and are filed by inbox-release after it.
-export const AI_CONSENT_VERSION = 'v2-2026-10-29'
+export { AI_CONSENT_VERSION } from '../lib/aiConsentPolicy'
 
-export const hasAiConsent = () => !!useAuthStore.getState().profile?.ai_consent_at
+// A yes to older wording or routing counts as no: the member is asked again
+export const hasAiConsent = () => consentCurrent(useAuthStore.getState().profile)
 
 export const useConsentStore = create((set, get) => ({
   asking: null,   // { reason, resolve } while the Allow sheet is open
@@ -33,18 +39,24 @@ export const useConsentStore = create((set, get) => ({
       try { await get().setConsent(true, asking?.reason) } catch {
         set({ saving: false, saveError: 'Couldn’t save that. Check your connection and try again.' }); return
       }
+    } else {
+      get().recordDeclined(asking?.reason)
     }
     set({ asking: null, saving: false, saveError: null })
     track('ai_consent_answer', { reason: asking?.reason || 'unknown', choice: yes ? 'allow' : 'not_now' })
     asking?.resolve(yes)
   },
 
-  /** Settings switch, the tour step and the sheet all land here. */
+  /** "Not now" is recorded too (best effort: the answer itself doesn't wait for the network). */
+  recordDeclined: (where = 'sheet') => {
+    record('declined', where).catch(() => {})
+  },
+
+  /** Settings switch, the tour step and the sheet all land here: on = granted, off = withdrawn (one tap, at once). */
   setConsent: async (on, where = 'settings') => {
-    const { data, error } = await supabase.rpc('my_set_ai_consent', { p_on: on, p_version: AI_CONSENT_VERSION })
-    if (error || data == null) throw error || new Error('No answer from the server')
-    const at = on ? data : null
-    useAuthStore.setState(s => ({ profile: s.profile ? { ...s.profile, ai_consent_at: at, ai_consent_version: on ? AI_CONSENT_VERSION : null } : s.profile }))
+    const at = await record(on ? 'granted' : 'withdrawn', where)
+    if (on && at == null) throw new Error('No answer from the server')
+    useAuthStore.setState(s => ({ profile: s.profile ? { ...s.profile, ai_consent_at: on ? at : null, ai_consent_version: on ? AI_CONSENT_VERSION : null, ai_consent_routing: on ? AI_CONSENT_ROUTING : null } : s.profile }))
     track('ai_consent', { on, where })
     if (on && get().held > 0) get().release()
   },
@@ -84,3 +96,13 @@ export const useConsentStore = create((set, get) => ({
 
   clearReleased: () => set({ released: null }),
 }))
+
+/** One answer to the server's record (my_record_ai_consent); returns the time it set, null unless granted. */
+async function record(event, where) {
+  const { data, error } = await supabase.rpc('my_record_ai_consent', {
+    p_event: event, p_version: AI_CONSENT_VERSION, p_source: SOURCES[where] || 'sheet',
+    p_platform: platform(), p_app_version: import.meta.env.VITE_APP_VERSION || null,
+  })
+  if (error) throw error
+  return data
+}

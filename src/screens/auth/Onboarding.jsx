@@ -344,7 +344,7 @@ export default function Onboarding({ onDone, replay = false }) {
         ) : step.id === 'ai' ? (
           <>
             <Button variant="outline" size="lg" block loading={asking} onClick={allowAi}>Allow</Button>
-            <Button variant="outline" size="lg" block onClick={() => { track('ai_consent_answer', { reason: 'tour', choice: 'not_now' }); go(index + 1) }}>Not now</Button>
+            <Button variant="outline" size="lg" block onClick={() => { track('ai_consent_answer', { reason: 'tour', choice: 'not_now' }); useConsentStore.getState().recordDeclined('tour'); go(index + 1) }}>Not now</Button>
           </>
         ) : step.id === 'plans' ? (
           paid
