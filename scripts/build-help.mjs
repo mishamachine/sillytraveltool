@@ -28,7 +28,15 @@ const TOPIC_OVERRIDES = {
       'Add a plan like "Meet at the hotel, 16:30" so everyone knows where to be.',
     ],
   },
+  guide: {
+    steps: [
+      'Open Explore. Your next trip\'s city loads on its own, or search any city.',
+      'Pick a section: Know (history and local quirks), Eat (cheap to splurge), See, Transit or Events.',
+      'Tap Show 15 more for the next batch of places.',
+    ],
+  },
   honk: {
+    tips: ['Moods include I\'m hungry, Treat myself, On a budget, Culture me and Night out.', 'Your location is sent to Google to find nearby places. See the Privacy Policy.'],
     summary: 'Pick a mood and get nearby place picks.',
     steps: [
       'Open Explore and tap a mood on the HONK card, or More moods.',
@@ -66,32 +74,39 @@ const TOPIC_OVERRIDES = {
     ],
   },
   tools: {
-    tips: ['Phrase books you\'ve loaded and typed translations are kept on your device.'],
+    steps: [
+      'Currency: live rates between the local currency and your home currency.',
+      'Translate: a pocket phrase book in the local language, plus a box to translate anything you type.',
+      'Tip & split: each person\'s share of the bill.',
+      'SOS: emergency numbers and an emergency card for the country you\'re in.',
+    ],
+    tips: ['Numbers can change or be wrong; in an emergency follow local authorities.', 'Phrase books you\'ve loaded and typed translations are kept on your device.'],
   },
   wallet: {
     tips: ['Your documents and loyalty cards are private to you. They are not shown to people you share a trip with.'],
   },
   settings: { steps: ['Open Profile → Settings.', 'Turn off Share usage stats to stop anonymous feature counts from this device.',
-    'Delete account erases your trips and documents (payment records are kept as the law requires).'] },
+    'Delete account erases your trips and documents (payment records are kept as the law requires). Bookings you added to someone else\'s trip stay on that trip.'] },
 }
 const HIDE_FAQ = ['Can my friends forward their own bookings to the trip?', 'How do I replay the tour?']
 const FAQ_OVERRIDES = {
   'Does it work offline?': 'Phrase books you\'ve loaded and typed translations are kept on your device. Guides, imports and live rates need a connection, so screenshot SOS and your hotel address before you fly.',
-  'Who can see my trips?': 'Your trips are private to you unless you invite someone, and what you add stays in the app. Goose\'s AI reads forwarded emails to pull out booking details; we keep the booking details. See the Privacy Policy for the full list.',
+  'Who can see my trips?': 'Your trips are private to you unless you invite someone. Goose\'s AI processors read forwarded emails to pull out booking details; we keep the booking details. See the Privacy Policy.',
 }
 const GROUPS = HELP_GROUPS.filter(g => !HIDE_GROUPS.includes(g.id))
 const TOPICS = HELP_TOPICS.filter(t => !HIDE_TOPICS.includes(t.id) && !HIDE_GROUPS.includes(t.group)).map(t => ({ ...t, ...TOPIC_OVERRIDES[t.id] }))
 const FAQ = HELP_FAQ.filter(f => !HIDE_FAQ.includes(f.q)).map(f => FAQ_OVERRIDES[f.q] ? { ...f, a: FAQ_OVERRIDES[f.q] } : f)
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+const rich = (s) => esc(s).replace('Privacy Policy', '<a href="/privacy/">Privacy Policy</a>')
 const today = new Date().toISOString().slice(0, 10)
 
 const topic = (t) => `
   <section class="card topic" id="${t.id}">
     <h3>${esc(t.title)}</h3>
     <p class="lede">${esc(t.summary)}</p>
-    <ol>${t.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
-    ${t.tips?.length ? `<div class="tip"><strong>Good to know</strong>${t.tips.map(s => `<p>${esc(s)}</p>`).join('')}</div>` : ''}
+    <ol>${t.steps.map(s => `<li>${rich(s)}</li>`).join('')}</ol>
+    ${t.tips?.length ? `<div class="tip"><strong>Good to know</strong>${t.tips.map(s => `<p>${rich(s)}</p>`).join('')}</div>` : ''}
   </section>`
 
 const faqLd = {
@@ -150,7 +165,7 @@ ${GROUPS.map(g => `
 
   <h2 id="questions">Questions</h2>
   <div class="card">${FAQ.map(f => `
-    <details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join('')}
+    <details><summary>${esc(f.q)}</summary><p>${rich(f.a)}</p></details>`).join('')}
   </div>
 
   <footer>
