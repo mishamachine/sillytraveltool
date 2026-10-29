@@ -44,7 +44,7 @@ const TOPIC_OVERRIDES = {
       'Goose picks a place and shows its walking time. Not feeling it? Tap Another spot.',
     ],
   },
-  score: { tips: ['Your score and badges are personal: they are private to you.'] },
+  score: { summary: 'Points for your trips, countries, days abroad, flights and badges.', tips: ['Your score and badges are personal: they are private to you.'] },
   'new-trip': { tips: [
     'A trip without dates shows "Planning". Tap Add dates whenever you decide; adding a booking fills them in for you.',
     'Visiting several cities? Keep one trip and add a stay in each city. Weather follows you city by city.',
