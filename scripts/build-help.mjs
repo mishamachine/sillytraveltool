@@ -5,9 +5,38 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { HELP_GROUPS, HELP_TOPICS, HELP_FAQ, HELP_CONTACT } from '../src/lib/helpContent.js'
 
 // The public page describes only features that are live today. The in-app Help (same data file) is untouched.
-const HIDE_GROUPS = ['together']
-const HIDE_TOPICS = ['honk', 'score', 'ideas', 'get-there']
+const HIDE_GROUPS = []
+const HIDE_TOPICS = ['together-bookings', 'ideas', 'get-there']
 const TOPIC_OVERRIDES = {
+  share: {
+    steps: [
+      'Open the trip and tap the Travelers button at the top (or Trip options → Invite travelers).',
+      'Type their email under Invite by email, choose Can edit or View only, and tap Send invite.',
+      'Goose emails them an invite. They sign in (or create a free account) and tap Join trip under Invites on their Trips screen.',
+    ],
+    tips: [
+      'Someone who accepts can see the whole shared trip, including its booking details, activities and dates. They never see your travel documents or loyalty cards.',
+      'View only stops edits, not viewing: it keeps the plan safe from accidental changes, but a View only traveller can still see the trip.',
+      'If the trip owner deletes their account, the trip is deleted for everyone.',
+    ],
+  },
+  'together-live': {
+    summary: 'While a trip is open, changes from other travellers appear without a refresh.',
+    steps: [
+      'Keep the trip open: new bookings and plans appear on their own.',
+      'Times are shown in the local time where they happen, so arrivals line up even across time zones.',
+      'Add a plan like "Meet at the hotel, 16:30" so everyone knows where to be.',
+    ],
+  },
+  honk: {
+    summary: 'Pick a mood and get nearby place picks.',
+    steps: [
+      'Open Explore and tap a mood on the HONK card, or More moods.',
+      'Your browser asks to share your location. HONK uses it only when you allow it. If you would rather not, choose a city yourself.',
+      'Goose picks a place and shows its walking time. Not feeling it? Tap Another spot.',
+    ],
+  },
+  score: { tips: ['Your score and badges are personal: they are private to you.'] },
   'new-trip': { tips: [
     'A trip without dates shows "Planning". Tap Add dates whenever you decide; adding a booking fills them in for you.',
     'Visiting several cities? Keep one trip and add a stay in each city. Weather follows you city by city.',
@@ -30,25 +59,25 @@ const TOPIC_OVERRIDES = {
   },
   'by-hand': { tips: ['Times are always the local time where the thing happens, not your phone\'s time. A 09:00 flight from Tokyo stays 09:00, wherever you are.'] },
   'trip-tabs': {
-    title: 'Plan and Weather', summary: 'Each trip has two tabs.',
-    steps: ['Plan: everything booked, day by day.', 'Weather: the forecast for each day, for the city you\'re in that night.'],
-    tips: [],
+    steps: [
+      'Plan: everything booked, day by day, plus your trip ideas.',
+      'Weather: the forecast for each day, for the city you\'re in that night.',
+      'Pack: a packing list made for this trip, its weather and what you\'ve booked. Tick things off as you go. The list is kept on this device.',
+    ],
   },
   tools: {
-    summary: 'Currency and SOS, set for the country of your current or next trip.',
-    steps: ['Currency: live rates between the local currency and your home currency.',
-      'SOS: emergency numbers, your embassy and an emergency card for the country you\'re in.'],
+    tips: ['Phrase books you\'ve loaded and typed translations are kept on your device.'],
   },
-  wallet: { title: 'Travel documents', summary: 'Passports, visas and insurance in one place.',
-    steps: ['Open Profile and tap Travel documents.',
-      'Add a document. Document numbers are encrypted and show only the last four digits until you tap Reveal.'] },
+  wallet: {
+    tips: ['Your documents and loyalty cards are private to you. They are not shown to people you share a trip with.'],
+  },
   settings: { steps: ['Open Profile → Settings.', 'Turn off Share usage stats to stop anonymous feature counts from this device.',
     'Delete account erases your trips and documents (payment records are kept as the law requires).'] },
 }
-const HIDE_FAQ = ['Do the people I invite need STT?', 'Can my friends forward their own bookings to the trip?', 'How do I replay the tour?']
+const HIDE_FAQ = ['Can my friends forward their own bookings to the trip?', 'How do I replay the tour?']
 const FAQ_OVERRIDES = {
-  'Does it work offline?': 'Guides, imports and live rates need a connection, so screenshot SOS and your hotel address before you fly.',
-  'Who can see my trips?': 'Your trips are private to you unless you invite someone. Goose\'s AI reads forwarded emails to pull out booking details; we keep the booking details. See the Privacy Policy for the full list.',
+  'Does it work offline?': 'Phrase books you\'ve loaded and typed translations are kept on your device. Guides, imports and live rates need a connection, so screenshot SOS and your hotel address before you fly.',
+  'Who can see my trips?': 'Your trips are private to you unless you invite someone, and what you add stays in the app. Goose\'s AI reads forwarded emails to pull out booking details; we keep the booking details. See the Privacy Policy for the full list.',
 }
 const GROUPS = HELP_GROUPS.filter(g => !HIDE_GROUPS.includes(g.id))
 const TOPICS = HELP_TOPICS.filter(t => !HIDE_TOPICS.includes(t.id) && !HIDE_GROUPS.includes(t.group)).map(t => ({ ...t, ...TOPIC_OVERRIDES[t.id] }))
@@ -76,7 +105,7 @@ const html = `<!doctype html>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>How to use Silly Travel Tool — Help</title>
-  <meta name="description" content="Short guides to Silly Travel Tool: start a trip, forward booking emails to Goose, check the weather, use city guides, currency and SOS numbers." />
+  <meta name="description" content="Short guides to Silly Travel Tool: start a trip, forward booking emails to Goose, share trips, use city guides and HONK, check the weather, and use currency, translate and SOS tools." />
   <meta name="theme-color" content="#F4EEE6" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="canonical" href="https://sillytraveltool.com/help/" />
@@ -111,8 +140,8 @@ const html = `<!doctype html>
 
   <div class="card summary">
     <p><strong>The short version.</strong> Start a trip, forward your booking emails to your Goose inbox, and Goose files
-    them into the right trip with local times. Check the weather for your dates, explore the city guide, and keep currency
-    and SOS numbers in your pocket.</p>
+    them into the right trip with local times. Invite people to a shared trip, check the weather for your dates, explore the
+    city guide or ask HONK for nearby picks, and keep currency, phrases and SOS numbers in your pocket.</p>
   </div>
 
   <ul class="toc">${GROUPS.map(g => `<li><a href="#${g.id}">${esc(g.title)}</a></li>`).join('')}<li><a href="#questions">Questions</a></li></ul>

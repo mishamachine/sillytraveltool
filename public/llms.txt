@@ -7,9 +7,15 @@
 - Imports bookings from confirmation emails: forward one and it lands in the right trip
 - Keeps one itinerary per trip, day by day, in each place's local time
 - Shows the weather for your trip dates
+- Shared trips: invite people by email to see and plan the same trip (an invited person who accepts sees the whole trip, but never your documents or loyalty cards)
 - City guides for destinations worldwide
-- Currency conversion and emergency SOS numbers by country
-- Stores travel documents
+- HONK: nearby place picks by mood, using your location only when you allow it
+- A packing list for each trip, kept on your device
+- Translate and phrase book (typed translations are kept on your device)
+- Currency conversion, tip and split, and emergency SOS numbers by country
+- Travel documents and loyalty cards, private to you
+- Goose score and badges, personal and private to you
+- Goose inbox: a private email address for forwarding bookings
 
 ## URL
 https://sillytraveltool.com
