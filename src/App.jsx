@@ -9,6 +9,8 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 import OutsideDatesSheet from './components/shared/OutsideDatesSheet'
 import PaywallSheet from './components/shared/PaywallSheet'
 import AiConsentSheet from './components/shared/AiConsentSheet'
+import InviteConfirmSheet from './components/shared/InviteConfirmSheet'
+import { previewInvite } from './lib/invite'
 import { usePlanStore } from './store/planStore'
 import { useConsentStore, hasAiConsent } from './store/consentStore'
 
@@ -67,6 +69,7 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
   const [inviteToast, setInviteToast] = useState(null)
+  const [invitePreview, setInvitePreview] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const { held, releasing, released, clearReleased, asking: askingAi } = useConsentStore()
 
@@ -164,39 +167,16 @@ export default function App() {
     if (!user) return
     const token = (() => { try { return sessionStorage.getItem('pending_invite_token') } catch { return null } })()
     if (!token) return
-    const acceptInvite = async () => {
+    // Ask first: the link only fetches who invited you; nothing is accepted until Join (InviteConfirmSheet)
+    const showInvite = async () => {
       try {
         sessionStorage.removeItem('pending_invite_token')
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
-
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/accept-invite`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ token }),
-          }
-        )
-        const result = await res.json()
-
-        if (res.ok && result.success) {
-          await useTripsStore.getState().fetchTrips()
-          await fetchPendingInvites()
-          track('invite_accepted')
-          setInviteToast({ tripName: result.trip_title || 'the trip' })
-          setTimeout(() => setInviteToast(null), 4000)
-          useUIStore.getState().setTab('trips')
-        } else {
-          console.error('accept-invite failed:', result.error)
-          track('invite_accept_failed', { status: res.status })
-        }
-      } catch (e) { console.error('accept invite error', e) }
+        const p = await previewInvite(token)
+        if (p.error) { console.error('invite preview failed:', p.error); track('invite_accept_failed', { status: p.status }); return }
+        setInvitePreview({ token, ...p })
+      } catch (e) { console.error('invite preview error', e) }
     }
-    acceptInvite()
+    showInvite()
   }, [user, inviteNonce])
 
   if (loading) return <AppLoading />
@@ -247,6 +227,17 @@ export default function App() {
             : released.ignored ? 'Some weren’t bookings, so Goose left them out.'
             : 'They’re in your trips now'}
         </Toast>
+      )}
+      {invitePreview && (
+        <InviteConfirmSheet invite={invitePreview} onClose={() => setInvitePreview(null)} onJoined={async (tripTitle) => {
+          setInvitePreview(null)
+          await useTripsStore.getState().fetchTrips()
+          await fetchPendingInvites()
+          track('invite_accepted')
+          setInviteToast({ tripName: tripTitle || 'the trip' })
+          setTimeout(() => setInviteToast(null), 4000)
+          useUIStore.getState().setTab('trips')
+        }} />
       )}
       {inviteToast && (
         <Toast position="top" icon="users" title="You joined the trip">{inviteToast.tripName} is now in your trips</Toast>
