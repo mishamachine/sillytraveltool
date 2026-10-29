@@ -17,8 +17,8 @@ for (const d of ['src', 'supabase/functions', 'public', 'beta', 'upgrade', 'rede
 const paths = new Set()
 for (const f of files) {
   const t = readFileSync(f, 'utf8')
-  for (const m of t.matchAll(/(?:sillytraveltool\.com|\$\{(?:appUrl|APP_URL|location\.origin|origin|SITE_URL)\})(\/[A-Za-z0-9_\-./]*)/g)) paths.add(m[1])
-  for (const m of t.matchAll(/href="(\/[A-Za-z0-9_\-./]*)"/g)) paths.add(m[1])
+  for (const m of t.matchAll(/(?:sillytraveltool\.com|\$\{(?:appUrl|APP_URL|location\.origin|origin|SITE_URL)\})(\/[A-Za-z0-9_\-./]*)/g)) paths.add(m[1].replace(/\.+$/, '') || '/')
+  for (const m of t.matchAll(/href="(\/[A-Za-z0-9_\-./]*)"/g)) paths.add(m[1].replace(/\.+$/, '') || '/')
 }
 let bad = 0
 for (const p of [...paths].sort()) {
