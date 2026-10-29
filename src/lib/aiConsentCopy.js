@@ -9,12 +9,12 @@ export const AI_CONSENT_B = {
   title: 'Let Goose use AI on your bookings?',
   intro: 'To read booking emails, pasted confirmations and itinerary files, Silly Travel Tool sends them to AI services run by other companies:',
   bullets: [
-    'Forwarded emails and pasted text (the subject, the sender and the first part of the message) go to DeepSeek, a company based in China. If DeepSeek isn’t available, they go to Google instead.',
+    'Forwarded emails and pasted text (the subject, the sender and the first part of the message), and sentences you type to translate, go to DeepSeek, a company based in China. If DeepSeek isn’t available, they go to Google instead.',
     'PDFs and images you import go to Google (Gemini).',
   ],
-  outro: 'These can include names, dates and booking or confirmation numbers. The companies process the data on their own servers, including in China. Each company’s own rules apply to what it keeps. We keep the booking details, not the emails.',
+  outro: 'These can include names, dates, booking or confirmation numbers and anything you type to translate. The companies process the data on their own servers, including in China. Each company’s own rules apply to what it keeps. We keep the booking details, not the emails.',
   afterPolicy: 'You can change your choice any time in Settings.',
-  notNow: 'Without this, email import, pasting a confirmation and importing an itinerary won’t work. You can still add bookings by hand. City guides don’t need it.',
+  notNow: 'Without this, email import, pasting a confirmation, importing an itinerary and typed translations won’t work. You can still add bookings by hand. City guides, the phrase book, packing lists and HONK don’t need it.',
 }
 
 // Version A (UNUSED, swap in by changing AI_CONSENT below): everything goes to Google.

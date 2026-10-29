@@ -10,7 +10,7 @@ export const CONSENT_REQUIRED = {
 
 // Must match src/lib/aiConsentPolicy.js and my_record_ai_consent (scripts/test-ai-consent.mjs checks all three).
 // A yes to older wording or routing doesn't count.
-export const AI_CONSENT_VERSION = 'v2-2026-10-29'
+export const AI_CONSENT_VERSION = 'v3-2026-10-29'
 export const AI_CONSENT_ROUTING = 'deepseek-first+gemini-fallback; pdf/image gemini'
 
 /** A profile row's yes to the current wording and routing. */

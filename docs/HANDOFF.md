@@ -59,7 +59,7 @@
 - **App (web, iOS, Android, one bundle):** a tour step after location ("Let Goose use AI on your bookings?", Allow / Not now,
   first run only, skipped when already answered); the same words as a sheet (`AiConsentSheet`) opened by
   `useConsentStore().ensure(reason)` from `src/lib/gemini.js` before paste/file import and typed translation; Settings →
-  Privacy → **AI reading of imports** switch. Answer stored by `my_record_ai_consent` (cache in `ai_consent_at`, `ai_consent_version`, `ai_consent_routing`; every answer appended to `ai_consent_events`).
+  Privacy → **AI reading of imports and translations** switch. Answer stored by `my_record_ai_consent` (cache in `ai_consent_at`, `ai_consent_version`, `ai_consent_routing`; every answer appended to `ai_consent_events`).
 - **Forwarded emails before the yes** are held, not read (`ingest.ts`): `held_inbox_emails` keeps the Resend id, sender
   domain and subject only. A bottom toast "N emails waiting · Review" opens the sheet; Allow runs `inbox-release` (1 per
   call, claimed atomically with `claim_held_emails`; refetches from Resend, files like a new email; emails Resend no longer

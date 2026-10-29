@@ -216,7 +216,7 @@ export default function SettingsView({ onBack, onDelete }) {
         <Card variant="group">
           <Switch label="Share usage stats" description="Which features you use and your device type help us improve the app. No names, emails or trip details."
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
-          <Switch label="AI reading of imports" description="Goose’s AI (DeepSeek, with Google Gemini for photos and PDFs) reads the emails you forward, what you import and what you translate. Off: forwarded emails wait for your OK."
+          <Switch label="AI reading of imports and translations" description="Goose’s AI (DeepSeek, with Google Gemini for photos and PDFs) reads the emails you forward, what you import and the sentences you type to translate. Off: forwarded emails wait for your OK."
             checked={consentCurrent(profile)} onChange={on => {
               setAiError(null)
               // The switch follows the saved profile, so a failed save leaves it where it was; say so
