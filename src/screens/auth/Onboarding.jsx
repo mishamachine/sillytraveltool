@@ -9,7 +9,7 @@ import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { useCopyInbox } from '../trips/InboxHint'
 import { useConsentStore, hasAiConsent } from '../../store/consentStore'
-import { AiConsentDetails, AI_CONSENT_TITLE, AI_CONSENT_LEAD } from '../../components/shared/AiConsentSheet'
+import { AiConsentDetails, AI_CONSENT_TITLE } from '../../components/shared/AiConsentSheet'
 import { Screen, Button, IconButton, Card, IconTile, Text, Stack, Icon, Overline, LinkButton, Chip } from '../../ui'
 import { markOnboarded } from './onboardingState'
 import { WelcomeArt, TripsArt, TodayArt, WeatherPackArt, InboxArt, InviteArt, TogetherArt, GuideArt, GuideMoreArt, HonkArt, ToolsArt, YouArt, LocationArt } from './TourArt'
@@ -293,7 +293,6 @@ export default function Onboarding({ onDone, replay = false }) {
           <>
             <div className="tour-copy">
               <Text variant="h1" id="onb-title">{AI_CONSENT_TITLE}</Text>
-              <Text variant="body-lg" tone="secondary">{AI_CONSENT_LEAD}</Text>
             </div>
             <AiConsentDetails />
           </>

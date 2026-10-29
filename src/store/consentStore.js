@@ -6,7 +6,7 @@ import { useAuthStore } from './authStore'
 // Goose's AI reading permission (Apple 5.1.2(i), legal review L1): asked once in the tour, or at the first import or
 // typed translation. Stored on the profile (ai_consent_at, through my_set_ai_consent); the server checks it too.
 // Forwarded emails that arrive before the yes wait in held_inbox_emails and are filed by inbox-release after it.
-export const AI_CONSENT_VERSION = 'v1-2026-10-26'
+export const AI_CONSENT_VERSION = 'v2-2026-10-29'
 
 export const hasAiConsent = () => !!useAuthStore.getState().profile?.ai_consent_at
 
