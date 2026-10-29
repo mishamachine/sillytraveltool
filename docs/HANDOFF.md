@@ -1,5 +1,49 @@
 # STT Handoff — 2026-10-21
 
+## Update — state on 29 Oct 2026 (CTO audit)
+Verified 29 Oct, read-only, unless marked "not verified". For the open draft PRs, see the PRs for current heads.
+
+**Live in code, no feature flags:** Goose score (Profile card; points = completed trips x10 + countries x5 + days
+abroad x2 + trips created x3 + flights x2 + badge points 10/25/50/100) and badges, shared trips and invites, HONK,
+packing list, translate/phrasebook, city guide, documents/wallet, currency, SOS, Goose inbox. "Goose picks" is a
+separate thing: HONK's pick plus up to 2 "Goose pick" markers per city-guide list; older AI-only guides also show an AI
+place score out of 10. An "AI trip builder from a prompt" does not exist.
+
+**Production (read-only checks):**
+- Website = `main` as of the 27 Oct deploy (only docs since).
+- Applied migrations include `shared_trip_rls_hardening` (25 Oct), `inbox_trust` and `global_daily_caps`.
+- The deployed `receive-booking-email` (v56) does NOT contain the 26 Oct inbox sender check (`senderAllowed`, per-inbox
+  30/day budget). The code is on `main`; the function has not been redeployed.
+- `app_settings`: `free_limits.enabled = false` (free-plan limits are NOT enforced); `beta.ios_url` set (TestFlight
+  link); AI caps 100/day per user and 40 guides; global caps 3,000 AI and 20,000 Google calls per day; kill switches
+  off; founders offer active.
+- 21 accounts, all email-confirmed. 4 invite rows (2 accepted, 2 pending).
+
+**Invite security review (independent, 29 Oct):** no way found to join uninvited, escalate a role or read another trip.
+The findings are fixed in draft PR #57: send-invite abuse limits and a send log, a confirmation screen before joining
+and no token returned to the inviter, a verified-email check, and minor items. Viewer redaction of booking details
+(confirmation numbers are visible to all accepted members at the database level) is a later decision.
+
+**AI consent (App Store guideline 5.1.2(i)), draft PR #56:** v4 wording naming DeepSeek first with the China-risk
+sentence, Google as fallback and for PDFs/images; an append-only consent log; release of emails held until consent;
+two migrations (`20261026120000`, `20261029100000`) applied together. Deploy order: migrations, website, native 0.20.1
+build, and the enforcing functions LAST, once 0.20.1 is live on both stores. Deploying `receive-booking-email` from that
+branch also switches on the sender check. A licensed legal review of the wording is waived by the owner for now.
+Invite fix PR #57 deploy order: migration `20261029120000`, then functions `send-invite`, `accept-invite`,
+`receive-booking-email`, then the website LAST. Steps and checks: `docs/CONSENT_AND_INVITES_RUNBOOK.md`.
+SEO PR #54 and the other draft PRs: see the PRs for current heads.
+
+**Owner rulings recorded:**
+- Personal booking data goes to DeepSeek first (option B), with the risk disclosed in the consent wording.
+- The Goose score is live.
+- Invites stay live, with the three medium findings fixed in #57.
+- Sender-check decision: pending.
+- Build 6 (0.20.1) waits on the consent PR.
+- iPad screenshot 5 is replaced by the Travel documents screen (`docs/screenshots/app-review/`, on a separate branch).
+
+**Not yet checked:** other deployed functions against `main`; live Edge Function runtime behaviour; browser runs of the
+new screens.
+
 ## Update — Google Play: closed beta submitted for review (2026-10-27 08:50 UTC, audit session)
 - All four App content declarations are complete and the 15 pending changes were sent to Google: dashboard
   **Update status: In review**, Production inactive. Reviews usually take up to 7 days.
