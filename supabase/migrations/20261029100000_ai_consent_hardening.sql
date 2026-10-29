@@ -15,7 +15,7 @@ alter table public.user_profiles add column if not exists ai_consent_routing tex
 -- security invoker on purpose: current_user is the caller ('authenticated' from the app, the owner inside
 -- my_set_ai_consent, 'service_role' from Edge Functions). Local check, run as the owner:
 --   set role authenticated; update public.user_profiles set ai_consent_at = now() where id = '<me>';  -- value unchanged
---   reset role; select public.my_record_ai_consent('granted', 'v3-2026-10-29');                      -- value set (as a member: set request.jwt.claim.sub)
+--   reset role; select public.my_record_ai_consent('granted', 'v4-2026-10-29');                      -- value set (as a member: set request.jwt.claim.sub)
 create or replace function public.guard_ai_consent()
 returns trigger
 language plpgsql
@@ -110,7 +110,7 @@ set search_path = ''
 as $$
 declare
   v_routing constant text := 'deepseek-first+gemini-fallback; pdf/image gemini';
-  v_versions constant text[] := array['v3-2026-10-29', 'v2-2026-10-29'];  -- current first, then earlier ones
+  v_versions constant text[] := array['v4-2026-10-29', 'v3-2026-10-29', 'v2-2026-10-29'];  -- current first, then earlier ones
   v_at timestamptz;
 begin
   if auth.uid() is null then raise exception 'Not signed in'; end if;
@@ -171,7 +171,7 @@ as $$
 begin
   if auth.uid() is not null and auth.uid() <> p_user then raise exception 'Not allowed'; end if;
   if not exists (select 1 from public.user_profiles where id = p_user and ai_consent_at is not null
-                    and ai_consent_version = 'v3-2026-10-29' and ai_consent_routing = 'deepseek-first+gemini-fallback; pdf/image gemini') then return; end if;
+                    and ai_consent_version = 'v4-2026-10-29' and ai_consent_routing = 'deepseek-first+gemini-fallback; pdf/image gemini') then return; end if;
   return query
     delete from public.held_inbox_emails
      where id in (select h.id from public.held_inbox_emails h where h.user_id = p_user

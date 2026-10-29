@@ -550,12 +550,12 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     const out = await (await ingestEmail(db, profile, { ...input, released: true })).json()
     assert.ok(out.booking_id, JSON.stringify(out)); assert.equal(aiCalls - before, 1)
     // A member who allowed it: filed straight away
-    assert.equal((await send(makeDb(), { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z', ai_consent_version: 'v3-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }, 'samrivera@gmail.com')).ai, 1)
+    assert.equal((await send(makeDb(), { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z', ai_consent_version: 'v4-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }, 'samrivera@gmail.com')).ai, 1)
   }
   // 7b. A yes to older wording counts as no: held, not read
   {
     const db = makeDb()
-    const stale = { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z', ai_consent_version: 'v2-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }
+    const stale = { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z', ai_consent_version: 'v3-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }
     const out = await (await ingestEmail(db, stale, { subject: flight.subject, fromAddress: 'samrivera@gmail.com', bodyText: flight.text, GEMINI_API_KEY: '', emailId: 'em-old' })).json()
     assert.equal(out.held, true)
   }
@@ -579,7 +579,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
 
   // ── inbox-release (audit B1, B2): claim first, keep what failed for a temporary reason ──
   {
-    const profile = { id: 'u1', ai_consent_at: '2026-10-29T10:00:00Z', ai_consent_version: 'v3-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }
+    const profile = { id: 'u1', ai_consent_at: '2026-10-29T10:00:00Z', ai_consent_version: 'v4-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }
     const email = { subject: flight.subject, from: 'samrivera@gmail.com', text: flight.text, attachments: [] }
     const deps = (fetchEmail = async () => email) => ({ fetchEmail, fetchAttachments: async () => [], GEMINI_API_KEY: '' })
     const hold = (db, id, attempts = 0) => db.tables.held_inbox_emails.push({ user_id: 'u1', email_id: id, from_domain: 'gmail.com', subject: 's', received_at: '2026-10-29T00:00:00Z', attempts })
