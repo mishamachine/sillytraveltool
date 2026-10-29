@@ -79,6 +79,7 @@ export default function SettingsView({ onBack, onDelete }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [aiError, setAiError] = useState(null)
   const [confirmRotate, setConfirmRotate] = useState(false)
   const [inboxError, setInboxError] = useState(null)
   const [shareStats, setShareStats] = useState(analyticsEnabled)
@@ -215,7 +216,12 @@ export default function SettingsView({ onBack, onDelete }) {
           <Switch label="Share usage stats" description="Which features you use and your device type help us improve the app. No names, emails or trip details."
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
           <Switch label="AI reading of imports" description="Goose’s AI (DeepSeek, with Google Gemini for photos and PDFs) reads the emails you forward, what you import and what you translate. Off: forwarded emails wait for your OK."
-            checked={!!profile?.ai_consent_at} onChange={on => useConsentStore.getState().setConsent(on, 'settings').catch(() => {})} />
+            checked={!!profile?.ai_consent_at} onChange={on => {
+              setAiError(null)
+              // The switch follows the saved profile, so a failed save leaves it where it was; say so
+              useConsentStore.getState().setConsent(on, 'settings').catch(() => setAiError('Couldn’t save that choice. Check your connection and try again.'))
+            }} />
+          {aiError && <Banner tone="danger" icon="alert-circle" role="alert">{aiError}</Banner>}
           <Switch label="Tailored offers" description="Use the kind of trips you plan to pick offers and tips that fit. Off keeps your trips out of it."
             checked={profile?.tailored_offers !== false} onChange={on => updateProfile({ tailored_offers: on }).catch(() => {})} />
           <Switch label="Travel tips by email" description="Now and then: trip recaps, ideas for your next trip and offers. Unsubscribe from any email."

@@ -72,7 +72,11 @@ async function withAiConsent(reason, call) {
     if (e?.code !== 'ai_consent') throw e
     useAuthStore.setState(st => ({ profile: st.profile ? { ...st.profile, ai_consent_at: null } : st.profile }))
     if (!(await useConsentStore.getState().ensure(reason))) throw declined()
-    return call()
+    try { return await call() } catch (e2) {
+      // Said yes, yet the server still says no: not an old app build, so don't tell the member to update
+      if (e2?.code === 'ai_consent') throw new Error('Goose couldn’t confirm your OK just now. Please try again in a moment.')
+      throw e2
+    }
   }
 }
 

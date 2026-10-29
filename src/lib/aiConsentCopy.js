@@ -1,7 +1,7 @@
 // All wording for the AI reading permission in one place, so it can be swapped without touching components.
 // Draft wording from the business side, not final legal copy. Version B is live; Version A is kept unused.
 // If the meaning changes, bump AI_CONSENT_VERSION in store/consentStore.js.
-export const AI_CONSENT_POLICY_URL = '/privacy/'
+export const AI_CONSENT_POLICY_URL = 'https://sillytraveltool.com/privacy/#ai'
 export const AI_CONSENT_POLICY_LABEL = 'Privacy Policy'
 
 // Version B (in use): text goes to DeepSeek first, Google as the fallback; PDFs and images go to Google.

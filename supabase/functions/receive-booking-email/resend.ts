@@ -50,12 +50,16 @@ export function htmlToText(html: string): string {
     .trim()
 }
 
-/** The received email's subject, sender and text (HTML turned to text), or null when Resend no longer has it. */
+/**
+ * The received email's subject, sender and text (HTML turned to text), or null when Resend no longer has it (404/410).
+ * Any other failure throws: the caller keeps the email and tries again later.
+ */
 export async function fetchReceivedEmail(emailId: string): Promise<{ subject: string, from: string, text: string, attachments: unknown } | null> {
   const key = Deno.env.get('RESEND_API_KEY')
-  if (!key || !emailId) return null
+  if (!key || !emailId) throw new Error('Resend not configured')
   const res = await fetch(`https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}`, { headers: { Authorization: `Bearer ${key}` } })
-  if (!res.ok) { console.warn(`Resend receiving ${emailId}: ${res.status}`); return null }
+  if (res.status === 404 || res.status === 410) { console.warn(`Resend receiving ${emailId}: ${res.status}`); return null }
+  if (!res.ok) throw new Error(`Resend receiving ${res.status}`)
   const e = await res.json()
   const text = e.text || (e.html ? htmlToText(e.html) : '')
   return { subject: String(e.subject ?? ''), from: String(e.from ?? ''), text: String(text), attachments: e.attachments }

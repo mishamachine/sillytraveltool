@@ -16,7 +16,7 @@ export const useConsentStore = create((set, get) => ({
   saveError: null,
   held: 0,        // forwarded emails waiting for the yes
   releasing: false,
-  released: null, // { filed, expired, failed } after the last release, for one toast
+  released: null, // { filed, ignored, expired, failed, kept, limited } after the last release, for one toast
 
   /** Resolves true when AI reading is allowed (asks first if needed), false on "Not now". */
   ensure: (reason) => {
@@ -42,8 +42,8 @@ export const useConsentStore = create((set, get) => ({
   /** Settings switch, the tour step and the sheet all land here. */
   setConsent: async (on, where = 'settings') => {
     const { data, error } = await supabase.rpc('my_set_ai_consent', { p_on: on, p_version: AI_CONSENT_VERSION })
-    if (error) throw error
-    const at = on ? (data || new Date().toISOString()) : null
+    if (error || data == null) throw error || new Error('No answer from the server')
+    const at = on ? data : null
     useAuthStore.setState(s => ({ profile: s.profile ? { ...s.profile, ai_consent_at: at, ai_consent_version: on ? AI_CONSENT_VERSION : null } : s.profile }))
     track('ai_consent', { on, where })
     if (on && get().held > 0) get().release()
@@ -58,17 +58,19 @@ export const useConsentStore = create((set, get) => ({
   release: async () => {
     if (get().releasing) return
     set({ releasing: true })
-    const total = { filed: 0, expired: 0, failed: 0 }
+    const total = { filed: 0, ignored: 0, expired: 0, failed: 0, kept: 0, limited: false }
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 55; i++) {  // one email per call, at most 50 held
         const { data, error } = await supabase.functions.invoke('inbox-release', {
           body: JSON.stringify({}), headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
         })
         if (error || !data) break
-        total.filed += data.filed || 0; total.expired += data.expired || 0; total.failed += data.failed || 0
+        for (const k of ['filed', 'ignored', 'expired', 'failed', 'kept']) total[k] += data[k] || 0
+        total.limited = total.limited || !!data.limited
         set({ held: data.remaining || 0 })
-        if (!data.remaining) break
+        // Done, today's inbox limit is spent, or a temporary failure (retried next time the app opens)
+        if (!data.remaining || data.limited || data.kept) break
       }
       track('inbox_released', total)
       set({ released: total })

@@ -5,11 +5,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 // Files the forwarded emails that arrived before the member allowed AI reading (held_inbox_emails, migration
 // 20261026120000_ai_consent). Called by the app right after "Allow". Each held email is fetched again from Resend
 // (only its id was kept) and filed exactly like a new one; emails Resend no longer has are dropped and counted, so
-// the app can say "forward it again". A few per call so one call stays well inside the function time limit; the
-// app calls again while `remaining` > 0.
+// the app can say "forward it again". One email per call (release.ts) so a call stays well inside the function time
+// limit; the app calls again while `remaining` > 0 and neither `limited` (daily inbox budget spent) nor `kept`
+// (a temporary failure, put back for later) is set.
 // ============================================================
 
-import { ingestEmail } from '../receive-booking-email/ingest.ts'
+import { releaseHeld } from './release.ts'
 import { fetchAttachments, fetchReceivedEmail } from '../receive-booking-email/resend.ts'
 import { withGoogleScope } from '../_shared/google.ts'
 
@@ -17,7 +18,6 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-const PER_CALL = 3
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
@@ -38,25 +38,8 @@ Deno.serve(withGoogleScope(async (req) => {
     if (!profile.ai_consent_at) return json({ error: 'Allow Goose to read your imports first.', code: 'ai_consent' }, 403)
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || ''
 
-    const { data: held } = await admin.from('held_inbox_emails').select('id, email_id')
-      .eq('user_id', user.id).order('received_at').limit(PER_CALL)
-    let filed = 0, expired = 0, failed = 0
-    for (const h of held || []) {
-      const email = await fetchReceivedEmail(h.email_id)
-      if (!email) expired++
-      else {
-        const res = await ingestEmail(admin, { ...profile, account_email: user.email ?? null }, {
-          subject: email.subject, fromAddress: email.from, bodyText: email.text, GEMINI_API_KEY,
-          loadAttachments: () => fetchAttachments(h.email_id, email.attachments),
-          emailId: h.email_id, released: true,
-        })
-        if (res.ok) filed++; else failed++
-      }
-      // Gone either way: filed, no longer at Resend, or failed (the member is told and can forward it again)
-      await admin.from('held_inbox_emails').delete().eq('id', h.id)
-    }
-    const { count } = await admin.from('held_inbox_emails').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
-    return json({ filed, expired, failed, remaining: count || 0 })
+    const result = await releaseHeld(admin, { ...profile, account_email: user.email ?? null }, { fetchEmail: fetchReceivedEmail, fetchAttachments, GEMINI_API_KEY })
+    return json(result)
   } catch (e) {
     console.error('inbox-release error:', e)
     return json({ error: (e as Error).message || 'Unexpected error' }, 500)

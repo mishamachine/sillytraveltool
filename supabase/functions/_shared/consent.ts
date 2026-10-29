@@ -9,13 +9,16 @@ export const CONSENT_REQUIRED = {
 }
 
 /**
- * True when the member allowed it. Before migration 20261026120000_ai_consent the column doesn't exist and this
- * answers true, so nothing changes until it's applied. Any other database error answers false (ask again).
+ * True when the member allowed it. Before migration 20261026120000_ai_consent the column doesn't exist (Postgres
+ * 42703 "undefined column") and this answers true, so nothing changes until it's applied. Any other database error
+ * answers false (ask again).
+ * TODO(remove): once migration 20261026120000_ai_consent is applied in production, delete the 42703 branch so a
+ * missing column fails closed.
  */
 export async function aiConsentGiven(userId: string): Promise<boolean> {
   const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.118.0')
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
   const { data, error } = await admin.from('user_profiles').select('ai_consent_at').eq('id', userId).single()
-  if (error) return /ai_consent_at/.test(error.message || '')
+  if (error) return error.code === '42703'
   return !!data?.ai_consent_at
 }

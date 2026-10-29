@@ -64,10 +64,10 @@ function makeDb() {
   const inbox = { parses: 0 } // consume_inbox_quota's counter for today
   let seq = 0
   function q(table) {
-    const filters = []; let op = 'select', payload = null, single = false, lim = Infinity
+    const filters = []; let op = 'select', payload = null, single = false, lim = Infinity, wantCount = false
     const rows = () => tables[table].filter(r => filters.every(f => f(r)))
     const api = {
-      select() { return api }, order() { return api },
+      select(_c, opts) { if (opts?.count) wantCount = true; return api }, order() { return api },
       eq(k, v) { filters.push(r => String(r[k]) === String(v)); return api },
       neq(k, v) { filters.push(r => String(r[k]) !== String(v)); return api },
       in(k, vs) { filters.push(r => vs.includes(r[k])); return api },
@@ -86,7 +86,7 @@ function makeDb() {
           else if (op === 'delete') { const keep = tables[table].filter(r => !filters.every(f => f(r))); tables[table] = keep; data = null }
           else if (op === 'upsert') { tables[table].push(payload); data = null }
           else { const r = rows().slice(0, lim).map(x => ({ ...x })); data = single ? r[0] ?? null : r }
-          res({ data, error: null })
+          res({ data, error: null, ...(wantCount ? { count: rows().length } : {}) })
         } catch (e) { rej(e) }
       },
     }
@@ -100,6 +100,11 @@ function makeDb() {
       t.start_date = !t.start_date || args.p_start < t.start_date ? args.p_start : t.start_date
       t.end_date = !t.end_date || args.p_end > t.end_date ? args.p_end : t.end_date
       return { data: [{ start_date: t.start_date, end_date: t.end_date }], error: null }
+    }
+    if (name === 'claim_held_emails') { // delete ... returning, oldest first: atomic, so two callers never get the same row
+      const mine = tables.held_inbox_emails.filter(r => r.user_id === args.p_user).sort((a, b) => String(a.received_at).localeCompare(String(b.received_at))).slice(0, args.p_n)
+      tables.held_inbox_emails = tables.held_inbox_emails.filter(r => !mine.includes(r))
+      return { data: mine, error: null }
     }
     if (name === 'consume_inbox_quota') { inbox.parses++; return { data: inbox.parses <= args.p_limit, error: null } }
     return { data: name === 'take_ingest_lock' ? true : null, error: null }
@@ -139,7 +144,9 @@ globalThis.fetch = async (url, init = {}) => {
 
 const dir = mkdtempSync(join(tmpdir(), 'stt-sim-'))
 await build({ entryPoints: [`${root}supabase/functions/receive-booking-email/ingest.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/ingest.mjs`, logLevel: 'error' })
-const { ingestEmail, normalizeAddress, INBOX_DAILY_PARSES } = await import(`${dir}/ingest.mjs`)
+const { ingestEmail, normalizeAddress, INBOX_DAILY_PARSES, MAX_HELD } = await import(`${dir}/ingest.mjs`)
+await build({ entryPoints: [`${root}supabase/functions/inbox-release/release.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/release.mjs`, logLevel: 'error' })
+const { releaseHeld, MAX_ATTEMPTS } = await import(`${dir}/release.mjs`)
 // The trip-matching replays below forward from airline addresses: their inbox takes any sender. The sender rules
 // have their own section at the end.
 const ingestAsMember = (db, profile, input) => ingestEmail(db, { inbox_accept_any: true, ...profile }, input)
@@ -545,7 +552,68 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     // A member who allowed it: filed straight away
     assert.equal((await send(makeDb(), { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z' }, 'samrivera@gmail.com')).ai, 1)
   }
-  console.log('inbox gate: member accepted, unknown sender dropped before the AI (logged, no body), allow list and accept-any accepted, budget enforced, held until AI reading is allowed')
+  // 8. Held-email cap: at most MAX_HELD waiting; the next is dropped and logged
+  {
+    const db = makeDb()
+    const profile = { id: 'u1', ai_consent_at: null }
+    for (let i = 0; i < MAX_HELD; i++) db.tables.held_inbox_emails.push({ user_id: 'u1', email_id: `e${i}`, received_at: '2026-10-29T00:00:00Z', attempts: 0 })
+    const out = await (await ingestEmail(db, profile, { subject: 's', fromAddress: 'samrivera@gmail.com', bodyText: 'x', GEMINI_API_KEY: '', emailId: 'over' })).json()
+    assert.equal(out.reason, 'held_full'); assert.equal(db.tables.held_inbox_emails.length, MAX_HELD)
+    assert.equal(db.tables.function_errors.at(-1).kind, 'inbox_hold_cap')
+  }
+  console.log('inbox gate: member accepted, unknown sender dropped before the AI (logged, no body), allow list and accept-any accepted, budget enforced, held until AI reading is allowed, hold cap')
+
+  // ── inbox-release (audit B1, B2): claim first, keep what failed for a temporary reason ──
+  {
+    const profile = { id: 'u1', ai_consent_at: '2026-10-29T10:00:00Z' }
+    const email = { subject: flight.subject, from: 'samrivera@gmail.com', text: flight.text, attachments: [] }
+    const deps = (fetchEmail = async () => email) => ({ fetchEmail, fetchAttachments: async () => [], GEMINI_API_KEY: '' })
+    const hold = (db, id, attempts = 0) => db.tables.held_inbox_emails.push({ user_id: 'u1', email_id: id, from_domain: 'gmail.com', subject: 's', received_at: '2026-10-29T00:00:00Z', attempts })
+    current = flight.id
+
+    // Filed: the row is gone, one booking
+    { const db = makeDb(); hold(db, 'r-ok')
+      const r = await releaseHeld(db, profile, deps())
+      assert.deepEqual([r.filed, r.remaining, r.limited, db.tables.bookings.length, db.tables.held_inbox_emails.length], [1, 0, false, 1, 0]) }
+
+    // B1: daily inbox limit spent (429): the email stays, no try counted, the loop stops, `limited` is reported
+    { const db = makeDb(); hold(db, 'r-429'); hold(db, 'r-429b'); db.inbox.parses = INBOX_DAILY_PARSES
+      const r = await releaseHeld(db, profile, deps())
+      assert.equal(r.limited, true); assert.equal(r.filed, 0); assert.equal(r.failed, 0); assert.equal(r.remaining, 2)
+      assert.equal(db.tables.bookings.length, 0)
+      assert.ok(db.tables.held_inbox_emails.every(h => h.attempts === 0)) }
+
+    // B1: Resend trouble (5xx / network): the email stays with one more try, and after MAX_ATTEMPTS it is dropped and logged
+    { const db = makeDb(); hold(db, 'r-5xx')
+      const down = deps(async () => { throw new Error('Resend receiving 503') })
+      const r = await releaseHeld(db, profile, down)
+      assert.equal(r.kept, 1); assert.equal(r.remaining, 1); assert.equal(db.tables.held_inbox_emails[0].attempts, 1)
+      db.tables.held_inbox_emails[0].attempts = MAX_ATTEMPTS - 1
+      const last = await releaseHeld(db, profile, down)
+      assert.equal(last.failed, 1); assert.equal(last.remaining, 0)
+      assert.ok(db.tables.function_errors.some(e => e.kind === 'held_email_dropped')) }
+
+    // Expired at Resend (404): dropped and counted as expired, not filed
+    { const db = makeDb(); hold(db, 'r-gone')
+      const r = await releaseHeld(db, profile, deps(async () => null))
+      assert.deepEqual([r.expired, r.filed, r.remaining], [1, 0, 0]) }
+
+    // Not a booking: counted as ignored, not filed
+    { const db = makeDb(); hold(db, 'r-news'); current = 'newsletter'
+      const r = await releaseHeld(db, profile, deps())
+      assert.ok(r.ignored + r.filed === 1 && r.remaining === 0); current = flight.id }
+
+    // B2: two releases at once over one held email file it once
+    { const db = makeDb(); hold(db, 'r-race')
+      const [a, b] = await Promise.all([releaseHeld(db, profile, deps()), releaseHeld(db, profile, deps())])
+      assert.equal(a.filed + b.filed, 1); assert.equal(db.tables.bookings.length, 1) }
+
+    // Already filed by an earlier call that died before cleanup: not filed twice
+    { const db = makeDb(); hold(db, 'r-done'); db.tables.bookings.push({ id: 'b0', created_by: 'u1', raw_email_id: 'r-done' })
+      const r = await releaseHeld(db, profile, deps())
+      assert.equal(r.filed, 1); assert.equal(db.tables.bookings.length, 1); }
+    console.log('inbox-release: filed, daily limit keeps the email, temporary failure retried then dropped, expired, concurrent calls file once')
+  }
 }
 
 console.log('\nall replays: one trip, 14 bookings, 10–20 Apr; attachments filed; inbox gate holds')

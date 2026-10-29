@@ -215,6 +215,8 @@ export async function senderAllowed(supabase: any, profile: InboxProfile, fromAd
 
 // AI reads (the email, each attachment) one inbox may use a day: its own budget, not the member's in-app AI quota
 export const INBOX_DAILY_PARSES = 30
+// Forwarded emails kept waiting for the yes to AI reading, per member
+export const MAX_HELD = 50
 
 /**
  * One unit of today's inbox budget; false once it's spent (or AI is paused, or the project-wide cap is reached).
@@ -246,6 +248,14 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
   // fetches and files it once the member allows it in the app
   if (profile.ai_consent_at === null && !input.released) {
     if (!input.emailId) return ok({ success: true, ignored: true, reason: 'consent' })
+    // At most MAX_HELD waiting per member; beyond that the email is dropped (they can forward it again after allowing)
+    const { count } = await supabase.from('held_inbox_emails').select('id', { count: 'exact', head: true }).eq('user_id', profile.id)
+    if ((count || 0) >= MAX_HELD) {
+      try {
+        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_hold_cap', status: 200, user_id: profile.id, message: `held emails at cap (${MAX_HELD}), dropped one` })
+      } catch { /* logging is best-effort */ }
+      return ok({ success: true, ignored: true, reason: 'held_full' })
+    }
     const { error } = await supabase.from('held_inbox_emails').upsert({
       user_id: profile.id, email_id: String(input.emailId).slice(0, 200),
       from_domain: normalizeAddress(input.fromAddress)?.split('@')[1]?.slice(0, 120) || null,

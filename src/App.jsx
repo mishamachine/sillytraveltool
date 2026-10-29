@@ -238,10 +238,14 @@ export default function App() {
           Goose files them once you say it can read them
         </Toast>
       )}
-      {released && (released.filed > 0 || released.expired > 0 || released.failed > 0) && (
-        <Toast icon={released.expired || released.failed ? 'info' : 'check-circle'}
-          title={released.filed ? `Goose filed ${released.filed === 1 ? '1 email' : `${released.filed} emails`}` : 'Nothing new to file'}>
-          {released.expired || released.failed ? 'Some couldn’t be opened any more. Forward them again and Goose will file them.' : 'They’re in your trips now'}
+      {released && (released.filed > 0 || released.ignored > 0 || released.expired > 0 || released.failed > 0 || released.kept > 0 || released.limited) && (
+        <Toast icon={released.filed && !released.expired && !released.failed && !released.kept && !released.limited ? 'check-circle' : 'info'}
+          title={released.filed ? `Goose filed ${released.filed === 1 ? '1 email' : `${released.filed} emails`}` : released.limited ? 'Daily email limit reached' : 'Nothing new to file'}>
+          {released.limited ? 'The rest are saved. Goose files them when you open the app tomorrow.'
+            : released.kept ? 'One couldn’t be filed just now. Goose will try again when you next open the app.'
+            : released.expired || released.failed ? 'Some couldn’t be opened any more. Forward them again and Goose will file them.'
+            : released.ignored ? 'Some weren’t bookings, so Goose left them out.'
+            : 'They’re in your trips now'}
         </Toast>
       )}
       {inviteToast && (
