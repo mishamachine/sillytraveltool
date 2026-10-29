@@ -12,6 +12,9 @@ accounts exist. Judgment calls are marked **(check)**.
 - Account deletion: in the app (Profile → Settings → Delete account) and on the web at
   `https://sillytraveltool.com/delete-account/` (Play needs this URL).
 - Usage stats are optional (Settings → Share usage stats). Location is optional (OS prompt).
+- AI reading (Apple 5.1.2(i)): forwarded emails, imports and typed translations go to DeepSeek (China; Gemini for photos
+  and PDFs) only after the member taps Allow (tour step or first import; Settings → AI reading of imports). Until then
+  forwarded emails are held unread. App Review notes can point to this.
 - Crash reports (Sentry) are sent only while Share usage stats is on, never from the dev server, and carry no email
   addresses (URLs with emails or `eq.` filters are stripped before sending) and no user ID. Crash logs stay **Optional**.
 

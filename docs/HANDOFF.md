@@ -53,6 +53,27 @@
   Apple tax/banking, Individual → Organization with D-U-N-S). Store consoles (Play developer name, App Store copyright)
   are changed in the consoles, not in the repo.
 
+## Update — AI reading permission, legal review L1 (2026-10-26, PR "AI reading permission"; NOT deployed)
+- **Why:** Apple 5.1.2(i) needs explicit permission before personal data goes to a third-party AI. Owner decision: DeepSeek
+  stays for everything (L2 declined, EU risk accepted); the app asks once, plainly and calmly.
+- **App (web, iOS, Android, one bundle):** a tour step after location ("Let Goose read your bookings?", Allow / Not now,
+  first run only, skipped when already answered); the same words as a sheet (`AiConsentSheet`) opened by
+  `useConsentStore().ensure(reason)` from `src/lib/gemini.js` before paste/file import and typed translation; Settings →
+  Privacy → **AI reading of imports** switch. Answer stored by `my_set_ai_consent` (`ai_consent_at`, `ai_consent_version`).
+- **Forwarded emails before the yes** are held, not read (`ingest.ts`): `held_inbox_emails` keeps the Resend id, sender
+  domain and subject only. A bottom toast "N emails waiting · Review" opens the sheet; Allow runs `inbox-release` (3 per
+  call, refetches from Resend, files like a new email; emails Resend no longer has are dropped and the member is told).
+  pg_cron `purge-held-emails` drops rows after 30 days.
+- **Server checks:** `parse-booking-email` and `generate-phrases` (typed text) return 403 `{ code: 'ai_consent' }` without
+  the yes (`_shared/consent.ts`); before the migration they behave as today. Older app builds show "Update STT…".
+- **Also:** `receive-booking-email/resend.ts` (Resend fetch helpers, shared with `inbox-release`); Toast titles now use
+  `ink-inverse` (they were unreadable); privacy page AI section, transfers paragraph and deletion bullet; demo params
+  `?demo&askai` (no answer yet) and `&held=N`.
+- **Deploy order:** (1) PR #35's `20261026090000_inbox_trust.sql` + `receive-booking-email` if not yet; (2) migration
+  `20261026120000_ai_consent.sql`; (3) functions `receive-booking-email`, `inbox-release` (new), `parse-booking-email`,
+  `generate-phrases`; (4) website; (5) native 0.20.1 for TestFlight and App Store review. Existing members get the sheet
+  at their next import; their forwarded emails are held until they tap Allow.
+
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.

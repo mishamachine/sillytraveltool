@@ -3,6 +3,7 @@ import { useAuthStore, useUIStore } from '../../store'
 import { InboxAddress } from '../trips/InboxHint'
 import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
+import { useConsentStore } from '../../store/consentStore'
 import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
@@ -213,6 +214,8 @@ export default function SettingsView({ onBack, onDelete }) {
         <Card variant="group">
           <Switch label="Share usage stats" description="Which features you use and your device type help us improve the app. No names, emails or trip details."
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
+          <Switch label="AI reading of imports" description="Goose’s AI (DeepSeek, with Google Gemini for photos and PDFs) reads the emails you forward, what you import and what you translate. Off: forwarded emails wait for your OK."
+            checked={!!profile?.ai_consent_at} onChange={on => useConsentStore.getState().setConsent(on, 'settings').catch(() => {})} />
           <Switch label="Tailored offers" description="Use the kind of trips you plan to pick offers and tips that fit. Off keeps your trips out of it."
             checked={profile?.tailored_offers !== false} onChange={on => updateProfile({ tailored_offers: on }).catch(() => {})} />
           <Switch label="Travel tips by email" description="Now and then: trip recaps, ideas for your next trip and offers. Unsubscribe from any email."

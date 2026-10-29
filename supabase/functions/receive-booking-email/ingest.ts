@@ -176,6 +176,7 @@ export type InboxProfile = {
   id: string, home_city?: string | null,
   account_email?: string | null, // filled from auth.users when absent
   inbox_allowed_senders?: string[] | null, inbox_accept_any?: boolean | null,
+  ai_consent_at?: string | null, // undefined before migration 20261026120000_ai_consent: read as given
 }
 
 /**
@@ -241,6 +242,19 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     } catch { /* logging is best-effort */ }
     return ok({ success: true, ignored: true, reason: 'sender' })
   }
+  // No yes to AI reading yet (Apple 5.1.2(i)): keep only the Resend id, sender domain and subject; inbox-release
+  // fetches and files it once the member allows it in the app
+  if (profile.ai_consent_at === null && !input.released) {
+    if (!input.emailId) return ok({ success: true, ignored: true, reason: 'consent' })
+    const { error } = await supabase.from('held_inbox_emails').upsert({
+      user_id: profile.id, email_id: String(input.emailId).slice(0, 200),
+      from_domain: normalizeAddress(input.fromAddress)?.split('@')[1]?.slice(0, 120) || null,
+      subject: String(input.subject || '').slice(0, 200) || null,
+    }, { onConflict: 'user_id,email_id', ignoreDuplicates: true })
+    if (error) console.error('hold email failed', error.message)
+    console.log(`⏸️ Inbox of ${profile.id}: held until AI reading is allowed`)
+    return ok({ success: true, held: true })
+  }
   let locked = false
   for (let i = 0; i < 40 && !locked; i++) {
     const { data, error } = await supabase.rpc('take_ingest_lock', { p_user: profile.id, p_seconds: 90 })
@@ -264,6 +278,7 @@ async function ingestOne(
     // The webhook downloads files only once the sender is accepted
     loadAttachments?: () => Promise<{ name: string, mime: string, bytes: Uint8Array }[]>,
     emailId?: string | null,  // the Resend email id: stamped on every booking from this email (raw_email_id)
+    released?: boolean,       // filed by inbox-release after the member allowed AI reading (skips the hold)
   },
 ): Promise<Response> {
   const userId = profile.id

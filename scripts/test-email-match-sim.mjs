@@ -60,7 +60,7 @@ const lookup = q => { const s = q.toLowerCase(); const g = GEO.find(([k]) => s.i
 
 // ── Minimal in-memory Supabase ──
 function makeDb() {
-  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [] }
+  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [], held_inbox_emails: [] }
   const inbox = { parses: 0 } // consume_inbox_quota's counter for today
   let seq = 0
   function q(table) {
@@ -523,7 +523,29 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     const out = await (await ingestEmail(makeDb(), { id: 'u1' }, { subject: 's', fromAddress: 'samrivera@gmail.com', bodyText: '', GEMINI_API_KEY: '', loadAttachments })).json()
     assert.equal(fetched, 1); assert.equal(out.ignored, true) // nothing readable: no AI call either
   }
-  console.log('inbox gate: member accepted, unknown sender dropped before the AI (logged, no body), allow list and accept-any accepted, budget enforced')
+  // 7. No yes to AI reading yet: held (id, sender domain, subject only), no AI call; the release files it
+  {
+    const db = makeDb()
+    const profile = { id: 'u1', ai_consent_at: null }
+    const input = { subject: flight.subject, fromAddress: 'samrivera@gmail.com', bodyText: flight.text, GEMINI_API_KEY: '', emailId: 'em-1' }
+    const before = aiCalls
+    current = flight.id
+    const held = await (await ingestEmail(db, profile, input)).json()
+    assert.equal(held.held, true, JSON.stringify(held)); assert.equal(aiCalls - before, 0)
+    assert.equal(db.tables.bookings.length, 0)
+    assert.equal(db.tables.held_inbox_emails.length, 1)
+    assert.deepEqual(Object.keys(db.tables.held_inbox_emails[0]).sort(), ['email_id', 'from_domain', 'subject', 'user_id'])
+    assert.equal(db.tables.held_inbox_emails[0].from_domain, 'gmail.com')
+    // A disallowed sender is still dropped, not held
+    await ingestEmail(db, profile, { ...input, fromAddress: 'evil@example.com', emailId: 'em-2' })
+    assert.equal(db.tables.held_inbox_emails.length, 1)
+    // inbox-release after the yes: filed like a new email
+    const out = await (await ingestEmail(db, profile, { ...input, released: true })).json()
+    assert.ok(out.booking_id, JSON.stringify(out)); assert.equal(aiCalls - before, 1)
+    // A member who allowed it: filed straight away
+    assert.equal((await send(makeDb(), { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z' }, 'samrivera@gmail.com')).ai, 1)
+  }
+  console.log('inbox gate: member accepted, unknown sender dropped before the AI (logged, no body), allow list and accept-any accepted, budget enforced, held until AI reading is allowed')
 }
 
 console.log('\nall replays: one trip, 14 bookings, 10–20 Apr; attachments filed; inbox gate holds')
