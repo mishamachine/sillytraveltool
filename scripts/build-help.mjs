@@ -28,12 +28,12 @@ const TOPIC_OVERRIDES = {
     steps: ['Open Profile and tap Travel documents.',
       'Add a document. Document numbers are encrypted and show only the last four digits until you tap Reveal.'] },
   settings: { steps: ['Open Profile → Settings.', 'Turn off Share usage stats to stop anonymous feature counts from this device.',
-    'Delete account erases your trips and documents.'] },
+    'Delete account erases your trips and documents (payment records are kept as the law requires).'] },
 }
 const HIDE_FAQ = ['Do the people I invite need STT?', 'Can my friends forward their own bookings to the trip?', 'How do I replay the tour?']
 const FAQ_OVERRIDES = {
   'Does it work offline?': 'Guides, imports and live rates need a connection, so screenshot SOS and your hotel address before you fly.',
-  'Who can see my trips?': 'Only you can see your trips in the app. Goose\'s AI reads forwarded emails to pull out booking details; we keep the details, not the emails. See the Privacy Policy for the full list.',
+  'Who can see my trips?': 'Only you can see your trips in the app. Goose\'s AI reads forwarded emails to pull out booking details; we keep the booking details. See the Privacy Policy for the full list.',
 }
 const GROUPS = HELP_GROUPS.filter(g => !HIDE_GROUPS.includes(g.id))
 const TOPICS = HELP_TOPICS.filter(t => !HIDE_TOPICS.includes(t.id) && !HIDE_GROUPS.includes(t.group)).map(t => ({ ...t, ...TOPIC_OVERRIDES[t.id] }))
