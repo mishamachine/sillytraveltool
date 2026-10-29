@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { useAuthStore, useUIStore, useTripsStore, useCollabStore } from './store'
-import { supabase, isDemo } from './lib/supabase'
+import { isDemo } from './lib/supabase'
 import { demoParams } from './dev/demoClient'
 
 import AuthScreen from './screens/AuthScreen'
@@ -172,8 +172,13 @@ export default function App() {
       try {
         sessionStorage.removeItem('pending_invite_token')
         const p = await previewInvite(token)
-        if (p.error) { console.error('invite preview failed:', p.error); track('invite_accept_failed', { status: p.status }); return }
-        setInvitePreview({ token, ...p })
+        if (!p.ok) {
+          console.error('invite preview failed:', p.error); track('invite_accept_failed', { status: p.status })
+          setInviteToast({ error: p.error })
+          setTimeout(() => setInviteToast(null), 6000)
+          return
+        }
+        setInvitePreview({ token, inviter: p.inviter, tripTitle: p.tripTitle, role: p.role })
       } catch (e) { console.error('invite preview error', e) }
     }
     showInvite()
@@ -240,7 +245,9 @@ export default function App() {
         }} />
       )}
       {inviteToast && (
-        <Toast position="top" icon="users" title="You joined the trip">{inviteToast.tripName} is now in your trips</Toast>
+        inviteToast.error
+          ? <Toast position="top" icon="alert-circle" title="Invite not opened">{inviteToast.error}</Toast>
+          : <Toast position="top" icon="users" title="You joined the trip">{inviteToast.tripName} is now in your trips</Toast>
       )}
       {showInstallBanner && installPrompt && (
         <Toast icon="smartphone" title="Add to home screen" action={(

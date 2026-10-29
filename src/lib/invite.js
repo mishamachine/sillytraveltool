@@ -17,13 +17,15 @@ async function call(body) {
 /** Who invited you, to which trip, as what. Read-only; null when the invite is not yours, used or expired. */
 export async function previewInvite(token) {
   const r = await call({ action: 'preview', token })
-  return r.ok ? { inviter: r.result.inviter_name, tripTitle: r.result.trip_title, role: r.result.role } : { error: r.error, status: r.status }
+  if (!r.ok) return { ok: false, error: r.error || 'Could not open the invite. Try again later.', status: r.status }
+  return { ok: true, inviter: r.result.inviter_name, tripTitle: r.result.trip_title, role: r.result.role }
 }
 
 /** Accept the invite behind a token. */
 export async function acceptInviteToken(token) {
   const r = await call({ token })
-  return r.ok ? { tripTitle: r.result.trip_title } : { error: r.error, status: r.status }
+  if (!r.ok) return { ok: false, error: r.error || 'Could not open the invite. Try again later.', status: r.status }
+  return { ok: true, tripTitle: r.result.trip_title }
 }
 
 export const roleLabel = (role) => (role === 'viewer' ? 'a viewer (can look, not edit)' : 'a collaborator (can edit)')

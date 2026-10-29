@@ -13,7 +13,7 @@ export default function InviteConfirmSheet({ invite, onJoined, onClose }) {
   const join = async () => {
     setBusy(true); setError(null)
     const r = await acceptInviteToken(invite.token)
-    if (r.error) { setError(r.error); setBusy(false); return }
+    if (!r.ok) { setError(r.error); setBusy(false); return }
     onJoined(r.tripTitle)
   }
 

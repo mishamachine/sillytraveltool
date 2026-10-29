@@ -23,9 +23,26 @@ revoke all on public.invite_sends from service_role;
 grant select, insert on public.invite_sends to service_role;
 
 -- Limits (constants here; the project-wide one can be set in app_settings.global_limits.invite_daily):
---   20 per sender per hour, 3 per recipient per 24 hours across all senders, 500 per 24 hours project-wide.
+--   20 per sender per hour, 50 per sender per 24 hours, 3 per recipient per 24 hours across all senders,
+--   500 per 24 hours project-wide. The recipient hash is taken from a normalised address (lower case, +tag removed,
+--   dots removed for gmail.com / googlemail.com) so aliases of one mailbox share a limit.
 -- Returns 'ok' (and records the send), 'sender_limit', 'recipient_limit' or 'global_limit'. One transaction-level lock
 -- makes check-and-record atomic, so parallel requests cannot all slip under a limit.
+create or replace function public.invite_recipient_key(p_email text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select encode(sha256(convert_to(
+    case when d in ('gmail.com', 'googlemail.com')
+      then replace(split_part(l, '+', 1), '.', '') || '@gmail.com'
+      else split_part(l, '+', 1) || '@' || d end, 'utf8')), 'hex')
+  from (select split_part(lower(trim(p_email)), '@', 1) as l, split_part(lower(trim(p_email)), '@', 2) as d) x
+$$;
+revoke all on function public.invite_recipient_key(text) from public, anon, authenticated;
+grant execute on function public.invite_recipient_key(text) to service_role;
+
 create or replace function public.invite_send_check(p_sender uuid, p_recipient text, p_trip uuid)
 returns text
 language plpgsql
@@ -33,11 +50,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := encode(sha256(convert_to(lower(trim(p_recipient)), 'utf8')), 'hex');
+  v_hash text := public.invite_recipient_key(p_recipient);
   v_global_cap integer;
 begin
   perform pg_advisory_xact_lock(hashtext('invite_sends'));
   if (select count(*) from public.invite_sends where sender = p_sender and created_at > now() - interval '1 hour') >= 20 then
+    return 'sender_limit';
+  end if;
+  if (select count(*) from public.invite_sends where sender = p_sender and created_at > now() - interval '24 hours') >= 50 then
     return 'sender_limit';
   end if;
   if (select count(*) from public.invite_sends where recipient_hash = v_hash and created_at > now() - interval '24 hours') >= 3 then
@@ -100,3 +120,8 @@ alter policy "Booking creator or trip owner can update" on public.bookings
       or exists (select 1 from public.trips t2 where t2.id = bookings.trip_id and t2.owner_id = (select auth.uid()))
     )
   );
+
+-- ── Retention ───────────────────────────────────────────────────────────────
+-- The longest window is 24 hours; keep 14 days for abuse review, then delete (the job runs as the table owner).
+select cron.unschedule('purge-invite-sends') where exists (select 1 from cron.job where jobname = 'purge-invite-sends');
+select cron.schedule('purge-invite-sends', '47 3 * * *', $cron$delete from public.invite_sends where created_at < now() - interval '14 days'$cron$);

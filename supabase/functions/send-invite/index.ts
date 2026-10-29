@@ -31,6 +31,9 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
+    // Same gate as accept-invite: an unconfirmed address cannot send invites
+    if (!user.email_confirmed_at) return json({ error: 'Confirm your email address first, then try again.' }, 403)
+
     const body = await req.json()
     const inviteeEmail = String(body.inviteeEmail ?? '').trim().toLowerCase().slice(0, 254)
     const tripId = body.tripId
@@ -69,6 +72,7 @@ Deno.serve(async (req) => {
       console.error('send-invite limit check failed:', limitErr?.message || 'no verdict')
       return json({ error: 'Invites are unavailable right now. Try again later.' }, 503)
     }
+    if (verdict === 'global_limit') console.error('send-invite: kind=global_invite_cap_hit')
     const limited = limitResponse(verdict)
     if (limited) return json({ error: limited.error }, limited.status)
 

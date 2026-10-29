@@ -2,7 +2,7 @@
 
 /** One line of display text: control characters and line breaks become spaces, capped at max characters. */
 export function cleanLine(value, max = 60) {
-  return String(value ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
+  return String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
 /** Email subject: inviter and trip names are cleaned and capped at 60 characters each. */
