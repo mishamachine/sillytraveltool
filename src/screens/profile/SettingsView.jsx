@@ -4,6 +4,7 @@ import { InboxAddress } from '../trips/InboxHint'
 import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { useConsentStore } from '../../store/consentStore'
+import { consentCurrent } from '../../lib/aiConsentPolicy'
 import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
@@ -216,7 +217,7 @@ export default function SettingsView({ onBack, onDelete }) {
           <Switch label="Share usage stats" description="Which features you use and your device type help us improve the app. No names, emails or trip details."
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
           <Switch label="AI reading of imports" description="Goose’s AI (DeepSeek, with Google Gemini for photos and PDFs) reads the emails you forward, what you import and what you translate. Off: forwarded emails wait for your OK."
-            checked={!!profile?.ai_consent_at} onChange={on => {
+            checked={consentCurrent(profile)} onChange={on => {
               setAiError(null)
               // The switch follows the saved profile, so a failed save leaves it where it was; say so
               useConsentStore.getState().setConsent(on, 'settings').catch(() => setAiError('Couldn’t save that choice. Check your connection and try again.'))

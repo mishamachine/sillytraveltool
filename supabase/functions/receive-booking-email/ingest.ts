@@ -263,7 +263,14 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
       from_domain: normalizeAddress(input.fromAddress)?.split('@')[1]?.slice(0, 120) || null,
       subject: String(input.subject || '').slice(0, 200) || null,
     }, { onConflict: 'user_id,email_id', ignoreDuplicates: true })
-    if (error) console.error('hold email failed', error.message)
+    if (error) {
+      // Not held: say so (Resend retries on an error answer) and leave a trace
+      console.error('hold email failed', error.message)
+      try {
+        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_hold_failed', status: 500, user_id: profile.id, message: String(error.message || 'hold failed').slice(0, 280) })
+      } catch { /* logging is best-effort */ }
+      return err('Could not hold the email', 500)
+    }
     console.log(`⏸️ Inbox of ${profile.id}: held until AI reading is allowed`)
     return ok({ success: true, held: true })
   }

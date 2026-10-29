@@ -62,33 +62,44 @@ create index if not exists ai_consent_events_user_idx on public.ai_consent_event
 
 -- Members may read their own rows; nothing else. Expected behaviour (to check on a database, as a member):
 --   select  -> only own rows;  insert / update / delete / truncate -> permission denied (no grant, no policy)
---   as the table owner: update -> raises 'append-only'; delete -> raises, except as part of deleting the account
+--   as the owner or service_role: update, truncate -> raise 'append-only'; delete -> raises, except when the member's
+--   row in auth.users is already gone (deleting the account, by delete_account or directly)
+--   (run on PGlite 2026-10-29 by the Reviewer; re-run after the changes in this commit by the Builder)
 alter table public.ai_consent_events enable row level security;
 drop policy if exists consent_events_own_select on public.ai_consent_events;
 create policy consent_events_own_select on public.ai_consent_events for select to authenticated using (user_id = auth.uid());
 revoke all on public.ai_consent_events from anon, authenticated;
 grant select on public.ai_consent_events to authenticated;
 
--- Even the owner role can't edit history. A delete is allowed only when it is the cascade from deleting the account
--- (that runs one trigger level deeper than a direct delete).
+-- Even the owner role can't edit history. A delete is allowed only once the member's account row is gone (deleting
+-- the account cascades to here after auth.users loses the row); TRUNCATE is refused for everyone, and service_role
+-- doesn't get the privilege. security definer so the check can read auth.users whoever deletes.
 create or replace function public.block_consent_event_change()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
-  if tg_op = 'DELETE' and pg_trigger_depth() > 1 then return old; end if;
+  if tg_op = 'DELETE' and not exists (select 1 from auth.users where id = old.user_id) then return old; end if;
   raise exception 'ai_consent_events is append-only';
 end;
 $$;
+revoke all on function public.block_consent_event_change() from public, anon, authenticated;
+revoke truncate on public.ai_consent_events from service_role;
 drop trigger if exists block_consent_event_change on public.ai_consent_events;
 create trigger block_consent_event_change
   before update or delete on public.ai_consent_events
   for each row execute function public.block_consent_event_change();
+drop trigger if exists block_consent_event_truncate on public.ai_consent_events;
+create trigger block_consent_event_truncate
+  before truncate on public.ai_consent_events
+  for each statement execute function public.block_consent_event_change();
 
 -- Records an answer and keeps the cache on user_profiles in step. Only granted keeps a time and version there.
--- When the wording or the routing changes: add the new version to the list, change the routing text, and change
--- AI_CONSENT_VERSION / AI_CONSENT_ROUTING in the app and _shared/consent.ts (members are asked again).
+-- When the wording or the routing changes: put the new version FIRST in v_versions (keep the previous ones so older
+-- app builds can still answer), change the routing text, and change AI_CONSENT_VERSION / AI_CONSENT_ROUTING in the
+-- app and _shared/consent.ts (members are asked again; only the current version and routing count as a yes).
 drop function if exists public.my_set_ai_consent(boolean, text);
 create or replace function public.my_record_ai_consent(
   p_event text, p_version text, p_source text default null, p_platform text default null, p_app_version text default null)
@@ -99,11 +110,12 @@ set search_path = ''
 as $$
 declare
   v_routing constant text := 'deepseek-first+gemini-fallback; pdf/image gemini';
+  v_versions constant text[] := array['v2-2026-10-29'];  -- current first, then earlier ones
   v_at timestamptz;
 begin
   if auth.uid() is null then raise exception 'Not signed in'; end if;
   if p_event not in ('granted', 'declined', 'withdrawn') then raise exception 'Unknown consent event'; end if;
-  if p_version is distinct from 'v2-2026-10-29' then raise exception 'Unknown consent version'; end if;
+  if p_version is null or not (p_version = any (v_versions)) then raise exception 'Unknown consent version'; end if;
   insert into public.ai_consent_events (user_id, event, wording_version, provider_routing, source, platform, app_version)
     values (auth.uid(), p_event, p_version, v_routing, left(p_source, 20), left(p_platform, 20), left(p_app_version, 20));
   update public.user_profiles
@@ -158,7 +170,8 @@ set search_path = ''
 as $$
 begin
   if auth.uid() is not null and auth.uid() <> p_user then raise exception 'Not allowed'; end if;
-  if not exists (select 1 from public.user_profiles where id = p_user and ai_consent_at is not null) then return; end if;
+  if not exists (select 1 from public.user_profiles where id = p_user and ai_consent_at is not null
+                    and ai_consent_version = 'v2-2026-10-29' and ai_consent_routing = 'deepseek-first+gemini-fallback; pdf/image gemini') then return; end if;
   return query
     delete from public.held_inbox_emails
      where id in (select h.id from public.held_inbox_emails h where h.user_id = p_user

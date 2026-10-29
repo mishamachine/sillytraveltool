@@ -1,3 +1,4 @@
+import { AI_CONSENT_VERSION, AI_CONSENT_ROUTING } from '../lib/aiConsentPolicy'
 // Demo-mode fixtures (see src/dev/demoClient.js). Dates are relative to today so the
 // Today view, countdowns and recaps always have something to show.
 import { DEMO_FUNCTIONS } from './fixtureFunctions'
@@ -87,7 +88,7 @@ export function buildFixtures({ empty = false, flagship = null, askAi = false, h
 
   return {
     trips, bookings, trip_activities, trip_collaborators, trip_stops: [],
-    user_profiles: [{ id: U, display_name: 'Sam Rivera', avatar_url: null, home_currency: 'USD', passport_country: 'US', home_city: 'Seattle', temp_unit: 'C', booking_email_token: '6f1c2a9e', created_at: '2025-11-02T10:00:00Z', ai_consent_at: askAi ? null : '2025-11-02T10:05:00Z' }],
+    user_profiles: [{ id: U, display_name: 'Sam Rivera', avatar_url: null, home_currency: 'USD', passport_country: 'US', home_city: 'Seattle', temp_unit: 'C', booking_email_token: '6f1c2a9e', created_at: '2025-11-02T10:00:00Z', ai_consent_at: askAi ? null : '2025-11-02T10:05:00Z', ai_consent_version: askAi ? null : AI_CONSENT_VERSION, ai_consent_routing: askAi ? null : AI_CONSENT_ROUTING }],
     held_inbox_emails: Array.from({ length: held }, (_, i) => ({ id: `h${i}`, user_id: U, email_id: `demo-${i}`, from_domain: 'iberia.com', subject: 'Your booking', received_at: '2026-10-26T08:00:00Z' })),
     user_stats: [{ user_id: U, countries_visited: 6, trips_completed: 5, trips_created: 7, total_flights: 14, days_abroad: 61, restaurants_added: 8, museums_visited: 4, continents_visited: 3, goose_score: 1240 }],
     user_badges: [

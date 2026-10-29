@@ -559,6 +559,13 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     const out = await (await ingestEmail(db, stale, { subject: flight.subject, fromAddress: 'samrivera@gmail.com', bodyText: flight.text, GEMINI_API_KEY: '', emailId: 'em-old' })).json()
     assert.equal(out.held, true)
   }
+  // 7c. The hold can't be saved: not claimed as held (an error answer, so Resend retries) and logged
+  {
+    const db = makeDb(); const from = db.from
+    db.from = t => { const q = from(t); if (t === 'held_inbox_emails') q.upsert = () => ({ then: res => res({ data: null, error: { message: 'boom' } }) }); return q }
+    const res = await ingestEmail(db, { id: 'u1', ai_consent_at: null }, { subject: 's', fromAddress: 'samrivera@gmail.com', bodyText: 'x', GEMINI_API_KEY: '', emailId: 'em-fail' })
+    assert.equal(res.status, 500); assert.equal(db.tables.function_errors.at(-1).kind, 'inbox_hold_failed')
+  }
   // 8. Held-email cap: at most MAX_HELD waiting; the next is dropped and logged
   {
     const db = makeDb()
