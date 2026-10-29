@@ -7,7 +7,7 @@
 - Imports bookings from confirmation emails: forward one and it lands in the right trip
 - Keeps one itinerary per trip, day by day, in each place's local time
 - Shows the weather for your trip dates
-- City guides for any destination
+- City guides for destinations worldwide
 - Currency conversion and emergency SOS numbers by country
 - Stores travel documents
 
