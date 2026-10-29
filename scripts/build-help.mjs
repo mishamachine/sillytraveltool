@@ -41,10 +41,18 @@ const TOPIC_OVERRIDES = {
     steps: [
       'Open Explore and tap a mood on the HONK card, or More moods.',
       'Your browser asks to share your location. HONK uses it only when you allow it. If you would rather not, choose a city yourself.',
-      'Goose picks a place and shows its walking time. Not feeling it? Tap Another spot.',
+      'Goose picks a place with its real walking time. Not feeling it? Tap Another spot.',
     ],
   },
-  score: { tips: ['Your score and badges are personal: they are private to you.'] },
+  score: {
+    id: 'badges', title: 'Badges',
+    summary: 'Badges you earn from your trips.',
+    steps: [
+      'Open Profile. Earned badges and locked ones show as tiles under Badges.',
+      'Tap a badge to see what you\'ve earned and how close you are to the next one.',
+    ],
+    tips: ['Your badges are private to you.'],
+  },
   'new-trip': { tips: [
     'A trip without dates shows "Planning". Tap Add dates whenever you decide; adding a booking fills them in for you.',
     'Visiting several cities? Keep one trip and add a stay in each city. Weather follows you city by city.',

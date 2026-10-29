@@ -14,7 +14,7 @@
 - Translate and phrase book (typed translations are kept on your device)
 - Currency conversion, tip and split, and emergency SOS numbers by country
 - Travel documents and loyalty cards, private to you
-- Goose score and badges, personal and private to you
+- Badges earned from your trips, private to you
 - Goose inbox: a private email address for forwarding bookings
 
 ## URL
