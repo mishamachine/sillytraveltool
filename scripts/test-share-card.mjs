@@ -186,6 +186,31 @@ t('a long title with a long unbroken word wraps then cuts at a word, not mid-wor
   for (const c of draw(m, 'story').filter(c => c.size >= 72 && c.y < 700 && !/^\d+$/.test(c.s) && c.s !== m.dateLine)) for (const w of c.s.replace('…', '').split(' ')) assert.ok(m.title.replace('…', '').split(' ').includes(w), `"${w}"`)
 })
 
+t('six 40-character city names: the route is at most two rows and everything ends above the call to action', () => {
+  const names = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'].map(n => (n + ' of the Very Long Named Place ' + n).slice(0, 40))
+  const stops = names.map((c, i) => stop(i + 1, c, 'Country ' + i, 'C' + i))
+  const m = build({ stops })
+  for (const size of ['story', 'square']) {
+    const calls = draw(m, size)
+    const cta = calls.findIndex(c => c.s === m.cta)
+    assert.ok(cta > 0)
+    const rows = new Set(calls.filter(c => c.color === SHARE_CARD_LOOKS.dark.text && c.size === (size === 'story' ? 42 : 34)).map(c => c.y))
+    assert.ok(rows.size >= 1 && rows.size <= 2, `${size}: route rows ${rows.size}`)
+    for (const c of calls.slice(0, cta)) assert.ok(c.y + c.size <= calls[cta].y + 1, `${size}: "${c.s}" ends at ${c.y + c.size}, below the CTA at ${calls[cta].y}`)
+    const ends = calls.slice(0, cta).map(c => c.y + c.size)
+    assert.ok(Math.max(...ends) <= (size === 'story' ? 1580 : 1080))
+  }
+})
+
+t('one-city label "days in <place>" stays inside its column even for a long place name', () => {
+  const m = build({ stops: [], bookings: [], trip: trip({ destination_country: 'The United Kingdom of Great Britain and Northern Ireland, Overseas Territories' }) })
+  for (const size of ['story', 'square']) {
+    const c = draw(m, size).find(x => x.s.startsWith('days in'))
+    assert.ok(c)
+    assert.ok(c.s.length * c.size * 0.55 <= 1080 - (size === 'story' ? 180 : 144) + 1, `${size} label ${c.s.length} chars at ${c.size}px`)
+  }
+})
+
 t('square: everything inside 1080 x 1080', () => {
   const calls = draw(build(), 'square')
   for (const c of calls) assert.ok(c.y >= 0 && c.y + c.size <= 1080, `"${c.s}" y=${c.y}`)

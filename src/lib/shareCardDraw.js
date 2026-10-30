@@ -102,22 +102,29 @@ export function drawShareCard(ctx, model, { size = 'story', palette: P, assets }
       },
     })
 
-    // Route strip: city names joined by dots, first city first, up to two lines
-    const items = [...model.route.cities, ...(model.route.more ? [`+${model.route.more} more`] : [])]
-    if (items.length) {
+    // Route strip: city names joined by dots, first city first, at most two rows; whatever does not fit folds into "+N more"
+    if (model.route.cities.length) {
       const rlh = Math.round(L.route * 1.5)
-      ctx.font = body(L.route, 500)
-      let x = L.mx, row = 0
-      const placed = items.map((raw, i) => {
-        const t = fit(ctx, raw, maxW), tw = ctx.measureText(t).width
-        let dot = false
-        if (i > 0 && x + 36 + tw > L.mx + maxW) { row++; x = L.mx } else if (i > 0) { dot = true; x += 36 }
-        const it = { t, x, row, dot }
-        x += tw
-        return it
-      })
+      const layout = (list, more) => {
+        ctx.font = body(L.route, 500)
+        let x = L.mx, row = 0
+        const placed = [...list, ...(more ? [`+${more} more`] : [])].map((raw, i) => {
+          const t = fit(ctx, raw, maxW), tw = ctx.measureText(t).width
+          let dot = false
+          if (i > 0 && x + 36 + tw > L.mx + maxW) { row++; x = L.mx } else if (i > 0) { dot = true; x += 36 }
+          const it = { t, x, row, dot }
+          x += tw
+          return it
+        })
+        return { placed, rows: row + 1 }
+      }
+      const all = model.route.cities
+      let n = all.length
+      let res = layout(all, model.route.more)
+      while (res.rows > 2 && n > 1) { n--; res = layout(all.slice(0, n), model.route.more + all.length - n) }
+      const { placed, rows } = res
       blocks.push({
-        h: (row + 1) * rlh - (rlh - L.route),
+        h: rows * rlh - (rlh - L.route),
         draw(y) {
           for (const it of placed) {
             if (it.dot) circle(ctx, it.x - 18, y + it.row * rlh + L.route * 0.55, 5, P.accent)
@@ -140,7 +147,11 @@ export function drawShareCard(ctx, model, { size = 'story', palette: P, assets }
             ctx.font = head(ns)
             while (ns > 60 && ctx.measureText(String(s.value)).width > colW - 24) { ns -= 6; ctx.font = head(ns) }
             put(String(s.value), L.mx + i * colW, y, head(ns), P.text)
-            put(s.label, L.mx + i * colW + 4, y + base + 4, body(labelS, 600), P.soft)
+            // the label ("days in <place>") shrinks, then is cut at a word, to fit its column
+            let ls = labelS
+            ctx.font = body(ls, 600)
+            while (ls > 26 && ctx.measureText(s.label).width > colW - 8) { ls -= 2; ctx.font = body(ls, 600) }
+            put(fit(ctx, s.label, colW - 8), L.mx + i * colW + 4, y + base + 4, body(ls, 600), P.soft)
           })
         },
       })

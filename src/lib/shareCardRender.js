@@ -6,18 +6,18 @@ import { CARD_SIZES } from './shareCard'
 import { drawShareCard } from './shareCardDraw'
 import { SHARE_CARD_LOOKS } from './tokens'
 
-const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(r, ms))])
 
 /** Fonts must be ready before drawing, or the canvas silently falls back to the system font. */
 export async function loadCardFonts() {
   if (!document.fonts) return
+  let timer
   try {
-    await withTimeout(Promise.all([
+    await Promise.race([Promise.all([
       document.fonts.load(`700 100px "Space Grotesk"`),
       document.fonts.load(`500 40px "DM Sans"`),
       document.fonts.load(`600 40px "DM Sans"`),
-    ]).then(() => document.fonts.ready), 4000)
-  } catch { /* draw with the fallback font */ }
+    ]).then(() => document.fonts.ready), new Promise(r => { timer = setTimeout(r, 4000) })])
+  } catch { /* draw with the fallback font */ } finally { clearTimeout(timer) }
 }
 
 let gooseImg
@@ -62,27 +62,35 @@ export async function renderShareCard(model, { size = 'story', look = 'dark', ca
 export const canvasToBlob = c => new Promise((resolve, reject) => c.toBlob(b => (b ? resolve(b) : reject(new Error('png'))), 'image/png'))
 
 /**
- * Share the PNG through the share sheet on the member's tap. Without file sharing: download the PNG and copy the
- * caption. Returns 'shared' | 'downloaded' | 'cancelled'.
+ * Share the PNG on the member's tap. Call it straight from the click handler with a Blob that is already made:
+ * Safari only allows share and clipboard calls made before any other await. Returns
+ * { result: 'shared' | 'cancelled' | 'downloaded' | 'failed', copied } and never claims more than happened:
+ * 'downloaded' means the browser was asked to save the file; `copied` is true only if the caption reached the clipboard.
  */
-export async function shareCardImage({ blob, caption, title }) {
+export function shareCardImage({ blob, caption, title }) {
   const file = new File([blob], 'trip-recap.png', { type: 'image/png' })
   if (navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], text: caption, title })
-      return 'shared'
-    } catch (e) {
-      if (e?.name === 'AbortError') return 'cancelled'
-      // fall through to the download path
-    }
+    return navigator.share({ files: [file], text: caption, title }).then(
+      () => ({ result: 'shared', copied: false }),
+      e => (e?.name === 'AbortError' ? { result: 'cancelled', copied: false } : downloadCard(blob, caption)),
+    )
   }
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = 'trip-recap.png'
-  document.body.appendChild(a); a.click(); a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 10000)
-  try { await navigator.clipboard.writeText(caption) } catch { /* caption stays visible in the sheet */ }
-  return 'downloaded'
+  return downloadCard(blob, caption)
+}
+
+async function downloadCard(blob, caption) {
+  // Start the clipboard write first, in the same tap, then the download
+  const copying = navigator.clipboard?.writeText ? navigator.clipboard.writeText(caption).then(() => true, () => false) : Promise.resolve(false)
+  try {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'trip-recap.png'
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+    return { result: 'downloaded', copied: await copying }
+  } catch {
+    return { result: 'failed', copied: await copying }
+  }
 }
 
 export const canShareFiles = () => {

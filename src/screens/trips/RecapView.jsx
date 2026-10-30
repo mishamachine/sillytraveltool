@@ -4,8 +4,9 @@ import { formatRange, nightsOf, plural } from '../../lib/trips'
 import { tripCoords, fetchTripHistory } from '../../lib/weather'
 import { BADGE_TIER_TONE } from '../../lib/tokens'
 import { badgesEarnedOn } from '../../lib/shareCard'
+import { isNative } from '../../lib/authRedirect'
 import ShareCardSheet from './ShareCardSheet'
-import { Screen, ScreenHeader, Section, Card, ListRow, Button, IconTile, Text, Stack, Icon } from '../../ui'
+import { Screen, ScreenHeader, Section, Card, ListRow, Button, IconTile, Text, Stack, Icon, Toast } from '../../ui'
 
 function Stat({ value, label }) {
   return (
@@ -24,6 +25,7 @@ export default function RecapView({ trip, onBack }) {
   const tempUnit = useAuthStore(s => (s.profile?.temp_unit === 'F' ? 'fahrenheit' : 'celsius'))
   const [history, setHistory] = useState(undefined) // undefined = loading, null = none
   const [sharing, setSharing] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -39,6 +41,14 @@ export default function RecapView({ trip, onBack }) {
   const people = (trip.trip_collaborators?.filter(c => c.status === 'accepted').length || 0)
   const earned = badgesEarnedOn(trip, badges)
 
+  // The apps keep the text share until a native image share ships (no Web Share for files in the WebView)
+  const summary = `${trip.title}: ${formatRange(trip.start_date, trip.end_date, { year: true })}, ${plural(nightsOf(trip), 'night')}, ${plural(bookings.length, 'booking')}. Planned with Silly Travel Tool.`
+  const shareText = async () => {
+    try {
+      if (navigator.share) await navigator.share({ title: trip.title, text: summary, url: 'https://sillytraveltool.com' })
+      else { await navigator.clipboard.writeText(`${summary} https://sillytraveltool.com`); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+    } catch { /* cancelled */ }
+  }
   const goAgain = () => openTripForm({
     title: trip.title, destination_city: trip.destination_city,
     destination_country: trip.destination_country, destination_country_code: trip.destination_country_code,
@@ -99,9 +109,10 @@ export default function RecapView({ trip, onBack }) {
       </Card>
 
       <Stack gap={2}>
-        <Button variant="primary" size="lg" block icon="share" onClick={() => setSharing(true)}>Share trip</Button>
+        <Button variant="primary" size="lg" block icon="share" onClick={isNative ? shareText : () => setSharing(true)}>{isNative ? 'Share recap' : 'Share trip'}</Button>
         <Button variant="ghost" block icon="refresh" onClick={goAgain}>Go back again</Button>
       </Stack>
+      {copied && <Toast title="Recap copied">Paste it anywhere</Toast>}
       {sharing && <ShareCardSheet trip={trip} onClose={() => setSharing(false)} />}
     </Screen>
   )

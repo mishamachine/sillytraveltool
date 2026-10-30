@@ -27,6 +27,7 @@ export default function ShareCardSheet({ trip, onClose }) {
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
   const canvasRef = useRef(null)
+  const blobRef = useRef(null)
   const canFiles = useMemo(canShareFiles, [])
 
   const model = useMemo(() => buildShareCard({
@@ -35,10 +36,17 @@ export default function ShareCardSheet({ trip, onClose }) {
   const text = caption ?? model.caption
 
   useEffect(() => { track('share_card_preview') }, [])
+  // Draw the preview (debounced) and keep the PNG ready, so the Share tap can call the share sheet at once
   useEffect(() => {
     let alive = true
-    renderShareCard(model, { size: pref.size, look: pref.look, canvas: canvasRef.current }).catch(() => { if (alive) setStatus('Could not draw the card') })
-    return () => { alive = false }
+    blobRef.current = null
+    const t = setTimeout(() => {
+      renderShareCard(model, { size: pref.size, look: pref.look, canvas: canvasRef.current })
+        .then(canvasToBlob)
+        .then(b => { if (alive) { blobRef.current = b; setStatus(s => (s === 'Could not draw the card' ? '' : s)) } })
+        .catch(() => { if (alive) setStatus('Could not draw the card') })
+    }, 150)
+    return () => { alive = false; clearTimeout(t) }
   }, [model, pref])
 
   const choose = (patch) => {
@@ -49,16 +57,17 @@ export default function ShareCardSheet({ trip, onClose }) {
     })
   }
 
-  const share = async () => {
+  const share = () => {
+    const blob = blobRef.current
+    if (!blob) { setStatus('Still drawing the card. Try again in a moment.'); return }
     setBusy(true); setStatus('')
-    try {
-      const canvas = await renderShareCard(model, { size: pref.size, look: pref.look })
-      const blob = await canvasToBlob(canvas)
-      const how = await shareCardImage({ blob, caption: text, title: model.title })
-      if (how === 'cancelled') return
-      track('share_card_shared', { size: pref.size, look: pref.look, how: how === 'shared' ? 'sheet' : 'download', edited_title: title.trim() !== (trip.title || '').trim(), hide_dates: hideDates })
-      setStatus(how === 'shared' ? 'Shared' : 'Image saved and caption copied')
-    } catch { setStatus('Could not make the image. Try again.') } finally { setBusy(false) }
+    // shareCardImage calls navigator.share (or starts the clipboard write) before any await
+    shareCardImage({ blob, caption: text, title: model.title }).then(({ result, copied }) => {
+      if (result === 'cancelled') return
+      if (result === 'failed') { setStatus('Could not share the image. Try again.'); return }
+      track('share_card_shared', { size: pref.size, look: pref.look, how: result === 'shared' ? 'sheet' : 'download', edited: title.trim() !== (trip.title || '').trim(), hide_dates: hideDates })
+      setStatus(result === 'shared' ? 'Shared' : copied ? 'Download started and caption copied' : 'Download started')
+    }).catch(() => setStatus('Could not share the image. Try again.')).finally(() => setBusy(false))
   }
 
   const copyCaption = async () => {
@@ -70,7 +79,7 @@ export default function ShareCardSheet({ trip, onClose }) {
       footer={(
         <div className="share-card__actions">
           <Button variant="primary" size="lg" block icon={canFiles ? 'share' : 'download'} loading={busy} onClick={share}>
-            {canFiles ? 'Share image' : 'Save image'}
+            {canFiles ? 'Share image' : 'Download image'}
           </Button>
           <Button variant="ghost" block icon="copy" onClick={copyCaption}>Copy caption</Button>
         </div>
@@ -82,7 +91,7 @@ export default function ShareCardSheet({ trip, onClose }) {
         <SegmentedControl role="radiogroup" label="Card size" options={SIZES} value={pref.size} onChange={v => choose({ size: v })} idPrefix="sc-size" />
         <SegmentedControl role="radiogroup" label="Card look" options={LOOKS} value={pref.look} onChange={v => choose({ look: v })} idPrefix="sc-look" />
         <Field label="Edit title" value={title} maxLength={60} onChange={e => setTitle(e.target.value)}
-          hint="Only the title, month, route and counts go on the card. No bookings, names or prices." />
+          hint="Only what you see in the preview is shared." />
         <Switch checked={hideDates} onChange={setHideDates} label="Hide dates" description="Leaves the month and year off the card" />
         <Field label="Caption" as="textarea" rows={4} value={text} onChange={e => setCaption(e.target.value)} />
         <Text variant="caption" tone="muted" as="p" role="status" aria-live="polite" className="share-card__status">{status}</Text>
