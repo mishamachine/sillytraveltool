@@ -12,7 +12,7 @@ import { useConsentStore, hasAiConsent } from '../../store/consentStore'
 import { AiConsentDetails, AI_CONSENT_TITLE } from '../../components/shared/AiConsentSheet'
 import { Screen, Button, IconButton, Card, IconTile, Text, Stack, Icon, Overline, LinkButton, Chip } from '../../ui'
 import { markOnboarded } from './onboardingState'
-import { WelcomeArt, TripsArt, TodayArt, WeatherPackArt, InboxArt, InviteArt, TogetherArt, GuideArt, GuideMoreArt, HonkArt, ToolsArt, YouArt, LocationArt } from './TourArt'
+import { WelcomeArt, TripsArt, TodayArt, WeatherPackArt, InboxArt, InviteArt, TogetherArt, GuideArt, GuideMoreArt, HonkArt, ToolsArt, YouArt, LocationArt, ArtStage } from './TourArt'
 import './auth.css'
 import './tour.css'
 
@@ -269,7 +269,7 @@ export default function Onboarding({ onDone, replay = false }) {
       </div>
 
       <div key={step.id} className={`tour-card${back ? ' is-back' : ''}`} aria-live="polite">
-        {Art && <Art />}
+        {Art && <ArtStage Art={Art} />}
 
         {step.id === 'location' ? (
           <>
