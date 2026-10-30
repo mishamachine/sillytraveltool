@@ -4,11 +4,12 @@ import { fillMyDay } from '../../../lib/gemini'
 import { track } from '../../../lib/analytics'
 import { todayAtTrip } from '../../../lib/dates'
 import { timeIn } from '../../../lib/localTime'
-import { PACES, BUDGETS, VIBES, MAX_VIBES, DEFAULT_PACE, DEFAULT_BUDGET, buildRequest, proposalToActivities } from '../../../../supabase/functions/_shared/fillDay'
-import { Sheet, Button, Banner, Chip, Stack, Text, ListRow, IconButton, Card } from '../../../ui'
+import { PACES, VIBES, MAX_VIBES, DEFAULT_PACE, DEFAULT_BUDGET, buildRequest, proposalToActivities } from '../../../../supabase/functions/_shared/fillDay'
+import { Sheet, Button, Banner, Chip, Stack, Text, ListRow, IconButton, Card, SegmentedControl } from '../../../ui'
+import { COPY, PACE_COPY, BUDGET_COPY, VIBE_COPY } from './fillDayCopy'
 import { ACTIVITY_CATEGORIES } from './planKinds'
 
-const ERROR_COPY = 'Goose couldn’t find enough for that mix. Try fewer vibes or another pace.'
+const ERROR_COPY = COPY.error
 
 /** Start no earlier than 30 minutes from now when the day is today at the trip. */
 function startAfterFor(trip, date, tz) {
@@ -32,8 +33,13 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
   const [proposal, setProposal] = useState(null)
   const [keep, setKeep] = useState([])
   const [error, setError] = useState(null)
+  const [capNote, setCapNote] = useState(false)
 
-  const toggleVibe = (v) => setVibes(cur => cur.includes(v) ? cur.filter(x => x !== v) : cur.length < MAX_VIBES ? [...cur, v] : cur)
+  const toggleVibe = (v) => {
+    if (!vibes.includes(v) && vibes.length >= MAX_VIBES) { setCapNote(true); return } // say why, never ignore
+    setCapNote(false)
+    setVibes(cur => cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v])
+  }
 
   const run = async (again = false) => {
     setState('loading'); setError(null)
@@ -63,21 +69,17 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
     } catch (e) { setError(e.message || 'Could not save. Check your connection.'); setState('proposal') }
   }
 
-  const group = (id, label, items, value, onPick, multi) => (
+  const single = (id, title, options, value, onChange) => (
     <Stack gap={2}>
-      <Text variant="label" as="p" id={`fmd-${id}`}>{label}</Text>
-      <div className="fmd-chips" role="group" aria-labelledby={`fmd-${id}`}>
-        {items.map(([k, text]) => (
-          <Chip key={k} selected={multi ? value.includes(k) : value === k} onClick={() => onPick(k)}>{text}</Chip>
-        ))}
-      </div>
+      <Text variant="label" as="p" id={`fmd-${id}`}>{title}</Text>
+      <SegmentedControl role="radiogroup" label={title} options={options} value={value} onChange={onChange} className="fmd-seg" />
     </Stack>
   )
 
   if (state === 'proposal' || state === 'saving') {
     const stops = proposal.stops
     return (
-      <Sheet title="Fill my day" subtitle={`${place.city} · ${stops.length} stops`} onClose={onClose}>
+      <Sheet title={COPY.title} subtitle={`${place.city} · ${stops.length} stops`} onClose={onClose}>
         <Stack gap={4}>
           {error && <Banner tone="danger" icon="alert-circle" role="alert">{error}</Banner>}
           <Card variant="group">
@@ -95,11 +97,11 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
               )
             })}
           </Card>
-          <Text variant="caption" tone="muted" as="p">Check times before you go</Text>
-          <Button variant="primary" size="lg" block loading={state === 'saving'} disabled={!keep.length} onClick={add}>Add to my day</Button>
+          <Text variant="caption" tone="muted" as="p">{COPY.footnote}</Text>
+          <Button variant="primary" size="lg" block loading={state === 'saving'} disabled={!keep.length} onClick={add}>{COPY.add}</Button>
           <Stack row gap={2}>
-            <Button variant="secondary" block disabled={state === 'saving'} onClick={() => run(true)}>Try another</Button>
-            <Button variant="ghost" block disabled={state === 'saving'} onClick={onClose}>Cancel</Button>
+            <Button variant="secondary" block disabled={state === 'saving'} onClick={() => run(true)}>{COPY.another}</Button>
+            <Button variant="ghost" block disabled={state === 'saving'} onClick={onClose}>{COPY.cancel}</Button>
           </Stack>
         </Stack>
       </Sheet>
@@ -107,16 +109,29 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
   }
 
   return (
-    <Sheet title="Fill my day" subtitle="Pick a pace, a budget and what you're in the mood for." onClose={onClose}>
+    <Sheet title={COPY.title} subtitle={COPY.subtitle} onClose={onClose}>
       <Stack gap={4} aria-busy={state === 'loading'}>
         {error && <Banner tone="danger" icon="alert-circle" role="alert">{error}</Banner>}
-        {group('pace', 'Pace', Object.entries(PACES).map(([k, p]) => [k, p.chip]), pace, setPace)}
-        {group('budget', 'Budget', Object.entries(BUDGETS).map(([k, b]) => [k, b.label]), budget, setBudget)}
-        {group('vibe', 'Vibe', Object.entries(VIBES).map(([k, v]) => [k, v.label]), vibes, toggleVibe, true)}
+        {single('pace', COPY.paceTitle, Object.keys(PACES).map(k => ({ value: k, label: <span className="fmd-opt">{PACE_COPY[k][0]}<small>{PACE_COPY[k][1]}</small></span> })), pace, setPace)}
+        {single('budget', COPY.budgetTitle, Object.keys(BUDGET_COPY).map(k => ({ value: k, label: BUDGET_COPY[k] })), budget, setBudget)}
+        <Stack gap={2}>
+          <Text variant="label" as="p" id="fmd-vibe">{COPY.vibeTitle}</Text>
+          <div className="fmd-chips" role="group" aria-labelledby="fmd-vibe">
+            {Object.keys(VIBES).map(k => (
+              <Chip key={k} selected={vibes.includes(k)} icon={vibes.includes(k) ? 'check' : undefined} onClick={() => toggleVibe(k)}>{VIBE_COPY[k]}</Chip>
+            ))}
+          </div>
+          <Text variant="caption" tone={capNote ? 'accent' : 'muted'} as="p" role={capNote ? 'status' : undefined}>{capNote ? COPY.vibeCap : COPY.vibeHint}</Text>
+        </Stack>
         <Button variant="primary" size="lg" block icon="calendar-plus" loading={state === 'loading'} onClick={() => run(false)}>
-          {state === 'loading' ? 'Goose is planning…' : 'Fill my day'}
+          {state === 'loading' ? COPY.loading : COPY.go}
         </Button>
       </Stack>
     </Sheet>
   )
+}
+
+/** The tappable pill that sits in an empty day. */
+export function FillDayPill({ onClick }) {
+  return <Chip tone="accent" icon="calendar-plus" className="fmd-pill" onClick={onClick}>{COPY.pill}</Chip>
 }

@@ -16,7 +16,8 @@ import {
 } from '../../ui'
 import { safeUrl } from '../../lib/safeUrl'
 import { groupSharedLegs, travellerName } from '../../lib/sharedLegs'
-import FillDaySheet from './detail/FillDaySheet'
+import FillDaySheet, { FillDayPill } from './detail/FillDaySheet'
+import { COPY } from './detail/fillDayCopy'
 import { countryFor } from '../../../supabase/functions/_shared/fillDay'
 import { track } from '../../lib/analytics'
 
@@ -180,8 +181,8 @@ export default function TodayView({ trip, onShowAll }) {
       {!next && dayEmpty ? (
         <Card variant="raised">
           <Overline tone="accent">Today</Overline>
-          <Text variant="title">Nothing planned yet. Goose can sketch you a day.</Text>
-          <Button icon="calendar-plus" onClick={() => { track('fill_day_open', { surface: 'today' }); setFill(true) }}>Fill my day</Button>
+          <Text variant="title">{COPY.emptyDay}</Text>
+          <div><FillDayPill onClick={() => { track('fill_day_open', { surface: 'today' }); setFill(true) }} /></div>
         </Card>
       ) : next ? <NextUp item={next} tz={tz} companions={companions} onShow={() => setDetail(next)} /> : (
         <Card variant="raised">

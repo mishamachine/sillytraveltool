@@ -20,7 +20,8 @@ import BookingDetailSheet from './BookingDetailSheet'
 import SharedLegCard from './SharedLegCard'
 import { groupSharedLegs, nearMisses } from '../../../lib/sharedLegs'
 import { track } from '../../../lib/analytics'
-import FillDaySheet from './FillDaySheet'
+import FillDaySheet, { FillDayPill } from './FillDaySheet'
+import { COPY } from './fillDayCopy'
 import { countryFor, emptyDays } from '../../../../supabase/functions/_shared/fillDay'
 import { tripPlace as placeOnDate } from '../../../lib/stops'
 import { tripToday } from '../../../lib/trips'
@@ -370,15 +371,16 @@ export default function PlanTab({ trip, readOnly }) {
       )}
 
       {freeDays.length > 0 && (
-        <Section title="Free days">
-          <Card variant="group">
-            {freeDays.map(d => (
-              <ListRow key={d} icon="calendar-plus" tone="accent" title={format(parseLocalDate(d), 'EEE · MMM d')}
-                meta="Nothing planned yet. Goose can sketch you a day." trailing="Fill my day"
-                onClick={() => { track('fill_day_open', { surface: 'plan' }); setSheet({ fill: d }) }} />
-            ))}
-          </Card>
-        </Section>
+        <Stack gap={3} className="fmd-free" role="region" aria-label={COPY.freeDays}>
+          {freeDays.map(d => (
+            <Section key={d} title={format(parseLocalDate(d), 'EEE · MMM d')}>
+              <div className="fmd-empty">
+                <Text variant="caption" tone="muted" as="p">{COPY.emptyDay}</Text>
+                <FillDayPill onClick={() => { track('fill_day_open', { surface: 'plan' }); setSheet({ fill: d }) }} />
+              </div>
+            </Section>
+          ))}
+        </Stack>
       )}
 
       {!readOnly && items.length > 0 && (
