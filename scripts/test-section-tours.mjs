@@ -11,8 +11,10 @@ for (const [k, t] of Object.entries(SECTION_TOURS)) {
   assert.ok(t.cards.length >= 1 && t.cards.length <= 3, `${k}: 1-3 cards`)
   assert.match(t.overline, /^About /)
 }
-// Wording rules: HONK lives in Explore only (and not in these sheets); no emoji; no price, trial or AI wording; no numbers
-assert.ok(!/honk/i.test(text), 'no HONK lines')
+// Wording rules: HONK lives in Explore only; no emoji; no price, trial or AI wording; no numbers
+for (const [k, t] of Object.entries(SECTION_TOURS)) {
+  assert.equal(/honk/i.test(JSON.stringify(t)), k === 'explore', `${k}: HONK on Explore only`)
+}
 assert.ok(!/\b(beta|trial|demo|free|AI)\b/i.test(text), 'no restricted words')
 assert.ok(!/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(text), 'no emoji')
 assert.ok(!/\d{3}|\$/.test(text), 'no phone numbers or prices')

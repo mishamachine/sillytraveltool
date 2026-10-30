@@ -22,9 +22,9 @@ export const SECTION_TOURS = {
   explore: {
     overline: 'About Explore',
     cards: [
-      { icon: 'explore', title: 'Know a city before you land', body: 'Every city in five sections. Know has the numbers and local quirks; Eat runs from cheap to splurge.' },
+      { icon: 'explore', title: 'Know a city before you land', body: 'Every city in five sections. Know has the numbers and local quirks; Eat runs from cheap to splurge. Tap + on any place to add it to your trip.' },
       { icon: 'museum', title: 'Sights, transit and festivals', body: 'See covers museums, landmarks, areas and day trips. Transit shows how locals get around. Events lists what’s on.' },
-      { icon: 'plus', title: 'Add it to your trip', body: 'Tap + on any place to add it to your trip.' },
+      { icon: 'megaphone', title: 'What is HONK?', body: 'For when you have a few minutes and nothing planned. Pick a mood, tap HONK, and Goose finds one good spot within walking distance.' },
     ],
   },
   toolbox: {
