@@ -170,7 +170,7 @@ export default function SettingsView({ onBack, onDelete }) {
           ) : (
             <Text variant="caption" tone="muted">Setting up your address</Text>
           )}
-          <Text variant="micro" tone="muted">{INBOX_SENDER_CHECK ? `Goose reads mail you forward from ${user?.email || 'your account email'}. Keep the address private.` : 'Goose reads any mail sent to this address. Keep it private.'}</Text>
+          <Text variant="micro" tone="muted">{INBOX_SENDER_CHECK ? `Goose reads mail you forward from ${user?.email || 'your account email'}. Keep the address private.` : 'Bookings sent to this address from any sender land in your trips. Keep it private.'}</Text>
           {inboxError && <Banner tone="danger" icon="alert-circle" role="alert">{inboxError}</Banner>}
         </Card>
         <Card variant="group">
