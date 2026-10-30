@@ -42,15 +42,13 @@ export const useCollabStore = create((set, get) => ({
 
   inviteCollaborator: async (tripId, email, role = 'collaborator', tripName = 'your trip') => {
     try {
-      const { user, profile } = useAuthStore.getState()
+      const { user } = useAuthStore.getState()
       if (!user) throw new Error('Not authenticated')
 
       const { data, error } = await supabase.functions.invoke('send-invite', {
         body: {
           inviteeEmail: email,
           tripId,
-          tripName,
-          inviterName: profile?.display_name || user.email?.split('@')[0] || 'Someone',
           role,
         },
       })

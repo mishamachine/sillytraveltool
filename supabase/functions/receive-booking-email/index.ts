@@ -17,6 +17,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { CORS, ok, err, ingestEmail } from './ingest.ts'
 import { fetchAttachments, htmlToText } from './resend.ts'
 import { withGoogleScope } from '../_shared/google.ts'
+import { last4 } from '../_shared/invite.js'
 
 // Extract the booking_email_token from To: address
 // Matches: token@bookings.sillytraveltool.com, 12 hex (current) or 8 hex (older addresses). The token must start
@@ -120,11 +121,11 @@ Deno.serve(withGoogleScope(async (req) => {
     }
 
 
-    console.log(`📬 receive-booking-email: to="${toAddress}" subject="${subject}" bodyLen=${bodyText.length}`)
+    console.log(`📬 receive-booking-email: subject="${subject}" bodyLen=${bodyText.length}`)
 
     // ── 2. Extract user token from To: address ────────────────
     const token = extractToken(toAddress)
-    console.log(`🔑 Token extracted: "${token}" from toAddress: "${toAddress}"`)
+    console.log(`🔑 Token extracted: ${token ? last4(token) : '(none)'}`)
 
     // ── 3. Look up user by token (the only accepted path) ─────
     if (!token) return err('No booking token in recipient address', 404)
@@ -140,7 +141,7 @@ Deno.serve(withGoogleScope(async (req) => {
       .eq('booking_email_token', token)
       .single()
     if (profileErr || !profile) {
-      console.error('Token lookup failed:', token, profileErr?.message)
+      console.error('Token lookup failed:', last4(token), profileErr?.message)
       return err('Unknown booking address — token not found', 404)
     }
 
