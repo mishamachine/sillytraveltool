@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore, useTripsStore } from '../../../store'
 import { fillMyDay } from '../../../lib/gemini'
 import { track } from '../../../lib/analytics'
@@ -6,7 +6,8 @@ import { todayAtTrip } from '../../../lib/dates'
 import { timeIn } from '../../../lib/localTime'
 import { PACES, VIBES, MAX_VIBES, DEFAULT_PACE, DEFAULT_BUDGET, buildRequest, proposalToActivities } from '../../../../supabase/functions/_shared/fillDay'
 import { Sheet, Button, Banner, Chip, Stack, Text, ListRow, IconButton, Card, SegmentedControl } from '../../../ui'
-import { COPY, PACE_COPY, BUDGET_COPY, VIBE_COPY } from './fillDayCopy'
+import { COPY, PACE_COPY, BUDGET_OPTIONS, VIBE_COPY } from './fillDayCopy'
+import { BUDGET_POP } from './fillDayBudgetPop'
 import { ACTIVITY_CATEGORIES } from './planKinds'
 
 const ERROR_COPY = COPY.error
@@ -34,6 +35,13 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
   const [keep, setKeep] = useState([])
   const [error, setError] = useState(null)
   const [capNote, setCapNote] = useState(false)
+  const [pop, setPop] = useState(null) // { text, n }: the line above the budget row, gone after 1.8 s
+  useEffect(() => {
+    if (!pop) return
+    const t = setTimeout(() => setPop(null), 1800)
+    return () => clearTimeout(t)
+  }, [pop])
+  const pickBudget = (b) => { setBudget(b); setPop({ text: BUDGET_POP[b], n: Date.now() }) }
 
   const toggleVibe = (v) => {
     if (!vibes.includes(v) && vibes.length >= MAX_VIBES) { setCapNote(true); return } // say why, never ignore
@@ -69,9 +77,10 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
     } catch (e) { console.warn('fill my day: add failed', e); setError(COPY.addError); setState('proposal') }
   }
 
-  const single = (id, title, options, value, onChange) => (
+  const single = (id, title, options, value, onChange, above) => (
     <Stack gap={2}>
       <Text variant="label" as="p" id={`fmd-${id}`}>{title}</Text>
+      {above}
       <SegmentedControl role="radiogroup" label={title} options={options} value={value} onChange={onChange} className="fmd-seg" />
     </Stack>
   )
@@ -113,7 +122,8 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
       <Stack gap={4} aria-busy={state === 'loading'}>
         {error && <Banner tone="danger" icon="alert-circle" role="alert">{error}</Banner>}
         {single('pace', COPY.paceTitle, Object.keys(PACES).map(k => ({ value: k, label: <span className="fmd-opt">{PACE_COPY[k][0]}<small>{PACE_COPY[k][1]}</small></span> })), pace, setPace)}
-        {single('budget', COPY.budgetTitle, Object.keys(BUDGET_COPY).map(k => ({ value: k, label: BUDGET_COPY[k] })), budget, setBudget)}
+        {single('budget', COPY.budgetTitle, BUDGET_OPTIONS.map(k => ({ value: k, label: k })), budget, pickBudget,
+          <div className="fmd-pop" aria-live="polite">{pop && <span key={pop.n} className="fmd-pop__line">{pop.text}</span>}</div>)}
         <Stack gap={2}>
           <Text variant="label" as="p" id="fmd-vibe">{COPY.vibeTitle}</Text>
           <div className="fmd-chips" role="group" aria-labelledby="fmd-vibe">

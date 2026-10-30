@@ -6,28 +6,38 @@ export const PACES = {
   steady: { label: 'Steady', chip: 'Steady (4-5)', min: 4, max: 5 },
   packed: { label: 'Packed', chip: 'Packed (6+)', min: 6, max: 8 },
 }
+// Budget: $ to $$$$ → the Google price levels allowed (0 free, 1 inexpensive, 2 moderate, 3 expensive, 4 very expensive).
+// A place with no price level (most sights) stays eligible; for $$$ and $$$$ it ranks lower than priced places.
 export const BUDGETS = {
-  easy: { label: 'Easy on the wallet', levels: [0, 1] },
-  middle: { label: 'Middle', levels: [0, 1, 2] },
-  treat: { label: 'Treat yourself', levels: [0, 1, 2, 3, 4] },
+  '$': { label: '$', levels: [0, 1] },
+  '$$': { label: '$$', levels: [0, 1, 2] },
+  '$$$': { label: '$$$', levels: [2, 3] },
+  '$$$$': { label: '$$$$', levels: [3, 4], top: 4 },
 }
-// vibe id → label, the Google text search, and the kind of stop it makes
+// vibe id → the Google text search and the kind of stop it makes. after: earliest start (evening things).
+// minReviews: only well-known places (Hotspots).
 export const VIBES = {
   cafes: { label: 'Cafés', query: 'best cafes and bakeries', category: 'food', minutes: 45 },
-  museums: { label: 'Museums', query: 'best museums and galleries', category: 'museum', minutes: 90 },
-  history: { label: 'History', query: 'historic sights and monuments', category: 'sight', minutes: 60 },
-  food: { label: 'Food stops', query: 'best local restaurants and tapas', category: 'food', minutes: 60 },
-  walking: { label: 'Walking', query: 'scenic walks and old town streets', category: 'sight', minutes: 45 },
+  streetfood: { label: 'Street food', query: 'street food stalls and food markets', category: 'food', minutes: 45 },
+  hotspots: { label: 'Hotspots', query: 'popular trendy restaurants, highly rated and busy', category: 'food', minutes: 75, minReviews: 300 },
+  markets: { label: 'Markets', query: 'local markets', category: 'sight', minutes: 60 },
+  shopping: { label: 'Shopping', query: 'shopping streets and independent shops', category: 'sight', minutes: 60 },
+  museums: { label: 'Museums', query: 'best museums', category: 'museum', minutes: 90 },
+  monuments: { label: 'Monuments', query: 'famous monuments and landmarks', category: 'sight', minutes: 45 },
+  history: { label: 'History', query: 'historic sites and old town', category: 'sight', minutes: 60 },
+  art: { label: 'Art', query: 'art galleries and street art', category: 'museum', minutes: 75 },
   views: { label: 'Views', query: 'best viewpoints and panoramic spots', category: 'sight', minutes: 40 },
-  markets: { label: 'Markets & shops', query: 'local markets and independent shops', category: 'sight', minutes: 60 },
   parks: { label: 'Parks', query: 'parks and gardens', category: 'sight', minutes: 45 },
+  beaches: { label: 'Beaches', query: 'beaches', category: 'sight', minutes: 90 },
+  music: { label: 'Live music', query: 'live music venues', category: 'event', minutes: 90, after: '16:00' },
+  walking: { label: 'Walking', query: 'scenic walks and old town streets', category: 'sight', minutes: 45 },
 }
 export const MAX_VIBES = 3
 // With no vibe picked: a mix
-export const MIX = ['history', 'food', 'walking']
+export const MIX = ['history', 'streetfood', 'walking']
 
 export const DEFAULT_PACE = 'steady'
-export const DEFAULT_BUDGET = 'middle'
+export const DEFAULT_BUDGET = '$$'
 export const DAY_START = '09:00'
 export const DAY_END = '22:00'
 
@@ -89,25 +99,31 @@ export const score = (p) => (p.rating || 0) * Math.log10((p.rating_count || 0) +
 
 /** Candidates for the day: open for business, within the budget (no price level = free or unknown, allowed), unique. */
 export function pickCandidates(places, budget, limit = 24) {
-  const levels = BUDGETS[budget]?.levels || BUDGETS[DEFAULT_BUDGET].levels
+  const b = BUDGETS[budget] || BUDGETS[DEFAULT_BUDGET]
+  const levels = b.levels
+  // $$$ and $$$$: priced places first (the top level preferred at $$$$); unpriced ones stay, ranked lower
+  const rank = (p) => score(p) * (p.price_level == null ? (b.levels[0] >= 2 || b.top ? 0.6 : 1) : p.price_level === b.top ? 1.25 : 1)
   const seen = new Set()
   return (places || [])
     .filter(p => p && p.place_id && p.name && !p.closed && (p.price_level == null || levels.includes(p.price_level)))
     .filter(p => !seen.has(p.place_id) && seen.add(p.place_id))
-    .sort((a, b) => score(b) - score(a))
+    .sort((x, y) => rank(y) - rank(x))
     .slice(0, limit)
 }
 
 /** Back-to-back day with no AI: nearest-neighbour order from the first pick, from `from` on. */
 export function basicPlan(cands, count, from = DAY_START) {
-  const left = cands.slice(0, count)
+  const picked = cands.slice(0, count)
+  const left = picked.filter(c => !c.after)
+  const late = picked.filter(c => c.after)
   const out = []
-  let cur = left.shift(), t = toMin(from)
+  let cur = left.shift() || late.shift(), t = toMin(from)
   while (cur) {
+    if (cur.after) t = Math.max(t, toMin(cur.after))
     out.push({ ...cur, start: fromMin(t), minutes: cur.minutes || 60, reason: '' })
     t += (cur.minutes || 60) + 10
     left.sort((a, b) => estWalk(cur, a) - estWalk(cur, b))
-    cur = left.shift()
+    cur = left.shift() || late.shift()
   }
   return out
 }
@@ -125,6 +141,7 @@ export function validatePlan(ai, cands, pace, from = DAY_START) {
   for (const r of rows) {
     const i = r?.i
     if (!Number.isInteger(i) || !cands[i] || used.has(i) || !HHMM.test(String(r.start))) continue
+    if (cands[i].after && toMin(r.start) < toMin(cands[i].after)) continue // evening things only in the evening
     used.add(i)
     const minutes = Math.min(180, Math.max(20, Math.round(Number(r.minutes)) || cands[i].minutes || 60))
     out.push({ ...cands[i], start: r.start, minutes, reason: clean(r.reason, 140).replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').trim() })
@@ -142,7 +159,7 @@ export function retime(stops, walks) {
   let free = 0
   stops.forEach((s, i) => {
     const walk = i === 0 ? 0 : walks[i - 1] ?? 10
-    const start = Math.max(toMin(s.start), i === 0 ? 0 : free + walk)
+    const start = Math.max(toMin(s.start), i === 0 ? 0 : free + walk, s.after ? toMin(s.after) : 0)
     if (start + 20 > toMin(DAY_END)) return
     out.push({ ...s, start: fromMin(start), walk_min: i === 0 ? null : walk })
     free = start + s.minutes

@@ -98,3 +98,7 @@
 .fmd-opt { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
 .fmd-opt small { font-size: var(--text-micro, 12px); font-weight: 400; opacity: 0.75; }
 .fmd-seg .c-seg__opt { white-space: normal; line-height: 1.2; padding-block: var(--space-2); text-overflow: clip; overflow: visible; }
+.fmd-pop { min-height: 24px; margin-bottom: var(--space-1); }
+.fmd-pop__line { display: inline-block; padding: 2px var(--space-3); border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 14px; animation: fmd-fade 1.8s ease forwards; }
+@keyframes fmd-fade { 0%, 70% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .fmd-pop__line { animation: none; } }

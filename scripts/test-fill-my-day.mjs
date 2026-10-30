@@ -11,7 +11,7 @@ import * as F from '../supabase/functions/_shared/fillDay.js'
 
 // ── request builder: only the whitelisted public fields, nothing about the member ──
 const req = F.buildRequest({
-  city: 'Granada', country: 'Spain', date: '2026-11-14', pace: 'steady', budget: 'middle', vibes: ['cafes', 'museums'],
+  city: 'Granada', country: 'Spain', date: '2026-11-14', pace: 'steady', budget: '$$', vibes: ['cafes', 'museums'],
   lat: 37.17731, lng: -3.59861, email: 'a@b.c', name: 'Jo', title: 'Jo birthday trip', bookings: [{}], userId: 'u1',
 })
 assert.deepEqual(Object.keys(req).sort(), ['budget', 'city', 'country', 'date', 'pace', 'vibes'], 'no coordinates: the server finds the city')
@@ -32,13 +32,30 @@ assert.equal(F.parseRequest(null), null)
 assert.deepEqual([F.PACES.slow.min, F.PACES.slow.max], [2, 3])
 assert.deepEqual([F.PACES.steady.min, F.PACES.steady.max], [4, 5])
 assert.equal(F.PACES.packed.min, 6)
-assert.equal(F.DEFAULT_PACE, 'steady'); assert.equal(F.DEFAULT_BUDGET, 'middle')
+assert.equal(F.DEFAULT_PACE, 'steady'); assert.equal(F.DEFAULT_BUDGET, '$$')
 
 // ── budget and candidates ──
 const P = (n, o = {}) => ({ place_id: `p${n}`, name: `Place ${n}`, lat: 37.17 + n / 1000, lng: -3.59, rating: 4.5, rating_count: 100 + n, price_level: 1, closed: false, category: 'sight', minutes: 60, ...o })
 const pool = [P(1), P(2, { price_level: 4 }), P(3, { price_level: null }), P(4, { closed: true }), P(1)]
-assert.deepEqual(F.pickCandidates(pool, 'easy').map(p => p.place_id).sort(), ['p1', 'p3'], 'easy: no $$$$, no closed, no repeats')
-assert.ok(F.pickCandidates(pool, 'treat').some(p => p.place_id === 'p2'))
+const ids = (b, list = pool) => F.pickCandidates(list, b).map(p => p.place_id).sort()
+assert.deepEqual(Object.keys(F.BUDGETS), ['$', '$$', '$$$', '$$$$'])
+assert.deepEqual(ids('$'), ['p1', 'p3'], '$: free or inexpensive, no closed, no repeats')
+const priced = [0, 1, 2, 3, 4].map(n => P(10 + n, { price_level: n })).concat(P(20, { price_level: null }))
+assert.deepEqual(ids('$$', priced), ['p10', 'p11', 'p12', 'p20'], '$$: up to moderate, unpriced stays')
+assert.deepEqual(ids('$$$', priced), ['p12', 'p13', 'p20'], '$$$: levels 2-3')
+assert.deepEqual(ids('$$$$', priced), ['p13', 'p14', 'p20'], '$$$$: levels 3-4')
+assert.equal(F.pickCandidates(priced, '$$$$')[0].price_level, 4, '$$$$ prefers the top level')
+assert.equal(F.pickCandidates(priced.filter(p => p.price_level === 3 || p.price_level == null), '$$$')[0].price_level, 3, 'unpriced ranks lower at $$$')
+assert.equal(F.buildRequest({ city: 'X', date: '2026-01-01', budget: 'middle' }).budget, '$$', 'an old budget word falls back to $$')
+
+// ── the 14 moods: known ids, cap of 3, evening-only live music ──
+assert.deepEqual(Object.keys(F.VIBES), ['cafes', 'streetfood', 'hotspots', 'markets', 'shopping', 'museums', 'monuments', 'history', 'art', 'views', 'parks', 'beaches', 'music', 'walking'])
+assert.ok(Object.values(F.VIBES).every(v => v.query && v.category && v.minutes), 'every mood has a search')
+const gig = P(30, { after: F.VIBES.music.after, category: 'event' })
+assert.equal(F.validatePlan({ stops: [{ i: 0, start: '10:00' }, { i: 1, start: '11:30' }, { i: 2, start: '13:00' }, { i: 3, start: '14:30' }, { i: 4, start: '12:00' }] }, [P(1), P(2), P(3), P(4), gig], 'steady').length, 4, 'live music before 16:00 is dropped')
+const bp = F.basicPlan([gig, P(1), P(2), P(3), P(4)], 5)
+assert.equal(bp[bp.length - 1].place_id, 'p30'); assert.ok(F.toMin(bp[bp.length - 1].start) >= 16 * 60, 'basic plan puts live music in the evening')
+assert.equal(F.retime([{ start: '09:00', minutes: 60, after: '16:00' }], [])[0].start, '16:00')
 
 // ── the AI's answer is checked against the real candidates ──
 const cands = [1, 2, 3, 4, 5, 6].map(n => P(n))
@@ -110,7 +127,7 @@ const origWarn = console.warn; console.warn = () => {}
 await import(`${dir}/fmd.mjs`)
 const post = (body) => handler(new Request('http://x/functions/v1/fill-my-day', { method: 'POST', headers: { Authorization: 'Bearer t', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }))
 const outside = () => calls.filter(u => /googleapis|deepseek/.test(u))
-const body = { city: 'Granada', country: 'Spain', date: '2026-11-14', pace: 'steady', budget: 'middle', vibes: ['cafes'] }
+const body = { city: 'Granada', country: 'Spain', date: '2026-11-14', pace: 'steady', budget: '$$', vibes: ['cafes'] }
 
 quota = 'false'; calls.length = 0
 let res = await post(body)

@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { geocode, searchText, routeOne, cached, hasGoogle, withGoogleScope, setGoogleUser } from '../_shared/google.ts'
-import { PACES, BUDGETS, VIBES, DAY_START, parseRequest, pickCandidates, basicPlan, validatePlan, retime, hoursFor, estWalk, toMin } from '../_shared/fillDay.js'
+import { PACES, VIBES, DAY_START, parseRequest, pickCandidates, basicPlan, validatePlan, retime, hoursFor, estWalk, toMin } from '../_shared/fillDay.js'
 
 // Fill my day: real places from Google for the stop's city, ordered into a timed day by the AI. A proposal only:
 // nothing is written here. The request carries a city, a country, a date and the chosen chips, so no AI consent is
@@ -62,7 +62,9 @@ Deno.serve(withGoogleScope(async (req) => {
       const key = `fmd:${where.toLowerCase()}:${v}:${origin.lat.toFixed(2)},${origin.lng.toFixed(2)}`.slice(0, 280)
       const res = await cached(admin, key, 7, () => searchText(`${VIBES[v].query} in ${r.city}`, { minRating: 4.0, near: { lat: origin.lat, lng: origin.lng, radius: 3500 }, pageSize: 10 })).catch(() => null)
       if (res == null) refused++
-      return (res?.places || []).map((p: any) => ({ ...p, category: VIBES[v].category, minutes: VIBES[v].minutes, vibe: v }))
+      return (res?.places || [])
+        .filter((p: any) => (p.rating_count || 0) >= (VIBES[v].minReviews || 0))
+        .map((p: any) => ({ ...p, category: VIBES[v].category, minutes: VIBES[v].minutes, vibe: v, after: VIBES[v].after }))
     }))
     const skip = new Set(r.exclude || [])
     const cands = pickCandidates(found.flat().filter((p: any) => !skip.has(p.place_id)), r.budget)
@@ -73,9 +75,9 @@ Deno.serve(withGoogleScope(async (req) => {
     const from = r.start_after && toMin(r.start_after) > toMin(DAY_START) ? r.start_after : DAY_START
     let stops = null as any[] | null, source = 'ai'
     try {
-      const list = cands.map((p: any, i: number) => ({ i, name: p.name, kind: p.type_label, vibe: p.vibe, rating: p.rating, price: p.price_level != null ? PRICE[p.price_level] : null, hours: hoursFor(p.hours, r.date) || null, area: p.short_address }))
-      const ai = await askAi(KEY || '', `You plan one travel day in ${where} on ${r.date}. Choose ${pace.min} to ${pace.max} of these REAL places and put them in a sensible walking order with start times (24h HH:MM) from ${from} to ${'21:30'}. Budget: ${BUDGETS[r.budget as keyof typeof BUDGETS].label}. Moods: ${r.vibes.map((v: string) => VIBES[v].label).join(', ')}.
-Rules: use only the index "i" from the list; respect opening hours when given; leave a meal-sized stop around midday if a food place is included; keep neighbouring stops close together. No emoji.
+      const list = cands.map((p: any, i: number) => ({ i, name: p.name, kind: p.type_label, vibe: p.vibe, after: p.after || null, rating: p.rating, price: p.price_level != null ? PRICE[p.price_level] : null, hours: hoursFor(p.hours, r.date) || null, area: p.short_address }))
+      const ai = await askAi(KEY || '', `You plan one travel day in ${where} on ${r.date}. Choose ${pace.min} to ${pace.max} of these REAL places and put them in a sensible walking order with start times (24h HH:MM) from ${from} to ${'21:30'}. Budget: ${r.budget} on a $ to $$$$ scale. Moods: ${r.vibes.map((v: string) => VIBES[v].label).join(', ')}.
+Rules: places with "after" must start at or after that time; use only the index "i" from the list; respect opening hours when given; leave a meal-sized stop around midday if a food place is included; keep neighbouring stops close together. No emoji.
 Places: ${JSON.stringify(list)}
 Return ONLY JSON: { "stops": [ { "i": 0, "start": "09:30", "minutes": 60, "reason": "one short plain sentence on why it fits" } ] }`)
       stops = validatePlan(ai, cands, r.pace, from)
