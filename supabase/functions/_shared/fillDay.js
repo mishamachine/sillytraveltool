@@ -15,11 +15,11 @@ export const BUDGETS = {
   '$$$$': { label: '$$$$', levels: [3, 4], top: 4 },
 }
 // vibe id → the Google text search and the kind of stop it makes. after: earliest start (evening things).
-// minReviews: only well-known places (Hotspots).
+// minReviews: only well-known places (Trendy places).
 export const VIBES = {
   cafes: { label: 'Cafés', query: 'best cafes and bakeries', category: 'food', minutes: 45 },
   streetfood: { label: 'Street food', query: 'street food stalls and food markets', category: 'food', minutes: 45 },
-  hotspots: { label: 'Hotspots', query: 'popular trendy restaurants, highly rated and busy', category: 'food', minutes: 75, minReviews: 300 },
+  hotspots: { label: 'Trendy places', query: 'popular trendy restaurants, highly rated and busy', category: 'food', minutes: 75, minReviews: 300 },
   markets: { label: 'Markets', query: 'local markets', category: 'sight', minutes: 60 },
   shopping: { label: 'Shopping', query: 'shopping streets and independent shops', category: 'sight', minutes: 60 },
   museums: { label: 'Museums', query: 'best museums', category: 'museum', minutes: 90 },
@@ -30,7 +30,7 @@ export const VIBES = {
   parks: { label: 'Parks', query: 'parks and gardens', category: 'sight', minutes: 45 },
   beaches: { label: 'Beaches', query: 'beaches', category: 'sight', minutes: 90 },
   music: { label: 'Live music', query: 'live music venues', category: 'event', minutes: 90, after: '16:00' },
-  walking: { label: 'Walking', query: 'scenic walks and old town streets', category: 'sight', minutes: 45 },
+  walking: { label: 'Stroll', query: 'scenic walks and old town streets', category: 'sight', minutes: 45 },
 }
 export const MAX_VIBES = 3
 // With no vibe picked: a mix

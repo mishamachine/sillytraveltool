@@ -24,7 +24,7 @@ export const COPY = {
 export const PACE_COPY = { slow: ['Here to relax', '2–3 stops'], steady: ['Steady pace', '4–5 stops'], packed: ['FULL HONK!', '6+ stops'] }
 export const BUDGET_OPTIONS = ['$', '$$', '$$$', '$$$$']
 export const VIBE_COPY = {
-  cafes: 'Cafés', streetfood: 'Street food', hotspots: 'Hotspots', markets: 'Markets', shopping: 'Shopping',
+  cafes: 'Cafés', streetfood: 'Street food', hotspots: 'Trendy places', markets: 'Markets', shopping: 'Shopping',
   museums: 'Museums', monuments: 'Monuments', history: 'History', art: 'Art', views: 'Views', parks: 'Parks',
-  beaches: 'Beaches', music: 'Live music', walking: 'Walking',
+  beaches: 'Beaches', music: 'Live music', walking: 'Stroll',
 }
