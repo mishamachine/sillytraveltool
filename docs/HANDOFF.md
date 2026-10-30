@@ -1,6 +1,8 @@
 # STT Handoff — 2026-10-21
 
 ## Update — state on 29 Oct 2026 (CTO audit)
+- Merged and deployed 30 Oct: AI consent (#56), Privacy date (#62); then #59, #60, #63, #64, #65, #66, #54 merged; Fill my day function deployed.
+
 Verified 29 Oct, read-only, unless marked "not verified". For the open draft PRs, see the PRs for current heads.
 
 **Live in code, no feature flags:** Goose score (Profile card; points = completed trips x10 + countries x5 + days
@@ -97,7 +99,6 @@ new screens.
   Apple tax/banking, Individual → Organization with D-U-N-S). Store consoles (Play developer name, App Store copyright)
   are changed in the consoles, not in the repo.
 
-<<<<<<< HEAD
 ## Update — AI reading permission, legal review L1 (2026-10-26, PR "AI reading permission"; NOT deployed)
 - **Why:** Apple 5.1.2(i) needs explicit permission before personal data goes to a third-party AI. Owner decision: DeepSeek
   stays for everything (L2 declined, EU risk accepted); the app asks once, plainly and calmly.
@@ -134,10 +135,7 @@ new screens.
 - **Remove later:** the missing-column fail-open in `_shared/consent.ts` (`aiConsentGiven`, error 42703) once the first
   migration is live in production.
 
-## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
-=======
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed at writing, since deployed: see "inbox trust and global caps are live" above)
->>>>>>> d9dd68b (Docs: consolidate open docs PRs and fix stale notes)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.
   Addresses normalised (display name off, lowercase, plus-tag off, Gmail dots off, googlemail → gmail). Others are
