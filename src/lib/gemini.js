@@ -131,6 +131,14 @@ export async function gooseyDiscover({ city, country, mood, filters = [], lat, l
 }
 
 /**
+ * Fill my day: a proposed, timed day of real places for a city. Sends only the request from buildRequest
+ * (city, country, date, chips), so it needs no AI consent. Writes nothing.
+ */
+export async function fillMyDay(request) {
+  return invokeFunction('fill-my-day', request, 50000)
+}
+
+/**
  * Parse booking email
  */
 export async function parseBookingEmail(emailText) {

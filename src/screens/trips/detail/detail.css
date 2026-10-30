@@ -85,3 +85,10 @@
 .shared-leg__nudge { color: var(--ink-muted); font-style: italic; }
 .shared-leg__chevron { flex-shrink: 0; color: var(--ink-muted); }
 .shared-leg__more { align-self: flex-start; min-height: var(--touch-min); padding: 0 var(--space-1); background: none; border: 0; color: var(--accent); font: inherit; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+
+/* Fill my day */
+.fmd-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.fmd-stop { display: flex; align-items: center; gap: var(--space-1); padding-right: var(--space-2); }
+.fmd-stop + .fmd-stop { border-top: 1px solid var(--line); }
+.fmd-stop > :first-child { flex: 1; min-width: 0; }
+.fmd-stop.is-off { opacity: 0.5; }

@@ -20,6 +20,10 @@ import BookingDetailSheet from './BookingDetailSheet'
 import SharedLegCard from './SharedLegCard'
 import { groupSharedLegs, nearMisses } from '../../../lib/sharedLegs'
 import { track } from '../../../lib/analytics'
+import FillDaySheet from './FillDaySheet'
+import { countryFor, emptyDays } from '../../../../supabase/functions/_shared/fillDay'
+import { tripPlace as placeOnDate } from '../../../lib/stops'
+import { tripToday } from '../../../lib/trips'
 
 // Flights and trains stand on their own card; everything else sits in a list group
 const STANDALONE = new Set(['flight', 'train', 'bus', 'ferry'])
@@ -266,6 +270,9 @@ export default function PlanTab({ trip, readOnly }) {
     else (byDay[d] = byDay[d] || []).push(item)
   })
 
+  // Days with nothing on them, from today on: Goose can sketch one
+  const freeDays = !readOnly && trip.destination_city ? emptyDays(trip, byDay, tripToday(trip)) : []
+
   const canDelete = (item) => !readOnly && (!currentUserId || !item.created_by || item.created_by === currentUserId)
   // Same rule as the database: the person who added a booking, or the trip owner, can change it
   const canEdit = (item) => !readOnly && item._kind === 'booking' && (canDelete(item) || trip.owner_id === currentUserId)
@@ -362,6 +369,18 @@ export default function PlanTab({ trip, readOnly }) {
         </section>
       )}
 
+      {freeDays.length > 0 && (
+        <Section title="Free days">
+          <Card variant="group">
+            {freeDays.map(d => (
+              <ListRow key={d} icon="calendar-plus" tone="accent" title={format(parseLocalDate(d), 'EEE · MMM d')}
+                meta="Nothing planned yet. Goose can sketch you a day." trailing="Fill my day"
+                onClick={() => { track('fill_day_open', { surface: 'plan' }); setSheet({ fill: d }) }} />
+            ))}
+          </Card>
+        </Section>
+      )}
+
       {!readOnly && items.length > 0 && (
         <>
           <Button variant="ghost" icon="plus" onClick={() => setSheet('plan')}>Add a plan or note</Button>
@@ -376,6 +395,10 @@ export default function PlanTab({ trip, readOnly }) {
       {sheet === 'add' && <AddBookingSheet onClose={() => setSheet(null)} onPaste={() => setSheet('paste')} onPick={pick} />}
       {sheet === 'paste' && <ImportSheet trip={trip} onClose={() => setSheet(null)} onBookingCreated={() => fetchTrips()} />}
       {sheet === 'plan' && <ActivityFormSheet tripId={trip.id} onClose={() => setSheet(null)} onCreate={createActivity} />}
+      {sheet?.fill && (() => {
+        const p = placeOnDate(trip, { date: sheet.fill, legs, now: null })
+        return <FillDaySheet trip={trip} date={sheet.fill} place={{ city: p.city || trip.destination_city, country: countryFor(trip, p), lat: p.lat, lng: p.lng, tz: p.tz || tz }} onClose={() => setSheet(null)} />
+      })()}
       {sheet?.type && (
         <BookingFormSheet tripId={trip.id} trip={trip} type={sheet.type} initial={sheet.initial || (sheet.mode ? { transport_mode: sheet.mode } : {})}
           booking={sheet.edit || null}
