@@ -10,8 +10,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 //
 // Inbound address scheme:
 //   {12-hex token}@bookings.sillytraveltool.com (server-made; older 8-hex tokens work until rotated)
-// Only mail from the member's account email, their allowed senders, or anyone if they opted in, is read
-// (ingest.ts senderAllowed).
+// Mail from any sender is read (each member's address is unique); the sender check is kept behind
+// INBOX_SENDER_CHECK in ingest.ts. Free members over their forwarded-email limit and inboxes over the daily
+// cap are stopped before any AI call.
 // ============================================================
 
 import { CORS, ok, err, ingestEmail } from './ingest.ts'
@@ -159,7 +160,7 @@ Deno.serve(withGoogleScope(async (req) => {
     // and a slow answer makes Resend send the email again
     const work = (async () => {
       const loadAttachments = () => fetchAttachments((rawBody?.data ?? rawBody)?.email_id, payload.attachments)
-      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, loadAttachments, emailId: (rawBody?.data ?? rawBody)?.email_id || null })
+      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, loadAttachments, hasAttachments: !(Array.isArray(payload.attachments) && payload.attachments.length === 0), emailId: (rawBody?.data ?? rawBody)?.email_id || null })
       console.log(`📨 Filed: ${res.status} ${(await res.text()).slice(0, 300)}`)
     })().catch(e => console.error('receive-booking-email background error:', e))
     // @ts-ignore EdgeRuntime is provided by Supabase Edge Functions

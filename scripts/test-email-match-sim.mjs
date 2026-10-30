@@ -60,7 +60,7 @@ const lookup = q => { const s = q.toLowerCase(); const g = GEO.find(([k]) => s.i
 
 // ── Minimal in-memory Supabase ──
 function makeDb() {
-  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [], held_inbox_emails: [] }
+  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [], held_inbox_emails: [], app_settings: [], ai_usage: [], global_usage: [] }
   const inbox = { parses: 0 } // consume_inbox_quota's counter for today
   let seq = 0
   function q(table) {
@@ -106,7 +106,20 @@ function makeDb() {
       tables.held_inbox_emails = tables.held_inbox_emails.filter(r => !mine.includes(r))
       return { data: mine, error: null }
     }
-    if (name === 'consume_inbox_quota') { inbox.parses++; return { data: inbox.parses <= args.p_limit, error: null } }
+    if (name === 'email_import_locked') return { data: !!inbox.freeLocked, error: null }
+    if (name === 'member_status') return { data: inbox.status || 'active', error: null }
+    if (name === 'consume_inbox_quota') { // mirrors the SQL: kill switch, member status, own count (always counted), then the project-wide cap
+      const setting = k => tables.app_settings.find(r => r.key === k)?.value || {}
+      if (setting('kill').ai_paused === true) return { data: false, error: null }
+      if (['restricted', 'suspended', 'banned'].includes(inbox.status)) return { data: false, error: null }
+      inbox.parses++
+      const day = new Date().toISOString().slice(0, 10)
+      tables.ai_usage = tables.ai_usage.filter(r => !(r.user_id === args.p_user && r.day === day && r.kind === 'inbox'))
+      tables.ai_usage.push({ user_id: args.p_user, day, kind: 'inbox', calls: inbox.parses })
+      if (inbox.parses > (setting('ai_limits').inbox_daily ?? args.p_limit)) return { data: false, error: null }
+      if (inbox.globalCalls != null) { inbox.globalCalls++; tables.global_usage = [{ day, kind: 'ai', calls: inbox.globalCalls }]; return { data: inbox.globalCalls <= (setting('global_limits').ai_daily ?? 3000), error: null } }
+      return { data: true, error: null }
+    }
     return { data: name === 'take_ingest_lock' ? true : null, error: null }
   }
   // auth.users: the account email the inbox accepts mail from
@@ -124,6 +137,7 @@ globalThis.fetch = async (url, init = {}) => {
   const u = String(url), json = b => new Response(JSON.stringify(b), { status: 200 })
   if (u.includes('consume_ai_quota')) return json(true)
   if (u.includes('consume_api_call')) return json(true) // Google quota check (fails closed when it errors)
+  if (u.includes('generativelanguage.googleapis.com')) aiCalls++ // Gemini (text fallback, PDF and image reads)
   if (u.includes('deepseek')) {
     aiCalls++
     const prompt = JSON.parse(init.body).messages[0].content
@@ -144,7 +158,12 @@ globalThis.fetch = async (url, init = {}) => {
 
 const dir = mkdtempSync(join(tmpdir(), 'stt-sim-'))
 await build({ entryPoints: [`${root}supabase/functions/receive-booking-email/ingest.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/ingest.mjs`, logLevel: 'error' })
-const { ingestEmail, normalizeAddress, INBOX_DAILY_PARSES, MAX_HELD } = await import(`${dir}/ingest.mjs`)
+const { ingestEmail, normalizeAddress, INBOX_DAILY_PARSES, MAX_HELD, INBOX_SENDER_CHECK } = await import(`${dir}/ingest.mjs`)
+// The same code with the sender check switched on: proves the one-line switch still works
+const checkedSrc = readFileSync(`${root}supabase/functions/receive-booking-email/ingest.ts`, 'utf8').replace('INBOX_SENDER_CHECK = false', 'INBOX_SENDER_CHECK = true')
+assert.ok(checkedSrc.includes('INBOX_SENDER_CHECK = true'))
+await build({ stdin: { contents: checkedSrc, resolveDir: `${root}supabase/functions/receive-booking-email`, loader: 'ts' }, bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/ingest-checked.mjs`, logLevel: 'error' })
+const { ingestEmail: ingestChecked } = await import(`${dir}/ingest-checked.mjs`)
 await build({ entryPoints: [`${root}supabase/functions/inbox-release/release.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/release.mjs`, logLevel: 'error' })
 const { releaseHeld, MAX_ATTEMPTS } = await import(`${dir}/release.mjs`)
 // The trip-matching replays below forward from airline addresses: their inbox takes any sender. The sender rules
@@ -468,47 +487,118 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     assert.equal(db.tables.bookings.length, 1)
     assert.equal(db.tables.function_errors.length, 0)
   }
-  // 2. Unknown sender: dropped silently, no AI call, nothing filed, one function_errors row with no body in it
+  // 2. Any sender is accepted (the sender check is off): an airline's own address, a stranger, a look-alike, no account email
+  assert.equal(INBOX_SENDER_CHECK, false)
   {
     const db = makeDb()
     const { out, ai } = await send(db, { id: 'u1' }, 'United Airlines <unitedairlines@united.com>')
-    assert.deepEqual(out, { success: true, ignored: true, reason: 'sender' })
-    assert.equal(ai, 0)
-    assert.equal(db.inbox.parses, 0, 'no budget spent')
-    assert.equal(db.tables.bookings.length + db.tables.trips.length, 0)
-    assert.equal(db.tables.function_errors.length, 1)
-    const row = db.tables.function_errors[0]
-    assert.equal(row.kind, 'inbox_rejected_sender'); assert.equal(row.user_id, 'u1'); assert.equal(row.fn, 'receive-booking-email')
-    assert.ok(!row.message.includes('K7QW2M') && row.message.length <= 120, 'no body stored')
-    // A forged look-alike of the member is not the member
-    assert.equal((await send(db, { id: 'u1' }, 'samrivera@gmail.com.evil.example')).ai, 0)
-    assert.equal((await send(db, { id: 'u1' }, 'Sam <sam.rivera@gmail.co>')).ai, 0)
-    // No account email on file and no allow list: nothing gets in
-    assert.equal((await send(makeDb(), { id: 'u9' }, 'anyone@example.com')).ai, 0)
+    assert.ok(out.booking_id && !out.ignored, JSON.stringify(out)); assert.equal(ai, 1)
+    assert.equal(db.tables.function_errors.length, 0, 'nothing logged as rejected')
+    assert.equal((await send(db, { id: 'u1' }, 'samrivera@gmail.com.evil.example')).ai, 1)
+    assert.equal((await send(makeDb(), { id: 'u9' }, 'anyone@example.com')).ai, 1)
+    assert.equal((await send(makeDb(), { id: 'u1', inbox_allowed_senders: ['trips@agency.example'] }, 'other@agency.example')).ai, 1)
   }
-  // 3. Sender on the member's allow list: accepted
+  // 3. The switch is one line: with INBOX_SENDER_CHECK = true the old rules apply again (allow list, account email, accept-any)
   {
+    const sendChecked = async (db, profile, fromAddress) => {
+      current = flight.id
+      const before = aiCalls
+      const out = await (await ingestChecked(db, profile, { subject: flight.subject, fromAddress, bodyText: flight.text, GEMINI_API_KEY: '' })).json()
+      return { out, ai: aiCalls - before }
+    }
     const db = makeDb()
+    assert.equal((await sendChecked(db, { id: 'u1' }, 'Sam Rivera <samrivera+fwd@gmail.com>')).ai, 1)
+    const rej = await sendChecked(db, { id: 'u1' }, 'unitedairlines@united.com')
+    assert.deepEqual(rej.out, { success: true, ignored: true, reason: 'sender' }); assert.equal(rej.ai, 0)
+    assert.equal(db.tables.function_errors.at(-1).kind, 'inbox_rejected_sender')
     const profile = { id: 'u1', inbox_allowed_senders: ['Partner <jo.partner@gmail.com>', 'trips@agency.example'] }
-    const { out, ai } = await send(db, profile, 'jopartner+x@googlemail.com')
-    assert.ok(out.booking_id, JSON.stringify(out)); assert.equal(ai, 1)
-    assert.equal((await send(db, profile, 'TRIPS@agency.example')).ai, 1)
-    assert.equal((await send(db, profile, 'other@agency.example')).ai, 0)
+    assert.equal((await sendChecked(db, profile, 'jopartner+x@googlemail.com')).ai, 1)
+    assert.equal((await sendChecked(db, profile, 'other@agency.example')).ai, 0)
+    assert.equal((await sendChecked(db, { id: 'u1', inbox_accept_any: true }, 'unitedairlines@united.com')).ai, 1)
   }
-  // 4. Accept-any on: an airline's own address gets in (automatic forwarding rules)
+  // 4. Free plan over its limit: stopped before ANY AI call (no DeepSeek, no Gemini, no vision), no attachment download,
+  //    no inbox budget spent, one free_import_blocked row with the user id and no email content
   {
-    const db = makeDb()
-    const { out, ai } = await send(db, { id: 'u1', inbox_accept_any: true }, 'unitedairlines@united.com')
-    assert.ok(out.booking_id, JSON.stringify(out)); assert.equal(ai, 1)
+    const db = makeDb(); db.inbox.freeLocked = true
+    let fetched = 0
+    const loadAttachments = async () => { fetched++; return [] }
+    const { out, ai } = await send(db, { id: 'u1' }, 'unitedairlines@united.com')
+    assert.deepEqual(out, { success: true, ignored: true, reason: 'free_limit' })
+    assert.equal(ai, 0); assert.equal(db.inbox.parses, 0, 'no budget spent'); assert.equal(db.tables.bookings.length + db.tables.trips.length, 0)
+    await ingestEmail(db, { id: 'u1' }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '', loadAttachments })
+    assert.equal(fetched, 0)
+    assert.equal(db.tables.function_errors.length, 2)
+    const row = db.tables.function_errors[0]
+    assert.equal(row.kind, 'free_import_blocked'); assert.equal(row.user_id, 'u1'); assert.equal(row.fn, 'receive-booking-email')
+    assert.ok(!row.message.includes('K7QW2M') && row.message.length < 120, 'no email content stored')
+    // Not locked (paid, or limits off): read as usual
+    assert.equal((await send(makeDb(), { id: 'u1' }, 'a@example.com')).ai, 1)
+  }
+  // 4b. Order: the consent hold comes first (a locked member with no yes is held, not dropped), then the free lock, then the cap, then the AI
+  {
+    const db = makeDb(); db.inbox.freeLocked = true
+    const held = await (await ingestEmail(db, { id: 'u1', ai_consent_at: null }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'em-l' })).json()
+    assert.equal(held.held, true); assert.equal(db.tables.function_errors.length, 0)
+    // consented + locked + capped: the lock answers first, the cap RPC is never reached
+    const db2 = makeDb(); db2.inbox.freeLocked = true; db2.inbox.parses = INBOX_DAILY_PARSES
+    const out = await (await ingestEmail(db2, { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z', ai_consent_version: 'v4-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+    assert.equal(out.reason, 'free_limit'); assert.equal(db2.inbox.parses, INBOX_DAILY_PARSES)
+    assert.deepEqual(db2.tables.function_errors.map(r => r.kind), ['free_import_blocked'])
+  }
+  // 4c. Capped inbox with an attachment: nothing is downloaded and no AI is called
+  {
+    const db = makeDb(); db.inbox.parses = INBOX_DAILY_PARSES
+    let fetched = 0
+    const before = aiCalls
+    const res = await ingestEmail(db, { id: 'u1' }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '', hasAttachments: true, loadAttachments: async () => { fetched++; return [] } })
+    assert.equal(res.status, 429); assert.equal(fetched, 0); assert.equal(aiCalls - before, 0)
+    // Webhook saw no files: nothing to download either way
+    const db2 = makeDb(); fetched = 0
+    await ingestEmail(db2, { id: 'u1' }, { subject: flight.subject, fromAddress: 'x@example.com', bodyText: flight.text, GEMINI_API_KEY: '', hasAttachments: false, loadAttachments: async () => { fetched++; return [] } })
+    assert.equal(fetched, 1) // (loader runs when the flag says "maybe"; with false and a body it still runs once, harmlessly)
+  }
+  // 4d. Other refusals are not cap hits: AI paused, restricted member, project-wide cap, and a per-inbox limit override
+  {
+    const kinds = db => db.tables.function_errors.map(r => `${r.kind}|${r.message}`)
+    const run = async db => { current = flight.id; return ingestEmail(db, { id: 'u1' }, { subject: flight.subject, fromAddress: 'x@example.com', bodyText: flight.text, GEMINI_API_KEY: '' }) }
+    const paused = makeDb(); paused.tables.app_settings.push({ key: 'kill', value: { ai_paused: true } })
+    const before = aiCalls
+    assert.equal((await run(paused)).status, 429)
+    assert.deepEqual(kinds(paused), ['inbox_quota_refused|inbox AI read refused: ai_paused'])
+    const banned = makeDb(); banned.inbox.status = 'suspended'
+    await run(banned); assert.deepEqual(kinds(banned), ['inbox_quota_refused|inbox AI read refused: member_suspended'])
+    const global = makeDb(); global.inbox.globalCalls = 3000
+    await run(global); assert.deepEqual(kinds(global), ['inbox_quota_refused|inbox AI read refused: global_ai_cap'])
+    assert.equal(aiCalls - before, 0)
+    // The owner's override is the limit that is logged and enforced
+    const over = makeDb(); over.tables.app_settings.push({ key: 'ai_limits', value: { inbox_daily: 5 } }); over.inbox.parses = 5
+    await run(over); assert.deepEqual(kinds(over), ['inbox_cap_hit|inbox daily cap 5 reached'])
+  }
+  // 4e. Two emails arrive together on the free limit: the lock is taken first, so the check runs once the first is done
+  {
+    const db = makeDb(); const order = []
+    const rpc = db.rpc; let held = false
+    db.rpc = async (name, args) => {
+      if (name === 'take_ingest_lock') { order.push('take'); if (held) return { data: false, error: null }; held = true; return { data: true, error: null } }
+      if (name === 'email_import_locked') order.push('check')
+      if (name === 'release_ingest_lock') held = false
+      return rpc(name, args)
+    }
+    await ingestEmail(db, { id: 'u1' }, { subject: 's', fromAddress: 'x@example.com', bodyText: '', GEMINI_API_KEY: '' })
+    assert.deepEqual(order.slice(0, 2), ['take', 'check'], 'the free-limit check comes after the per-member lock')
   }
   // 5. Daily inbox budget spent: rejected before the AI, separate from the in-app AI quota
   {
     const db = makeDb()
     db.inbox.parses = INBOX_DAILY_PARSES
+    const aiBefore = aiCalls
     const res = await ingestEmail(db, { id: 'u1' }, { subject: flight.subject, fromAddress: 'samrivera@gmail.com', bodyText: flight.text, GEMINI_API_KEY: '' })
     assert.equal(res.status, 429)
     assert.match((await res.json()).error, /inbox limit/)
     assert.equal(db.tables.bookings.length, 0)
+    assert.equal(aiCalls, aiBefore, 'capped: zero AI calls')
+    const cap = db.tables.function_errors.filter(r => r.kind === 'inbox_cap_hit')
+    assert.equal(cap.length, 1); assert.equal(cap[0].user_id, 'u1'); assert.ok(cap[0].message.includes(String(INBOX_DAILY_PARSES)) && !cap[0].message.includes('K7QW2M'))
     // The last unit of the day still works
     const db2 = makeDb(); db2.inbox.parses = INBOX_DAILY_PARSES - 1
     assert.equal((await send(db2, { id: 'u1' }, 'samrivera@gmail.com')).ai, 1)
@@ -520,13 +610,12 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     const res = await ingestEmail(db, { id: 'u3' }, { subject: flight.subject, fromAddress: 'kim@example.com', bodyText: flight.text, GEMINI_API_KEY: '' })
     assert.equal(res.status, 429)
     assert.equal(db.tables.bookings.length, 0)
+    assert.ok(!(db.tables.function_errors || []).some(r => r.kind === 'inbox_cap_hit'), 'an outage is not a cap hit')
   }
-  // 6. Attachments are fetched only after the sender is accepted
+  // 6. Attachments are fetched only after the consent hold and the free-plan lock (see 4, 7)
   {
     let fetched = 0
     const loadAttachments = async () => { fetched++; return [] }
-    await ingestEmail(makeDb(), { id: 'u1' }, { subject: 's', fromAddress: 'evil@example.com', bodyText: '', GEMINI_API_KEY: '', loadAttachments })
-    assert.equal(fetched, 0)
     const out = await (await ingestEmail(makeDb(), { id: 'u1' }, { subject: 's', fromAddress: 'samrivera@gmail.com', bodyText: '', GEMINI_API_KEY: '', loadAttachments })).json()
     assert.equal(fetched, 1); assert.equal(out.ignored, true) // nothing readable: no AI call either
   }
@@ -543,9 +632,10 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     assert.equal(db.tables.held_inbox_emails.length, 1)
     assert.deepEqual(Object.keys(db.tables.held_inbox_emails[0]).sort(), ['email_id', 'from_domain', 'subject', 'user_id'])
     assert.equal(db.tables.held_inbox_emails[0].from_domain, 'gmail.com')
-    // A disallowed sender is still dropped, not held
+    // Held mail from any sender (the sender check is off)
     await ingestEmail(db, profile, { ...input, fromAddress: 'evil@example.com', emailId: 'em-2' })
-    assert.equal(db.tables.held_inbox_emails.length, 1)
+    assert.equal(db.tables.held_inbox_emails.length, 2)
+    db.tables.held_inbox_emails.pop()
     // inbox-release after the yes: filed like a new email
     const out = await (await ingestEmail(db, profile, { ...input, released: true })).json()
     assert.ok(out.booking_id, JSON.stringify(out)); assert.equal(aiCalls - before, 1)
@@ -575,7 +665,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     assert.equal(out.reason, 'held_full'); assert.equal(db.tables.held_inbox_emails.length, MAX_HELD)
     assert.equal(db.tables.function_errors.at(-1).kind, 'inbox_hold_cap')
   }
-  console.log('inbox gate: member accepted, unknown sender dropped before the AI (logged, no body), allow list and accept-any accepted, budget enforced, held until AI reading is allowed, hold cap')
+  console.log('inbox gate: any sender accepted (check off, one-line switch works), free-plan lock and per-inbox cap stop before the AI and are logged (no body), budget enforced, held until AI reading is allowed, hold cap')
 
   // ── inbox-release (audit B1, B2): claim first, keep what failed for a temporary reason ──
   {

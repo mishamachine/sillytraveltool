@@ -12,6 +12,9 @@ import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Switch, Text, Stack, Logo, LinkButton, Icon,
 } from '../../ui'
 
+// Mirror of INBOX_SENDER_CHECK in supabase/functions/receive-booking-email/ingest.ts: keep the two in step.
+// While false the inbox reads mail from any sender, so the 'accept from any sender' switch is hidden.
+const INBOX_SENDER_CHECK = false
 const PROVIDER = { email: 'Email', google: 'Google', apple: 'Apple' }
 
 function ValueRow({ label, value }) {
@@ -167,12 +170,12 @@ export default function SettingsView({ onBack, onDelete }) {
           ) : (
             <Text variant="caption" tone="muted">Setting up your address</Text>
           )}
-          <Text variant="micro" tone="muted">Goose reads mail you forward from {user?.email || 'your account email'}. Keep the address private.</Text>
+          <Text variant="micro" tone="muted">{INBOX_SENDER_CHECK ? `Goose reads mail you forward from ${user?.email || 'your account email'}. Keep the address private.` : 'Bookings sent to this address from any sender land in your trips. Keep it private.'}</Text>
           {inboxError && <Banner tone="danger" icon="alert-circle" role="alert">{inboxError}</Banner>}
         </Card>
         <Card variant="group">
-          <Switch label="Accept from any sender" description="For automatic forwarding rules that keep the airline or hotel as the sender. Anyone who learns your address can then add bookings."
-            checked={!!profile?.inbox_accept_any} onChange={on => updateProfile({ inbox_accept_any: on }).catch(e => setInboxError(e?.message || 'Could not save. Try again.'))} />
+          {INBOX_SENDER_CHECK && <Switch label="Accept from any sender" description="For automatic forwarding rules that keep the airline or hotel as the sender. Anyone who learns your address can then add bookings."
+            checked={!!profile?.inbox_accept_any} onChange={on => updateProfile({ inbox_accept_any: on }).catch(e => setInboxError(e?.message || 'Could not save. Try again.'))} />}
           <ListRow title="New address" meta="The old address stops working at once" chevron onClick={() => setConfirmRotate(true)} />
         </Card>
       </Section>
