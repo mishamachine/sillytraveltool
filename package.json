@@ -17,7 +17,7 @@
     "android": "npm run build:native && npx cap run android",
     "android:open": "npm run build:native && npx cap open android",
     "check:clay": "node scripts/check-clay.mjs",
-    "postbuild": "node scripts/check-dist.mjs",
+    "postbuild": "node scripts/check-dist.mjs && node scripts/check-url-paths.mjs",
     "build:ios": "vite build --mode native --outDir dist-native && npx cap sync ios"
   },
   "dependencies": {
