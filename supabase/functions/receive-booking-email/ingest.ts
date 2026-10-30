@@ -237,16 +237,45 @@ async function inboxBudget(supabase: any, userId: string): Promise<boolean> {
     if (error) return quotaUnavailable('inbox', userId, `consume_inbox_quota: ${error.message}`.slice(0, 200))
     const ok = data !== false
     rememberQuota('inbox', userId, ok)
-    if (!ok) {
-      // The cap was hit (not an outage): leave a counted trace, user id and the cap only
-      try {
-        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_cap_hit', status: 429, user_id: userId, message: `inbox daily cap ${INBOX_DAILY_PARSES} reached` })
-      } catch { /* logging is best-effort */ }
-    }
+    if (!ok) await logInboxRefusal(supabase, userId)
     return ok
   } catch (e) {
     return quotaUnavailable('inbox', userId, `consume_inbox_quota error: ${(e as Error).message}`)
   }
+}
+
+/**
+ * consume_inbox_quota says no for four different reasons: AI paused, a restricted/suspended/banned member, this inbox's
+ * own daily count, or the project-wide AI cap. Work out which with cheap reads (no migration) and log one row, user id
+ * and numbers only: 'inbox_cap_hit' only when the inbox's own count is over its limit (the effective one, which
+ * app_settings.ai_limits.inbox_daily can override), else 'inbox_quota_refused' with the reason.
+ */
+async function logInboxRefusal(supabase: any, userId: string) {
+  try {
+    const day = new Date().toISOString().slice(0, 10)
+    const { data: settings } = await supabase.from('app_settings').select('key, value').in('key', ['kill', 'ai_limits', 'global_limits'])
+    const setting = (k: string) => (settings || []).find((r: any) => r.key === k)?.value || {}
+    const limit = Number.isFinite(Number(setting('ai_limits').inbox_daily)) && setting('ai_limits').inbox_daily != null ? Number(setting('ai_limits').inbox_daily) : INBOX_DAILY_PARSES
+    let kind = 'inbox_quota_refused', reason = 'unknown'
+    if (setting('kill').ai_paused === true) reason = 'ai_paused'
+    else {
+      const { data: status } = await supabase.rpc('member_status', { p_user: userId })
+      if (['restricted', 'suspended', 'banned'].includes(status)) reason = `member_${status}`
+      else {
+        const { data: use } = await supabase.from('ai_usage').select('calls').eq('user_id', userId).eq('day', day).eq('kind', 'inbox').maybeSingle()
+        if ((use?.calls ?? 0) > limit) { kind = 'inbox_cap_hit'; reason = 'inbox_daily' }
+        else {
+          const { data: g } = await supabase.from('global_usage').select('calls').eq('day', day).eq('kind', 'ai').maybeSingle()
+          const globalCap = Number(setting('global_limits').ai_daily ?? 3000)
+          if ((g?.calls ?? 0) > globalCap) reason = 'global_ai_cap'
+        }
+      }
+    }
+    await supabase.from('function_errors').insert({
+      fn: 'receive-booking-email', kind, status: 429, user_id: userId,
+      message: kind === 'inbox_cap_hit' ? `inbox daily cap ${limit} reached` : `inbox AI read refused: ${reason}`,
+    })
+  } catch { /* logging is best-effort */ }
 }
 
 export async function ingestEmail(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
@@ -288,17 +317,6 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     console.log(`⏸️ Inbox of ${profile.id}: held until AI reading is allowed`)
     return ok({ success: true, held: true })
   }
-  // Free plan, over its forwarded-email limit: stop here, before any attachment download or AI call.
-  // (email_import_locked is false while app_settings.free_limits.enabled is false. If the RPC errors we carry on,
-  // as before: the per-inbox cap below still applies.)
-  const { data: freeLocked } = await supabase.rpc('email_import_locked', { p_user: profile.id })
-  if (freeLocked === true) {
-    console.log(`🔒 Inbox of ${profile.id}: free import limit reached, not read`)
-    try {
-      await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'free_import_blocked', status: 200, user_id: profile.id, message: 'free plan forwarded-email limit reached, no AI read' })
-    } catch { /* logging is best-effort */ }
-    return ok({ success: true, ignored: true, reason: 'free_limit' })
-  }
   let locked = false
   for (let i = 0; i < 40 && !locked; i++) {
     const { data, error } = await supabase.rpc('take_ingest_lock', { p_user: profile.id, p_seconds: 90 })
@@ -307,6 +325,18 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     if (!locked) await new Promise(r => setTimeout(r, 1500))
   }
   try {
+    // Free plan, over its forwarded-email limit: stop here, before any attachment download or AI call. Checked once this
+    // member's lock is held, so two emails arriving together can't both slip under the limit.
+    // (email_import_locked is false while app_settings.free_limits.enabled is false. If the RPC errors we carry on,
+    // as before: the per-inbox cap below still applies.)
+    const { data: freeLocked } = await supabase.rpc('email_import_locked', { p_user: profile.id })
+    if (freeLocked === true) {
+      console.log(`🔒 Inbox of ${profile.id}: free import limit reached, not read`)
+      try {
+        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'free_import_blocked', status: 200, user_id: profile.id, message: 'free plan forwarded-email limit reached, no AI read' })
+      } catch { /* logging is best-effort */ }
+      return ok({ success: true, ignored: true, reason: 'free_limit' })
+    }
     return await ingestOne(supabase, profile, input)
   } finally {
     if (locked) await supabase.rpc('release_ingest_lock', { p_user: profile.id })
@@ -316,10 +346,11 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
 async function ingestOne(
   supabase: any,
   profile: InboxProfile,
-  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [], loadAttachments, emailId = null }: {
+  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [], loadAttachments, hasAttachments, emailId = null }: {
     subject: string, fromAddress: string, bodyText: string, GEMINI_API_KEY: string,
     attachments?: { name: string, mime: string, bytes: Uint8Array }[],
     // The webhook downloads files only once the sender is accepted
+    hasAttachments?: boolean, // false when the webhook saw no files: nothing to download
     loadAttachments?: () => Promise<{ name: string, mime: string, bytes: Uint8Array }[]>,
     emailId?: string | null,  // the Resend email id: stamped on every booking from this email (raw_email_id)
     released?: boolean,       // filed by inbox-release after the member allowed AI reading (skips the hold)
@@ -328,14 +359,20 @@ async function ingestOne(
   const userId = profile.id
   setGoogleUser(userId)
 
+  // Nothing to read at all: no budget spent, no download
+  if (!bodyText && !attachments.length && !(loadAttachments && hasAttachments !== false)) {
+    console.warn('No email body or readable attachment')
+    return ok({ success: true, ignored: true })
+  }
+  // Budget first, then the download: a capped inbox fetches nothing
+  if (!(await inboxBudget(supabase, userId))) {
+    console.warn(`Inbox budget spent for user ${userId}: inbound email not parsed`)
+    return err('Daily inbox limit reached', 429)
+  }
   if (!attachments.length && loadAttachments) attachments = await loadAttachments()
   if (!bodyText && !attachments.length) {
     console.warn('No email body or readable attachment')
     return ok({ success: true, ignored: true })
-  }
-  if (!(await inboxBudget(supabase, userId))) {
-    console.warn(`Inbox budget spent for user ${userId}: inbound email not parsed`)
-    return err('Daily inbox limit reached', 429)
   }
 
   // ── 4. Fetch user's trips for matching ────────────────────
