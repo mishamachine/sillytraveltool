@@ -9,7 +9,50 @@ const reducedMotion = () => {
   try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
 }
 
-const TAP_MS = 1100 // a tap stage: glide, press, ripple
+const TAP_MS = 1100 // a tap stage: glide, press, ripple (tied to the CSS timings, so it is not scaled)
+
+// Playback speed of the tour: every timed stage (ms) is multiplied by this. One place to tune it.
+const TOUR_SPEED = 0.8
+// A caption stays up at least this long: the larger of a flat floor and a reading allowance per character.
+const MIN_CAPTION_MS = 1400
+const READ_MS_PER_CHAR = 60
+
+const timingCache = new WeakMap()
+
+/**
+ * Stage durations for a script, and how long each caption stays on screen (its stage plus the stages after it,
+ * until the next caption). Timed stages are scaled by TOUR_SPEED; where a caption would then be up for less than
+ * the reading time, the shortfall is added to the last timed stage it covers (or its last stage if all are taps).
+ */
+function timings(script) {
+  let t = timingCache.get(script)
+  if (t) return t
+  const dur = script.map(st => (st.ms == null ? TAP_MS : Math.round(st.ms * TOUR_SPEED)))
+  const span = {}
+  script.forEach((st, k) => {
+    if (!st.cap) return
+    let end = k + 1
+    while (end < script.length && !script[end].cap) end++
+    const need = Math.max(MIN_CAPTION_MS, st.cap.text.length * READ_MS_PER_CHAR)
+    let total = 0
+    for (let j = k; j < end; j++) total += dur[j]
+    if (total < need) {
+      let at = end - 1
+      for (let j = end - 1; j >= k; j--) if (script[j].ms != null) { at = j; break }
+      dur[at] += need - total
+      total = need
+    }
+    span[k] = { start: k, end }
+  })
+  Object.keys(span).forEach(k => {
+    let total = 0
+    for (let j = span[k].start; j < span[k].end; j++) total += dur[j]
+    span[k] = total
+  })
+  t = { dur, span }
+  timingCache.set(script, t)
+  return t
+}
 
 /**
  * Plays a script of stages ({ ms, tap?, cap? }), looping. Returns the stage index and the stage itself.
@@ -19,7 +62,7 @@ function useScript(script, still = script.length - 1) {
   const [i, setI] = useState(() => (reducedMotion() ? still : 0))
   useEffect(() => {
     if (reducedMotion()) return
-    const t = setTimeout(() => setI(v => (v + 1) % script.length), script[i].ms ?? TAP_MS)
+    const t = setTimeout(() => setI(v => (v + 1) % script.length), timings(script).dur[i])
     return () => clearTimeout(t)
   }, [i])
   return [i, script[i]]
@@ -27,7 +70,7 @@ function useScript(script, still = script.length - 1) {
 
 /** The most recent caption at or before stage i, so tap stages keep the scene's caption unless they set one. */
 function captionAt(script, i) {
-  for (let k = i; k >= 0; k--) if (script[k].cap) return { ...script[k].cap, key: k }
+  for (let k = i; k >= 0; k--) if (script[k].cap) return { ...script[k].cap, key: k, ms: timings(script).span[k] }
   return null
 }
 
@@ -72,6 +115,9 @@ function Caption({ cap }) {
     <p className="tour-caption" aria-hidden="true">
       <span className="tour-caption__n">{cap.n}</span>
       <span key={cap.key} className="tour-caption__text t-label">{cap.text}</span>
+      {/* "Playing" cue: a pulsing dot and a thin bar that fills while this caption is up. Decorative. */}
+      <span className="tour-caption__dot" />
+      <span key={`bar${cap.key}`} className="tour-caption__bar" ref={el => el?.style.setProperty('--tour-step-ms', `${cap.ms}ms`)} />
     </p>
   )
 }

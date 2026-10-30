@@ -26,6 +26,21 @@
   background: var(--accent-fill); color: var(--on-accent); font: 700 0.75rem var(--font-display);
 }
 .tour-caption__text { animation: tour-fade 0.4s ease-out both; }
+/* "Playing" cue: a pulsing dot at the end of the caption row and a thin bar that fills over this caption's time on screen */
+.tour-caption { position: relative; padding-bottom: var(--space-2); }
+.tour-caption__dot {
+  margin-left: auto; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  animation: tour-blink 1.4s ease-in-out infinite;
+}
+.tour-caption__bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: var(--radius-pill);
+  background: var(--accent); opacity: 0.55; transform-origin: left center;
+  animation: tour-draw var(--tour-step-ms, 3s) linear both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-caption__dot { animation: none; }
+  .tour-caption__bar { display: none; }
+}
 .tour-stack { gap: var(--space-3); }
 .tour-card-flat { box-shadow: var(--shadow-card); }
 .tour-card-flat .c-row { min-height: 60px; }
