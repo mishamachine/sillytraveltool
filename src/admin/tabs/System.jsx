@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api'
 import EmailComposer from './EmailComposer'
+import { AbuseWatchCard } from './UsageActivity'
 import { Card, Stat, Table, Loading, ErrorNote, useLoad, ExportButton, Modal, Field, fmtDate, ago } from '../ui'
 
 export default function System({ filters, go, role }) {
@@ -22,6 +23,8 @@ export default function System({ filters, go, role }) {
         </div>
         <p className="a-hint">Server functions start reporting their errors here as each one is next deployed. Sentry turns on once its key (VITE_SENTRY_DSN) is set.</p>
       </Card>
+
+      <AbuseWatchCard go={go} />
 
       <Card title="Server function errors" icon="alert-triangle" className="a-span-6" actions={<ExportButton name="function-errors" rows={d.function_errors} />}>
         <Table rowKey={(e, i) => i} rows={d.function_errors} empty="No server errors recorded." cols={[

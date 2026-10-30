@@ -6,6 +6,7 @@ import { Card, Table, Badge, Loading, ErrorNote, useLoad, ExportButton, Segmente
 import MemberPanel from './MemberPanel'
 import EmailComposer from './EmailComposer'
 import EmailsView from './EmailsView'
+import UsageActivity from './UsageActivity'
 import Cohorts, { CohortEditor } from './Cohorts'
 import { money } from './StripePanel'
 
@@ -60,7 +61,7 @@ export default function Members({ filters, view, go, role }) {
     <div className="a-grid">
       <Card title="Trip cycle" icon="compass" className="a-span-12"
         subtitle="Between trips is healthy. Lapsed means quieter than this member's own rhythm."
-        actions={<Segmented size="sm" options={[['list', 'Members'], ['cohorts', 'Cohorts'], ['audience', 'Audience'], ['emails', 'Emails']]} value={mode} onChange={(m) => go({ mode: m === 'list' ? null : m })} />}>
+        actions={<Segmented size="sm" options={[['list', 'Members'], ['cohorts', 'Cohorts'], ['audience', 'Audience'], ['usage', 'Usage'], ['emails', 'Emails']]} value={mode} onChange={(m) => go({ mode: m === 'list' ? null : m })} />}>
         <div className="a-stages">
           <button className={`a-stage ${!view.stage ? 'is-on' : ''}`} onClick={() => go({ stage: null })}>
             <span className="a-stage__n">{all.length}</span><span>Everyone</span>
@@ -73,7 +74,7 @@ export default function Members({ filters, view, go, role }) {
         </div>
       </Card>
 
-      {mode === 'cohorts' ? <Cohorts role={role} go={go} filters={filters} /> : mode === 'emails' ? <EmailsView role={role} go={go} /> : mode === 'audience' ? <Audience a={audience} pick={pickSeg} view={view} /> : (
+      {mode === 'cohorts' ? <Cohorts role={role} go={go} filters={filters} /> : mode === 'emails' ? <EmailsView role={role} go={go} /> : mode === 'usage' ? <UsageActivity go={go} /> : mode === 'audience' ? <Audience a={audience} pick={pickSeg} view={view} /> : (
         <Card title="Members" icon="users" className="a-span-12" subtitle={`${rows.length} shown`}
           actions={<>
             <div className="a-search"><Icon name="search" size={16} />
