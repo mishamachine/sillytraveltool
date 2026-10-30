@@ -12,6 +12,8 @@ const SRC = join(root, 'src')
 const COLOUR_OK = new Set(['src/styles/tokens.css', 'src/lib/tokens.js'])
 // Dev-only files are exempt from the inline-style rule.
 const isDev = p => p.startsWith('src/dev/')
+// The owner's four budget pop-up lines are the one approved use of emoji.
+const EMOJI_OK = new Set(['src/screens/trips/detail/fillDayBudgetPop.js'])
 
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{FE0F}]/u
 // Google's sign-in mark must keep its own brand colours (Google identity guidelines).
@@ -38,7 +40,7 @@ for (const file of walk(SRC)) {
     if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return
     // Route notation ("SEA → MAD") is content, not an icon substitute
     const text = line.replace(/\w \u2192 \w/gu, '')
-    if (EMOJI.test(isDev(rel) ? text.replace(/[\u2190-\u21FF]/g, '') : text)) problems.push(`${where}  emoji/arrow glyph: ${line.trim().slice(0, 90)}`)
+    if (!EMOJI_OK.has(rel) && EMOJI.test(isDev(rel) ? text.replace(/[\u2190-\u21FF]/g, '') : text)) problems.push(`${where}  emoji/arrow glyph: ${line.trim().slice(0, 90)}`)
     if (!COLOUR_OK.has(rel) && (HEX.test(line.replace(GOOGLE_MARK, '')) || RGB.test(line)) && !/&#|#[0-9a-f]{3,8}-|href=|id=|url\(#/i.test(line)) {
       problems.push(`${where}  raw colour: ${line.trim().slice(0, 90)}`)
     }

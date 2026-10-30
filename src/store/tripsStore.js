@@ -336,6 +336,15 @@ export const useTripsStore = create((set, get) => ({
     return data
   },
 
+  /** Several plans at once (Fill my day), one insert under the member's own rights. */
+  createActivities: async (tripId, rows) => {
+    if (!rows.length) return []
+    const { data, error } = await supabase.from('trip_activities').insert(rows.map(r => ({ ...r, trip_id: tripId }))).select()
+    if (error) throw error
+    set(state => ({ activities: [...state.activities, ...data] }))
+    return data
+  },
+
   toggleActivity: async (id, completed) => {
     const { data, error } = await supabase.from('trip_activities')
       .update({ is_completed: completed }).eq('id', id).select().single()
