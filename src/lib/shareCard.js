@@ -17,6 +17,14 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const ymd = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? [+m[1], +m[2], +m[3]] : null }
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const clean = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+/** A title cut to `max` characters at a word boundary, with an ellipsis; one very long word is cut by characters. */
+function capTitle(s, max) {
+  const t = String(s ?? '').replace(/\s+/g, ' ').trim()
+  if (t.length <= max) return t
+  const cut = t.slice(0, max - 1)
+  const at = cut.lastIndexOf(' ')
+  return `${(at > 0 ? cut.slice(0, at) : cut).trimEnd()}…`
+}
 
 /** Days on the trip, counting both ends (a day trip is 1 day); null when undated. */
 export function tripDays(trip) {
@@ -39,15 +47,18 @@ export function monthLine(trip) {
 export function routeOf(trip, stops = []) {
   const stays = [...stops].filter(s => s.kind === 'stay' && clean(s.city, 40)).sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
   const cities = [], countries = []
+  let countryName = ''
   for (const s of stays) {
     const c = clean(s.city, 40)
     if (!cities.some(x => x.toLowerCase() === c.toLowerCase())) cities.push(c)
     const k = clean(s.country_code || s.country, 40).toLowerCase()
     if (k && !countries.includes(k)) countries.push(k)
+    if (!countryName) countryName = clean(s.country, 40)
   }
   if (!cities.length && clean(trip?.destination_city, 40)) cities.push(clean(trip.destination_city, 40))
   if (!countries.length && clean(trip?.destination_country_code || trip?.destination_country, 40)) countries.push('home')
-  return { cities, countryCount: countries.length }
+  if (!countryName) countryName = clean(trip?.destination_country, 40)
+  return { cities, countryCount: countries.length, countryName }
 }
 
 /** The member's badges unlocked during this trip (or in the three days after), as { id, name, icon, tier }. */
@@ -67,7 +78,7 @@ export function gooseLine({ days, cities, flights, key }) {
   const lines = []
   if (days) lines.push(`${plural(days, 'day')} away. Goose is proud.`)
   if (cities > 1) lines.push(`${cities} cities, one tidy itinerary.`)
-  if (flights > 0) lines.push(`${plural(flights, 'flight')}. Zero lost in the inbox.`)
+  if (flights > 1) lines.push(`${plural(flights, 'flight')}. Zero lost in the inbox.`)
   return lines.length ? lines[hash(key) % lines.length] : 'Goose approves.'
 }
 
@@ -81,19 +92,24 @@ export function shareCaption({ title, days, cities }) {
  * `title` and `hideDates` come from the preview sheet.
  */
 export function buildShareCard({ trip, stops = [], bookings = [], stats = null, badges = [], title, hideDates = false }) {
-  const name = clean(title ?? trip?.title, MAX_TITLE) || 'My trip'
+  const name = capTitle(title ?? trip?.title, MAX_TITLE) || 'My trip'
   const days = tripDays(trip)
-  const { cities, countryCount } = routeOf(trip, stops)
+  const { cities, countryCount, countryName } = routeOf(trip, stops)
   const flights = bookings.filter(b => b?.type === 'flight').length
   const completed = Math.max(0, Number(stats?.trips_completed) || 0)
   const score = Math.max(0, Math.round(Number(stats?.goose_score) || 0))
   const earned = badgesEarnedOn(trip, badges).slice(0, MAX_BADGES).map(({ id, name: n, icon }) => ({ id, name: n, icon: icon || 'award' }))
 
-  const trio = [
-    days > 0 && { value: days, label: days === 1 ? 'day' : 'days' },
-    cities.length > 0 && { value: cities.length, label: cities.length === 1 ? 'city' : 'cities' },
-    countryCount > 0 && { value: countryCount, label: countryCount === 1 ? 'country' : 'countries' },
-  ].filter(Boolean)
+  // One city: no route strip, no city or country numbers; one giant days number with the place under it
+  const single = cities.length === 1 && days > 0
+  const place = countryName || cities[0]
+  const trio = single
+    ? [{ value: days, label: `${days === 1 ? 'day' : 'days'} in ${place}`, hero: true }]
+    : [
+      days > 0 && { value: days, label: days === 1 ? 'day' : 'days' },
+      cities.length > 0 && { value: cities.length, label: cities.length === 1 ? 'city' : 'cities' },
+      countryCount > 0 && { value: countryCount, label: countryCount === 1 ? 'country' : 'countries' },
+    ].filter(Boolean)
   const extras = [
     flights > 0 && { value: flights, label: flights === 1 ? 'flight' : 'flights' },
     completed > 0 && { value: completed, label: completed === 1 ? 'trip completed' : 'trips completed' },
@@ -103,7 +119,7 @@ export function buildShareCard({ trip, stops = [], bookings = [], stats = null, 
     overline: 'TRIP RECAP',
     title: name,
     dateLine: hideDates ? null : monthLine(trip),
-    route: { cities: cities.slice(0, MAX_ROUTE), more: Math.max(0, cities.length - MAX_ROUTE) },
+    route: single ? { cities: [], more: 0 } : { cities: cities.slice(0, MAX_ROUTE), more: Math.max(0, cities.length - MAX_ROUTE) },
     trio,
     extras,
     gooseLine: gooseLine({ days, cities: cities.length, flights, key: trip?.id }),

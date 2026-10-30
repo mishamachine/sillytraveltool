@@ -64,9 +64,12 @@ t('a stat shows only when above zero', () => {
 
 t('one-city trip falls back to the destination and the days line', () => {
   const m = build({ stops: [], bookings: [] })
-  assert.deepEqual(m.route, { cities: ['Lisbon'], more: 0 })
-  assert.deepEqual(m.trio.map(s => [s.value, s.label]), [[13, 'days'], [1, 'city'], [1, 'country']])
+  assert.deepEqual(m.route, { cities: [], more: 0 }) // no route strip for one city
+  assert.deepEqual(m.trio.map(s => [s.value, s.label]), [[13, 'days in Portugal']]) // one giant number, no city or country counts
   assert.equal(m.gooseLine, '13 days away. Goose is proud.')
+  // country missing: falls back to the city
+  const noCountry = build({ stops: [], bookings: [], trip: trip({ destination_country: null, destination_country_code: null }) })
+  assert.equal(noCountry.trio[0].label, 'days in Lisbon')
 })
 
 t('six cities: route shows five then +1 more; badges cap at four', () => {
@@ -83,6 +86,9 @@ t('Goose line uses real counts only and follows the fallback rule', () => {
   const lines = new Set(['a', 'bb', 'ccc', 'dddd', 'eeeee', 'ffffff'].map(key => gooseLine({ days: 6, cities: 3, flights: 2, key })))
   for (const l of lines) assert.match(l, /^(6 days away\. Goose is proud\.|3 cities, one tidy itinerary\.|2 flights\. Zero lost in the inbox\.)$/)
   assert.equal(gooseLine({ days: 1, cities: 1, flights: 0, key: 'x' }), '1 day away. Goose is proud.')
+  // one flight uses the days line; the flights line needs two or more
+  assert.equal(gooseLine({ days: 7, cities: 1, flights: 1, key: 'x' }), '7 days away. Goose is proud.')
+  assert.ok(new Set(['a', 'bb', 'ccc', 'dddd', 'eeeee', 'ffffff', 'g7', 'h88'].map(key => gooseLine({ days: 7, cities: 1, flights: 2, key }))).has('2 flights. Zero lost in the inbox.'))
   assert.equal(gooseLine({ days: 0, cities: 0, flights: 0, key: 'x' }), 'Goose approves.')
   assert.ok(!gooseLine({ days: 4, cities: 1, flights: 0, key: 'zz' }).includes('flight'))
 })
@@ -93,6 +99,10 @@ t('hide dates removes the date line only; edited title is used', () => {
   assert.equal(m.title, 'Our big trip')
   assert.equal(build({ title: '' }).title, 'My trip')
   assert.equal(build({ title: 'x'.repeat(200) }).title.length, 60)
+  // a long title is cut at a word, never mid-word
+  const cut = build({ title: 'The extremely long and winding trip name that nobody asked for but here we are anyway' }).title
+  assert.equal(cut, 'The extremely long and winding trip name that nobody asked…')
+  assert.ok(cut.length <= 60)
 })
 
 t('caption is the agreed text with the tracked link, no price or "free" or AI wording', () => {
@@ -120,7 +130,7 @@ function recorder() {
     get(target, k) {
       if (k in target) return target[k]
       if (k === 'measureText') return s => ({ width: String(s).length * (parseFloat(/(\d+(\.\d+)?)px/.exec(target.font)?.[1]) || 16) * 0.55 })
-      if (k === 'fillText') return (s, x, y) => calls.push({ s, x, y, size: parseFloat(/(\d+(\.\d+)?)px/.exec(target.font)?.[1]) })
+      if (k === 'fillText') return (s, x, y) => calls.push({ s, x, y, color: target.fillStyle, size: parseFloat(/(\d+(\.\d+)?)px/.exec(target.font)?.[1]) })
       return () => {}
     },
     set(target, k, v) { target[k] = v; return true },
@@ -154,13 +164,44 @@ t('story: all text sits between the top 250 px and the bottom 340 px, worst case
     assert.ok(c.y >= SAFE_TOP, `"${c.s}" at y=${c.y} is inside the top ${SAFE_TOP}px`)
     assert.ok(c.y + c.size <= H - SAFE_BOTTOM, `"${c.s}" ends at ${c.y + c.size}, inside the bottom ${SAFE_BOTTOM}px`)
   }
-  // title is at most two lines
-  assert.ok(calls.filter(c => c.size >= 64).length <= 2 + 3)
+  // the title wraps to at most three lines and never loses a word mid-way: every title line is whole words from the title
+  const titleLines = calls.filter(c => c.size >= 72 && c.y < 700 && !/^\d+$/.test(c.s) && c.s !== worst.dateLine)
+  assert.ok(titleLines.length <= 3 && titleLines.length >= 1)
+  for (const c of titleLines) for (const w of c.s.replace('…', '').split(' ')) assert.ok(worst.title.replace('…', '').split(' ').includes(w), `"${w}" is cut mid-word`)
+})
+
+t('story fills the safe area: content runs from the top band down to the call to action at about y=1560', () => {
+  const calls = draw(build(), 'story')
+  const last = calls.at(-1)
+  assert.ok(last.y + last.size >= 1520 && last.y + last.size <= 1580, `footer ends at ${last.y + last.size}`)
+  // the big numbers are the hero
+  assert.ok(Math.max(...calls.filter(c => /^\d+$/.test(c.s)).map(c => c.size)) >= 150)
+  const one = draw(build({ stops: [], bookings: [] }), 'story')
+  assert.ok(one.some(c => c.s === '13' && c.size >= 200), 'giant ' + JSON.stringify(one.slice(0, 8)))
+  assert.ok(one.some(c => c.s === 'days in Portugal'))
+  assert.ok(!one.some(c => c.s === 'Lisbon'), 'no route strip for one city')
+})
+
+t('a long title with a long unbroken word wraps then cuts at a word, not mid-word', () => {
+  const m = build({ title: 'Seventeen unbelievably spectacular wonderful marvellous adventurous holidays abroad' })
+  for (const c of draw(m, 'story').filter(c => c.size >= 72 && c.y < 700 && !/^\d+$/.test(c.s) && c.s !== m.dateLine)) for (const w of c.s.replace('…', '').split(' ')) assert.ok(m.title.replace('…', '').split(' ').includes(w), `"${w}"`)
 })
 
 t('square: everything inside 1080 x 1080', () => {
   const calls = draw(build(), 'square')
   for (const c of calls) assert.ok(c.y >= 0 && c.y + c.size <= 1080, `"${c.s}" y=${c.y}`)
+})
+
+t('every colour actually drawn has 4.5:1 or better on everything it can sit on (background, disc, chip)', () => {
+  const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] }
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
+  for (const look of ['dark', 'terracotta']) for (const size of ['story', 'square']) {
+    const P = SHARE_CARD_LOOKS[look]
+    for (const c of draw(build(), size, look)) {
+      for (const under of ['bg', 'disc']) assert.ok(ratio(c.color, P[under]) >= 4.5, `${look} "${c.s}" ${c.color} on ${under} = ${ratio(c.color, P[under]).toFixed(2)}`)
+      if (c.color === P.text) assert.ok(ratio(P.text, P.chip) >= 4.5)
+    }
+  }
 })
 
 t('palette: every text and fill pair has contrast of at least 4.5:1, and matches the brand tokens', () => {

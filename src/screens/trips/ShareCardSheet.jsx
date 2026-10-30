@@ -42,9 +42,11 @@ export default function ShareCardSheet({ trip, onClose }) {
   }, [model, pref])
 
   const choose = (patch) => {
-    const next = { ...pref, ...patch }
-    setPref(next)
-    try { localStorage.setItem(PREF_KEY, JSON.stringify(next)) } catch { /* private mode */ }
+    setPref(prev => {
+      const next = { ...prev, ...patch }
+      try { localStorage.setItem(PREF_KEY, JSON.stringify(next)) } catch { /* private mode */ }
+      return next
+    })
   }
 
   const share = async () => {
