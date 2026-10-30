@@ -33,7 +33,7 @@ insert into auth.users values ('${OWN}','owner@x.com'),('${LEAVER}','Leaver@X.co
 insert into public.trips values ('${T_OWN}','${OWN}'),('${T_LEAV}','${LEAVER}');
 `)
 // ---- purge ----
-const mig = readFileSync(W+'20261029140000_invite_privacy_cleanup.sql','utf8')
+const mig = readFileSync(W+'20261030120100_invite_privacy_cleanup.sql','utf8')
 await db.exec(`insert into public.trip_collaborators (trip_id,user_id,invited_email,role,status,invited_by,invited_at,invite_token,invite_expires_at) values
  ('${T_OWN}',null,'p-old@x.com','viewer','pending','${OWN}',now()-interval '20 days',gen_random_uuid(), now()-interval '8 days'),
  ('${T_OWN}',null,'p-grace@x.com','viewer','pending','${OWN}',now()-interval '12 days',gen_random_uuid(), now()-interval '5 days'),

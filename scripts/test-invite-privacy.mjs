@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Static checks on migration 20261029140000_invite_privacy_cleanup.sql (no database here; the SQL itself was run
+// Static checks on migration 20261030120100_invite_privacy_cleanup.sql (no database here; the SQL itself was run
 // against a PGlite stub when it was written). Guards the parts that must not drift:
 //   - delete_account only gained the intended statements, and keeps SECURITY DEFINER, empty search_path and its grants
 //   - the purge job is rescheduled idempotently and only targets pending-expired and declined rows
@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs'
 
 const dir = new URL('../supabase/migrations/', import.meta.url)
 const oldSql = readFileSync(new URL('20261024030000_delete_account.sql', dir), 'utf8')
-const newSql = readFileSync(new URL('20261029140000_invite_privacy_cleanup.sql', dir), 'utf8')
+const newSql = readFileSync(new URL('20261030120100_invite_privacy_cleanup.sql', dir), 'utf8')
 const body = s => s.slice(s.indexOf('create or replace function public.delete_account'))
 const lines = s => body(s).split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('--'))
 
