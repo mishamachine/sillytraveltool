@@ -7,6 +7,8 @@
  */
 import { supabase } from './supabase'
 import { track } from './analytics'
+import { useConsentStore } from '../store/consentStore'
+import { useAuthStore } from '../store/authStore'
 
 /**
  * Core Edge Function invoker — handles auth + error unwrapping
@@ -43,12 +45,38 @@ async function invokeFunction(name, payload, timeoutMs = 30000) {
     if (timedOut) throw new Error('This is taking longer than expected. Please try again.')
     if (error) {
       if (error?.context?.status === 429) track('ai_quota_hit', { feature: name })
-      throw new Error(await extractErrorMessage(error))
+      const e = new Error(await extractErrorMessage(error))
+      e.code = await extractErrorCode(error)
+      throw e
     }
     if (data?.error) throw new Error(data.error)
     return data
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/** The server's `{ code }` (e.g. 'ai_consent'), when it sent one. */
+async function extractErrorCode(error) {
+  try { return (await error?.context?.clone?.().json())?.code || null } catch { return null }
+}
+
+/**
+ * Things the member sends Goose (imports, typed translations) are read by AI only after their yes (Apple 5.1.2(i)):
+ * ask first when there's no answer, and once more if the server says the yes is gone (turned off on another device).
+ */
+async function withAiConsent(reason, call) {
+  const declined = () => Object.assign(new Error('Goose needs your OK to read this. You can allow it any time in Settings.'), { code: 'ai_consent_declined' })
+  if (!(await useConsentStore.getState().ensure(reason))) throw declined()
+  try { return await call() } catch (e) {
+    if (e?.code !== 'ai_consent') throw e
+    useAuthStore.setState(st => ({ profile: st.profile ? { ...st.profile, ai_consent_at: null } : st.profile }))
+    if (!(await useConsentStore.getState().ensure(reason))) throw declined()
+    try { return await call() } catch (e2) {
+      // Said yes, yet the server still says no: not an old app build, so don't tell the member to update
+      if (e2?.code === 'ai_consent') throw new Error('Goose couldn’t confirm your OK just now. Please try again in a moment.')
+      throw e2
+    }
   }
 }
 
@@ -91,7 +119,7 @@ export async function generatePhrases(languageCode, languageName, source = { cod
 
 /** One typed sentence → { native, romanized, back }. Not cached server-side; the Translate tool keeps it on the phone. */
 export async function translateText(text, target, source = { code: 'en', name: 'English' }) {
-  return invokeFunction('generate-phrases', { mode: 'text', text, languageCode: target.code, languageName: target.name, sourceCode: source.code, sourceName: source.name }, 30000)
+  return withAiConsent('translate', () => invokeFunction('generate-phrases', { mode: 'text', text, languageCode: target.code, languageName: target.name, sourceCode: source.code, sourceName: source.name }, 30000))
 }
 
 /**
@@ -106,7 +134,7 @@ export async function gooseyDiscover({ city, country, mood, filters = [], lat, l
  * Parse booking email
  */
 export async function parseBookingEmail(emailText) {
-  return invokeFunction('parse-booking-email', { emailText }, 32000)
+  return withAiConsent('import', () => invokeFunction('parse-booking-email', { emailText }, 32000))
 }
 
 /**
@@ -114,6 +142,10 @@ export async function parseBookingEmail(emailText) {
  * text here first). transcribe: also return what was read (read_text), shown before saving.
  */
 export async function parseBookingFile(file, { transcribe = false } = {}) {
+  return withAiConsent('import', () => readFile(file, transcribe))
+}
+
+async function readFile(file, transcribe) {
   const { sheetToText } = await import('../../supabase/functions/_shared/sheet.js')
   const bytes = new Uint8Array(await file.arrayBuffer())
   const sheet = await sheetToText(bytes, { name: file.name, mime: file.type })

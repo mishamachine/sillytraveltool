@@ -104,7 +104,7 @@ class Query {
     }
     if (this.mode === 'single') return data[0] ? { data: data[0], error: null } : { data: null, error: { message: 'No rows', code: 'PGRST116' } }
     if (this.mode === 'maybe') return { data: data[0] || null, error: null }
-    return { data, error: null }
+    return { data, count: Array.isArray(data) ? data.length : null, error: null }
   }
   then(resolve, reject) { return Promise.resolve().then(() => this.run()).then(resolve, reject) }
 }
@@ -123,6 +123,12 @@ async function invoke(name, opts = {}) {
   if (FAIL.has(group) || (group && FAIL.has('ai'))) {
     return { data: null, error: { name: 'FunctionsHttpError', message: 'Demo mode: this request was set to fail.' } }
   }
+  // Held forwarded emails (?held=N): filed at once after Allow
+  if (name === 'inbox-release') {
+    const filed = (db.held_inbox_emails || []).length
+    db.held_inbox_emails = []
+    return { data: { filed, expired: 0, failed: 0, remaining: 0 }, error: null }
+  }
   const handler = db.functions[name]
   return { data: handler ? handler(body) : { success: true }, error: null }
 }
@@ -139,7 +145,7 @@ export function createDemoClient() {
   PLAN = params.get('plan') === 'first_class' ? 'first_class' : 'free'
   LIMITS = params.has('limits')
   FOUNDERS = params.get('founders') !== 'off'
-  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship') })
+  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship'), askAi: params.has('askai'), held: Number(params.get('held')) || 0 })
   session = params.has('signedout') ? null : {
     access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
   }
@@ -164,6 +170,7 @@ export function createDemoClient() {
         return { data: { plan: PLAN, until: fc ? new Date(Date.now() + 300 * 864e5).toISOString() : null,
           web: { lifetime: false, subscription: fc ? { status: 'active', canceling: false } : null, customer: fc }, store: null, limits_on: LIMITS }, error: null }
       }
+      if (fn === 'my_record_ai_consent') return { data: args?.p_event === 'granted' ? new Date().toISOString() : null, error: null }
       if (fn === 'reveal_document_number') return { data: db.revealed[args?.p_doc_id] || 'X1234567', error: null }
       return { data: null, error: null }
     },

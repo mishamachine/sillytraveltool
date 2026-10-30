@@ -53,6 +53,42 @@
   Apple tax/banking, Individual → Organization with D-U-N-S). Store consoles (Play developer name, App Store copyright)
   are changed in the consoles, not in the repo.
 
+## Update — AI reading permission, legal review L1 (2026-10-26, PR "AI reading permission"; NOT deployed)
+- **Why:** Apple 5.1.2(i) needs explicit permission before personal data goes to a third-party AI. Owner decision: DeepSeek
+  stays for everything (L2 declined, EU risk accepted); the app asks once, plainly and calmly.
+- **App (web, iOS, Android, one bundle):** a tour step after location ("Let Goose use AI on your bookings?", Allow / Not now,
+  first run only, skipped when already answered); the same words as a sheet (`AiConsentSheet`) opened by
+  `useConsentStore().ensure(reason)` from `src/lib/gemini.js` before paste/file import and typed translation; Settings →
+  Privacy → **AI reading of imports and translations** switch. Answer stored by `my_record_ai_consent` (cache in `ai_consent_at`, `ai_consent_version`, `ai_consent_routing`; every answer appended to `ai_consent_events`).
+- **Forwarded emails before the yes** are held, not read (`ingest.ts`): `held_inbox_emails` keeps the Resend id, sender
+  domain and subject only. A bottom toast "N emails waiting · Review" opens the sheet; Allow runs `inbox-release` (1 per
+  call, claimed atomically with `claim_held_emails`; refetches from Resend, files like a new email; emails Resend no longer
+  has are dropped and the member is told; a daily-limit or temporary failure keeps the email, 5 failed tries drops it).
+  pg_cron `purge-held-emails` drops rows after 30 days.
+- **Server checks:** `parse-booking-email` and `generate-phrases` (typed text) return 403 `{ code: 'ai_consent' }` without
+  the yes (`_shared/consent.ts`); before the migration they behave as today. Older app builds show "Update STT…".
+- **Also:** `receive-booking-email/resend.ts` (Resend fetch helpers, shared with `inbox-release`); Toast titles now use
+  `ink-inverse` (they were unreadable); privacy page AI section, transfers paragraph and deletion bullet; demo params
+  `?demo&askai` (no answer yet) and `&held=N`.
+- **Deploy order (staged; every step needs the owner's go):**
+  1. Migrations, **both together, in order**: `20261026120000_ai_consent.sql`, then `20261029100000_ai_consent_hardening.sql`.
+     Never migration 1 alone: it leaves the consent columns writable by the app, accepts any version string, drops held
+     emails on a daily-limit or temporary error, and lets two releases file one email twice. Both are additive, and
+     until the functions below are deployed nothing is enforced.
+  2. Website (privacy page and app bundle).
+  3. Native build 0.20.1 for TestFlight and App Store review.
+  4. Enforcing functions **last**, once 0.20.1 is live on both stores: `parse-booking-email`, `generate-phrases`,
+     `inbox-release` (new), `receive-booking-email`. Older app builds can't show the Allow sheet and get "Update STT…".
+  **Heads-up:** deploying `receive-booking-email` from this branch ALSO switches on the 26 Oct inbox changes (sender
+  check `senderAllowed`, 30 AI reads a day per inbox), which production does not have today (prod v56 lacks them). They
+  need `20261026090000_inbox_trust.sql` (PR #35) applied first. Existing members get the sheet at their next import;
+  their forwarded emails are held until they tap Allow.
+- **Consent record:** every answer is appended to `ai_consent_events` (never edited; only the account-delete cascade
+  removes rows). Changing the wording or the AI routing: new version first in `my_record_ai_consent`'s list, new
+  `AI_CONSENT_VERSION` / `AI_CONSENT_ROUTING` in `src/lib/aiConsentPolicy.js` and `_shared/consent.ts`; members are asked again.
+- **Remove later:** the missing-column fail-open in `_shared/consent.ts` (`aiConsentGiven`, error 42703) once the first
+  migration is live in production.
+
 ## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.

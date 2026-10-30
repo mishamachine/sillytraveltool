@@ -1,3 +1,4 @@
+import { AI_CONSENT_VERSION, AI_CONSENT_ROUTING } from '../lib/aiConsentPolicy'
 // Demo-mode fixtures (see src/dev/demoClient.js). Dates are relative to today so the
 // Today view, countdowns and recaps always have something to show.
 import { DEMO_FUNCTIONS } from './fixtureFunctions'
@@ -25,7 +26,8 @@ function at(offset, hh, mm = 0, tz = MAD) {
   return wallToInstant(`${day(offset)}T${pad(hh)}:${pad(mm)}`, tz).toISOString()
 }
 
-export function buildFixtures({ empty = false, flagship = null } = {}) {
+// askAi: no AI-reading answer yet (the Allow sheet shows); held: that many forwarded emails waiting for it
+export function buildFixtures({ empty = false, flagship = null, askAi = false, held = 0 } = {}) {
   const U = DEMO_USER.id
   const next = partsIn(Date.now() + 80 * 60000, MAD) // Alhambra entry, 1h 20m from now in Granada
 
@@ -86,7 +88,8 @@ export function buildFixtures({ empty = false, flagship = null } = {}) {
 
   return {
     trips, bookings, trip_activities, trip_collaborators, trip_stops: [],
-    user_profiles: [{ id: U, display_name: 'Sam Rivera', avatar_url: null, home_currency: 'USD', passport_country: 'US', home_city: 'Seattle', temp_unit: 'C', booking_email_token: '6f1c2a9e', created_at: '2025-11-02T10:00:00Z' }],
+    user_profiles: [{ id: U, display_name: 'Sam Rivera', avatar_url: null, home_currency: 'USD', passport_country: 'US', home_city: 'Seattle', temp_unit: 'C', booking_email_token: '6f1c2a9e', created_at: '2025-11-02T10:00:00Z', ai_consent_at: askAi ? null : '2025-11-02T10:05:00Z', ai_consent_version: askAi ? null : AI_CONSENT_VERSION, ai_consent_routing: askAi ? null : AI_CONSENT_ROUTING }],
+    held_inbox_emails: Array.from({ length: held }, (_, i) => ({ id: `h${i}`, user_id: U, email_id: `demo-${i}`, from_domain: 'iberia.com', subject: 'Your booking', received_at: '2026-10-26T08:00:00Z' })),
     user_stats: [{ user_id: U, countries_visited: 6, trips_completed: 5, trips_created: 7, total_flights: 14, days_abroad: 61, restaurants_added: 8, museums_visited: 4, continents_visited: 3, goose_score: 1240 }],
     user_badges: [
       { id: 'ub1', user_id: U, badge_id: 'first_trip', badge_name: 'Bag Dropped', badge_tier: 'easy', unlocked_at: '2025-11-02T10:00:00Z' },

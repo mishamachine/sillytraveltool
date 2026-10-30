@@ -3,6 +3,8 @@ import { useAuthStore, useUIStore } from '../../store'
 import { InboxAddress } from '../trips/InboxHint'
 import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
+import { useConsentStore } from '../../store/consentStore'
+import { consentCurrent } from '../../lib/aiConsentPolicy'
 import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
@@ -78,6 +80,7 @@ export default function SettingsView({ onBack, onDelete }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [aiError, setAiError] = useState(null)
   const [confirmRotate, setConfirmRotate] = useState(false)
   const [inboxError, setInboxError] = useState(null)
   const [shareStats, setShareStats] = useState(analyticsEnabled)
@@ -213,6 +216,13 @@ export default function SettingsView({ onBack, onDelete }) {
         <Card variant="group">
           <Switch label="Share usage stats" description="Which features you use and your device type help us improve the app. No names, emails or trip details."
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
+          <Switch label="AI reading of imports and translations" description="Goose’s AI (DeepSeek, with Google Gemini for photos and PDFs) reads the emails you forward, what you import and the sentences you type to translate. Off: forwarded emails wait for your OK."
+            checked={consentCurrent(profile)} onChange={on => {
+              setAiError(null)
+              // The switch follows the saved profile, so a failed save leaves it where it was; say so
+              useConsentStore.getState().setConsent(on, 'settings').catch(() => setAiError('Couldn’t save that choice. Check your connection and try again.'))
+            }} />
+          {aiError && <Banner tone="danger" icon="alert-circle" role="alert">{aiError}</Banner>}
           <Switch label="Tailored offers" description="Use the kind of trips you plan to pick offers and tips that fit. Off keeps your trips out of it."
             checked={profile?.tailored_offers !== false} onChange={on => updateProfile({ tailored_offers: on }).catch(() => {})} />
           <Switch label="Travel tips by email" description="Now and then: trip recaps, ideas for your next trip and offers. Unsubscribe from any email."
