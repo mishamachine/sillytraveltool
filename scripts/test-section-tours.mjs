@@ -18,7 +18,11 @@ for (const [k, t] of Object.entries(SECTION_TOURS)) {
 assert.ok(!/\b(beta|trial|demo|free|AI)\b/i.test(text), 'no restricted words')
 assert.ok(!/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(text), 'no emoji')
 assert.ok(!/\d{3}|\$/.test(text), 'no phone numbers or prices')
-assert.ok(/Goose score/.test(JSON.stringify(SECTION_TOURS.profile)) && !/picks/i.test(text))
+// The Goose score is named on Profile only; "Get there" is explained once
+for (const [k, t] of Object.entries(SECTION_TOURS)) {
+  assert.equal(/Goose score/.test(JSON.stringify(t)), k === 'profile', `${k}: Goose score on Profile only`)
+}
+assert.equal((text.match(/Tap Get there/g) || []).length, 1, 'Get there explained once')
 
 // Seen memory: per section, survives a blocked store
 const s = mem()

@@ -9,7 +9,6 @@ export const SECTION_TOURS = {
     cards: [
       { icon: 'trips', title: 'What’s next, at a glance', body: 'Every trip opens on what’s coming up. Tap in for the plan, day by day, with every booking in local time.' },
       { icon: 'inbox', title: 'Forward it. Goose files it.', body: 'Send any booking email to your private address and it lands in the right trip. One booking per email.' },
-      { icon: 'navigation', title: 'Get there', body: 'Tap Get there on any booking for walking, transit, driving or a ride app, with real travel times.' },
     ],
   },
   today: {

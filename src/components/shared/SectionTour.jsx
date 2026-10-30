@@ -31,8 +31,11 @@ export default function SectionTour({ section }) {
   const close = () => setOpen(false)
   const fullTour = () => { setOpen(false); useUIStore.getState().openTour() }
   const onKeyDots = (e) => {
-    if (e.key === 'ArrowRight') setIndex(i => Math.min(i + 1, cards.length - 1))
-    if (e.key === 'ArrowLeft') setIndex(i => Math.max(i - 1, 0))
+    const to = e.key === 'ArrowRight' ? Math.min(index + 1, cards.length - 1) : e.key === 'ArrowLeft' ? Math.max(index - 1, 0) : null
+    if (to == null) return
+    e.preventDefault()
+    setIndex(to)
+    e.currentTarget.querySelectorAll('button')[to]?.focus() // roving focus follows the card
   }
   let startX = null
   const onTouchStart = (e) => { startX = e.touches[0].clientX }
@@ -55,7 +58,7 @@ export default function SectionTour({ section }) {
             <LinkButton className="section-tour__full" onClick={fullTour}>Take the full tour</LinkButton>
           </Stack>
         )}>
-        <div className="section-tour__card" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <div className="section-tour__card" aria-live="polite" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           <Overline tone="accent">{tour.overline}</Overline>
           <IconTile icon={card.icon} tone="accent" />
           <Text variant="h2" id="section-tour-title" as="h2" className="section-tour__title">{card.title}</Text>
@@ -65,7 +68,7 @@ export default function SectionTour({ section }) {
           <div className="section-tour__dots" role="group" aria-label="Cards" onKeyDown={onKeyDots}>
             {cards.map((c, i) => (
               <button key={c.title} type="button" className={`section-tour__dot${i === index ? ' is-current' : ''}`}
-                aria-label={`Card ${i + 1} of ${cards.length}`} aria-current={i === index ? 'step' : undefined}
+                aria-label={`Card ${i + 1} of ${cards.length}`} aria-current={i === index ? 'step' : undefined} tabIndex={i === index ? 0 : -1}
                 onClick={() => setIndex(i)} />
             ))}
           </div>
