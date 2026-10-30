@@ -3,7 +3,7 @@
 export const COPY = {
   title: 'Plan me a day, Goose',
   subtitle: 'Tell Goose how you like it. Goose does the legwork.',
-  emptyDay: 'Nothing planned yet. Goose can sketch you a day.',
+  emptyDay: 'Nothing planned yet.',
   pill: 'Let Goose fill it',
   freeDays: 'Free days',
   paceTitle: 'How hard are we going?',
@@ -20,7 +20,7 @@ export const COPY = {
   error: 'Goose came back empty-winged. Try fewer moods or a slower pace.',
 }
 export const PACE_COPY = { slow: ['Lazy lie-in', '2–3 stops'], steady: ['Steady strut', '4–5 stops'], packed: ['Full honk', '6+ stops'] }
-export const BUDGET_COPY = { easy: 'Pocket change', middle: 'Comfortably fed', treat: 'Treat yourself' }
+export const BUDGET_COPY = { easy: 'Thrifty', middle: 'Comfy', treat: 'Treat yourself' }
 export const VIBE_COPY = {
   cafes: 'Coffee crawl', museums: 'Museum mode', history: 'History nerd', food: 'Snack attack',
   walking: 'Wander about', views: 'Big views', markets: 'Market haul', parks: 'Green spaces',

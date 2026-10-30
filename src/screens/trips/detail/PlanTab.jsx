@@ -182,6 +182,7 @@ function StandaloneCard({ item, ...rest }) {
 
 /** Day's items as a run of standalone cards and list groups; travellers on one flight or train share a card. */
 function DayBlock({ items, ...rowProps }) {
+  if (items[0]?._empty) return rowProps.emptyDay(items[0].date)
   const blocks = []
   const placed = new Set()
   items.forEach(item => {
@@ -273,12 +274,21 @@ export default function PlanTab({ trip, readOnly }) {
 
   // Days with nothing on them, from today on: Goose can sketch one
   const freeDays = !readOnly && trip.destination_city ? emptyDays(trip, byDay, tripToday(trip)) : []
+  // Empty days sit in date order among the real days
+  const allDays = { ...byDay }
+  freeDays.forEach(d => { allDays[d] = [{ _empty: true, date: d }] })
 
   const canDelete = (item) => !readOnly && (!currentUserId || !item.created_by || item.created_by === currentUserId)
   // Same rule as the database: the person who added a booking, or the trip owner, can change it
   const canEdit = (item) => !readOnly && item._kind === 'booking' && (canDelete(item) || trip.owner_id === currentUserId)
   const rowProps = {
     tz, currentUserId, readOnly, shared,
+    emptyDay: (d) => (
+      <div className="fmd-empty">
+        <Text variant="caption" tone="muted" as="p">{COPY.emptyDay}</Text>
+        <FillDayPill onClick={() => { track('fill_day_open', { surface: 'plan' }); setSheet({ fill: d }) }} />
+      </div>
+    ),
     // View-only travellers don't see other travellers' confirmation numbers (display only until RLS enforces it)
     hideConf: !!trip._isShared && trip._myRole === 'viewer',
     onOpen: (item) => setSheet({ detail: item }),
@@ -335,11 +345,11 @@ export default function PlanTab({ trip, readOnly }) {
           note={bookingCount ? `${bookingCount} confirmed${items.length > bookingCount ? ', plus your plans and notes' : ''}` : 'Your plans and notes'} />
       )}
 
-      {multi ? planByStop(byDay, stops, (d) => {
+      {multi ? planByStop(allDays, stops, (d) => {
         const p = tripPlace(trip, { date: d, legs, now: null })
         const where = p.kind === 'travel' ? ` · ${p.label}` : p.kind === 'day_trip' ? ` · Day trip to ${p.city}` : ''
         return `${format(parseLocalDate(d), 'EEE · MMM d')}${where}`
-      }, rowProps) : Object.entries(byDay).map(([d, dayItems]) => (
+      }, rowProps) : Object.entries(allDays).sort(([a], [b]) => (a < b ? -1 : 1)).map(([d, dayItems]) => (
         <Section key={d} title={format(parseLocalDate(d), 'EEE · MMM d')}>
           <DayBlock items={dayItems} {...rowProps} />
         </Section>
@@ -368,19 +378,6 @@ export default function PlanTab({ trip, readOnly }) {
             </Stack>
           ))}
         </section>
-      )}
-
-      {freeDays.length > 0 && (
-        <Stack gap={3} className="fmd-free" role="region" aria-label={COPY.freeDays}>
-          {freeDays.map(d => (
-            <Section key={d} title={format(parseLocalDate(d), 'EEE · MMM d')}>
-              <div className="fmd-empty">
-                <Text variant="caption" tone="muted" as="p">{COPY.emptyDay}</Text>
-                <FillDayPill onClick={() => { track('fill_day_open', { surface: 'plan' }); setSheet({ fill: d }) }} />
-              </div>
-            </Section>
-          ))}
-        </Stack>
       )}
 
       {!readOnly && items.length > 0 && (
