@@ -8,7 +8,7 @@ const FEATURE = {
   guide_load_more: 'Loaded more of a guide', honk_used: 'Used HONK', translate_used: 'Opened Translate',
   text_translated: 'Translated text', phrases_loaded: 'Loaded a phrasebook', checklist_generated: 'Made a packing list',
   idea_added: 'Saved an idea', idea_booked: 'Booked an idea', currency_converted: 'Converted currency', sos_opened: 'Opened SOS',
-  get_there: 'Used Get there', import_parsed: 'Imported (read)', import_saved: 'Imported (saved)', import_failed: 'Import failed',
+  get_there: 'Used Get there', section_overview_open: 'Opened a section overview', import_parsed: 'Imported (read)', import_saved: 'Imported (saved)', import_failed: 'Import failed',
   invite_accepted: 'Accepted an invite', collaborator_role_changed: 'Changed a traveller\'s access', ai_quota_hit: 'Hit an AI limit',
 }
 const label = (e) => FEATURE[e] || e.replace(/_/g, ' ')
