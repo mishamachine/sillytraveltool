@@ -858,3 +858,9 @@ Built per `docs/MULTI_CITY_PLAN.md`, all five phases. Proof: `docs/screenshots/m
 - Supabase project `swywrvbuswylvqlktsym` (us-east-2).
 - Google Maps API key (when ready), restricted.
 - Apple Developer and Google Play Console accounts (owner).
+
+## Update — inbox open to any sender; free-plan block and cap logging before the AI (2026-10-30; NOT deployed)
+- **Sender check off:** `INBOX_SENDER_CHECK = false` in `receive-booking-email/ingest.ts`; every inbox takes mail from any sender. The allow list, `inbox_accept_any` and the account-email rule are kept; set the constant to `true` to bring them back.
+- **Order in `ingestEmail`/`ingestOne`:** consent hold, then free-plan lock (`email_import_locked`; logs `function_errors.kind = free_import_blocked`, no email content; answers `{ignored, reason: 'free_limit'}`), then attachment download, then per-inbox daily cap (`consume_inbox_quota`, 30; a denial logs `inbox_cap_hit` with the user id and the cap), then the AI. Locked mail is no longer filed as a locked booking: it is not read at all.
+- Pasted text / file import in the app (`parse-booking-email`, itinerary import) do not call `email_import_locked`; they are unchanged.
+- Deploy: function `receive-booking-email` only. No migration.

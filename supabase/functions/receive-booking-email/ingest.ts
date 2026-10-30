@@ -205,8 +205,16 @@ async function accountEmailOf(supabase: any, profile: InboxProfile): Promise<str
   } catch { return null }
 }
 
-/** True when this inbox takes mail from `fromAddress`. */
+/**
+ * Sender check switch. OFF: every inbox takes mail from any sender (each member's address is already unique and
+ * unguessable, and forwards come from many places). The allow-list plumbing below (inbox_allowed_senders,
+ * inbox_accept_any, the account email) is kept intact: set this to true and the check runs again, nothing else to change.
+ */
+export const INBOX_SENDER_CHECK = false
+
+/** True when this inbox takes mail from `fromAddress` (always, while INBOX_SENDER_CHECK is off). */
 export async function senderAllowed(supabase: any, profile: InboxProfile, fromAddress: string): Promise<boolean> {
+  if (!INBOX_SENDER_CHECK) return true
   if (profile.inbox_accept_any === true) return true
   const from = normalizeAddress(fromAddress)
   if (!from) return false
@@ -229,6 +237,12 @@ async function inboxBudget(supabase: any, userId: string): Promise<boolean> {
     if (error) return quotaUnavailable('inbox', userId, `consume_inbox_quota: ${error.message}`.slice(0, 200))
     const ok = data !== false
     rememberQuota('inbox', userId, ok)
+    if (!ok) {
+      // The cap was hit (not an outage): leave a counted trace, user id and the cap only
+      try {
+        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_cap_hit', status: 429, user_id: userId, message: `inbox daily cap ${INBOX_DAILY_PARSES} reached` })
+      } catch { /* logging is best-effort */ }
+    }
     return ok
   } catch (e) {
     return quotaUnavailable('inbox', userId, `consume_inbox_quota error: ${(e as Error).message}`)
@@ -273,6 +287,17 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     }
     console.log(`⏸️ Inbox of ${profile.id}: held until AI reading is allowed`)
     return ok({ success: true, held: true })
+  }
+  // Free plan, over its forwarded-email limit: stop here, before any attachment download or AI call.
+  // (email_import_locked is false while app_settings.free_limits.enabled is false. If the RPC errors we carry on,
+  // as before: the per-inbox cap below still applies.)
+  const { data: freeLocked } = await supabase.rpc('email_import_locked', { p_user: profile.id })
+  if (freeLocked === true) {
+    console.log(`🔒 Inbox of ${profile.id}: free import limit reached, not read`)
+    try {
+      await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'free_import_blocked', status: 200, user_id: profile.id, message: 'free plan forwarded-email limit reached, no AI read' })
+    } catch { /* logging is best-effort */ }
+    return ok({ success: true, ignored: true, reason: 'free_limit' })
   }
   let locked = false
   for (let i = 0; i < 40 && !locked; i++) {
@@ -617,15 +642,13 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   const sanitized = sanitizeBooking(parsed)
 
   // ── 8. Insert booking ─────────────────────────────────────
-  // Free plan: 5 forwarded emails; later ones are saved locked until First Class (false while the limits switch is off)
-  const { data: locked } = await supabase.rpc('email_import_locked', { p_user: userId })
+  // (Free members over the forwarded-email limit never get this far: they are stopped before the AI in ingestEmail)
   const bookingRow = {
     ...sanitized,
     trip_id: matchedTrip?.id || null,
     created_by: userId,
     source: 'email_import',
     is_shared: false,
-    locked: !!locked,
     // One email = one import for the free-plan counter, however many legs it filed (set here, never from the AI's output)
     raw_email_id: emailId ? String(emailId).slice(0, 200) : null,
   }
@@ -653,7 +676,6 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
     folded_trip_id: foldedTripId,
     booking_type: parsed.type,
     booking_title: parsed.title,
-    locked: !!locked,
   }
 
 }

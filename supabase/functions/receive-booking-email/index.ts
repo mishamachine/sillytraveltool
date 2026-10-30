@@ -10,8 +10,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 //
 // Inbound address scheme:
 //   {12-hex token}@bookings.sillytraveltool.com (server-made; older 8-hex tokens work until rotated)
-// Only mail from the member's account email, their allowed senders, or anyone if they opted in, is read
-// (ingest.ts senderAllowed).
+// Mail from any sender is read (each member's address is unique); the sender check is kept behind
+// INBOX_SENDER_CHECK in ingest.ts. Free members over their forwarded-email limit and inboxes over the daily
+// cap are stopped before any AI call.
 // ============================================================
 
 import { CORS, ok, err, ingestEmail } from './ingest.ts'
