@@ -66,7 +66,7 @@ t('one-city trip falls back to the destination and the days line', () => {
   const m = build({ stops: [], bookings: [] })
   assert.deepEqual(m.route, { cities: [], more: 0 }) // no route strip for one city
   assert.deepEqual(m.trio.map(s => [s.value, s.label]), [[13, 'days in Portugal']]) // one giant number, no city or country counts
-  assert.equal(m.gooseLine, '13 days away. Goose is proud.')
+  assert.equal(m.gooseLine, '13 days away. Goose is proud.') // no flights
   // country missing: falls back to the city
   const noCountry = build({ stops: [], bookings: [], trip: trip({ destination_country: null, destination_country_code: null }) })
   assert.equal(noCountry.trio[0].label, 'days in Lisbon')
@@ -82,15 +82,14 @@ t('six cities: route shows five then +1 more; badges cap at four', () => {
   assert.equal(m.trio[1].value, 6)
 })
 
-t('Goose line uses real counts only and follows the fallback rule', () => {
-  const lines = new Set(['a', 'bb', 'ccc', 'dddd', 'eeeee', 'ffffff'].map(key => gooseLine({ days: 6, cities: 3, flights: 2, key })))
-  for (const l of lines) assert.match(l, /^(6 days away\. Goose is proud\.|3 cities, one tidy itinerary\.|2 flights\. Zero lost in the inbox\.)$/)
-  assert.equal(gooseLine({ days: 1, cities: 1, flights: 0, key: 'x' }), '1 day away. Goose is proud.')
-  // one flight uses the days line; the flights line needs two or more
-  assert.equal(gooseLine({ days: 7, cities: 1, flights: 1, key: 'x' }), '7 days away. Goose is proud.')
-  assert.ok(new Set(['a', 'bb', 'ccc', 'dddd', 'eeeee', 'ffffff', 'g7', 'h88'].map(key => gooseLine({ days: 7, cities: 1, flights: 2, key }))).has('2 flights. Zero lost in the inbox.'))
-  assert.equal(gooseLine({ days: 0, cities: 0, flights: 0, key: 'x' }), 'Goose approves.')
-  assert.ok(!gooseLine({ days: 4, cities: 1, flights: 0, key: 'zz' }).includes('flight'))
+t('Goose line: 2+ flights use the flights line, then 2+ cities, else the days line', () => {
+  assert.equal(gooseLine({ days: 6, cities: 3, flights: 3 }), '3 flights. Zero lost in the inbox.')
+  assert.equal(gooseLine({ days: 6, cities: 3, flights: 2 }), '2 flights. Zero lost in the inbox.')
+  assert.equal(gooseLine({ days: 6, cities: 3, flights: 1 }), '3 cities, one tidy itinerary.')
+  assert.equal(gooseLine({ days: 7, cities: 1, flights: 1 }), '7 days away. Goose is proud.')
+  assert.equal(gooseLine({ days: 1, cities: 1, flights: 0 }), '1 day away. Goose is proud.')
+  assert.equal(gooseLine({ days: 0, cities: 0, flights: 0 }), 'Goose approves.')
+  assert.equal(build().gooseLine, '2 flights. Zero lost in the inbox.') // the sample trip has two flights
 })
 
 t('hide dates removes the date line only; edited title is used', () => {

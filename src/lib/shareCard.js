@@ -71,15 +71,15 @@ export function badgesEarnedOn(trip, badges = []) {
     .map(x => ({ id: x.badge_id, ...(BADGES[x.badge_id] || { name: x.badge_name, icon: 'award', tier: x.badge_tier }) }))
 }
 
-const hash = s => [...String(s || '')].reduce((n, ch) => (n + ch.charCodeAt(0)) % 9973, 0)
-
-/** One dry line from real counts only. Falls back to the days line when there are no flights or only one city. */
-export function gooseLine({ days, cities, flights, key }) {
-  const lines = []
-  if (days) lines.push(`${plural(days, 'day')} away. Goose is proud.`)
-  if (cities > 1) lines.push(`${cities} cities, one tidy itinerary.`)
-  if (flights > 1) lines.push(`${plural(flights, 'flight')}. Zero lost in the inbox.`)
-  return lines.length ? lines[hash(key) % lines.length] : 'Goose approves.'
+/**
+ * One dry line from real counts only, by priority: two or more flights, then more than one city, else the days line
+ * (so one flight or one city always gets "N days away. Goose is proud.").
+ */
+export function gooseLine({ days, cities, flights }) {
+  if (flights > 1) return `${plural(flights, 'flight')}. Zero lost in the inbox.`
+  if (cities > 1) return `${cities} cities, one tidy itinerary.`
+  if (days) return `${plural(days, 'day')} away. Goose is proud.`
+  return 'Goose approves.'
 }
 
 export function shareCaption({ title, days, cities }) {
@@ -122,7 +122,7 @@ export function buildShareCard({ trip, stops = [], bookings = [], stats = null, 
     route: single ? { cities: [], more: 0 } : { cities: cities.slice(0, MAX_ROUTE), more: Math.max(0, cities.length - MAX_ROUTE) },
     trio,
     extras,
-    gooseLine: gooseLine({ days, cities: cities.length, flights, key: trip?.id }),
+    gooseLine: gooseLine({ days, cities: cities.length, flights }),
     score: score > 0 ? score : null,
     badges: earned,
     cta: CTA,
