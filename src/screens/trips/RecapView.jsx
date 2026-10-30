@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTripsStore, useUIStore, useAuthStore } from '../../store'
-import { parseLocalDate } from '../../lib/dates'
 import { formatRange, nightsOf, plural } from '../../lib/trips'
 import { tripCoords, fetchTripHistory } from '../../lib/weather'
-import { BADGES, BADGE_TIER_TONE } from '../../lib/tokens'
-import { Screen, ScreenHeader, Section, Card, ListRow, Button, IconTile, Text, Stack, Icon, Toast } from '../../ui'
+import { BADGE_TIER_TONE } from '../../lib/tokens'
+import { badgesEarnedOn } from '../../lib/shareCard'
+import ShareCardSheet from './ShareCardSheet'
+import { Screen, ScreenHeader, Section, Card, ListRow, Button, IconTile, Text, Stack, Icon } from '../../ui'
 
 function Stat({ value, label }) {
   return (
@@ -22,7 +23,7 @@ export default function RecapView({ trip, onBack }) {
   const badges = useAuthStore(s => s.badges)
   const tempUnit = useAuthStore(s => (s.profile?.temp_unit === 'F' ? 'fahrenheit' : 'celsius'))
   const [history, setHistory] = useState(undefined) // undefined = loading, null = none
-  const [copied, setCopied] = useState(false)
+  const [sharing, setSharing] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -36,20 +37,8 @@ export default function RecapView({ trip, onBack }) {
   const flights = bookings.filter(b => b.type === 'flight').length
   const plans = trip.trip_activities || []
   const people = (trip.trip_collaborators?.filter(c => c.status === 'accepted').length || 0)
-  const from = parseLocalDate(trip.start_date)
-  const until = parseLocalDate(trip.end_date)
-  until.setDate(until.getDate() + 3)
-  const earned = badges
-    .filter(b => { const t = new Date(b.unlocked_at); return t >= from && t <= until })
-    .map(b => ({ id: b.badge_id, ...(BADGES[b.badge_id] || { name: b.badge_name, icon: 'award', tier: b.badge_tier }) }))
+  const earned = badgesEarnedOn(trip, badges)
 
-  const summary = `${trip.title}: ${formatRange(trip.start_date, trip.end_date, { year: true })}, ${plural(nightsOf(trip), 'night')}, ${plural(bookings.length, 'booking')}. Planned with Silly Travel Tool.`
-  const share = async () => {
-    try {
-      if (navigator.share) await navigator.share({ title: trip.title, text: summary, url: 'https://sillytraveltool.com' })
-      else { await navigator.clipboard.writeText(`${summary} https://sillytraveltool.com`); setCopied(true); setTimeout(() => setCopied(false), 2000) }
-    } catch {}
-  }
   const goAgain = () => openTripForm({
     title: trip.title, destination_city: trip.destination_city,
     destination_country: trip.destination_country, destination_country_code: trip.destination_country_code,
@@ -110,10 +99,10 @@ export default function RecapView({ trip, onBack }) {
       </Card>
 
       <Stack gap={2}>
-        <Button variant="primary" size="lg" block icon="share" onClick={share}>Share recap</Button>
+        <Button variant="primary" size="lg" block icon="share" onClick={() => setSharing(true)}>Share trip</Button>
         <Button variant="ghost" block icon="refresh" onClick={goAgain}>Go back again</Button>
       </Stack>
-      {copied && <Toast title="Recap copied">Paste it anywhere</Toast>}
+      {sharing && <ShareCardSheet trip={trip} onClose={() => setSharing(false)} />}
     </Screen>
   )
 }
