@@ -14,6 +14,7 @@ import { tripCoords, fetchTodayWeather, weatherInfo, weatherHint } from '../../l
 import {
   Screen, ScreenHeader, Section, Card, Chip, Button, LinkButton, IconTile, ListRow, Text, Overline, Stack, Icon, GooseMark, category,
 } from '../../ui'
+import SectionTour from '../../components/shared/SectionTour'
 import { safeUrl } from '../../lib/safeUrl'
 import { groupSharedLegs, travellerName } from '../../lib/sharedLegs'
 
@@ -169,6 +170,7 @@ export default function TodayView({ trip, onShowAll }) {
         overline={`Day ${n} of ${total} · ${weekdayIn(now, tz)}${here.kind === 'travel' && here.inTransit ? ' · On the way' : ''}`}
         title={here.label || trip.destination_city}
         titleId="today-title"
+        actions={<SectionTour section="today" />}
       />
 
       {next ? <NextUp item={next} tz={tz} companions={companions} onShow={() => setDetail(next)} /> : (

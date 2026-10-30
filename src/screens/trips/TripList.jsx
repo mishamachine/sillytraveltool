@@ -10,6 +10,7 @@ import {
   Screen, ScreenHeader, Section, Button, IconButton, Card, ListRow, Chip, Text, Overline, Stack, Icon,
   ProgressBar, EmptyState, Skeleton, Banner,
 } from '../../ui'
+import SectionTour from '../../components/shared/SectionTour'
 import InboxHint, { useCopyInbox, InboxAddress } from './InboxHint'
 
 // Fetch climate normals from Open-Meteo (free, no API key)
@@ -175,10 +176,11 @@ export default function TripList({ onOpenToday, onOpenRecap, onImport }) {
       <ScreenHeader
         title="Trips"
         titleId="trips-title"
-        actions={!empty && (
+        actions={(
           <>
-            <IconButton icon="clipboard" label="Paste a booking confirmation" onClick={onImport} />
-            <Button variant="primary" size="sm" icon="plus" onClick={() => openTripForm()}>New trip</Button>
+            {!empty && <IconButton icon="clipboard" label="Paste a booking confirmation" onClick={onImport} />}
+            {!empty && <Button variant="primary" size="sm" icon="plus" onClick={() => openTripForm()}>New trip</Button>}
+            <SectionTour section="trips" />
           </>
         )}
       />
