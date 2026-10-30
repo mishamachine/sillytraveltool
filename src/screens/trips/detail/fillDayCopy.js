@@ -17,6 +17,8 @@ export const COPY = {
   another: 'Shuffle',
   cancel: 'Not this',
   footnote: 'Check times before you go.',
+  errorLater: 'Goose can’t plan days right now. Try again later.',
+  addError: 'Couldn’t add these. Try again.',
   error: 'Goose came back empty-winged. Try fewer moods or a slower pace.',
 }
 export const PACE_COPY = { slow: ['Lazy lie-in', '2–3 stops'], steady: ['Steady strut', '4–5 stops'], packed: ['Full honk', '6+ stops'] }

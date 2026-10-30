@@ -17,7 +17,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const PRICE = ['free', '$', '$$', '$$$', '$$$$']
 
 async function askAi(key: string, prompt: string) {
-  const res = await geminiFetch(key, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.6, maxOutputTokens: 1200 } })
+  // 15 s: the answer comes back well inside the app's 50 s, and a slow model falls back to the basic day
+  const res = await geminiFetch(key, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.6, maxOutputTokens: 1200 } }, { timeoutMs: 15000 })
   if (!res.ok) throw new Error(`AI error ${res.status}`)
   const text = (await res.json()).candidates?.[0]?.content?.parts?.[0]?.text || ''
   const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
@@ -50,19 +51,24 @@ Deno.serve(withGoogleScope(async (req) => {
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const where = `${r.city}, ${r.country}`.replace(/, $/, '')
-    const origin = r.lat != null ? { lat: r.lat, lng: r.lng } : await cached(admin, `geo:${where.toLowerCase()}`, 30, () => geocode(where)).catch(() => null)
-    if (!origin) return json({ stops: [], date: r.date })
+    const origin = await cached(admin, `geo:${where.toLowerCase()}`, 30, () => geocode(where)).catch(() => null)
+    // Empty answers say why, so the app can tell "nothing fits" from "not right now"
+    const empty = (reason: string) => json({ stops: [], date: r.date, reason })
+    if (!origin) return empty('geocode_failed')
 
     // One search per vibe (at most 3), cached for a week per city
+    let refused = 0
     const found = await Promise.all(r.vibes.map(async (v: string) => {
       const key = `fmd:${where.toLowerCase()}:${v}:${origin.lat.toFixed(2)},${origin.lng.toFixed(2)}`.slice(0, 280)
       const res = await cached(admin, key, 7, () => searchText(`${VIBES[v].query} in ${r.city}`, { minRating: 4.0, near: { lat: origin.lat, lng: origin.lng, radius: 3500 }, pageSize: 10 })).catch(() => null)
+      if (res == null) refused++
       return (res?.places || []).map((p: any) => ({ ...p, category: VIBES[v].category, minutes: VIBES[v].minutes, vibe: v }))
     }))
     const skip = new Set(r.exclude || [])
     const cands = pickCandidates(found.flat().filter((p: any) => !skip.has(p.place_id)), r.budget)
     const pace = PACES[r.pace as keyof typeof PACES]
-    if (cands.length < pace.min) return json({ stops: [], date: r.date })
+    if (refused === r.vibes.length) return empty('google_unavailable')
+    if (cands.length < pace.min) return empty('too_few_places')
 
     const from = r.start_after && toMin(r.start_after) > toMin(DAY_START) ? r.start_after : DAY_START
     let stops = null as any[] | null, source = 'ai'
@@ -84,6 +90,7 @@ Return ONLY JSON: { "stops": [ { "i": 0, "start": "09:30", "minutes": 60, "reaso
       return w?.minutes ?? estWalk(a, s)
     }))
     const timed = retime(stops, walks)
+    if (timed.length < pace.min) return empty('too_few_places')
 
     return json({
       date: r.date, source,

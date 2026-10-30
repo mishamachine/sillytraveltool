@@ -34,7 +34,9 @@ export const DAY_END = '22:00'
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 const clean = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max)
-const round2 = (n) => Math.round(Number(n) * 100) / 100
+const LATEST_START = '17:00'
+// A real calendar date (2026-02-31 is refused)
+const realDate = (d) => ISO_DATE.test(String(d)) && new Date(`${d}T12:00:00Z`).toISOString().slice(0, 10) === d
 
 /** The vibes to plan with: known ids only, at most MAX_VIBES, or the mix. */
 export const chooseVibes = (vibes) => {
@@ -43,18 +45,19 @@ export const chooseVibes = (vibes) => {
 }
 
 /**
- * The request the app sends: city, country, date, the chips, and the city's public coordinates (2 decimals,
- * about 1 km). Nothing about the member: no name, email, trip title, bookings or exact position.
+ * The request the app sends: city, country, date and the chips (plus an earliest start time and the place ids of the
+ * last proposal). No coordinates: the server finds the city itself. Nothing about the member: no name, email, trip
+ * title, bookings, hotel or position.
  */
-export function buildRequest({ city, country, date, pace, budget, vibes, lat, lng, startAfter, exclude }) {
+export function buildRequest({ city, country, date, pace, budget, vibes, startAfter, exclude }) {
   const req = {
     city: clean(city, 80), country: clean(country, 80), date,
     pace: PACES[pace] ? pace : DEFAULT_PACE,
     budget: BUDGETS[budget] ? budget : DEFAULT_BUDGET,
     vibes: chooseVibes(vibes),
   }
-  if (lat != null && lng != null && isFinite(lat) && isFinite(lng)) { req.lat = round2(lat); req.lng = round2(lng) }
-  if (startAfter && HHMM.test(startAfter)) req.start_after = startAfter
+  // A day that starts after 17:00 has no room for a plan: ask for 17:00 at the latest
+  if (startAfter && HHMM.test(startAfter)) req.start_after = startAfter > LATEST_START ? LATEST_START : startAfter
   // "Try another": the Google place ids of the last proposal, so the next one differs
   const ex = (Array.isArray(exclude) ? exclude : []).filter(x => typeof x === 'string' && x.length <= 300).slice(0, 12)
   if (ex.length) req.exclude = ex
@@ -65,7 +68,7 @@ export function buildRequest({ city, country, date, pace, budget, vibes, lat, ln
 export function parseRequest(raw) {
   if (!raw || typeof raw !== 'object') return null
   const city = clean(raw.city, 80)
-  if (!city || !ISO_DATE.test(String(raw.date))) return null
+  if (!city || !realDate(raw.date)) return null
   return buildRequest({ ...raw, city, country: raw.country, startAfter: raw.start_after, exclude: raw.exclude })
 }
 

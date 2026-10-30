@@ -21,7 +21,7 @@ function startAfterFor(trip, date, tz) {
 /**
  * Fill my day: pick a pace, a budget and some vibes; Goose proposes a timed day of real places; the member
  * removes what they don't want and adds the rest as plans. Nothing is saved until "Add to my day".
- * place: { city, country, lat, lng, tz } of where the member is on that date.
+ * place: { city, country, tz } of where the member is on that date.
  */
 export default function FillDaySheet({ trip, date, place, onClose }) {
   const createActivities = useTripsStore(s => s.createActivities)
@@ -44,17 +44,17 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
   const run = async (again = false) => {
     setState('loading'); setError(null)
     const request = buildRequest({
-      city: place.city, country: place.country, date, pace, budget, vibes, lat: place.lat, lng: place.lng,
+      city: place.city, country: place.country, date, pace, budget, vibes,
       startAfter: startAfterFor(trip, date, place.tz), exclude: again ? proposal?.stops.map(s => s.place_id) : undefined,
     })
     track('fill_day_request', { pace, budget, vibes: request.vibes.length, again })
     try {
       const res = await fillMyDay(request)
-      if (!res?.stops?.length) throw Object.assign(new Error(ERROR_COPY), { empty: true })
+      if (!res?.stops?.length) throw Object.assign(new Error(res?.reason && res.reason !== 'too_few_places' ? COPY.errorLater : ERROR_COPY), { empty: true, reason: res?.reason || 'too_few_places' })
       setProposal(res); setKeep(res.stops.map(s => s.place_id)); setState('proposal')
       track('fill_day_result', { count: res.stops.length, source: res.source || 'ai' })
     } catch (e) {
-      track('fill_day_error', { empty: !!e.empty })
+      track('fill_day_error', { empty: !!e.empty, reason: e.reason || 'other' })
       setError(e.empty ? ERROR_COPY : e.message || ERROR_COPY); setState('form')
     }
   }
@@ -66,7 +66,7 @@ export default function FillDaySheet({ trip, date, place, onClose }) {
       await createActivities(trip.id, rows)
       track('fill_day_added', { count: rows.length, removed: proposal.stops.length - rows.length })
       onClose()
-    } catch (e) { setError(e.message || 'Could not save. Check your connection.'); setState('proposal') }
+    } catch (e) { console.warn('fill my day: add failed', e); setError(COPY.addError); setState('proposal') }
   }
 
   const single = (id, title, options, value, onChange) => (

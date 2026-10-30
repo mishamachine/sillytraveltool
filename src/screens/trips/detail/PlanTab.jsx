@@ -396,7 +396,7 @@ export default function PlanTab({ trip, readOnly }) {
       {sheet === 'plan' && <ActivityFormSheet tripId={trip.id} onClose={() => setSheet(null)} onCreate={createActivity} />}
       {sheet?.fill && (() => {
         const p = placeOnDate(trip, { date: sheet.fill, legs, now: null })
-        return <FillDaySheet trip={trip} date={sheet.fill} place={{ city: p.city || trip.destination_city, country: countryFor(trip, p), lat: p.lat, lng: p.lng, tz: p.tz || tz }} onClose={() => setSheet(null)} />
+        return <FillDaySheet trip={trip} date={sheet.fill} place={{ city: p.city || trip.destination_city, country: countryFor(trip, p), tz: p.tz || tz }} onClose={() => setSheet(null)} />
       })()}
       {sheet?.type && (
         <BookingFormSheet tripId={trip.id} trip={trip} type={sheet.type} initial={sheet.initial || (sheet.mode ? { transport_mode: sheet.mode } : {})}

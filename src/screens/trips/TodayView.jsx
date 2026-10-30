@@ -237,7 +237,7 @@ export default function TodayView({ trip, onShowAll }) {
 
       <PlanCard trip={trip} stops={stays} here={here} confirmed={tripBookings.length} onOpen={openPlan} />
       <LinkButton icon="trips" onClick={onShowAll} className="today-all">Back to all trips</LinkButton>
-      {fill && <FillDaySheet trip={trip} date={today} place={{ city: here.city, country: countryFor(trip, here), lat: here.lat, lng: here.lng, tz }} onClose={() => setFill(false)} />}
+      {fill && <FillDaySheet trip={trip} date={today} place={{ city: here.city, country: countryFor(trip, here), tz }} onClose={() => setFill(false)} />}
       {detail && <BookingDetailSheet item={detail} tripTz={tz} countryCode={trip.destination_country_code} isActivity={!!detail._activity} canDelete={false} onClose={() => setDetail(null)} />}
     </Screen>
   )

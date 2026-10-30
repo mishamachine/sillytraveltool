@@ -14,8 +14,10 @@ const req = F.buildRequest({
   city: 'Granada', country: 'Spain', date: '2026-11-14', pace: 'steady', budget: 'middle', vibes: ['cafes', 'museums'],
   lat: 37.17731, lng: -3.59861, email: 'a@b.c', name: 'Jo', title: 'Jo birthday trip', bookings: [{}], userId: 'u1',
 })
-assert.deepEqual(Object.keys(req).sort(), ['budget', 'city', 'country', 'date', 'lat', 'lng', 'pace', 'vibes'])
-assert.equal(req.lat, 37.18); assert.equal(req.lng, -3.6, 'coordinates are rounded to about 1 km')
+assert.deepEqual(Object.keys(req).sort(), ['budget', 'city', 'country', 'date', 'pace', 'vibes'], 'no coordinates: the server finds the city')
+assert.equal(F.buildRequest({ city: 'X', date: '2026-01-01', startAfter: '19:30' }).start_after, '17:00', 'earliest start is capped at 17:00')
+assert.equal(F.buildRequest({ city: 'X', date: '2026-01-01', startAfter: '10:15' }).start_after, '10:15')
+assert.equal(F.parseRequest({ city: 'X', date: '2026-02-31' }), null, 'a date that does not exist is refused')
 assert.ok(!/a@b\.c|Jo|birthday|u1/.test(JSON.stringify(req)), 'no personal data in the request')
 assert.deepEqual(F.buildRequest({ city: 'X', date: '2026-01-01', vibes: ['nope', 'cafes', 'cafes', 'parks', 'views', 'walking'] }).vibes, ['cafes', 'parks', 'views'], 'known vibes only, no repeats, at most 3')
 assert.deepEqual(F.buildRequest({ city: 'X', date: '2026-01-01', vibes: [] }).vibes, F.MIX, 'none selected = a mix')
@@ -23,6 +25,7 @@ assert.equal(F.buildRequest({ city: 'X', date: '2026-01-01', pace: 'zoom', budge
 assert.equal(F.buildRequest({ city: 'X', date: '2026-01-01', exclude: ['a', 5, 'b'] }).exclude.length, 2)
 assert.equal(F.parseRequest({ city: '', date: '2026-01-01' }), null)
 assert.equal(F.parseRequest({ city: 'X', date: 'tomorrow' }), null)
+assert.ok(!('lat' in F.parseRequest({ city: 'X', date: '2026-01-01', lat: 1, lng: 2 })), 'coordinates sent by an older app are dropped')
 assert.equal(F.parseRequest(null), null)
 
 // ── pace → stop counts (CMO copy: Slow 2-3, Steady 4-5, Packed 6+) ──
@@ -88,23 +91,26 @@ const env = { SUPABASE_URL: 'http://db', SUPABASE_ANON_KEY: 'anon', SUPABASE_SER
 let handler
 globalThis.Deno = { env: { get: k => env[k] }, serve: h => { handler = h } }
 let quota = 'true'
+let googleRefuses = null // null | 'all' | an endpoint name
+let aiText = null // null = a good plan; else the raw text DeepSeek returns
 const calls = []
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url)
   calls.push(u)
   if (u.includes('consume_ai_quota')) { if (quota === 'error') return new Response('x', { status: 500 }); return new Response(quota, { status: 200 }) }
-  if (u.includes('consume_api_call')) return new Response('true', { status: 200 })
+  if (u.includes('consume_api_call')) { const ep = JSON.parse(init.body).p_endpoint; return new Response(googleRefuses === 'all' || googleRefuses === ep ? 'false' : 'true', { status: 200 }) }
+  if (u.includes('geocode/json')) return new Response(JSON.stringify({ status: 'OK', results: [{ geometry: { location: { lat: 37.17, lng: -3.59 } }, address_components: [], formatted_address: 'Granada' }] }), { status: 200 })
   if (u.includes('log_ai_call')) return new Response('', { status: 200 })
   if (u.includes('places:searchText')) return new Response(JSON.stringify({ places: [1, 2, 3, 4, 5, 6].map(n => ({ id: `g${n}`, displayName: { text: `Spot ${n}` }, location: { latitude: 37.17 + n / 1000, longitude: -3.59 }, rating: 4.6, userRatingCount: 200, businessStatus: 'OPERATIONAL' })) }), { status: 200 })
   if (u.includes('computeRouteMatrix')) return new Response(JSON.stringify([{ condition: 'ROUTE_EXISTS', duration: '420s', distanceMeters: 500 }]), { status: 200 })
-  if (u.includes('deepseek')) return new Response(JSON.stringify({ model: 'deepseek-chat', usage: {}, choices: [{ message: { content: JSON.stringify({ stops: [0, 1, 2, 3].map((i, k) => ({ i, start: `${String(9 + k * 2).padStart(2, '0')}:00`, minutes: 60, reason: 'Fits.' })) }) } }] }), { status: 200 })
+  if (u.includes('deepseek')) return new Response(JSON.stringify({ model: 'deepseek-chat', usage: {}, choices: [{ message: { content: aiText ?? JSON.stringify({ stops: [0, 1, 2, 3].map((i, k) => ({ i, start: `${String(9 + k * 2).padStart(2, '0')}:00`, minutes: 60, reason: 'Fits.' })) }) } }] }), { status: 200 })
   return new Response('{}', { status: 404 })
 }
 const origWarn = console.warn; console.warn = () => {}
 await import(`${dir}/fmd.mjs`)
 const post = (body) => handler(new Request('http://x/functions/v1/fill-my-day', { method: 'POST', headers: { Authorization: 'Bearer t', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }))
 const outside = () => calls.filter(u => /googleapis|deepseek/.test(u))
-const body = { city: 'Granada', country: 'Spain', date: '2026-11-14', pace: 'steady', budget: 'middle', vibes: ['cafes'], lat: 37.18, lng: -3.6 }
+const body = { city: 'Granada', country: 'Spain', date: '2026-11-14', pace: 'steady', budget: 'middle', vibes: ['cafes'] }
 
 quota = 'false'; calls.length = 0
 let res = await post(body)
@@ -120,5 +126,26 @@ assert.ok(calls.findIndex(u => u.includes('consume_ai_quota')) < calls.findIndex
 assert.ok(out.stops.every(s => s.start && s.name && s.place_id), 'times and real place data')
 assert.ok(!calls.some(u => /rest\/v1\/(trip_activities|trips)/.test(u)), 'the function writes nothing')
 res = await post({ city: '', date: 'x' }); assert.equal(res.status, 400)
+
+// No sign-in: refused before anything else
+calls.length = 0
+res = await handler(new Request('http://x/functions/v1/fill-my-day', { method: 'POST', body: JSON.stringify(body) }))
+assert.equal(res.status, 401); assert.equal(calls.length, 0, 'no auth: nothing called at all')
+
+// The model answers rubbish: a basic day, not an error
+aiText = 'not json at all'; calls.length = 0
+res = await post({ ...body, city: 'Cordoba' }); let o2 = await res.json()
+assert.equal(res.status, 200); assert.equal(o2.source, 'basic'); assert.ok(o2.stops.length >= 4, 'bad model output falls back to the basic plan')
+aiText = null
+
+// Google says no: empty answers carry a reason, and the AI is not called
+googleRefuses = 'text_search'; calls.length = 0
+res = await post({ ...body, city: 'Malaga' }); o2 = await res.json()
+assert.deepEqual([res.status, o2.stops.length, o2.reason], [200, 0, 'google_unavailable'])
+assert.ok(!calls.some(u => u.includes('deepseek')), 'no places, no model call')
+googleRefuses = 'geocode'; calls.length = 0
+res = await post({ ...body, city: 'Ronda' }); o2 = await res.json()
+assert.equal(o2.reason, 'geocode_failed')
+googleRefuses = null
 console.warn = origWarn
 console.log('fill my day: request has no personal data, pace counts, proposal to plans, allowance checked before any outside call')
