@@ -1,10 +1,12 @@
--- Admin cockpit: member usage activity, for abuse watch.
+-- Admin cockpit: member usage activity, for abuse watch. 'AI attempts' = the ai_usage counters, which are bumped before the limit check,
+-- so refused attempts are included.
 -- One read-only function, no new tables. Reads ai_usage (per-day quota counters, kinds ai / guide / inbox), api_usage (Google calls),
 -- bookings (imports), function_errors (errors and the inbox_cap_hit / free_import_blocked kinds) and auth.users (joined, last sign-in).
 -- Flags, per member, over the window:
 --   over_ai_limit       any day where the 'ai' or 'guide' counter went past app_settings.ai_limits (ai_daily 100, guide_daily 40).
 --                       The counter is bumped before the check, so a value above the limit means a call was refused.
---   inbox_cap           an inbox_cap_hit error row, or any day where the 'inbox' counter went past ai_limits.inbox_daily (default 30)
+--   inbox_cap           an inbox_cap_hit error row (a real per-inbox cap hit; inbox_quota_refused rows, for the kill switch, member status or
+--                       the project-wide cap, are counted separately and do not set this flag), or any day where the 'inbox' counter went past ai_limits.inbox_daily (default 30)
 --   free_import_blocked a free_import_blocked error row
 --   far_above_median    AI calls in the window are at least 5 x the median of members who made any AI call, and at least 50
 create or replace function public.admin_usage_activity(p_days integer default 7)
@@ -20,8 +22,6 @@ declare
   v_ai integer := coalesce((public.setting('ai_limits') ->> 'ai_daily')::integer, 100);
   v_guide integer := coalesce((public.setting('ai_limits') ->> 'guide_daily')::integer, 40);
   v_inbox integer := coalesce((public.setting('ai_limits') ->> 'inbox_daily')::integer, 30);
-  v_median numeric;
-  v_far numeric;
 begin
   perform public.admin_guard('support');
   v_from := current_date - (v_days - 1);
@@ -43,9 +43,11 @@ begin
       where service = 'google' and day >= v_from group by user_id),
     fe as (
       select user_id,
-        count(*) filter (where kind is distinct from 'inbox_cap_hit' and kind is distinct from 'free_import_blocked')::int as errors,
+        count(*) filter (where kind is distinct from 'inbox_cap_hit' and kind is distinct from 'free_import_blocked'
+          and kind is distinct from 'inbox_quota_refused')::int as errors,
         count(*) filter (where kind = 'inbox_cap_hit')::int as inbox_cap_hits,
-        count(*) filter (where kind = 'free_import_blocked')::int as import_blocks
+        count(*) filter (where kind = 'free_import_blocked')::int as import_blocks,
+        count(*) filter (where kind = 'inbox_quota_refused')::int as inbox_refusals
       from public.function_errors where ts >= v_from and user_id is not null group by user_id),
     seen as (select user_id, max(ts) as ts from public.analytics_events group by user_id),
     base as (
@@ -57,7 +59,7 @@ begin
         coalesce(bk.forwarded, 0) as forwarded, coalesce(bk.in_app, 0) as in_app,
         coalesce(gg.calls, 0) as google_calls,
         coalesce(fe.errors, 0) as errors, coalesce(fe.inbox_cap_hits, 0) as inbox_cap_hits,
-        coalesce(ai.inbox_days_over, 0) as inbox_days_over, coalesce(fe.import_blocks, 0) as import_blocks,
+        coalesce(ai.inbox_days_over, 0) as inbox_days_over, coalesce(fe.import_blocks, 0) as import_blocks, coalesce(fe.inbox_refusals, 0) as inbox_refusals,
         coalesce(ai.over_ai, false) as over_ai
       from auth.users u
       left join ai on ai.user_id = u.id left join bk on bk.user_id = u.id left join gg on gg.user_id = u.id
@@ -82,11 +84,11 @@ begin
           'user_id', f.id, 'email', f.email, 'joined', f.joined, 'last_seen', f.last_seen, 'plan', f.plan, 'internal', f.internal,
           'ai_calls', f.ai_calls, 'ai_today', f.ai_today, 'forwarded_imports', f.forwarded, 'in_app_imports', f.in_app,
           'google_calls', f.google_calls, 'errors', f.errors, 'inbox_cap_hits', f.inbox_cap_hits, 'inbox_days_over', f.inbox_days_over,
-          'import_blocks', f.import_blocks, 'flags', to_jsonb(f.flags)) order by f.ai_calls desc, f.email) from flagged f), '[]'::jsonb),
+          'import_blocks', f.import_blocks, 'inbox_refusals', f.inbox_refusals, 'flags', to_jsonb(f.flags)) order by f.ai_calls desc, f.email) from flagged f), '[]'::jsonb),
       'recent', coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'kind', r.kind, 'fn', r.fn, 'ts', r.ts, 'user_id', r.user_id, 'email', r.email) order by r.ts desc)
         from (select e.id, e.kind, e.fn, e.ts, e.user_id, u.email::text as email
               from public.function_errors e left join auth.users u on u.id = e.user_id
-              where e.kind in ('inbox_cap_hit', 'free_import_blocked') order by e.ts desc limit 25) r), '[]'::jsonb)
+              where e.kind in ('inbox_cap_hit', 'inbox_quota_refused', 'free_import_blocked') order by e.ts desc limit 25) r), '[]'::jsonb)
     )
   );
 end;

@@ -108,11 +108,11 @@ export default async function demo(name, args) {
       const k = n === 30 ? 3.4 : 1
       const row = (i, extra) => ({ user_id: members[i].id, email: members[i].email, joined: members[i].joined, last_seen: members[i].last_seen, plan: members[i].plan,
         internal: false, ai_calls: 0, ai_today: 0, forwarded_imports: 0, in_app_imports: 0, google_calls: 0, errors: 0, inbox_cap_hits: 0, inbox_days_over: 0,
-        import_blocks: 0, flags: [], ...extra })
+        import_blocks: 0, inbox_refusals: 0, flags: [], ...extra })
       const list = [
         row(3, { ai_calls: Math.round(212 * k), ai_today: 104, forwarded_imports: 6, in_app_imports: 2, google_calls: 480, errors: 3, flags: ['over_ai_limit', 'far_above_median'] }),
         row(0, { ai_calls: Math.round(96 * k), ai_today: 22, forwarded_imports: 9, in_app_imports: 1, google_calls: 210, inbox_cap_hits: 2, inbox_days_over: 2, flags: ['inbox_cap'] }),
-        row(6, { ai_calls: Math.round(31 * k), ai_today: 4, forwarded_imports: 3, google_calls: 60, errors: 1 }),
+        row(6, { ai_calls: Math.round(31 * k), ai_today: 4, inbox_refusals: 2, forwarded_imports: 3, google_calls: 60, errors: 1 }),
         row(2, { ai_calls: Math.round(18 * k), ai_today: 0, forwarded_imports: 1, in_app_imports: 4, google_calls: 12, import_blocks: 3, flags: ['free_import_blocked'] }),
         row(9, { ai_calls: Math.round(9 * k), ai_today: 2, in_app_imports: 1, google_calls: 33 }),
         row(14, { ai_calls: Math.round(4 * k), google_calls: 5 }),
@@ -122,7 +122,8 @@ export default async function demo(name, args) {
         far_above_rule: 'AI calls in the window at least 5 x the median of members with any AI call, and at least 50', members: list,
         recent: [
           { id: 3, kind: 'inbox_cap_hit', fn: 'receive-booking-email', ts: day(-0.05), user_id: members[0].id, email: members[0].email },
-          { id: 2, kind: 'free_import_blocked', fn: 'parse-booking-email', ts: day(-0.4), user_id: members[2].id, email: members[2].email },
+          { id: 2, kind: 'free_import_blocked', fn: 'receive-booking-email', ts: day(-0.4), user_id: members[2].id, email: members[2].email },
+          { id: 4, kind: 'inbox_quota_refused', fn: 'receive-booking-email', ts: day(-0.8), user_id: members[6].id, email: members[6].email },
           { id: 1, kind: 'inbox_cap_hit', fn: 'receive-booking-email', ts: day(-1.2), user_id: members[0].id, email: members[0].email },
         ] }
     }

@@ -14,3 +14,9 @@ assert.equal(rows[0].email, 'b@x.com', 'sorting does not mutate the input')
 assert.equal(USAGE_FLAGS.length, 4)
 assert.equal(FLAG_LABEL.inbox_cap, 'Inbox cap hit')
 console.log('admin usage helpers: ok')
+
+import { canSeeUsage, RECENT_KIND_LABEL } from '../src/admin/usage.js'
+assert.ok(canSeeUsage('owner') && canSeeUsage('support'))
+assert.ok(!canSeeUsage('analyst') && !canSeeUsage(undefined))
+assert.match(RECENT_KIND_LABEL.inbox_quota_refused, /not a cap hit/)
+console.log('admin usage roles and labels: ok')

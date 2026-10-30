@@ -8,7 +8,10 @@ export const USAGE_FLAGS = [
   ['far_above_median', 'Far above median'],
 ]
 export const FLAG_LABEL = Object.fromEntries(USAGE_FLAGS)
-export const RECENT_KIND_LABEL = { inbox_cap_hit: 'Inbox cap hit', free_import_blocked: 'Free import blocked' }
+export const RECENT_KIND_LABEL = { inbox_cap_hit: 'Inbox cap hit', inbox_quota_refused: 'Inbox read refused (not a cap hit)', free_import_blocked: 'Free import blocked' }
+
+// Usage views need support or owner; analysts do not see them (the database function checks the same)
+export const canSeeUsage = (role) => role === 'support' || role === 'owner'
 
 export function summarise(members = []) {
   const out = { flagged: 0, ...Object.fromEntries(USAGE_FLAGS.map(([k]) => [k, 0])) }
