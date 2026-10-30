@@ -1,5 +1,6 @@
-// The onboarding tour: a short, swipeable walk through each part of the app, the location pre-prompt, then the
-// free plan and First Class. Shown once after the first sign-in; replayed from Profile and Help (no location step).
+// The onboarding tour: a short, swipeable walk through each part of the app, the location pre-prompt, the AI reading
+// question, then the free plan and First Class. Shown once after the first sign-in; replayed from Profile and Help
+// (no location or AI step).
 import { useEffect, useRef, useState } from 'react'
 import { getCurrentPosition } from '../../lib/geo'
 import { track } from '../../lib/analytics'
@@ -7,6 +8,8 @@ import { STORE } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { useCopyInbox } from '../trips/InboxHint'
+import { useConsentStore, hasAiConsent } from '../../store/consentStore'
+import { AiConsentDetails, AI_CONSENT_TITLE } from '../../components/shared/AiConsentSheet'
 import { Screen, Button, IconButton, Card, IconTile, Text, Stack, Icon, Overline, LinkButton, Chip } from '../../ui'
 import { markOnboarded } from './onboardingState'
 import { WelcomeArt, TripsArt, TodayArt, WeatherPackArt, InboxArt, InviteArt, TogetherArt, GuideArt, GuideMoreArt, HonkArt, ToolsArt, YouArt, LocationArt } from './TourArt'
@@ -75,8 +78,12 @@ const STEPS = [
     body: 'Goose score and badges, passports and documents, loyalty cards, and the Guide and FAQ whenever you need a hand.',
   },
   { id: 'location', Art: LocationArt, firstRunOnly: true },
+  { id: 'ai', firstRunOnly: true }, // Apple 5.1.2(i): ask before Goose's AI reads what you send it
   { id: 'plans' },
 ]
+
+// Steps Skip never jumps over
+const ASKS = new Set(['location', 'ai', 'plans'])
 
 const LOCATION_PERKS = [
   { icon: 'sos', tone: 'danger', title: 'SOS for the country you’re in', meta: 'Not the one on your passport' },
@@ -176,7 +183,9 @@ function PlansCard() {
  * replay: opened from Profile or Help (skips the location step, doesn't touch the one-time flag).
  */
 export default function Onboarding({ onDone, replay = false }) {
-  const steps = STEPS.filter(s => !(replay && s.firstRunOnly))
+  // The AI step only while there's no answer on the account (a second device doesn't ask again)
+  const [aiAnswered] = useState(hasAiConsent)
+  const steps = STEPS.filter(s => !(replay && s.firstRunOnly) && !(s.id === 'ai' && aiAnswered))
   const [index, setIndex] = useState(0)
   const [back, setBack] = useState(false)
   const [asking, setAsking] = useState(false)
@@ -200,11 +209,19 @@ export default function Onboarding({ onDone, replay = false }) {
     setIndex(to)
   }
   const next = () => (last ? finish() : go(index + 1))
-  // Skip jumps to the next step that still matters: the location ask (first run), then the plans card
+  // Skip jumps to the next step that still matters: the location and AI asks (first run), then the plans card
   const skip = () => {
     track('onboarding_skip', { at: step.id, replay })
-    const to = steps.findIndex((s, i) => i > index && (s.id === 'location' || s.id === 'plans'))
+    const to = steps.findIndex((s, i) => i > index && ASKS.has(s.id))
     go(to === -1 ? steps.length - 1 : to)
+  }
+
+  const allowAi = async () => {
+    setAsking(true)
+    // A failed save just moves on: the sheet asks again at the first import
+    try { await useConsentStore.getState().setConsent(true, 'tour') } catch { /* asked again later */ }
+    setAsking(false)
+    go(index + 1)
   }
 
   const allowLocation = async () => {
@@ -220,7 +237,7 @@ export default function Onboarding({ onDone, replay = false }) {
     if (touch.current == null) return
     const dx = e.changedTouches[0].clientX - touch.current
     touch.current = null
-    if (Math.abs(dx) < 60 || step.id === 'location') return
+    if (Math.abs(dx) < 60 || step.id === 'location' || step.id === 'ai') return
     if (dx < 0 && !last) go(index + 1)
     if (dx > 0) go(index - 1)
   }
@@ -228,7 +245,7 @@ export default function Onboarding({ onDone, replay = false }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.closest?.('input, textarea')) return
-      if (e.key === 'ArrowRight' && !last && step.id !== 'location') go(index + 1)
+      if (e.key === 'ArrowRight' && !last && step.id !== 'location' && step.id !== 'ai') go(index + 1)
       if (e.key === 'ArrowLeft') go(index - 1)
     }
     window.addEventListener('keydown', onKey)
@@ -271,6 +288,13 @@ export default function Onboarding({ onDone, replay = false }) {
                 </li>
               ))}
             </ul>
+          </>
+        ) : step.id === 'ai' ? (
+          <>
+            <div className="tour-copy">
+              <Text variant="h1" id="onb-title">{AI_CONSENT_TITLE}</Text>
+            </div>
+            <AiConsentDetails />
           </>
         ) : step.id === 'plans' ? (
           <>
@@ -316,6 +340,11 @@ export default function Onboarding({ onDone, replay = false }) {
           <>
             <Button variant="dark" size="lg" block icon="pin" loading={asking} onClick={allowLocation}>{asking ? 'Waiting for your answer' : 'Allow location'}</Button>
             <Button variant="ghost" block onClick={() => go(index + 1)}>Not now</Button>
+          </>
+        ) : step.id === 'ai' ? (
+          <>
+            <Button variant="outline" size="lg" block loading={asking} onClick={allowAi}>Allow</Button>
+            <Button variant="outline" size="lg" block onClick={() => { track('ai_consent_answer', { reason: 'tour', choice: 'not_now' }); useConsentStore.getState().recordDeclined('tour'); go(index + 1) }}>Not now</Button>
           </>
         ) : step.id === 'plans' ? (
           paid

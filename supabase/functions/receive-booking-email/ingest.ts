@@ -1,6 +1,7 @@
 // The work after an inbound email is authenticated and mapped to a user: parse it with the AI, match it to a
 // trip by dates and distance (extending or joining trips that are one journey), and insert the booking.
 // Shared by the Resend webhook (index.ts) so it can be exercised without a signed webhook.
+import { consentCurrent } from '../_shared/consent.ts'
 import { geminiFetch } from '../_shared/gemini.ts'
 import { quotaUnavailable, rememberQuota } from '../_shared/quota.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
@@ -176,6 +177,7 @@ export type InboxProfile = {
   id: string, home_city?: string | null,
   account_email?: string | null, // filled from auth.users when absent
   inbox_allowed_senders?: string[] | null, inbox_accept_any?: boolean | null,
+  ai_consent_at?: string | null, ai_consent_version?: string | null, ai_consent_routing?: string | null, // undefined before migration 20261026120000_ai_consent: read as given
 }
 
 /**
@@ -214,6 +216,8 @@ export async function senderAllowed(supabase: any, profile: InboxProfile, fromAd
 
 // AI reads (the email, each attachment) one inbox may use a day: its own budget, not the member's in-app AI quota
 export const INBOX_DAILY_PARSES = 30
+// Forwarded emails kept waiting for the yes to AI reading, per member
+export const MAX_HELD = 50
 
 /**
  * One unit of today's inbox budget; false once it's spent (or AI is paused, or the project-wide cap is reached).
@@ -241,6 +245,35 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     } catch { /* logging is best-effort */ }
     return ok({ success: true, ignored: true, reason: 'sender' })
   }
+  // No yes to AI reading yet (Apple 5.1.2(i)): keep only the Resend id, sender domain and subject; inbox-release
+  // fetches and files it once the member allows it in the app
+  // (a yes to older wording or routing counts as no; a profile without the column at all is read as given)
+  if (profile.ai_consent_at !== undefined && !consentCurrent(profile) && !input.released) {
+    if (!input.emailId) return ok({ success: true, ignored: true, reason: 'consent' })
+    // At most MAX_HELD waiting per member; beyond that the email is dropped (they can forward it again after allowing)
+    const { count } = await supabase.from('held_inbox_emails').select('id', { count: 'exact', head: true }).eq('user_id', profile.id)
+    if ((count || 0) >= MAX_HELD) {
+      try {
+        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_hold_cap', status: 200, user_id: profile.id, message: `held emails at cap (${MAX_HELD}), dropped one` })
+      } catch { /* logging is best-effort */ }
+      return ok({ success: true, ignored: true, reason: 'held_full' })
+    }
+    const { error } = await supabase.from('held_inbox_emails').upsert({
+      user_id: profile.id, email_id: String(input.emailId).slice(0, 200),
+      from_domain: normalizeAddress(input.fromAddress)?.split('@')[1]?.slice(0, 120) || null,
+      subject: String(input.subject || '').slice(0, 200) || null,
+    }, { onConflict: 'user_id,email_id', ignoreDuplicates: true })
+    if (error) {
+      // Not held: say so (Resend retries on an error answer) and leave a trace
+      console.error('hold email failed', error.message)
+      try {
+        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_hold_failed', status: 500, user_id: profile.id, message: String(error.message || 'hold failed').slice(0, 280) })
+      } catch { /* logging is best-effort */ }
+      return err('Could not hold the email', 500)
+    }
+    console.log(`⏸️ Inbox of ${profile.id}: held until AI reading is allowed`)
+    return ok({ success: true, held: true })
+  }
   let locked = false
   for (let i = 0; i < 40 && !locked; i++) {
     const { data, error } = await supabase.rpc('take_ingest_lock', { p_user: profile.id, p_seconds: 90 })
@@ -264,6 +297,7 @@ async function ingestOne(
     // The webhook downloads files only once the sender is accepted
     loadAttachments?: () => Promise<{ name: string, mime: string, bytes: Uint8Array }[]>,
     emailId?: string | null,  // the Resend email id: stamped on every booking from this email (raw_email_id)
+    released?: boolean,       // filed by inbox-release after the member allowed AI reading (skips the hold)
   },
 ): Promise<Response> {
   const userId = profile.id

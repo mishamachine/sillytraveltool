@@ -8,7 +8,9 @@ import BottomNav from './components/layout/BottomNav'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import OutsideDatesSheet from './components/shared/OutsideDatesSheet'
 import PaywallSheet from './components/shared/PaywallSheet'
+import AiConsentSheet from './components/shared/AiConsentSheet'
 import { usePlanStore } from './store/planStore'
+import { useConsentStore, hasAiConsent } from './store/consentStore'
 
 import { useVisibilityRestore } from './hooks/useVisibilityRestore'
 import { initDeepLinks } from './native/deepLinks'
@@ -66,6 +68,7 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(false)
   const [inviteToast, setInviteToast] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const { held, releasing, released, clearReleased, asking: askingAi } = useConsentStore()
 
   useEffect(() => { init(); initDeepLinks(); initBackButton(); initExternalLinks() }, [])
 
@@ -85,6 +88,21 @@ export default function App() {
       if (trigger) usePlanStore.getState().openPaywall(trigger)
     })
   }, [user?.id])
+
+  // Forwarded emails held until the member allows AI reading: count them, and file them at once if the yes was given
+  // on another device in the meantime
+  useEffect(() => {
+    if (!user || !profileReady) return
+    useConsentStore.getState().loadHeld().then(() => {
+      if (hasAiConsent() && useConsentStore.getState().held > 0) useConsentStore.getState().release()
+    })
+  }, [user?.id, profileReady])
+
+  useEffect(() => {
+    if (!released) return
+    const t = setTimeout(clearReleased, 5000)
+    return () => clearTimeout(t)
+  }, [released])
 
   // One-time onboarding tour (features, Goose inbox, location, plans) for new accounts. Accounts older than a day
   // are existing users: mark them onboarded without showing it. Dev: ?onboarding forces it.
@@ -213,6 +231,23 @@ export default function App() {
       )}
       <OutsideDatesSheet />
       <PaywallSheet />
+      <AiConsentSheet />
+      {held > 0 && !releasing && !askingAi && !hasAiConsent() && (
+        <Toast icon="inbox" title={held === 1 ? '1 email waiting' : `${held} emails waiting`}
+          action={<Button variant="primary" size="sm" onClick={() => useConsentStore.getState().ensure('held')}>Review</Button>}>
+          Goose files them once you say it can read them
+        </Toast>
+      )}
+      {released && (released.filed > 0 || released.ignored > 0 || released.expired > 0 || released.failed > 0 || released.kept > 0 || released.limited) && (
+        <Toast icon={released.filed && !released.expired && !released.failed && !released.kept && !released.limited ? 'check-circle' : 'info'}
+          title={released.filed ? `Goose filed ${released.filed === 1 ? '1 email' : `${released.filed} emails`}` : released.limited ? 'Daily email limit reached' : 'Nothing new to file'}>
+          {released.limited ? 'The rest are saved. Goose files them when you open the app tomorrow.'
+            : released.kept ? 'One couldn’t be filed just now. Goose will try again when you next open the app.'
+            : released.expired || released.failed ? 'Some couldn’t be opened any more. Forward them again and Goose will file them.'
+            : released.ignored ? 'Some weren’t bookings, so Goose left them out.'
+            : 'They’re in your trips now'}
+        </Toast>
+      )}
       {inviteToast && (
         <Toast position="top" icon="users" title="You joined the trip">{inviteToast.tripName} is now in your trips</Toast>
       )}

@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { withRequestScope } from '../_shared/usage.ts'
 import { targetLanguage, sourceLanguage } from './languages.ts'
+import { aiConsentGiven, CONSENT_REQUIRED } from '../_shared/consent.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +38,7 @@ Deno.serve(withRequestScope(async (req) => {
     if (raw.mode === 'text') {
       const text = cap(raw.text, 300)
       if (!text) return reply({ error: 'text required' }, 400)
+      if (!(await aiConsentGiven(user.id))) return reply(CONSENT_REQUIRED, 403)
       if (!(await checkAiQuota(user.id))) return reply({ error: QUOTA_MESSAGE }, 429)
       const res = await geminiFetch(GEMINI_API_KEY, { contents: [{ parts: [{ text: `Translate for a traveler, from ${sourceName} into ${languageName}. Natural, polite, as a local would say it.
 Text: ${JSON.stringify(text)}

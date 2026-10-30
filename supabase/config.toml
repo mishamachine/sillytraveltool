@@ -29,6 +29,9 @@ verify_jwt = false
 [functions.parse-booking-email]
 verify_jwt = false
 
+[functions.inbox-release]
+verify_jwt = false
+
 [functions.receive-booking-email]
 verify_jwt = false
 
