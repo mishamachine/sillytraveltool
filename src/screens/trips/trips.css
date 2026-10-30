@@ -10,7 +10,6 @@
 .today-tile { justify-content: center; min-height: 76px; gap: 2px; padding: 14px; }
 .today-temp { line-height: 1; }
 .today-sun { color: var(--weather-sun); }
-.today-honk { padding: 18px; }
 .today-time { width: 48px; flex-shrink: 0; }
 
 .recap-stat { align-items: center; text-align: center; gap: 2px; padding: var(--space-4) var(--space-2); }

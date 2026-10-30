@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { format, addDays } from 'date-fns'
-import { useTripsStore, useUIStore, useAuthStore } from '../../store'
+import { useTripsStore, useAuthStore } from '../../store'
 import { parseLocalDate, tripZoneToday } from '../../lib/dates'
 import { tripPlace, computeLegs, routeCities } from '../../lib/stops'
 import { weekdayIn } from '../../lib/localTime'
@@ -102,7 +102,6 @@ function PlanCard({ trip, stops, here, confirmed, onOpen }) {
 
 export default function TodayView({ trip, onShowAll }) {
   const { bookings, activities, fetchTripDetail, setActiveTrip, activeTrip } = useTripsStore()
-  const openExplore = useUIStore(s => s.openExplore)
   const tempUnit = useAuthStore(s => (s.profile?.temp_unit === 'F' ? 'fahrenheit' : 'celsius'))
   const me = useAuthStore(s => s.user?.id)
   const [weather, setWeather] = useState(null)
@@ -197,17 +196,6 @@ export default function TodayView({ trip, onShowAll }) {
           </Text>
         </Card>
       </div>
-
-      <Card variant="inverse" onClick={() => openExplore('honk')} className="today-honk">
-        <Stack row gap={3}>
-          <IconTile icon="megaphone" tone="inverse" size="md" />
-          <Stack gap={1} grow>
-            <Text variant="card-title" tone="inverse" as="p">HONK: find me a spot</Text>
-            <Text variant="caption" tone="inverse-muted">Goose picks somewhere good near you, right now</Text>
-          </Stack>
-          <Icon name="chevron-right" size={20} className="tone-inverse-muted" />
-        </Stack>
-      </Card>
 
       {laterToday.length > 0 && (
         <Section title="Later today">
