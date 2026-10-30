@@ -8,7 +8,7 @@ gives each area a verdict against a target, lets the owner act from the page, an
 ## 1. Where and who
 - **sillytraveltool.com/admin**: its own Vite entry (`admin.html`), its own bundle. Never shipped in the app or the
   Android/iOS build. Works on desktop (main use) and phone (Today, Members, approvals); can be added to the home screen.
-- **Access:** STT sign-in + authenticator code (Supabase MFA, required), and the account must be in an `admins` table.
+- **Access:** STT sign-in with Google and an `admins` row (the authenticator/MFA requirement was dropped 2026-10-23, see `docs/HANDOFF.md`; other MFA mentions in this plan are historical).
   All data comes from `admin_*` database functions (security definer) that first call `admin_guard()`: the caller
   must be in `admins` and the session must have passed MFA (`aal2`). The browser never reads tables directly.
   Anything that needs a secret (email, store APIs) goes through an Edge Function with the same check. `noindex`, no
@@ -296,5 +296,5 @@ Recommendation: **build the traveller views ourselves, send through Resend, don'
 Each step is built and tested here (`npm run build`, browser at desktop and phone size, screenshots), then deployed.
 
 ## 11. Owner set-up (when we reach that step)
-Authenticator app for MFA · GA4 service-account key (step 3) · Sentry DSN · Postiz API key · Meta Business account
+(Authenticator app for MFA: no longer needed, dropped 2026-10-23) · GA4 service-account key (step 3) · Sentry DSN · Postiz API key · Meta Business account
 linked to a Facebook Page and Instagram professional account · TikTok developer app (review takes a few days).
