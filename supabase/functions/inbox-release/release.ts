@@ -41,7 +41,7 @@ export async function releaseHeld(admin: any, profile: any, deps: ReleaseDeps): 
     }
     const { error } = await admin.from('held_inbox_emails').upsert({
       user_id: userId, email_id: h.email_id, from_domain: h.from_domain ?? null, subject: h.subject ?? null,
-      received_at: new Date().toISOString(), attempts, ...(h.reason && h.reason !== 'consent' ? { reason: h.reason } : {}),
+      received_at: h.received_at ?? new Date().toISOString(), attempts,   // keep the original date so the 30-day purge still applies ...(h.reason && h.reason !== 'consent' ? { reason: h.reason } : {}),
     }, { onConflict: 'user_id,email_id', ignoreDuplicates: true })
     if (error) { out.failed++; await logError('held_email_requeue_failed', null, error.message || 'requeue failed'); return }
     if (countTry) out.kept++
@@ -79,6 +79,7 @@ export async function releaseHeld(admin: any, profile: any, deps: ReleaseDeps): 
   }
 
   const { count } = await admin.from('held_inbox_emails').select('id', { count: 'exact', head: true }).eq('user_id', userId)
-  out.remaining = count || 0
+  // Nothing claimable (e.g. only over-limit mail for a free member): report 0 so older app builds stop calling
+  out.remaining = out.claimed ? (count || 0) : 0
   return out
 }

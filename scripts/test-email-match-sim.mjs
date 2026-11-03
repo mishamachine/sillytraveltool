@@ -869,7 +869,7 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
       assert.deepEqual([r.locked, r.ignored, r.filed, r.remaining, aiCalls - a, db.tables.bookings.length], [1, 0, 0, 1, 0, 0])
       assert.equal(db.tables.held_inbox_emails[0].reason, 'over_free_limit')
       const again = await releaseHeld(db, profile, deps())
-      assert.deepEqual([again.claimed, again.remaining, again.locked], [0, 1, 0])
+      assert.deepEqual([again.claimed, again.remaining, again.locked], [0, 0, 0])   // nothing claimable: 0 so old builds stop looping
       db.inbox.freeLocked = false                       // upgraded
       const done = await releaseHeld(db, profile, deps())
       assert.deepEqual([done.filed, done.remaining, db.tables.bookings.length, aiCalls - a, db.inbox.parses], [1, 0, 1, 1, 1]) }
