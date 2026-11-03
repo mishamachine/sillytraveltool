@@ -148,7 +148,7 @@ export function Bars({ data, height = 56, label }) {
   )
 }
 
-// Horizontal bar rows: [{label, value, sub}]
+// Horizontal bar rows: [{label, value, sub, title}]; hovering a label shows title (or the label) in full
 export function BarList({ rows, max, format = num, empty = 'Nothing yet.' }) {
   if (!rows?.length) return <p className="a-empty">{empty}</p>
   const top = max ?? Math.max(1, ...rows.map(r => r.value))
@@ -156,7 +156,7 @@ export function BarList({ rows, max, format = num, empty = 'Nothing yet.' }) {
     <ul className="a-barlist">
       {rows.map(r => (
         <li key={r.label} onClick={r.onClick} className={r.onClick ? 'is-link' : ''}>
-          <span className="a-barlist__label">{r.label}</span>
+          <span className="a-barlist__label" title={r.title || r.label}>{r.label}</span>
           <span className="a-barlist__track"><Sized vars={{ '--fill': `${(r.value / top) * 100}%` }} /></span>
           <span className="a-barlist__value">{format(r.value)}{r.sub && <span className="a-muted"> {r.sub}</span>}</span>
         </li>
