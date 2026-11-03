@@ -12,12 +12,12 @@ const rewrites = [...htaccess.matchAll(/^RewriteRule \^([^\s]+)\$ \/index\.html/
 
 const files = []
 const walk = (d) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) { if (!['node_modules', 'dist', '.git', 'ios', 'android'].includes(f)) walk(p) } else if (/\.(jsx?|ts|html)$/.test(f)) files.push(p) } }
-for (const d of ['src', 'supabase/functions', 'public', 'beta', 'upgrade', 'redeem', 'unsubscribe']) walk(join(root, d))
+for (const d of ['src', 'supabase/functions', 'public', 'beta', 'upgrade', 'redeem', 'unsubscribe', 'supabase/templates']) walk(join(root, d))
 
 const paths = new Set()
 for (const f of files) {
   const t = readFileSync(f, 'utf8')
-  for (const m of t.matchAll(/(?:sillytraveltool\.com|\$\{(?:appUrl|APP_URL|location\.origin|origin|SITE_URL)\})(\/[A-Za-z0-9_\-./]*)/g)) paths.add(m[1].replace(/\.+$/, '') || '/')
+  for (const m of t.matchAll(/(?:sillytraveltool\.com|\$\{(?:appUrl|APP_URL|location\.origin|origin|SITE_URL)\}|\{\{ \.SiteURL \}\})(\/[A-Za-z0-9_\-./]*)/g)) paths.add(m[1].replace(/\.+$/, '') || '/')
   for (const m of t.matchAll(/href="(\/[A-Za-z0-9_\-./]*)"/g)) paths.add(m[1].replace(/\.+$/, '') || '/')
 }
 let bad = 0

@@ -11,7 +11,7 @@ let client = null // the module whose captureException we call
 // Member emails reach PostgREST filters in request URLs (e.g. `invited_email.eq.<email>`), so a query string
 // holding an '@' or an 'eq.' value is cut before it leaves the device. Bare email addresses in text are redacted.
 const QUERY = /\?[^\s"'<>#]*/g
-const SENSITIVE_QUERY = /@|%40|eq\./i
+const SENSITIVE_QUERY = /@|%40|eq\.|token_hash=|token=/i
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g
 
 function scrubString(s) {

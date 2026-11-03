@@ -4,6 +4,9 @@ import { isDemo } from './lib/supabase'
 import { demoParams } from './dev/demoClient'
 
 import AuthScreen from './screens/AuthScreen'
+import AuthConfirmScreen from './screens/AuthConfirmScreen'
+import { isNative } from './lib/authRedirect'
+import { isConfirmPath } from './lib/authConfirm'
 import BottomNav from './components/layout/BottomNav'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import OutsideDatesSheet from './components/shared/OutsideDatesSheet'
@@ -71,6 +74,8 @@ export default function App() {
   const [inviteToast, setInviteToast] = useState(null)
   const [invitePreview, setInvitePreview] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  // Web only: emailed auth links land on /auth/confirm (apps use deep links instead)
+  const [confirming, setConfirming] = useState(() => !isNative && isConfirmPath(window.location.pathname))
   const { held, releasing, released, clearReleased, asking: askingAi } = useConsentStore()
 
   useEffect(() => { init(); initDeepLinks(); initBackButton(); initExternalLinks() }, [])
@@ -184,6 +189,7 @@ export default function App() {
     showInvite()
   }, [user, inviteNonce])
 
+  if (confirming) return <AuthConfirmScreen onDone={() => { window.history.replaceState({}, '', '/'); setConfirming(false) }} />
   if (loading) return <AppLoading />
   if (!user || passwordRecovery) return <AuthScreen />
 

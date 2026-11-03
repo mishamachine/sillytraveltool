@@ -28,18 +28,26 @@ async function checkAndAwardBadges(userId, accessToken) {
 
 export { checkAndAwardBadges }
 
+// A reset link signs the member in, so a reload must not drop them into the app before they set a password.
+// The flag lives in sessionStorage until the password is set (or they choose Not now).
+const RECOVERY_KEY = 'stt_password_recovery'
+const readRecovery = () => { try { return sessionStorage.getItem(RECOVERY_KEY) === '1' } catch { return false } }
+const writeRecovery = (on) => { try { on ? sessionStorage.setItem(RECOVERY_KEY, '1') : sessionStorage.removeItem(RECOVERY_KEY) } catch { /* private mode */ } }
+
 export const useAuthStore = create((set, get) => ({
   user: null, profile: null, session: null, loading: true,
   profileReady: false,
   stats: null, badges: [],
   // Set by a password-reset link (web: PASSWORD_RECOVERY event, native: deep link).
   // Keeps AuthScreen's "set new password" step up even though the link signs the user in.
-  passwordRecovery: false,
+  passwordRecovery: readRecovery(),
   authError: null,   // deep-link sign-in failure, shown by AuthScreen
   inviteNonce: 0,    // bumped when an invite deep link arrives while already signed in
+  authStartMode: null, // 'forgot' | 'magic' | 'login': which sign-in form AuthScreen opens on (set by /auth/confirm)
 
-  setPasswordRecovery: (passwordRecovery) => set({ passwordRecovery }),
+  setPasswordRecovery: (passwordRecovery) => { writeRecovery(passwordRecovery); set({ passwordRecovery }) },
   setAuthError: (authError) => set({ authError }),
+  setAuthStartMode: (authStartMode) => set({ authStartMode }),
   bumpInvite: () => set(state => ({ inviteNonce: state.inviteNonce + 1 })),
 
   fetchStats: async () => {
@@ -57,6 +65,7 @@ export const useAuthStore = create((set, get) => ({
 
   init: async () => {
     const { data: { session } } = await supabase.auth.getSession()
+    if (!session && get().passwordRecovery) get().setPasswordRecovery(false) // stale flag, nothing to reset
     if (session) { set({ session, user: session.user }); await get().ensureProfile(session.user, session.access_token, false) }
     set({ loading: false })
     // Supabase runs this callback while it holds its auth lock (sign-in, hourly token refresh). Every
@@ -65,7 +74,8 @@ export const useAuthStore = create((set, get) => ({
     supabase.auth.onAuthStateChange((event, session) => {
       const prevUserId = get().user?.id
       set({ session, user: session?.user ?? null })
-      if (event === 'PASSWORD_RECOVERY') set({ passwordRecovery: true })
+      if (event === 'PASSWORD_RECOVERY') get().setPasswordRecovery(true)
+      if (event === 'SIGNED_OUT' && get().passwordRecovery) get().setPasswordRecovery(false) // next account in this tab must not inherit it
       // Supabase also sends SIGNED_IN for a session it restores (page load, tab focus); count only real sign-ins
       if (event === 'SIGNED_IN' && session?.user && session.user.id !== prevUserId) {
         const provider = session.user.app_metadata?.provider
