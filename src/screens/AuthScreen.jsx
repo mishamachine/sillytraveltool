@@ -42,10 +42,13 @@ async function appleEnabled() {
 const TITLES = { login: 'Welcome back', signup: 'Create your account', magic: 'Email me a sign-in link', forgot: 'Reset your password' }
 
 export default function AuthScreen() {
-  const [mode, setMode] = useState('login')
+  // /auth/confirm can ask for a particular form (e.g. "send me a new reset link"); read it once, then clear it
+  const [startMode] = useState(() => useAuthStore.getState().authStartMode)
+  useEffect(() => { if (startMode) useAuthStore.getState().setAuthStartMode(null) }, [])
+  const [mode, setMode] = useState(startMode || 'login')
   const [apple, setApple] = useState(false)
   useEffect(() => { appleEnabled().then(setApple) }, [])
-  const [step, setStep] = useState('welcome') // 'welcome' | 'email'
+  const [step, setStep] = useState(startMode ? 'email' : 'welcome') // 'welcome' | 'email'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')

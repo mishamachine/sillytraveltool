@@ -16,6 +16,10 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 # ?token on "/" and rewrites the URL. Serve the app shell for this one path only (the query string passes through).
 RewriteRule ^invite/?$ /index.html [L]
 
+# Auth emails (supabase/templates) link to /auth/confirm?token_hash=…&type=…. Same idea: serve the app shell for this one
+# path; the app shows the "Continue" page and only the tap uses the one-time token.
+RewriteRule ^auth/confirm/?$ /index.html [L]
+
 # The app only lives at "/" (no client-side routes), and every other page is a real directory with its own
 # index.html. So there is no catch-all rewrite: an unknown path is a real 404 (status 404, not the app shell).
 ErrorDocument 404 /404.html

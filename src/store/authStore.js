@@ -37,9 +37,11 @@ export const useAuthStore = create((set, get) => ({
   passwordRecovery: false,
   authError: null,   // deep-link sign-in failure, shown by AuthScreen
   inviteNonce: 0,    // bumped when an invite deep link arrives while already signed in
+  authStartMode: null, // 'forgot' | 'magic' | 'login': which sign-in form AuthScreen opens on (set by /auth/confirm)
 
   setPasswordRecovery: (passwordRecovery) => set({ passwordRecovery }),
   setAuthError: (authError) => set({ authError }),
+  setAuthStartMode: (authStartMode) => set({ authStartMode }),
   bumpInvite: () => set(state => ({ inviteNonce: state.inviteNonce + 1 })),
 
   fetchStats: async () => {
