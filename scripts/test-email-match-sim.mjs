@@ -102,7 +102,7 @@ function makeDb() {
       return { data: [{ start_date: t.start_date, end_date: t.end_date }], error: null }
     }
     if (name === 'claim_held_emails') { // delete ... returning, oldest first: atomic, so two callers never get the same row
-      const mine = tables.held_inbox_emails.filter(r => r.user_id === args.p_user).sort((a, b) => String(a.received_at).localeCompare(String(b.received_at))).slice(0, args.p_n)
+      const mine = tables.held_inbox_emails.filter(r => r.user_id === args.p_user && !(r.reason === 'over_free_limit' && inbox.freeLocked)).sort((a, b) => String(a.received_at).localeCompare(String(b.received_at))).slice(0, args.p_n)
       tables.held_inbox_emails = tables.held_inbox_emails.filter(r => !mine.includes(r))
       return { data: mine, error: null }
     }
@@ -517,31 +517,30 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     assert.equal((await sendChecked(db, { id: 'u1', inbox_accept_any: true }, 'unitedairlines@united.com')).ai, 1)
   }
   // 4. Free plan over its limit: stopped before ANY AI call (no DeepSeek, no Gemini, no vision), no attachment download,
-  //    no inbox budget spent; saved as a LOCKED placeholder (sender domain, subject, no AI output); one free_import_blocked
-  //    row with the user id and no email content
+  //    no inbox budget spent; the email is HELD (id, sender domain, subject; reason over_free_limit), not filed and not read;
+  //    one free_import_blocked row with the user id and no email content
   {
     const db = makeDb(); db.inbox.freeLocked = true
     let fetched = 0
     const loadAttachments = async () => { fetched++; return [] }
-    const { out, ai } = await send(db, { id: 'u1' }, 'unitedairlines@united.com')
-    assert.equal(out.locked, true); assert.ok(out.booking_id); assert.equal(out.ignored, undefined)
-    assert.equal(ai, 0); assert.equal(db.inbox.parses, 0, 'no budget spent'); assert.equal(db.tables.trips.length, 0)
-    assert.equal(db.tables.bookings.length, 1)
-    const ph = db.tables.bookings[0]
-    assert.deepEqual([ph.locked, ph.type, ph.trip_id, ph.source, ph.created_by, ph.notes], [true, 'other', null, 'email_import', 'u1', 'From united.com'])
-    assert.equal(ph.title, flight.subject.replace(/\s+/g, ' ').trim().slice(0, 120))
-    assert.ok(!ph.confirmation_number && !ph.departure_time && !ph.flight_number && !JSON.stringify(ph).includes(flight.text.slice(0, 60)), 'nothing read from the email body')
-    await ingestEmail(db, { id: 'u1' }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '', loadAttachments })
-    assert.equal(fetched, 0)
-    assert.equal(db.tables.bookings.length, 2)
-    // The same email again (a retry): one placeholder
-    const again = { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'em-ph' }
-    await ingestEmail(db, { id: 'u1' }, again); const dup = await (await ingestEmail(db, { id: 'u1' }, again)).json()
-    assert.equal(dup.duplicate, true); assert.equal(db.tables.bookings.filter(b => b.raw_email_id === 'em-ph').length, 1)
-    assert.equal(db.tables.function_errors.length, 4)
+    const input = { subject: flight.subject, fromAddress: 'unitedairlines@united.com', bodyText: flight.text, GEMINI_API_KEY: '', loadAttachments, emailId: 'em-over' }
+    current = flight.id; const a = aiCalls
+    const out = await (await ingestEmail(db, { id: 'u1' }, input)).json()
+    assert.deepEqual([out.held, out.reason], [true, 'over_free_limit'], JSON.stringify(out))
+    assert.equal(aiCalls - a, 0); assert.equal(fetched, 0); assert.equal(db.inbox.parses, 0, 'no budget spent')
+    assert.equal(db.tables.bookings.length + db.tables.trips.length, 0, 'no booking, no placeholder')
+    assert.equal(db.tables.held_inbox_emails.length, 1)
+    const h = db.tables.held_inbox_emails[0]
+    assert.deepEqual(Object.keys(h).sort(), ['email_id', 'from_domain', 'reason', 'subject', 'user_id'])
+    assert.deepEqual([h.email_id, h.from_domain, h.reason, h.user_id], ['em-over', 'united.com', 'over_free_limit', 'u1'])
+    // The same email again: still one held row is the table's job (unique user+email); the fake just records the call
+    assert.equal(db.tables.function_errors.length, 1)
     const row = db.tables.function_errors[0]
     assert.equal(row.kind, 'free_import_blocked'); assert.equal(row.user_id, 'u1'); assert.equal(row.fn, 'receive-booking-email')
     assert.ok(!row.message.includes('K7QW2M') && row.message.length < 120, 'no email content stored')
+    // Without a Resend id it can't be held: ignored, still no AI
+    const bare = await (await ingestEmail(db, { id: 'u1' }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '', loadAttachments })).json()
+    assert.equal(bare.ignored, true); assert.equal(fetched, 0)
     // Not locked (paid, or limits off): read as usual
     assert.equal((await send(makeDb(), { id: 'u1' }, 'a@example.com')).ai, 1)
   }
@@ -552,8 +551,8 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     assert.equal(held.held, true); assert.equal(db.tables.function_errors.length, 0)
     // consented + locked + capped: the lock answers first, the cap RPC is never reached
     const db2 = makeDb(); db2.inbox.freeLocked = true; db2.inbox.parses = INBOX_DAILY_PARSES
-    const out = await (await ingestEmail(db2, { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z', ai_consent_version: 'v4-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '' })).json()
-    assert.equal(out.locked, true); assert.equal(db2.inbox.parses, INBOX_DAILY_PARSES)
+    const out = await (await ingestEmail(db2, { id: 'u1', ai_consent_at: '2026-10-26T10:00:00Z', ai_consent_version: 'v4-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '', emailId: 'em-l2' })).json()
+    assert.equal(out.held, true); assert.equal(out.reason, 'over_free_limit'); assert.equal(db2.inbox.parses, INBOX_DAILY_PARSES)
     assert.deepEqual(db2.tables.function_errors.map(r => r.kind), ['free_import_blocked'])
   }
   // 4c. Capped inbox with an attachment: nothing is downloaded and no AI is called
@@ -613,6 +612,12 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     // The last unit of the day still works
     const db2 = makeDb(); db2.inbox.parses = INBOX_DAILY_PARSES - 1
     assert.equal((await send(db2, { id: 'u1' }, 'samrivera@gmail.com')).ai, 1)
+  }
+  // 5a. Same, for a fresh delivery: kept for inbox-release (retry), not lost
+  {
+    const db = makeDb(); db.inbox.parses = INBOX_DAILY_PARSES
+    const out = await (await ingestEmail(db, { id: 'u1' }, { subject: flight.subject, fromAddress: 'samrivera@gmail.com', bodyText: flight.text, GEMINI_API_KEY: '', emailId: 'em-cap' })).json()
+    assert.deepEqual([out.held, out.reason, db.tables.held_inbox_emails[0].reason], [true, 'retry', 'retry'])
   }
   // 5b. The budget RPC is down and this inbox has no recent answer: refused (fails closed like the AI quota)
   {
@@ -730,6 +735,23 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
       assert.equal(u.tables.trips.find(t => t.id === out.trip_id).owner_id, 'u2')
       assert.equal(u.tables.bookings.filter(b => b.trip_id === 'trip-shared').length, 0)
     }
+    // U3b. An owned trip with guests is off limits to an unverified sender; an owned trip alone is fine but its dates never move
+    {
+      const ownDb = guests => {
+        const db = makeDb()
+        db.tables.trips.push({ id: 'trip-own', owner_id: 'u2', title: 'Trip to London', destination_city: 'London', destination_lat: 51.51, destination_lng: -0.13, start_date: '2027-04-11', end_date: '2027-04-17', status: 'planning' })
+        if (guests) db.tables.trip_collaborators.push({ id: 'g1', trip_id: 'trip-own', user_id: 'guest', role: 'collaborator', status: 'accepted' })
+        return db
+      }
+      const own = ownDb(false); const o = await sendAs(own, 'u2', STRANGER, '01-flight-united-sfo-lhr')   // leaves 10 Apr: outside the trip
+      assert.equal(o.trip_id, 'trip-own', JSON.stringify(o))
+      assert.deepEqual([own.tables.trips[0].start_date, own.tables.trips[0].end_date], ['2027-04-11', '2027-04-17'], 'unverified mail never moves a trip')
+      const ver = ownDb(false); await sendAs(ver, 'u2', VERIFIED, '01-flight-united-sfo-lhr')
+      assert.equal(ver.tables.trips[0].start_date, '2027-04-10', 'verified mail still stretches it')
+      const guest = ownDb(true); const g = await sendAs(guest, 'u2', STRANGER, '03-museum-british-museum')
+      assert.notEqual(g.trip_id, 'trip-own'); assert.equal(guest.tables.bookings.filter(b => b.trip_id === 'trip-own').length, 0)
+      const guestV = ownDb(true); assert.equal((await sendAs(guestV, 'u2', VERIFIED, '03-museum-british-museum')).trip_id, 'trip-own')
+    }
     // U4. inbox_accept_any is the member's own choice: that counts as verified
     {
       const db = makeDb(); await sendAs(db, 'u2', VERIFIED, '02-hotel-hoxton-london')
@@ -747,7 +769,12 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
       assert.equal(r2.ai, 2); assert.equal(two.inbox.parses, 2, 'two reads, two units')
       const last = makeDb(); last.inbox.parses = INBOX_DAILY_PARSES - 1       // one unit left: only the first attachment is read
       const rl = await run(last, [sheet, sheet])
-      assert.equal(rl.ai, 1); assert.equal(rl.res.status, 200)
+      // …and the email is not filed half-way: 429, nothing saved (it is read again from the start later)
+      assert.equal(rl.ai, 1); assert.equal(rl.res.status, 429); assert.equal(last.tables.bookings.length, 0)
+      // A fresh delivery (it has a Resend id) is then held for a retry instead of being lost
+      const kept = makeDb(); kept.inbox.parses = INBOX_DAILY_PARSES - 1
+      const rk = await (await ingestEmail(kept, { id: 'u1' }, { subject: 's', fromAddress: 'x@example.com', bodyText: 'b', GEMINI_API_KEY: '', attachments: [sheet, sheet], emailId: 'em-part' })).json()
+      assert.deepEqual([rk.held, rk.reason, kept.tables.bookings.length, kept.tables.held_inbox_emails[0]?.reason], [true, 'retry', 0, 'retry'])
       const body = makeDb(); current = flight.id; const rb = await run(body, [], flight.text)
       assert.equal(rb.ai, 1); assert.equal(body.inbox.parses, 1)
       // Attachments read nothing, then the body read needs a second unit; with none left it is not read
@@ -764,7 +791,16 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
       db.rpc = async (name, args) => name === 'take_ingest_lock' ? { data: null, error: { message: 'down' } } : rpc(name, args)
       current = flight.id; const a = aiCalls
       const res = await ingestEmail(db, { id: 'u1' }, { subject: flight.subject, fromAddress: 'x@example.com', bodyText: flight.text, GEMINI_API_KEY: '', emailId: 'em-f1' })
-      assert.equal(res.status, 503); assert.equal(aiCalls, a); assert.equal(db.tables.bookings.length, 0); assert.equal(db.inbox.parses, 0)
+      // The webhook has already answered Resend, so the email is kept for inbox-release (reason retry) rather than lost
+      const out = await res.json()
+      assert.deepEqual([out.held, out.reason], [true, 'retry']); assert.equal(db.tables.held_inbox_emails[0].email_id, 'em-f1')
+      assert.equal(aiCalls, a); assert.equal(db.tables.bookings.length, 0); assert.equal(db.inbox.parses, 0)
+      // Without an id there is nothing to hold: the 503 itself comes back
+      const bare = await ingestEmail(db, { id: 'u1' }, { subject: flight.subject, fromAddress: 'x@example.com', bodyText: flight.text, GEMINI_API_KEY: '' })
+      assert.equal(bare.status, 503)
+      // The release path is left alone (it puts the email back itself)
+      const rel = await ingestEmail(db, { id: 'u1' }, { subject: flight.subject, fromAddress: 'x@example.com', bodyText: flight.text, GEMINI_API_KEY: '', emailId: 'em-f1b', released: true })
+      assert.equal(rel.status, 503); assert.equal(db.tables.held_inbox_emails.length, 1)
     }
     // F2. The free-limit check errors: read as locked (placeholder, no AI), never as "not locked"
     {
@@ -772,8 +808,8 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
       db.rpc = async (name, args) => name === 'email_import_locked' ? { data: null, error: { message: 'down' } } : rpc(name, args)
       current = flight.id; const a = aiCalls
       const out = await (await ingestEmail(db, { id: 'u1' }, { subject: flight.subject, fromAddress: 'x@example.com', bodyText: flight.text, GEMINI_API_KEY: '', emailId: 'em-f2' })).json()
-      assert.equal(out.locked, true); assert.equal(aiCalls, a); assert.equal(db.inbox.parses, 0)
-      assert.deepEqual([db.tables.bookings[0].locked, db.tables.bookings[0].type], [true, 'other'])
+      assert.deepEqual([out.held, out.reason], [true, 'over_free_limit']); assert.equal(aiCalls, a); assert.equal(db.inbox.parses, 0)
+      assert.equal(db.tables.bookings.length, 0)
     }
   }
 
@@ -826,11 +862,17 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     { const db = makeDb(); hold(db, 'r-done'); db.tables.bookings.push({ id: 'b0', created_by: 'u1', raw_email_id: 'r-done' })
       const r = await releaseHeld(db, profile, deps())
       assert.equal(r.filed, 1); assert.equal(db.tables.bookings.length, 1); }
-    // Over the free limit: a held email becomes a locked placeholder (counted as locked, not deleted as ignored), no AI
+    // Over the free limit: the held email goes back to the queue (reason over_free_limit), is not read, not deleted, not a booking;
+    // the next call does not even take it; once the member has First Class it is filed through the normal checks
     { const db = makeDb(); db.inbox.freeLocked = true; hold(db, 'r-free'); const a = aiCalls
       const r = await releaseHeld(db, profile, deps())
-      assert.deepEqual([r.locked, r.ignored, r.filed, r.remaining, aiCalls - a], [1, 0, 0, 0, 0])
-      assert.deepEqual([db.tables.bookings.length, db.tables.bookings[0].locked, db.tables.bookings[0].raw_email_id], [1, true, 'r-free']) }
+      assert.deepEqual([r.locked, r.ignored, r.filed, r.remaining, aiCalls - a, db.tables.bookings.length], [1, 0, 0, 1, 0, 0])
+      assert.equal(db.tables.held_inbox_emails[0].reason, 'over_free_limit')
+      const again = await releaseHeld(db, profile, deps())
+      assert.deepEqual([again.claimed, again.remaining, again.locked], [0, 1, 0])
+      db.inbox.freeLocked = false                       // upgraded
+      const done = await releaseHeld(db, profile, deps())
+      assert.deepEqual([done.filed, done.remaining, db.tables.bookings.length, aiCalls - a, db.inbox.parses], [1, 0, 1, 1, 1]) }
 
     // The lock can't be taken (503): the email stays for another try
     { const db = makeDb(); hold(db, 'r-busy'); const rpc = db.rpc

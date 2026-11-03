@@ -2,7 +2,7 @@
 //
 // Each held email is CLAIMED first (claim_held_emails deletes it and returns it, skipping rows another call has
 // locked), so two calls at once never file the same email. It is put back only when filing failed for a temporary
-// reason (daily limit, Resend or database trouble); it is gone for good when it was filed, saved locked (free plan over its limit), ignored, expired at
+// reason (daily limit, Resend or database trouble); it is gone for good when it was filed, ignored, expired at
 // Resend, or failed five times.
 import { ingestEmail } from '../receive-booking-email/ingest.ts'
 
@@ -16,14 +16,16 @@ export type ReleaseDeps = {
 }
 
 export type ReleaseResult = {
-  filed: number, locked: number, ignored: number, expired: number, failed: number,
+  filed: number, locked: number,  // locked: still over the free limit, held again (not read)
+  claimed: number,   // emails taken from the queue by this call (0 = nothing to do now)
+   ignored: number, expired: number, failed: number,
   kept: number,      // put back to try again later (temporary failure)
   limited: boolean,  // today's inbox budget is spent: stop calling until tomorrow
   remaining: number,
 }
 
 export async function releaseHeld(admin: any, profile: any, deps: ReleaseDeps): Promise<ReleaseResult> {
-  const out: ReleaseResult = { filed: 0, locked: 0, ignored: 0, expired: 0, failed: 0, kept: 0, limited: false, remaining: 0 }
+  const out: ReleaseResult = { filed: 0, locked: 0, claimed: 0, ignored: 0, expired: 0, failed: 0, kept: 0, limited: false, remaining: 0 }
   const userId = profile.id as string
 
   const logError = async (kind: string, status: number | null, message: string) => {
@@ -39,7 +41,7 @@ export async function releaseHeld(admin: any, profile: any, deps: ReleaseDeps): 
     }
     const { error } = await admin.from('held_inbox_emails').upsert({
       user_id: userId, email_id: h.email_id, from_domain: h.from_domain ?? null, subject: h.subject ?? null,
-      received_at: new Date().toISOString(), attempts,
+      received_at: new Date().toISOString(), attempts, ...(h.reason && h.reason !== 'consent' ? { reason: h.reason } : {}),
     }, { onConflict: 'user_id,email_id', ignoreDuplicates: true })
     if (error) { out.failed++; await logError('held_email_requeue_failed', null, error.message || 'requeue failed'); return }
     if (countTry) out.kept++
@@ -48,6 +50,7 @@ export async function releaseHeld(admin: any, profile: any, deps: ReleaseDeps): 
   const { data: claimed, error: claimErr } = await admin.rpc('claim_held_emails', { p_user: userId, p_n: PER_CALL })
   if (claimErr) throw new Error(`claim_held_emails: ${claimErr.message}`)
 
+  out.claimed = (claimed || []).length
   for (const h of (claimed || []) as any[]) {
     try {
       // Already filed (an earlier call got as far as the booking but not the cleanup): nothing to do
@@ -66,7 +69,7 @@ export async function releaseHeld(admin: any, profile: any, deps: ReleaseDeps): 
       if (res.status >= 500) { await putBack(h, true); continue }
       if (!res.ok) { out.failed++; continue }   // refused for good (e.g. unreadable): the member can forward it again
       const body = await res.clone().json().catch(() => ({}))
-      if (body?.locked) out.locked++   // over the free limit: saved as a locked placeholder, not read (never deleted as ignored)
+      if (body?.held && body?.reason === 'over_free_limit') out.locked++   // still over the free limit: held again, not read, not deleted
       else if (body?.ignored) out.ignored++; else out.filed++
     } catch (e) {
       await putBack(h, true)

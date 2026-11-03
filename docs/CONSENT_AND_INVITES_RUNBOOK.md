@@ -25,7 +25,7 @@ deploys are done by the owner (or by a session the owner has told to do it), nev
   30/day budget), which the deployed v56 lacks. That is an owner decision still pending.
 
 ### Order
-1. Apply both migrations, in file order. Before the first, nothing changes: `aiConsentGiven` answers "yes" while the
+1. Apply the migrations, in file order (the two consent ones, and `20261031120000_held_email_reason.sql` for the inbox change). Before the first, nothing changes: `aiConsentGiven` answers "yes" while the
    column is missing (a marked TODO in `_shared/consent.ts` to remove once applied, so a missing column fails closed).
 2. Deploy the website (consent sheet; older app builds do not have it).
 3. Ship native build 0.20.1 and wait until it is live on both stores.

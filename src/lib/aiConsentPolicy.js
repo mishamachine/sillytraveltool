@@ -7,3 +7,6 @@ export const AI_CONSENT_ROUTING = 'deepseek-first+gemini-fallback; pdf/image gem
 /** True when the profile holds a yes to the CURRENT wording and routing. */
 export const consentCurrent = (profile) =>
   !!profile?.ai_consent_at && profile.ai_consent_version === AI_CONSENT_VERSION && profile.ai_consent_routing === AI_CONSENT_ROUTING
+
+// Days a forwarded email waits in held_inbox_emails before the daily purge (migration 20261026120000); keep in step with HELD_DAYS in receive-booking-email/ingest.ts
+export const HELD_EMAIL_DAYS = 30

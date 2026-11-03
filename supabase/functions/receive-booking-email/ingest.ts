@@ -235,6 +235,8 @@ export async function senderVerified(supabase: any, profile: InboxProfile, fromA
 export const INBOX_DAILY_PARSES = 30
 // Forwarded emails kept waiting for the yes to AI reading, per member
 export const MAX_HELD = 50
+// Days a held email waits (the daily purge job in migration 20261026120000 deletes older ones); the paywall copy says the same
+export const HELD_DAYS = 30
 
 /**
  * One unit of today's inbox budget; false once it's spent (or AI is paused, or the project-wide cap is reached).
@@ -287,40 +289,60 @@ async function logInboxRefusal(supabase: any, userId: string) {
   } catch { /* logging is best-effort */ }
 }
 
+export type HoldReason = 'consent' | 'over_free_limit' | 'retry'
+
 /**
- * A forwarded email past the free plan's limit: saved locked, with no AI read and no attachment download. Only what
- * needs no AI is kept: the sender's domain, the subject and the time it arrived (created_at). The app shows it as
- * "Locked" (BookingDetailSheet) until First Class. Opening it for real needs an AI read, which must go through the
- * normal consent, inbox budget and sender rules (ingestEmail), never around them.
+ * Keep an email for later without reading it: only Resend's email id, the sender's domain and the subject go into
+ * held_inbox_emails (no body, no attachments, no AI). `reason` says why it waits:
+ *  - consent         no yes to AI reading yet (released once the member allows it)
+ *  - over_free_limit free plan past its forwarded-email limit (released once the member has First Class, kept
+ *                    HELD_DAYS days, then purged by the daily job)
+ *  - retry           a temporary failure while filing (daily AI limit, database or AI trouble): inbox-release tries again
+ * 'consent' rows are written without the reason column, so they still work before migration 20261031120000 is applied;
+ * the other two need it (the insert fails, the caller answers an error and nothing is read).
  */
-async function saveLockedPlaceholder(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
-  const emailId = input.emailId ? String(input.emailId).slice(0, 200) : null
-  if (emailId) {
-    // The same email again (a retry, a release): one placeholder
-    const { data: dupe } = await supabase.from('bookings').select('id').eq('created_by', profile.id).eq('raw_email_id', emailId).limit(1)
-    if (dupe?.length) return ok({ success: true, locked: true, duplicate: true, booking_id: dupe[0].id })
+async function holdEmail(supabase: any, profile: InboxProfile, input: { emailId?: string | null, fromAddress: string, subject: string }, reason: HoldReason): Promise<Response> {
+  if (!input.emailId) return ok({ success: true, ignored: true, reason: reason === 'consent' ? 'consent' : 'no_email_id' })
+  // At most MAX_HELD waiting per member; beyond that the email is dropped (they can forward it again)
+  const { count } = await supabase.from('held_inbox_emails').select('id', { count: 'exact', head: true }).eq('user_id', profile.id)
+  if ((count || 0) >= MAX_HELD) {
+    try {
+      await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_hold_cap', status: 200, user_id: profile.id, message: `held emails at cap (${MAX_HELD}), dropped one` })
+    } catch { /* logging is best-effort */ }
+    return ok({ success: true, ignored: true, reason: 'held_full' })
   }
-  const domain = normalizeAddress(input.fromAddress)?.split('@')[1]?.slice(0, 120) || null
-  const subject = String(input.subject || '').replace(/\s+/g, ' ').trim().slice(0, 120)
-  const { data: row, error } = await supabase.from('bookings').insert({
-    type: 'other',
-    title: subject || (domain ? `Email from ${domain}` : 'Forwarded email'),
-    notes: domain ? `From ${domain}` : null,
-    trip_id: null,
-    created_by: profile.id,
-    source: 'email_import',
-    is_shared: false,
-    locked: true,
-    raw_email_id: emailId,
-  }).select().single()
+  const { error } = await supabase.from('held_inbox_emails').upsert({
+    user_id: profile.id, email_id: String(input.emailId).slice(0, 200),
+    from_domain: normalizeAddress(input.fromAddress)?.split('@')[1]?.slice(0, 120) || null,
+    subject: String(input.subject || '').slice(0, 200) || null,
+    ...(reason === 'consent' ? {} : { reason }),
+  }, { onConflict: 'user_id,email_id', ignoreDuplicates: true })
   if (error) {
-    console.error('locked placeholder insert failed', error.message)
-    return err('Could not save the email', 503)
+    // Not held: say so (Resend retries on an error answer) and leave a trace
+    console.error('hold email failed', error.message)
+    try {
+      await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_hold_failed', status: 500, user_id: profile.id, message: String(error.message || 'hold failed').slice(0, 280) })
+    } catch { /* logging is best-effort */ }
+    return err('Could not hold the email', 500)
   }
-  return ok({ success: true, locked: true, booking_id: row.id })
+  console.log(`⏸️ Inbox of ${profile.id}: held (${reason})`)
+  return ok({ success: true, held: true, reason })
 }
 
+/**
+ * ingestEmail, plus: a temporary failure (daily AI limit, ingest lock, database or AI trouble) on a fresh delivery keeps
+ * the email in held_inbox_emails (reason 'retry') instead of losing it. The webhook has already answered Resend by then
+ * (filing runs in the background), so nobody would retry it; inbox-release does, once the app opens. A release call
+ * handles its own retries (it puts the email back), so it is left alone.
+ */
 export async function ingestEmail(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
+  const res = await ingestCore(supabase, profile, input)
+  if (input.released || !input.emailId || !(res.status === 429 || res.status >= 500)) return res
+  const held = await holdEmail(supabase, profile, input, 'retry')
+  return held.ok ? held : res
+}
+
+async function ingestCore(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
   // Not from this member or someone they allowed: dropped without a word, nothing parsed, no body kept
   if (!(await senderAllowed(supabase, profile, input.fromAddress))) {
     const domain = normalizeAddress(input.fromAddress)?.split('@')[1] || 'unreadable'
@@ -334,30 +356,7 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
   // fetches and files it once the member allows it in the app
   // (a yes to older wording or routing counts as no; a profile without the column at all is read as given)
   if (profile.ai_consent_at !== undefined && !consentCurrent(profile) && !input.released) {
-    if (!input.emailId) return ok({ success: true, ignored: true, reason: 'consent' })
-    // At most MAX_HELD waiting per member; beyond that the email is dropped (they can forward it again after allowing)
-    const { count } = await supabase.from('held_inbox_emails').select('id', { count: 'exact', head: true }).eq('user_id', profile.id)
-    if ((count || 0) >= MAX_HELD) {
-      try {
-        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_hold_cap', status: 200, user_id: profile.id, message: `held emails at cap (${MAX_HELD}), dropped one` })
-      } catch { /* logging is best-effort */ }
-      return ok({ success: true, ignored: true, reason: 'held_full' })
-    }
-    const { error } = await supabase.from('held_inbox_emails').upsert({
-      user_id: profile.id, email_id: String(input.emailId).slice(0, 200),
-      from_domain: normalizeAddress(input.fromAddress)?.split('@')[1]?.slice(0, 120) || null,
-      subject: String(input.subject || '').slice(0, 200) || null,
-    }, { onConflict: 'user_id,email_id', ignoreDuplicates: true })
-    if (error) {
-      // Not held: say so (Resend retries on an error answer) and leave a trace
-      console.error('hold email failed', error.message)
-      try {
-        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_hold_failed', status: 500, user_id: profile.id, message: String(error.message || 'hold failed').slice(0, 280) })
-      } catch { /* logging is best-effort */ }
-      return err('Could not hold the email', 500)
-    }
-    console.log(`⏸️ Inbox of ${profile.id}: held until AI reading is allowed`)
-    return ok({ success: true, held: true })
+    return holdEmail(supabase, profile, input, 'consent')
   }
   const verified = await senderVerified(supabase, profile, input.fromAddress)
   let locked = false
@@ -368,25 +367,26 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     if (!locked) await new Promise(r => setTimeout(r, 1500))
   }
   try {
-    // Free plan, over its forwarded-email limit: stop here, before any attachment download or AI call, and save a
-    // locked placeholder (sender domain, subject, time) so the paywall copy stays true. Checked once this member's
-    // lock is held, so two emails arriving together can't both slip under the limit.
-    // (email_import_locked is false while app_settings.free_limits.enabled is false.)
-    // Fails closed: without this member's lock nothing is read; the answer is 503 so the email is retried later
-    // (Resend retries; inbox-release puts a held email back).
+    // Free plan, over its forwarded-email limit: stop here, before any attachment download or AI call, and keep the
+    // email in the held queue (reason over_free_limit: id, sender domain, subject only). inbox-release files it once
+    // the member has First Class, through the normal consent, budget and sender checks; a free member's stays held
+    // until the purge (HELD_DAYS). Checked once this member's lock is held, so two emails arriving together can't both
+    // slip under the limit. (email_import_locked is false while app_settings.free_limits.enabled is false.)
+    // Fails closed: without this member's lock nothing is read; the answer is 503, and for a fresh delivery
+    // ingestEmail keeps the email held (reason retry), because the webhook has already answered Resend.
     if (!locked) {
       console.warn(`Inbox of ${profile.id}: ingest lock not won, try again later`)
       return err('Busy, try again later', 503)
     }
     const { data: freeRes, error: lockErr } = await supabase.rpc('email_import_locked', { p_user: profile.id })
-    // An error is read as locked (fail closed): no AI read, saved as a locked placeholder
+    // An error is read as locked (fail closed): no AI read, held
     if (lockErr) console.warn('email_import_locked failed, treated as locked', lockErr.message)
     if (lockErr || freeRes === true) {
-      console.log(`🔒 Inbox of ${profile.id}: ${lockErr ? 'limit check failed' : 'free import limit reached'}, saved locked, not read`)
+      console.log(`🔒 Inbox of ${profile.id}: ${lockErr ? 'limit check failed' : 'free import limit reached'}, held, not read`)
       try {
-        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'free_import_blocked', status: 200, user_id: profile.id, message: lockErr ? 'free plan limit check failed, treated as locked, no AI read' : 'free plan forwarded-email limit reached, saved locked, no AI read' })
+        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'free_import_blocked', status: 200, user_id: profile.id, message: lockErr ? 'free plan limit check failed, treated as locked, held, no AI read' : 'free plan forwarded-email limit reached, held, no AI read' })
       } catch { /* logging is best-effort */ }
-      return await saveLockedPlaceholder(supabase, profile, input)
+      return await holdEmail(supabase, profile, input, 'over_free_limit')
     }
     return await ingestOne(supabase, profile, { ...input, verified })
   } finally {
@@ -435,11 +435,19 @@ async function ingestOne(
 
   // ── 4. Fetch user's trips for matching ────────────────────
   const TRIP_COLS = 'id, title, destination_city, destination_country, destination_country_code, destination_tz, destination_lat, destination_lng, start_date, end_date, status'
-  const { data: trips } = await supabase
+  const { data: ownTrips } = await supabase
     .from('trips')
     .select(TRIP_COLS)
     .eq('owner_id', userId)
     .order('start_date', { ascending: true })
+  // Mail from an unverified sender goes only into owned trips nobody else is on: a trip with guests is left alone
+  let trips = ownTrips
+  if (!verified && (ownTrips || []).length) {
+    const { data: guests } = await supabase.from('trip_collaborators').select('trip_id')
+      .in('trip_id', (ownTrips || []).map((t: any) => t.id)).neq('user_id', userId).in('status', ['accepted', 'pending'])
+    const withGuests = new Set((guests || []).map((g: any) => g.trip_id))
+    trips = (ownTrips || []).filter((t: any) => !withGuests.has(t.id))
+  }
 
   // Trips the sender joined with edit rights: their own bookings belong there too. Marked `shared`, so this
   // function never moves, merges, renames or re-dates them (someone else owns them). Viewers and pending
@@ -470,6 +478,12 @@ async function ingestOne(
       : { file: { mime: a.mime, data: toBase64(a.bytes) } })
     if (read.result?.bookings?.length) fromFiles.push(...read.result.bookings)
     else console.warn(`attachment ${a.name}: ${read.error || 'no bookings'}`)
+  }
+  // The budget ran out partway through the files: don't file half an email. Answer 429 so ingestEmail keeps it held
+  // (or inbox-release puts it back) and the whole email is read again later; bookings already filed are recognised as duplicates.
+  if (budgetSpent) {
+    console.warn(`Inbox budget spent for user ${userId} partway through the attachments: email not filed, retried later`)
+    return err('Daily inbox limit reached', 429)
   }
   if (fromFiles.length) {
     const results: any[] = []
@@ -679,7 +693,7 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   let matchedTrip: any = match?.trip || null
 
   // Someone else's trip keeps its dates; a booking outside them still lands (the app offers to stretch them)
-  if (matchedTrip && match?.widen && !matchedTrip.shared) {
+  if (verified && matchedTrip && match?.widen && !matchedTrip.shared) {
     Object.assign(matchedTrip, await widenTrip(supabase, matchedTrip.id, match.widen.start_date, match.widen.end_date) || match.widen)
     console.log(`📅 Trip ${matchedTrip.id} now ${match.widen.start_date} → ${match.widen.end_date} (${match.fit})`)
   }
