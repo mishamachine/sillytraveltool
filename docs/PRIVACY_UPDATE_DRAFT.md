@@ -4,7 +4,7 @@
 D4 no marketing email yet, D5 no ad-platform uploads, D6 done (Babar Ali, Renton WA address on privacy and terms, live 2026-10-23).
 **Done:** `public/privacy/index.html` rewritten (effective 23 Oct 2026); `user_profiles.tailored_offers` + Settings →
 Tailored offers; nightly `purge-old-usage` pg_cron job (migration `20261023130000`); Audience and offer suggestions skip
-opted-out members. **Website deploy pending** (owner to approve).
+opted-out members. **Website deployed 2026-10-23.**
 
 Covers the owner cockpit (member profiles, segments, affluence band, support and moderation), the new tracking
 (active time, first-touch source, session context), Stripe and codes. Nothing here is live: `public/privacy/` is

@@ -395,6 +395,8 @@ input[type="date"].a-select { width: auto; }
 
 /* Growth → Beta waitlist */
 .a-grid--inner { margin: 16px 0; }
+.a-stats + .a-subhead { margin-top: 16px; }
+.a-flags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .a-subhead { font-size: 0.85rem; color: var(--ink-secondary); margin-bottom: 8px; }
 .a-card > .a-impact + .a-impact { margin-top: 12px; }
 .a-impact .a-row--wrap { gap: 10px; margin-top: 10px; }

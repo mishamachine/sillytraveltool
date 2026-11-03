@@ -1,9 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { last4 } from '../_shared/invite.js'
 
 // accept-invite Edge Function
 // Uses SERVICE_ROLE_KEY to bypass RLS and write user_id onto the
 // trip_collaborators row. Anon client in the browser cannot do this.
 // Body shapes (all need a signed-in caller):
+//   { action: 'preview', token }  who invited the caller, to which trip, as what (read-only, nothing is changed)
 //   { token }                     email-link accept
 //   { action: 'list' }            caller's pending invites (RLS hides rows matched only by invited_email)
 //   { collaboratorId, accept }    accept or decline from the trip list
@@ -51,6 +53,34 @@ Deno.serve(async (req) => {
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
+    // An address nobody has confirmed proves nothing about who holds it: refuse on every path
+    if (!user.email_confirmed_at) {
+      return json({ error: 'Confirm your email address first, then open the invite again.' }, 403)
+    }
+
+    // Preview: lets the app ask "Join <name>'s trip?" before anything is accepted. Only for a pending, unexpired invite
+    // sent to the caller's own address; the answer holds the inviter's name, the trip title and the role, nothing else.
+    if (action === 'preview') {
+      const { data: inv } = typeof token === 'string' && token
+        ? await adminClient.from('trip_collaborators')
+            .select('invited_email, invited_by, role, trips(title, destination_city)')
+            .eq('invite_token', token).eq('status', 'pending').gt('invite_expires_at', now).maybeSingle()
+        : { data: null }
+      if (!inv || inv.role === 'owner' || (inv.invited_email || '').toLowerCase() !== email) {
+        return json({ error: 'Invite not found, already used, or expired' }, 404)
+      }
+      const { data: prof } = inv.invited_by
+        ? await adminClient.from('user_profiles').select('display_name').eq('id', inv.invited_by).maybeSingle()
+        : { data: null }
+      const trip = inv.trips as any
+      return json({
+        success: true,
+        inviter_name: String(prof?.display_name || 'Someone').slice(0, 60),
+        trip_title: String(trip?.title || trip?.destination_city || 'a trip').slice(0, 60),
+        role: inv.role,
+      })
+    }
+
     // In-app list: pending, unexpired invites sent to the caller's address or already bound to them
     if (action === 'list') {
       const cols = 'id, role, invited_at, trips(id, title, destination_city, destination_country, destination_country_code, start_date, end_date)'
@@ -91,13 +121,13 @@ Deno.serve(async (req) => {
       const { error: respondErr } = await adminClient
         .from('trip_collaborators')
         .update(accept
-          ? { status: 'accepted', user_id: user.id, accepted_at: now }
-          : { status: 'declined' })
+          ? { status: 'accepted', user_id: user.id, accepted_at: now, invite_token: null }
+          : { status: 'declined', invite_token: null })
         .eq('id', row.id)
         .eq('status', 'pending')
       if (respondErr) {
         console.error('Invite respond failed:', respondErr.message)
-        return json({ error: `Failed to ${accept ? 'accept' : 'decline'} invite` }, 500)
+        return json({ error: 'Could not answer the invite. Try again later.' }, 500)
       }
 
       console.log(`${accept ? '✅ Invite accepted' : '✖️ Invite declined'} (in app): user=${user.id} trip=${row.trip_id} collab=${row.id}`)
@@ -109,9 +139,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'token required' }), { status: 400, headers: CORS })
-    }
+    if (!token) return json({ error: 'token required' }, 400)
 
     // 4. Look up the pending invite
     const { data: collab, error: lookupErr } = await adminClient
@@ -119,57 +147,45 @@ Deno.serve(async (req) => {
       .select('id, trip_id, invited_email, trips(title, destination_city)')
       .eq('invite_token', token)
       .eq('status', 'pending')
-      .gt('invite_expires_at', new Date().toISOString())
+      .gt('invite_expires_at', now)
       .maybeSingle()
 
     if (lookupErr || !collab) {
-      console.error('Invite lookup failed:', token, lookupErr?.message)
-      return new Response(
-        JSON.stringify({ error: 'Invite not found, already used, or expired' }),
-        { status: 404, headers: CORS }
-      )
+      console.error('Invite lookup failed:', last4(token), lookupErr?.message)
+      return json({ error: 'Invite not found, already used, or expired' }, 404)
     }
 
     // Invites are bound to the address they were sent to
-    if ((collab.invited_email || '').toLowerCase() !== (user.email || '').toLowerCase()) {
-      return new Response(
-        JSON.stringify({ error: 'This invite was sent to a different email address' }),
-        { status: 403, headers: CORS }
-      )
+    if ((collab.invited_email || '').toLowerCase() !== email) {
+      return json({ error: 'This invite was sent to a different email address' }, 403)
     }
 
-    // 5. Accept it — write user_id with service role (bypasses RLS)
-    const { error: updateErr } = await adminClient
+    // 5. Accept it with the service role. Still pending and unexpired at write time, and the token is spent
+    const { data: updated, error: updateErr } = await adminClient
       .from('trip_collaborators')
-      .update({
-        status: 'accepted',
-        user_id: user.id,
-        accepted_at: new Date().toISOString(),
-      })
+      .update({ status: 'accepted', user_id: user.id, accepted_at: now, invite_token: null })
       .eq('id', collab.id)
+      .eq('status', 'pending')
+      .gt('invite_expires_at', now)
+      .select('id')
 
     if (updateErr) {
       console.error('Accept update failed:', updateErr.message)
-      return new Response(
-        JSON.stringify({ error: `Failed to accept invite: ${updateErr.message}` }),
-        { status: 500, headers: CORS }
-      )
+      return json({ error: 'Could not accept the invite. Try again later.' }, 500)
     }
+    if (!updated?.length) return json({ error: 'Invite not found, already used, or expired' }, 404)
 
     console.log(`✅ Invite accepted: user=${user.id} trip=${collab.trip_id} collab=${collab.id}`)
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        trip_id: collab.trip_id,
-        trip_title: (collab.trips as any)?.title || null,
-        trip_city: (collab.trips as any)?.destination_city || null,
-      }),
-      { headers: { ...CORS, 'Content-Type': 'application/json' } }
-    )
+    return json({
+      success: true,
+      trip_id: collab.trip_id,
+      trip_title: (collab.trips as any)?.title || null,
+      trip_city: (collab.trips as any)?.destination_city || null,
+    })
 
   } catch (e: any) {
     console.error('accept-invite error:', e)
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS })
+    return new Response(JSON.stringify({ error: 'Something went wrong. Try again later.' }), { status: 500, headers: CORS })
   }
 })

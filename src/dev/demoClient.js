@@ -112,7 +112,7 @@ class Query {
 
 const FUNCTION_GROUP = {
   'generate-guide': 'guide', 'generate-checklist': 'checklist', 'goosey-discover': 'honk',
-  'generate-phrases': 'phrases', 'parse-booking-email': 'parse',
+  'generate-phrases': 'phrases', 'parse-booking-email': 'parse', 'fill-my-day': 'fillday',
 }
 
 async function invoke(name, opts = {}) {

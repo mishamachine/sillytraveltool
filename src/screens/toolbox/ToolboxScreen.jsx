@@ -4,6 +4,7 @@ import { currentPlace } from '../../lib/stops'
 import { currencyForCountry } from '../../lib/currencies'
 import { track } from '../../lib/analytics'
 import { Screen, ScreenHeader, Card, IconTile, Text, Stack, Icon } from '../../ui'
+import SectionTour from '../../components/shared/SectionTour'
 import CurrencyTool from './CurrencyTool'
 import TipTool from './TipTool'
 import SosTool from './SosTool'
@@ -31,7 +32,7 @@ function Hub({ open }) {
 
   return (
     <>
-      <ScreenHeader title="Tools" titleId="tools-title"
+      <ScreenHeader title="Tools" titleId="tools-title" actions={<SectionTour section="toolbox" />}
         meta={place ? `Set for ${place} · from your ${isLive ? 'trip in progress' : 'next trip'}` : 'Travel essentials, ready offline'} />
 
       <a href="#sos" className="tools-sos" onClick={(e) => { e.preventDefault(); open('sos') }}>

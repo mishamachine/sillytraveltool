@@ -4,6 +4,7 @@ import honk from './fixtures/honk'
 import checklist from './fixtures/checklist'
 import phrases from './fixtures/phrases'
 import parse from './fixtures/parse'
+import fillDay from './fixtures/fillDay'
 import { demoGeo, demoReverse } from './demoGeo'
 
 // resolve-timezone: a few demo places; anything else falls back to Madrid
@@ -33,4 +34,5 @@ export const DEMO_FUNCTIONS = {
   'generate-checklist': checklist,
   'generate-phrases': phrases,
   'parse-booking-email': parse,
+  'fill-my-day': fillDay,
 }

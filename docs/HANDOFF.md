@@ -1,5 +1,51 @@
 # STT Handoff — 2026-10-21
 
+## Update — state on 29 Oct 2026 (CTO audit)
+- Merged and deployed 30 Oct: AI consent (#56), Privacy date (#62); then #59, #60, #63, #64, #65, #66, #54 merged; Fill my day function deployed.
+
+Verified 29 Oct, read-only, unless marked "not verified". For the open draft PRs, see the PRs for current heads.
+
+**Live in code, no feature flags:** Goose score (Profile card; points = completed trips x10 + countries x5 + days
+abroad x2 + trips created x3 + flights x2 + badge points 10/25/50/100) and badges, shared trips and invites, HONK,
+packing list, translate/phrasebook, city guide, documents/wallet, currency, SOS, Goose inbox. "Goose picks" is a
+separate thing: HONK's pick plus up to 2 "Goose pick" markers per city-guide list; older AI-only guides also show an AI
+place score out of 10. An "AI trip builder from a prompt" does not exist.
+
+**Production (read-only checks):**
+- Website = `main` as of the 27 Oct deploy (only docs since).
+- Applied migrations include `shared_trip_rls_hardening` (25 Oct), `inbox_trust` and `global_daily_caps`.
+- The deployed `receive-booking-email` (v56) does NOT contain the 26 Oct inbox sender check (`senderAllowed`, per-inbox
+  30/day budget). The code is on `main`; the function has not been redeployed.
+- `app_settings`: `free_limits.enabled = false` (free-plan limits are NOT enforced); `beta.ios_url` set (TestFlight
+  link); AI caps 100/day per user and 40 guides; global caps 3,000 AI and 20,000 Google calls per day; kill switches
+  off; founders offer active.
+- 21 accounts, all email-confirmed. 4 invite rows (2 accepted, 2 pending).
+
+**Invite security review (independent, 29 Oct):** no way found to join uninvited, escalate a role or read another trip.
+The findings are fixed in draft PR #57: send-invite abuse limits and a send log, a confirmation screen before joining
+and no token returned to the inviter, a verified-email check, and minor items. Viewer redaction of booking details
+(confirmation numbers are visible to all accepted members at the database level) is a later decision.
+
+**AI consent (App Store guideline 5.1.2(i)), draft PR #56:** v4 wording naming DeepSeek first with the China-risk
+sentence, Google as fallback and for PDFs/images; an append-only consent log; release of emails held until consent;
+two migrations (`20261026120000`, `20261029100000`) applied together. Deploy order: migrations, website, native 0.20.1
+build, and the enforcing functions LAST, once 0.20.1 is live on both stores. Deploying `receive-booking-email` from that
+branch also switches on the sender check. A licensed legal review of the wording is waived by the owner for now.
+Invite fix PR #57 deploy order: migration `20261029120000`, then functions `send-invite`, `accept-invite`,
+`receive-booking-email`, then the website LAST. Steps and checks: `docs/CONSENT_AND_INVITES_RUNBOOK.md`.
+SEO PR #54 and the other draft PRs: see the PRs for current heads.
+
+**Owner rulings recorded:**
+- Personal booking data goes to DeepSeek first (option B), with the risk disclosed in the consent wording.
+- The Goose score is live.
+- Invites stay live, with the three medium findings fixed in #57.
+- Sender-check decision: pending.
+- Build 6 (0.20.1) waits on the consent PR.
+- iPad screenshot 5 is replaced by the Travel documents screen (`docs/screenshots/app-review/`, on a separate branch).
+
+**Not yet checked:** other deployed functions against `main`; live Edge Function runtime behaviour; browser runs of the
+new screens.
+
 ## Update — Google Play: closed beta submitted for review (2026-10-27 08:50 UTC, audit session)
 - All four App content declarations are complete and the 15 pending changes were sent to Google: dashboard
   **Update status: In review**, Production inactive. Reviews usually take up to 7 days.
@@ -89,7 +135,7 @@
 - **Remove later:** the missing-column fail-open in `_shared/consent.ts` (`aiConsentGiven`, error 42703) once the first
   migration is live in production.
 
-## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed)
+## Update — Goose inbox trust model, audit S4 (2026-10-26, PR "Inbox: sender check, longer tokens, per-inbox parse budget"; NOT deployed at writing, since deployed: see "inbox trust and global caps are live" above)
 - **Sender check before any AI call** (`receive-booking-email/ingest.ts` `senderAllowed`): accepted only from the
   member's account email, an address in `user_profiles.inbox_allowed_senders`, or anyone when `inbox_accept_any` is on.
   Addresses normalised (display name off, lowercase, plus-tag off, Gmail dots off, googlemail → gmail). Others are
@@ -110,6 +156,84 @@
   `inbox_accept_any = true` on machinemisha (fixtures come from airline addresses).
 - **Follow-ups:** a Settings editor for `inbox_allowed_senders` (DB-only today); `From:` can be forged, so a DKIM/SPF
   check on Resend's inbound headers would harden it further; optionally rotate all 8-hex tokens once members are told.
+## Update — inbox trust and global caps are live; website on main d322527 (2026-10-25, evening)
+- Migrations applied with `apply_migration` after rolled-back tests: `20261025150000_global_daily_caps` (project-wide AI and
+  Google caps, Google per-member cap 500) and `20261026090000_inbox_trust` (sender allow-list columns, `consume_inbox_quota`,
+  `cancellation_received_at`, server-made 12-hex inbox tokens with the guard trigger, `my_rotate_inbox_token()`).
+- Edge Functions deployed from `main` with the CLI (`--no-verify-jwt`): generate-guide, generate-phrases, goosey-discover,
+  generate-checklist, parse-booking-email, places, resolve-timezone, admin-experiment-ai, receive-booking-email (twice:
+  PR #33 then PR #35). Every one answers 401 to an unauthenticated POST.
+- Website deployed from a clean `git archive` of `main` d322527 (backup `~/backups/stt-202610251803-pre-inbox.tar.gz`, dry run
+  89 files, no deletions, rsync without `--delete`); live `main-*.js` hash equals the build; key pages 200.
+- Existing 18 inbox addresses stay 8-hex until a member taps "New address" in Settings; mail from anyone other than the
+  member's own address is now dropped unless the sender is allow-listed or "accept any" is on.
+- Supersedes the "NOT deployed" label and the apply-first ordering on the 2026-10-26 inbox entry below: the migrations are applied and the functions are live.
+
+## Update — App Store version 0.20.0 filled, waiting on the owner for the reviewer sign-in (2026-10-25, asc-submission session)
+- **State:** iOS version record renamed 1.0 → **0.20.0** (must match build 5) and still **Prepare for Submission**; nothing added for
+  review. Build **0.20.0 (6)** attached on 2026-10-26 (replaced build 5; early-access wording from PR #48); build 6 shows "Ready to
+  Submit" in TestFlight, so export compliance is answered. Build 6 is not in the external beta group (that would need a new beta
+  review); build 5 stays approved there.
+- **Filled:** description rewritten without prices (First Class named as the paid plan; Today, wallet and country-switching tools added);
+  promo text, keywords, support/marketing URLs, copyright now "2026 B&B Project Factory" (changed 2026-10-27; no other Bodhi Studios mention in App Information, version
+  metadata, reviewer notes, products or TestFlight test information); subtitle stays the
+  owner's "Trip planner & itinerary". Content rights: uses third-party content with rights (Google Places data). Age rating saved:
+  all none/no except **alcohol references = infrequent** (bars in guides, HONK "Night out") → **13+**, matches the Terms minimum.
+  App price **$0.00**, all **175** countries, available on release; release type "Automatically release". 7 iPhone 6.3" screenshots
+  (1206×2622: Today, Plan shared card, forward-lands-in-trip, multi-city plan, Explore/HONK, Tools, Profile) from the
+  iPhone 17 Pro captures and the app-footage frames resized; ASC uses them for every iPhone size. Subscription group "First Class"
+  en-US localisation added. Review screenshot on both products: the native iPhone paywall capture (`ci/revenuecat-iphone`
+  `docs/screenshots/paywall/iphone-paywall.png`) with its old "coming soon" line painted over in the sheet colour. App Review contact
+  Babar Ali, phone from the TestFlight review info, hello@sillytraveltool.com; reviewer notes (sign-in, paywall path, restore, deletion,
+  AI labels, location, "beta" wording explained for guideline 2.2).
+- **App Privacy:** already published by store-setup (15 types, Device ID and crash data included, nothing used for tracking); matches
+  `STORE_PRIVACY_FORMS.md` with the audit's P1/P2 corrections, so unchanged.
+- **iPad:** build 5 is universal, so iPad 13" screenshots were required; the audit session captured five real ones (2064×2752, demo
+  mode: Today, multi-city plan with the shared card, Explore, Tools, Profile) and uploaded them (5 of 10).
+- **Blocker — demo account:** ASC won't save "Sign-in required" without a password, so the box is unticked; the owner sets a password on
+  machinemisha@gmail.com, ticks it, types email + password, saves.
+- **Owner's remaining clicks:** version page: tick Sign-in required, enter machinemisha@gmail.com + password, Save → "Add for Review" on
+  the version (include both in-app purchases in the submission) → "Submit for Review" on the review page.
+- **Seller name:** the membership is enrolled as **Individual** (team RG3Y77A9ZZ), so the App Store "Seller" is the owner's legal name,
+  not a company, and ASC has no field to change it. Showing "B&B Project Factory" needs the company legally registered with a
+  D-U-N-S number, then a request to Apple to convert the membership to an Organization (founder/co-founder only; Apple may ask for
+  business documents). Agreements, Tax and Banking untouched.
+- **Watch-outs:** machinemisha is an owner admin with no trips (reviewers see an empty account); "Founders Flock (lifetime)" in ASC vs
+  "Founders offer" in the paywall; China mainland is in the 175 countries and may need an ICP filing.
+- Note: the earlier "build 5" wording elsewhere in the owner list is superseded by build 6 (attached 2026-10-26). The sign-in password for machinemisha was only recorded as typed by the owner for Google Play (2026-10-27 entry); the App Store Connect sign-in step above is not recorded as done.
+
+## Update — beta links: TestFlight cap 1,000, Android file hosting pending (2026-10-25)
+- **TestFlight:** public link `https://testflight.apple.com/join/rFv9QAA4` (group "Silly Travel Tool beta") tester limit raised
+  100 → **1,000** (App Store Connect → TestFlight → group → Public Link → Manage). Build 0.20.0 (5) is **Waiting for Review**;
+  the link only admits testers once Apple approves it. Apple expires each build after 90 days, so upload a fresh build before then.
+- **Android APK:** signed universal `app-release.apk` (versionCode 5, versionName 0.20.0, 19 MB, `classes.dex` present) taken from
+  the `android-release-apk` artifact of run 40173197371 (7-day retention, needs a GitHub login; SHA-256 `5cf5e233…24e9`).
+  The permanent copy in the public `releases` bucket (`SillyTravelTool-0.20.0-5-beta.apk`) is **not done**: the temporary
+  storage insert policy was refused by the permission check. Finish by approving it, or by uploading the file in the Supabase
+  dashboard, then run:
+  `update app_settings set value = value || '{"android_url":"https://swywrvbuswylvqlktsym.supabase.co/storage/v1/object/public/releases/SillyTravelTool-0.20.0-5-beta.apk","show_android":true}'::jsonb where key='beta';`
+- **Beta page (`/beta/`, `app_settings.beta`):** `ios_url` is saved to the TestFlight link; `show_ios` and `show_android` stay
+  **false** (no approved build yet; no public APK link yet). When Apple approves:
+  `update app_settings set value = value || '{"show_ios":true}'::jsonb where key='beta';`
+- Owner email with both links sent from machinemisha@gmail.com to babar54@gmail.com (Gmail id 1a1740e4252552f2).
+- Later notes: the Play closed beta (2026-10-27 entries) is now the Android beta route, so the public-bucket APK hosting above is optional and no longer the plan of record. Build 6 later replaced build 5 for App Store review (see the App Store 0.20.0 entry).
+
+## Update — Google Play account status and package name (2026-10-25)
+- **Account:** developer name "Bodhi Studios", a *personal* account owned by babar54@gmail.com (Play Console `/u/1`,
+  account ID 6830777302621607998). machinemisha@gmail.com has no Play developer account (the console asks it to create one).
+- **Verification:** "Google is verifying your identity": documents are uploaded, Google emails the owner when done, "may take a
+  few days". The contact-phone check stays locked until that finishes. **While it is pending, "Create app" is disabled**
+  ("Complete account verifications to create new apps"), so no app record, upload or closed test is possible yet.
+- **Package `com.sillytraveltool.app`:** not in this account (its only app is an unrelated Jan 2026 draft, "GameDay Sync - BETA",
+  no bundle uploaded) and not on the public Play Store (store page is a 404). Whoever the "already in use" message pointed at, it
+  is not visible from here; the message could not be reproduced because Create app is locked. Re-try the create once verified;
+  if Play still refuses, the id is held elsewhere (or reserved by a deleted app) and the owner must choose a new id (a separate PR:
+  `android/app/build.gradle`, `capacitor.config.json`, deep-link intent filters, RevenueCat Android app, docs).
+- **Personal-account rule:** production needs a closed test with 12+ testers opted in for 14 days; the "Beta" closed track is allowed first.
+- **Meanwhile:** the debug APK in the public `releases` bucket (see "Android test builds") installs now. A signed *release* APK needs a
+  workflow change: `android-release.yml` only builds the AAB (one extra `./gradlew assembleRelease` step + artifact would do it).
+- Superseded 2026-10-27 (see the Play entries above): phone verification passed, the app was created with package `com.sillytraveltool.app` (no "already in use" refusal), the developer name is now B&B Project Factory, and the closed beta is in review. The signed APK step noted as "would do it" shipped (see "signed Android beta APK" below) and the 12-tester rule still applies. Kept for the record.
+
 ## Update — website deployed from main 1efb131: shared-traveller card, tour plan slide, privacy fixes (2026-10-25)
 - Deployed by the audit session with the owner's go-ahead: clean `git archive` of `origin/main` (1efb131), `npm ci && npm run build`
   (dist check passed), no pre-deploy backup (the backup step silently failed in zsh; the nearest earlier one is `~/backups/stt-202610250652-pre-invitefix.tar.gz` from tonight) and a post-deploy backup `~/backups/stt-<timestamp>-post-card.tar.gz`, dry run showed 89 changed files and no deletions,
@@ -128,7 +252,7 @@
   differ from the "STT team" wording in the brief.
 - **Review status:** build 5 is **Waiting for Review** (Beta App Review) as of this entry.
 - **Public link (created 2026-10-25 after the owner approved it in chat):** https://testflight.apple.com/join/rFv9QAA4
-  ("Open to Anyone", tester limit 100, 0 joined). It shows "Testers cannot join public link until this group has an
+  ("Open to Anyone", tester limit 100 at creation, later raised to 1,000; 0 joined). It shows "Testers cannot join public link until this group has an
   approved build": it starts working once Beta App Review approves build 5. Paste it into Cockpit → Growth → Beta
   waitlist as the iOS link.
 - Not touched: pricing, availability, App Store submission, in-app purchases.
@@ -161,7 +285,7 @@
 
 ## Update — signed Android beta APK for sideloading (2026-10-25, PR "Android release: also build a signed universal APK")
 - `android-release.yml` now also runs `./gradlew assembleRelease` (same upload key, same versionCode) and uploads the universal APK as the `android-release-apk` artifact (7-day retention; the AAB artifact is unchanged).
-- Private hand-off only: the APK goes to the owner's Google Drive folder "STT Android beta" (not shared) and the Actions artifact (needs GitHub login). Never a public URL.
+- Private hand-off only: the APK goes to the owner's Google Drive folder "STT Android beta" (not shared) and the Actions artifact (needs GitHub login). Never a public URL. (A later entry above asked the owner to approve public hosting of one beta APK in the `releases` bucket; that approval is not recorded, so the private rule stands until it is.)
 - This build has no paywall: `VITE_REVENUECAT_ANDROID_KEY` is not set in repo secrets. The earlier debug APK must be uninstalled first (different signing key).
 ## Update — cockpit Stripe data is live-only (2026-10-25, migration `20261025140000_stripe_live_only`, applied)
 - **Why:** Stripe went live tonight; every `stripe_*` row synced before that came from the sandbox.
@@ -682,6 +806,7 @@ Built per `docs/MULTI_CITY_PLAN.md`, all five phases. Proof: `docs/screenshots/m
   `supabase functions deploy` from the repo gives the same code.
 
 ## Android test builds (2026-10-22)
+- **Historical (superseded 2026-10-25 / 2026-10-27):** the signed AAB from `android-release.yml` is the release artifact, uploaded to Google Play (closed beta "Closed beta", in review); the signed universal APK is a private hand-off (see "signed Android beta APK"). The debug-APK bucket flow below is no longer the way to ship a build.
 - Public Supabase storage bucket `releases` (APK files only) hosts test builds; owner-approved. Current (debug build,
   versionCode 2, 2026-10-22, same code as the website):
   `https://swywrvbuswylvqlktsym.supabase.co/storage/v1/object/public/releases/SillyTravelTool-0.20.0.apk`.

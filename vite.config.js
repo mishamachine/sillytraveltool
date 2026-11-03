@@ -25,7 +25,10 @@ export default defineConfig(({ mode }) => {
     // below the status bar / above the nav bar (screens don't all honour safe-area-inset-top yet).
     isNative && {
       name: 'stt-native-viewport',
-      transformIndexHtml: (html) => html.replace(', viewport-fit=cover', ''),
+      // Also drop the #seo-home crawler block (web-only marketing copy; the native app has no use for it).
+      transformIndexHtml: (html) => html
+        .replace(', viewport-fit=cover', '')
+        .replace(/<main id="seo-home">[\s\S]*?<\/main>/, ''),
     },
     !isNative && VitePWA({
       registerType: 'autoUpdate',

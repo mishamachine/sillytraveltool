@@ -1,17 +1,24 @@
 # Silly Travel Tool — Hostinger .htaccess
-# SPA routing: all routes → index.html (except real files/dirs)
+# The app lives at "/" only; other pages are real directories. The one rewrite below is /invite (see there).
 
 Options -MultiViews
 RewriteEngine On
+
+# www → apex, straight to https (301). Listed before the HTTPS rule so http://www.x goes to https://x in one hop.
+RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+RewriteRule ^(.*)$ https://%1/$1 [L,R=301]
 
 # Force HTTPS
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# SPA fallback — serve index.html for any route that isn't a real file/dir
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.html [L]
+# Invite emails link to /invite?token=... (supabase/functions/send-invite). There is no /invite folder; the app reads
+# ?token on "/" and rewrites the URL. Serve the app shell for this one path only (the query string passes through).
+RewriteRule ^invite/?$ /index.html [L]
+
+# The app only lives at "/" (no client-side routes), and every other page is a real directory with its own
+# index.html. So there is no catch-all rewrite: an unknown path is a real 404 (status 404, not the app shell).
+ErrorDocument 404 /404.html
 
 # Security headers
 <IfModule mod_headers.c>

@@ -1,6 +1,7 @@
 /* Profile tab: identity, score, badges, documents, settings, delete account */
 .profile-id { display: flex; align-items: center; gap: 14px; }
 .profile-id__name { font-size: 1.625rem; }
+.profile-id__actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
 
 .profile-score-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 

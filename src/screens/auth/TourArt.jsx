@@ -2,27 +2,98 @@
 // look like the real screens. Most play as a slow tap-through inside a phone frame: a finger dot glides to the
 // element marked data-tap="…", taps it, the next screen slides in, and a numbered caption under the phone says
 // what's happening. Each scene loops. Under prefers-reduced-motion everything holds on one telling frame.
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Icon, IconTile, GooseMark, TagMark, cx } from '../../ui'
 
 const reducedMotion = () => {
   try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
 }
 
-const TAP_MS = 1100 // a tap stage: glide, press, ripple
+const TAP_MS = 1100 // a tap stage: glide, press, ripple (tied to the CSS timings, so it is not scaled)
+
+// Playback speed of the tour: every timed stage (ms) is multiplied by this. One place to tune it.
+const TOUR_SPEED = 0.8
+// A caption stays up at least this long: the larger of a flat floor and a reading allowance per character.
+const MIN_CAPTION_MS = 1400
+const READ_MS_PER_CHAR = 60
+
+const timingCache = new WeakMap()
 
 /**
- * Plays a script of stages ({ ms, tap?, cap? }), looping. Returns the stage index and the stage itself.
+ * Stage durations for a script. A caption stays on screen for its stage plus the stages after it, until the next caption. Timed stages are scaled by TOUR_SPEED; where a caption would then be up for less than
+ * the reading time, the shortfall is added to the last timed stage it covers (or its last stage if all are taps).
+ */
+function timings(script) {
+  let t = timingCache.get(script)
+  if (t) return t
+  const dur = script.map(st => (st.ms == null ? TAP_MS : Math.round(st.ms * TOUR_SPEED)))
+  script.forEach((st, k) => {
+    if (!st.cap) return
+    let end = k + 1
+    while (end < script.length && !script[end].cap) end++
+    const need = Math.max(MIN_CAPTION_MS, st.cap.text.length * READ_MS_PER_CHAR)
+    let total = 0
+    for (let j = k; j < end; j++) total += dur[j]
+    if (total < need) {
+      let at = end - 1
+      for (let j = end - 1; j >= k; j--) if (script[j].ms != null) { at = j; break }
+      dur[at] += need - total
+      total = need
+    }
+  })
+  t = { dur }
+  timingCache.set(script, t)
+  return t
+}
+
+/**
+ * The tour card's playback state, shared with the "Now showing / Replay" pill (see ArtStage). `run` changes on
+ * Replay; `report(done)` tells the pill whether the animation has finished its pass.
+ */
+const Playback = createContext(null)
+
+/**
+ * Plays a script of stages ({ ms, tap?, cap? }) once, then holds the last frame and tells the pill it is done
+ * (Replay restarts it). Returns the stage index and the stage itself.
  * Held on `still` (default: the last stage) with reduced motion.
  */
 function useScript(script, still = script.length - 1) {
+  const pb = useContext(Playback)
+  const run = pb?.run
+  const report = pb?.report
   const [i, setI] = useState(() => (reducedMotion() ? still : 0))
+  const lastRun = useRef(run)
   useEffect(() => {
-    if (reducedMotion()) return
-    const t = setTimeout(() => setI(v => (v + 1) % script.length), script[i].ms ?? TAP_MS)
+    if (reducedMotion()) { report?.(false); return }
+    if (lastRun.current !== run) { lastRun.current = run; setI(0); report?.(false); return }
+    report?.(false)
+    const last = i === script.length - 1
+    const t = setTimeout(() => (last ? report?.(true) : setI(v => v + 1)), timings(script).dur[i])
     return () => clearTimeout(t)
-  }, [i])
+  }, [i, run])
   return [i, script[i]]
+}
+
+/**
+ * Wraps a tour animation with a small pill at its top-left: "Now showing" with a pulsing dot while it plays,
+ * "Replay" (a button) once it has finished. Shown only for animations that play a script.
+ */
+export function ArtStage({ Art }) {
+  const [run, setRun] = useState(0)
+  const [state, setState] = useState({ active: false, done: false })
+  const ctx = useMemo(() => ({ run, report: (done) => setState(p => (p.active && p.done === done ? p : { active: true, done }))}), [run])
+  return (
+    <div className="tour-art">
+      <Playback.Provider value={ctx}><Art /></Playback.Provider>
+      {state.active && (state.done
+        ? <button type="button" className="tour-now tour-now--replay" aria-label="Replay animation" onClick={() => setRun(r => r + 1)}>
+          <Icon name="refresh" size={16} />Replay
+        </button>
+        : <span className="tour-now" role="img" aria-label="Animation playing">
+          <span className="tour-now__dot" aria-hidden="true" /><span aria-hidden="true">Now showing</span>
+        </span>)}
+    </div>
+  )
 }
 
 /** The most recent caption at or before stage i, so tap stages keep the scene's caption unless they set one. */
@@ -272,7 +343,7 @@ export function TodayArt() {
           </div>
           <div className="tour-tiles">
             <span className="tour-tile"><Icon name="sun" size={20} className="tone-sun" /><b>26°</b><span className="t-micro tone-muted">Sunny now</span></span>
-            <span className="tour-tile"><Icon name="megaphone" size={20} className="tone-accent" /><b>HONK</b><span className="t-micro tone-muted">Find me a spot</span></span>
+            <span className="tour-tile"><Icon name="train" size={20} className="tone-accent" /><b>Tomorrow</b><span className="t-micro tone-muted">Granada → Sevilla</span></span>
           </div>
           <span className="t-overline tone-muted tour-day">Later today</span>
           <div className="c-card c-card--group tour-card-flat">

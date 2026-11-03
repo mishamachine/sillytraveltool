@@ -120,6 +120,7 @@ export const api = {
     p_exclude_internal: f.excludeInternal,
   }),
   membersPlus: (search, f) => rpc('admin_members_plus', { p_search: search || null, p_exclude_internal: f.excludeInternal }),
+  usageActivity: (days) => rpc('admin_usage_activity', { p_days: days }),
   audience: (f) => rpc('admin_audience', { p_exclude_internal: f.excludeInternal }),
   memberInsights: (id) => rpc('admin_member_insights', { p_user: id }),
   member: (id) => rpc('admin_member', { p_user: id }),

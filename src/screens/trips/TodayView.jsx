@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { format, addDays } from 'date-fns'
-import { useTripsStore, useUIStore, useAuthStore } from '../../store'
+import { useTripsStore, useAuthStore } from '../../store'
 import { parseLocalDate, tripZoneToday } from '../../lib/dates'
 import { tripPlace, computeLegs, routeCities } from '../../lib/stops'
 import { weekdayIn } from '../../lib/localTime'
@@ -14,8 +14,13 @@ import { tripCoords, fetchTodayWeather, weatherInfo, weatherHint } from '../../l
 import {
   Screen, ScreenHeader, Section, Card, Chip, Button, LinkButton, IconTile, ListRow, Text, Overline, Stack, Icon, GooseMark, category,
 } from '../../ui'
+import SectionTour from '../../components/shared/SectionTour'
 import { safeUrl } from '../../lib/safeUrl'
 import { groupSharedLegs, travellerName } from '../../lib/sharedLegs'
+import FillDaySheet, { FillDayPill } from './detail/FillDaySheet'
+import { COPY } from './detail/fillDayCopy'
+import { countryFor } from '../../../supabase/functions/_shared/fillDay'
+import { track } from '../../lib/analytics'
 
 function placeOf(b) {
   return b.venue_address || b.hotel_address || b.venue_name || b.hotel_name || b.location_address || b.location_name ||
@@ -102,13 +107,13 @@ function PlanCard({ trip, stops, here, confirmed, onOpen }) {
 
 export default function TodayView({ trip, onShowAll }) {
   const { bookings, activities, fetchTripDetail, setActiveTrip, activeTrip } = useTripsStore()
-  const openExplore = useUIStore(s => s.openExplore)
   const tempUnit = useAuthStore(s => (s.profile?.temp_unit === 'F' ? 'fahrenheit' : 'celsius'))
   const me = useAuthStore(s => s.user?.id)
   const [weather, setWeather] = useState(null)
   const [now, setNow] = useState(() => new Date())
   const [detail, setDetail] = useState(null)
   const [legs, setLegs] = useState([])
+  const [fill, setFill] = useState(false)
 
   // The store holds one trip's bookings: only load ours when no other trip is open on top
   const overlayOpen = !!activeTrip
@@ -151,6 +156,8 @@ export default function TodayView({ trip, onShowAll }) {
   const companions = leg ? withLine(leg.items.filter(b => b !== next && b.created_by !== me)) : null
   const laterToday = items.filter(b => b !== next && once(b) && bookingDay(b, tz) === today && bookingStart(b, tz) > now)
   const tomorrowFirst = items.find(b => bookingDay(b, tz) === tomorrow && b !== next && once(b))
+  // A day with nothing booked or planned: Goose can sketch one (members who can edit the trip)
+  const dayEmpty = !items.some(b => bookingDay(b, tz) === today) && trip._myRole !== 'viewer' && here.city && !here.inTransit && here.kind !== 'travel'
   const { n, total } = tripDay(trip)
   const w = weather && weatherInfo(weather.now.code)
   const openPlan = () => setActiveTrip(trip)
@@ -169,9 +176,16 @@ export default function TodayView({ trip, onShowAll }) {
         overline={`Day ${n} of ${total} · ${weekdayIn(now, tz)}${here.kind === 'travel' && here.inTransit ? ' · On the way' : ''}`}
         title={here.label || trip.destination_city}
         titleId="today-title"
+        actions={<SectionTour section="today" />}
       />
 
-      {next ? <NextUp item={next} tz={tz} companions={companions} onShow={() => setDetail(next)} /> : (
+      {!next && dayEmpty ? (
+        <Card variant="raised">
+          <Overline tone="accent">Today</Overline>
+          <Text variant="title">{COPY.emptyDay}</Text>
+          <div><FillDayPill onClick={() => { track('fill_day_open', { surface: 'today' }); setFill(true) }} /></div>
+        </Card>
+      ) : next ? <NextUp item={next} tz={tz} companions={companions} onShow={() => setDetail(next)} /> : (
         <Card variant="raised">
           <Overline tone="accent">Today</Overline>
           <Text variant="title">Nothing else booked today</Text>
@@ -198,17 +212,6 @@ export default function TodayView({ trip, onShowAll }) {
         </Card>
       </div>
 
-      <Card variant="inverse" onClick={() => openExplore('honk')} className="today-honk">
-        <Stack row gap={3}>
-          <IconTile icon="megaphone" tone="inverse" size="md" />
-          <Stack gap={1} grow>
-            <Text variant="card-title" tone="inverse" as="p">HONK: find me a spot</Text>
-            <Text variant="caption" tone="inverse-muted">Goose picks somewhere good near you, right now</Text>
-          </Stack>
-          <Icon name="chevron-right" size={20} className="tone-inverse-muted" />
-        </Stack>
-      </Card>
-
       {laterToday.length > 0 && (
         <Section title="Later today">
           <Card variant="group">
@@ -224,6 +227,7 @@ export default function TodayView({ trip, onShowAll }) {
 
       <PlanCard trip={trip} stops={stays} here={here} confirmed={tripBookings.length} onOpen={openPlan} />
       <LinkButton icon="trips" onClick={onShowAll} className="today-all">Back to all trips</LinkButton>
+      {fill && <FillDaySheet trip={trip} date={today} place={{ city: here.city, country: countryFor(trip, here), tz }} onClose={() => setFill(false)} />}
       {detail && <BookingDetailSheet item={detail} tripTz={tz} countryCode={trip.destination_country_code} isActivity={!!detail._activity} canDelete={false} onClose={() => setDetail(null)} />}
     </Screen>
   )

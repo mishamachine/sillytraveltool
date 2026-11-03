@@ -14,6 +14,9 @@ verify_jwt = false
 [functions.check-badges]
 verify_jwt = false
 
+[functions.fill-my-day]
+verify_jwt = false
+
 [functions.generate-checklist]
 verify_jwt = false
 

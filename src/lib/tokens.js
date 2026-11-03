@@ -77,3 +77,11 @@ export const BADGE_TIER_COLORS = {
   hard: '#5E4B9A',
   legendary: '#B24A17',
 }
+
+// Share-card looks (post-trip image, drawn on a canvas, so it needs literal colours). Values are the Clay tokens
+// in docs/brand/brand-tokens.json: surface-inverse, accent, ink-inverse, accent-on-inverse. `disc` is the soft
+// lighter circle behind the Goose; `chip` is the badge-row fill. scripts/test-share-card.mjs checks 4.5:1 contrast.
+export const SHARE_CARD_LOOKS = {
+  dark: { bg: '#2A2520', text: '#FFFDF9', soft: '#D9CFC2', accent: '#F28B5B', disc: '#3A3129', chip: '#4A433B' },
+  terracotta: { bg: '#B24A17', text: '#FFFDF9', soft: '#FFFDF9', accent: '#FFFDF9', disc: '#BB4F1B', chip: '#8E3A12' },
+}

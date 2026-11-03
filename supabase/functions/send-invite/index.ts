@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { cleanLine, inviteSubject, limitResponse } from '../_shared/invite.js'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -6,13 +7,15 @@ const CORS = {
 }
 
 const ALLOWED_ROLES = ['viewer', 'collaborator']
-const MAX_INVITES_PER_HOUR = 20
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -28,10 +31,12 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(auth.replace('Bearer ', ''))
     if (authErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: CORS })
 
+    // Same gate as accept-invite: an unconfirmed address cannot send invites
+    if (!user.email_confirmed_at) return json({ error: 'Confirm your email address first, then try again.' }, 403)
+
     const body = await req.json()
     const inviteeEmail = String(body.inviteeEmail ?? '').trim().toLowerCase().slice(0, 254)
     const tripId = body.tripId
-    const inviterName = String(body.inviterName ?? '').trim().slice(0, 60)
     const role = ALLOWED_ROLES.includes(body.role) ? body.role : 'viewer'
     if (!inviteeEmail || !tripId) {
       return new Response(JSON.stringify({ error: 'inviteeEmail and tripId required' }), { status: 400, headers: CORS })
@@ -49,14 +54,30 @@ Deno.serve(async (req) => {
     // Use the stored trip name, never the client-supplied one
     const tripName = trip.title || trip.destination_city || 'a trip'
 
-    // Rate limit: invites sent by this user in the last hour
-    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-    const { count: recentInvites } = await supabase.from('trip_collaborators')
-      .select('id', { count: 'exact', head: true })
-      .eq('invited_by', user.id).gte('invited_at', since)
-    if ((recentInvites ?? 0) >= MAX_INVITES_PER_HOUR) {
-      return new Response(JSON.stringify({ error: 'Too many invites — try again in an hour' }), { status: 429, headers: CORS })
+    // Re-inviting someone who already joined must not reset them to pending (which would also drop their access)
+    const { data: existing, error: existingErr } = await supabase.from('trip_collaborators')
+      .select('status').eq('trip_id', tripId).eq('invited_email', inviteeEmail).maybeSingle()
+    if (existingErr) {
+      console.error('send-invite existing lookup failed:', existingErr.message)
+      return json({ error: 'Could not send the invite. Try again later.' }, 500)
     }
+    if (existing?.status === 'accepted') return json({ error: 'That person is already on this trip' }, 409)
+
+    // Limits come from an append-only send log (20 per hour per sender, 3 per day per recipient, a project-wide
+    // daily cap). A failed check refuses the send: it never falls through.
+    const { data: verdict, error: limitErr } = await supabase.rpc('invite_send_check', {
+      p_sender: user.id, p_recipient: inviteeEmail, p_trip: tripId,
+    })
+    if (limitErr || typeof verdict !== 'string') {
+      console.error('send-invite limit check failed:', limitErr?.message || 'no verdict')
+      return json({ error: 'Invites are unavailable right now. Try again later.' }, 503)
+    }
+    if (verdict === 'global_limit') console.error('send-invite: kind=global_invite_cap_hit')
+    const limited = limitResponse(verdict)
+    if (limited) return json({ error: limited.error }, limited.status)
+
+    // The inviter's name comes from their saved profile, never from the request
+    const { data: prof } = await supabase.from('user_profiles').select('display_name').eq('id', user.id).maybeSingle()
 
     // Create or update collab record with token
     const token = crypto.randomUUID()
@@ -73,22 +94,28 @@ Deno.serve(async (req) => {
       invited_at: new Date().toISOString(),
     }, { onConflict: 'trip_id,invited_email' })
 
-    if (collabErr) return new Response(JSON.stringify({ error: collabErr.message }), { status: 500, headers: CORS })
+    if (collabErr) {
+      console.error('send-invite upsert failed:', collabErr.message)
+      return json({ error: 'Could not send the invite. Try again later.' }, 500)
+    }
 
     // Send email via Resend
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-    if (!RESEND_API_KEY) return new Response(JSON.stringify({ error: 'Resend key not configured' }), { status: 500, headers: CORS })
+    if (!RESEND_API_KEY) {
+      console.error('send-invite: RESEND_API_KEY not configured')
+      return json({ error: 'Could not send the invite. Try again later.' }, 500)
+    }
 
     const appUrl = Deno.env.get('APP_URL') || 'https://sillytraveltool.com'
     const acceptUrl = `${appUrl}/invite?token=${token}`
-    const displayName = inviterName || user.email?.split('@')[0] || 'Someone'
+    const displayName = cleanLine(prof?.display_name) || 'Someone'
     const safeName = escapeHtml(displayName)
-    const safeTrip = escapeHtml(tripName)
+    const safeTrip = escapeHtml(cleanLine(tripName))
 
     const emailBody = {
       from: 'The Goose <noreply@bookings.sillytraveltool.com>',
       to: [inviteeEmail],
-      subject: `${displayName.replace(/[\r\n]/g, ' ')} invited you to "${tripName.replace(/[\r\n]/g, ' ')}"`,
+      subject: inviteSubject(displayName, tripName),
       html: `
 <!DOCTYPE html>
 <html>
@@ -134,13 +161,15 @@ Deno.serve(async (req) => {
     })
 
     if (!resendRes.ok) {
-      const err = await resendRes.text()
-      return new Response(JSON.stringify({ error: `Resend error: ${err.slice(0, 200)}` }), { status: 502, headers: CORS })
+      console.error('send-invite email failed:', resendRes.status, (await resendRes.text()).slice(0, 200))
+      return json({ error: 'Could not send the invite. Try again later.' }, 502)
     }
 
-    return new Response(JSON.stringify({ success: true, token }), { headers: { ...CORS, 'Content-Type': 'application/json' } })
+    // The accept token only goes to the invitee's inbox; the inviter never receives it
+    return json({ success: true })
 
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS })
+    console.error('send-invite error:', e?.message)
+    return json({ error: 'Could not send the invite. Try again later.' }, 500)
   }
 })

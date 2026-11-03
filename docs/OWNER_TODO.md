@@ -7,16 +7,23 @@ Other sessions: send new owner items to the owner-todo session rather than editi
 Format: what to do · where · what Claude does once it's ticked.
 
 ## Review & merge
-- [ ] **Confirm the Terms choices in PR #5:** governing law = State of Washington; 14-day refund on website purchases
-  · PR #5 → `public/terms/` · Claude adjusts the wording if you pick differently.
+- [ ] **Beta links (2026-10-25):** (1) approve hosting the Android APK in the public `releases` bucket (the session's
+  temporary insert policy was refused by the permission check; or upload `SillyTravelTool-0.20.0-5-beta.apk` yourself in
+  Supabase → Storage → releases) · Claude then sets `android_url` + `show_android` · the GitHub artifact copy expires about
+  2026-11-01. (2) When Apple approves build 0.20.0 (5), run the one-line `show_ios` SQL in `docs/HANDOFF.md` ("Beta links").
+  Note (2026-10-29): the Play closed beta is now in review and may replace (1); decide which route you want.
+- [x] **Confirm the Terms choices in PR #5:** governing law = State of Washington; 14-day refund on website purchases
+  · PR #5 merged 2026-10-24 (`aad8a07`). Live in Terms, verified 29 Oct by the business officer: Washington law (s12) and the 14-day website refund (s8) are in the live Terms dated 27 Oct. This is a check of the live text, not the owner's own confirmation. A lawyer's read of the Terms is still open.
 
 ## Apple
-- [ ] **Apple Developer Program + App Store Connect:** enroll, sign the Paid Apps agreement, fill in tax and bank
+- [x] **Apple Developer Program + App Store Connect:** enroll, sign the Paid Apps agreement, fill in tax and bank
   forms · developer.apple.com, appstoreconnect.apple.com → Business · Claude sets up signing and TestFlight for
-  `com.sillytraveltool.app`.
-- [ ] **App Store products:** `stt_first_class_yearly` (auto-renewing subscription, $14.99/yr) and
+  `com.sillytraveltool.app`. Done by 2026-10-25: enrolled as Individual (team RG3Y77A9ZZ), Paid Apps Agreement, bank and W-9
+  active (`docs/APP_REVIEW_CHECKLIST.md`), TestFlight build approved. Individual → Organization is a separate open item below.
+- [x] **App Store products:** `stt_first_class_yearly` (auto-renewing subscription, $14.99/yr) and
   `stt_first_class_lifetime_founding` (non-consumable, $29.99) · App Store Connect → the app → Monetization · Claude
-  maps them in RevenueCat and runs a StoreKit sandbox purchase.
+  maps them in RevenueCat and runs a StoreKit sandbox purchase. Both products exist with 175 territories, prices and review
+  screenshots (`docs/APP_REVIEW_CHECKLIST.md`); the RevenueCat mapping is still open under RevenueCat below.
 - [ ] **Sign in with Apple:** create a Services ID (e.g. `com.sillytraveltool.web`) with Sign in with Apple, return URL
   `https://swywrvbuswylvqlktsym.supabase.co/auth/v1/callback`, and a Sign in with Apple key (.p8); then Supabase →
   Authentication → Providers → Apple: on, client IDs `com.sillytraveltool.app,<services id>`, team ID, key ID, .p8 ·
@@ -25,10 +32,17 @@ Format: what to do · where · what Claude does once it's ticked.
 
 - [ ] **TestFlight link on /beta:** once Beta App Review approves build 0.20.0 (5), paste
   https://testflight.apple.com/join/rFv9QAA4 into Cockpit → Growth → Beta waitlist as the iOS link (the link exists, limit
-  100; it only works after approval) · Claude can do it when you say so.
+  raised to 1,000; it only works after approval) · Claude can do it when you say so.
+- [ ] **Submit the App Store version 0.20.0:** everything else is filled, iPad screenshots included. (1) Set a password on
+  machinemisha@gmail.com, then App Store Connect → the app → iOS 0.20.0 → App Review Information: tick Sign-in required, type the
+  email and password, Save. (2) "Add for Review" with both in-app purchases, then "Submit for Review" · appstoreconnect.apple.com ·
+  Claude updates HANDOFF with the review state. (Build 6 is the attached build; see HANDOFF "App Store version 0.20.0".)
 
 ## Google Play
-- [x] **Play phone verification** done 2026-10-27; app and closed track "Closed beta" created (see HANDOFF).
+- [x] **Play phone verification** done 2026-10-27; app and closed track "Closed beta" created (see HANDOFF). This closes the
+  2026-10-25 "waiting on Google's identity check" note and the package-id question: the app was created with `com.sillytraveltool.app`.
+- [ ] **Back up** `~/.stt/upload-keystore.jks` and `~/.stt/keystore.env` (Play app signing keeps the upload key recoverable only
+  via support).
 - [x] **Play app content and review** submitted 2026-10-27 08:50 UTC: Sign in details (machinemisha reviewer account,
   lifetime First Class grant), Content rating (IARC: Everyone / PEGI 3 / USK all ages / 3+ / Brazil 14+), Target audience
   18+, Data safety, then Publishing overview → "Send 15 changes for review". Dashboard shows **In review**.
@@ -65,7 +79,7 @@ Format: what to do · where · what Claude does once it's ticked.
 
 ## Accounts & settings
 - [ ] **Leaked-password protection:** one toggle · Supabase → Authentication → Attack Protection · nothing further.
-- [ ] **Supabase CLI access:** run `supabase login` once in Terminal, or create a token (Supabase → Account → Access
+- [x] **Supabase CLI access (done 2026-10-25, HANDOFF "Edge Functions deployed from the repo with the CLI"):** run `supabase login` once in Terminal, or create a token (Supabase → Account → Access
   Tokens) and put it in `.env.local` as `SUPABASE_ACCESS_TOKEN` · Claude deploys Edge Functions straight from the repo.
 - [ ] **Google's real bill (later):** Cloud Billing → BigQuery export (dataset `stt_billing`), a service account with
   BigQuery Data Viewer + Job User, Supabase secrets `GCP_BILLING_SA` (JSON key) + `GCP_BILLING_TABLE` · Google Cloud
@@ -83,6 +97,9 @@ Format: what to do · where · what Claude does once it's ticked.
   `feat/first-class-paywall` not yet in main, swap in the real store keys, run the iOS and Android cloud checks.
 
 ## Done
+- [x] **App Store listing for 0.20.0** · 2026-10-25 · metadata, age rating (13+), content rights, $0 price in 175 countries, iPhone
+  screenshots, build 6 (replaced build 5 on 2026-10-26), review contact and notes, both products' review screenshots (HANDOFF
+  2026-10-25, asc-submission). Reviewer sign-in still open (above).
 - [x] **Stripe go-live** · 2026-10-25 · account activated, tax = threshold monitoring, restricted live key (incl.
   Subscriptions: write) + webhook secret in Supabase; live product/prices/portal/webhook; real $14.99 purchase + refund
   passed (HANDOFF 2026-10-25).

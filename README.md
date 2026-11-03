@@ -88,23 +88,25 @@ All 12 phases designed upfront — schema won't require migration mid-build.
 - **Guide cache is city-scoped** — one cached guide per destination, shared by all users
 - **Realtime on** bookings, trip_activities, trip_collaborators
 
-## Build Phases
+## What is built
 
-| Phase | Feature | Status |
-|-------|---------|--------|
-| 0 | Schema + Scaffold + Design System | ✅ Done |
-| 1 | Auth + Trip CRUD | 🔨 Active |
-| 2 | Itinerary + Bookings | ⬜ Queued |
-| 3 | Guide (Gemini) | ⬜ Queued |
-| 4 | Toolbox: Currency + Tip + SOS | ⬜ Queued |
-| 5 | Profile: Docs + Loyalty | ⬜ Queued |
-| 6 | Translate (offline phrases) | ⬜ Queued |
-| 7 | Collaboration + Realtime | ⬜ Queued |
-| 8 | Goosey + AI Discovery | ⬜ Queued |
-| 9 | Gamification: Stats + Badges | ⬜ Queued |
-| 10 | PWA Hardening + Offline | ⬜ Queued |
-| 11 | Wallet Camera Scan | ⬜ v1.1 |
-| 12 | Wallet Email Import | ⬜ v1.1 |
+Checked against the code on `main` (29 Oct 2026). This replaces the original build-phase plan.
+
+| Area | Status |
+|------|--------|
+| Auth + trip CRUD, schema, design system | Built |
+| Itinerary and bookings (plan, packing list, weather, route) | Built |
+| City guide (AI, city-scoped cache) | Built |
+| Toolbox: currency, tip, SOS | Built |
+| Wallet: travel documents and loyalty cards | Built |
+| Translate and phrasebook | Built |
+| Collaboration and realtime (shared trips, invites) | Built |
+| HONK / Goosey discovery | Built |
+| Stats, Goose score and badges | Built |
+| PWA and offline (web build) | Built |
+| Email import via the personal inbox address | Built |
+| Photo import of a booking (camera or image, in the import sheet) | Built |
+| Wallet camera scan | Not built (no code found; the only camera use is the booking photo import) |
 
 ## Design System
 

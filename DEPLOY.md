@@ -28,9 +28,9 @@ One function:
 ```bash
 supabase functions deploy receive-booking-email --no-verify-jwt --use-api
 ```
-All 23 (the full list: accept-invite, admin-email, admin-experiment-ai, admin-stripe, beta-invite, beta-signup, billing,
+All 25 (the full list: accept-invite, admin-email, admin-experiment-ai, admin-stripe, beta-invite, beta-signup, billing,
 check-badges, cost-alert, delete-account, email-unsubscribe, generate-checklist, generate-guide, generate-phrases,
-goosey-discover, parse-booking-email, places, receive-booking-email, resolve-timezone, send-invite, send-welcome-email,
+fill-my-day, goosey-discover, inbox-release, parse-booking-email, places, receive-booking-email, resolve-timezone, send-invite, send-welcome-email,
 store-webhook, stripe-webhook):
 ```bash
 for f in $(ls supabase/functions | grep -v '^_shared$'); do supabase functions deploy $f --no-verify-jwt --use-api; done

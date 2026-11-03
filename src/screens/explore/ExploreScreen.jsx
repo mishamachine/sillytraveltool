@@ -5,6 +5,7 @@ import {
   Screen, ScreenHeader, Section, Card, Chip, Text, Stack, Icon, IconTile, ListRow, Button,
   Loading, ErrorState, EmptyState, Skeleton, GooseMark, Toast,
 } from '../../ui'
+import SectionTour from '../../components/shared/SectionTour'
 import { useCityGuide, TAB_SECTIONS } from './useCityGuide'
 import { GUIDE_SECTIONS, KnowSection, EatSection, SeeSection, MoveSection, EventsSection } from './GuideSections'
 import HonkView, { MOODS } from './HonkView'
@@ -195,7 +196,7 @@ function GuideHome({ setHonkMood, setMode }) {
   // ── Overview ─────────────────────────────────────
   return (
     <Screen gap={4} labelledBy="explore-title">
-      <ScreenHeader title="Explore" titleId="explore-title">
+      <ScreenHeader title="Explore" titleId="explore-title" actions={<SectionTour section="explore" />}>
         <CityAutocomplete label="Search a city" hideLabel icon="search" placeholder={destination ? `${destination.city}, ${destination.country}` : 'Search a city'}
           onSelect={g.selectCity} />
         {g.cityChips.length > 0 && (

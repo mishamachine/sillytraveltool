@@ -3,6 +3,7 @@ import { useAuthStore, useUIStore } from '../../store'
 import FeedbackCard from '../../components/shared/FeedbackCard'
 import { BADGES, BADGE_TIER_TONE } from '../../lib/tokens'
 import { Screen, Section, Card, ListRow, IconButton, LinkButton, Text, Overline, Stack, GooseMark, Icon } from '../../ui'
+import SectionTour from '../../components/shared/SectionTour'
 
 export function displayName(profile, user) {
   return profile?.display_name || user?.email?.split('@')[0] || 'Traveler'
@@ -52,7 +53,10 @@ export default function ProfileHome({ docCount, cardCount, onOpen }) {
           <Text variant="h1" id="profile-title" className="profile-id__name" truncate>{displayName(profile, user)}</Text>
           <Text variant="caption" tone="muted">{since ? `Travelling since ${since}` : user?.email}</Text>
         </Stack>
-        <IconButton icon="settings" label="Settings" onClick={() => onOpen('settings')} />
+        <span className="profile-id__actions">
+          <SectionTour section="profile" />
+          <IconButton icon="settings" label="Settings" onClick={() => onOpen('settings')} />
+        </span>
       </header>
 
       <Card variant="inverse" aria-label={`Goose score ${score.toLocaleString()}`}>

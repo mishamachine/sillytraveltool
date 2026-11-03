@@ -7,7 +7,7 @@ Actions; nothing needs Xcode or Android Studio on the owner's Mac.
 |---|---|---|
 | Workflow | `.github/workflows/ios-release.yml` ("iOS release") | `.github/workflows/android-release.yml` ("Android release") |
 | Output | uploaded to App Store Connect → TestFlight (+ `ios-release-ipa` artifact) | `android-release-aab` artifact (signed `.aab`), uploaded by hand in Play Console |
-| Version | `package.json` `version` (0.20.0) | same |
+| Version | `package.json` `version` (0.20.1) | same |
 | Build number | `package.json` `versionCode` (5) | same (`versionCode`) |
 
 Both stores refuse a build number they have already seen: bump `versionCode` in `package.json` for every upload
@@ -22,8 +22,8 @@ gh workflow run android-release.yml --ref main
 gh run download <run id> -n android-release-aab
 ```
 
-Until the workflows are on `main`, pushes to `claude/fix-native-release-729fd6` run them instead (a push never
-uploads to TestFlight). `upload: false` signs and exports the `.ipa` without uploading.
+The workflows are on `main` (the temporary `claude/fix-native-release-729fd6` push trigger was dropped); a push never
+uploads to TestFlight. `upload: false` signs and exports the `.ipa` without uploading.
 
 ## Secrets
 
