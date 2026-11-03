@@ -34,6 +34,20 @@ const FEATURE = {
   ai_error: 'AI error', app_error: 'App error', experiment_exposure: 'Saw an experiment',
 }
 const label = (e) => FEATURE[e] || (e.charAt(0).toUpperCase() + e.slice(1).replace(/_/g, ' '))
+// Short names for the narrow bar lists; the full name shows on hover
+const SHORT = {
+  onboarding_step: 'Tour step', onboarding_done: 'Finished tour', onboarding_skip: 'Skipped tour', session_start: 'Opened app',
+  account_deleted: 'Deleted account', analytics_opt_in: 'Stats on', ai_consent: 'AI consent', ai_consent_answer: 'AI consent answer',
+  section_overview_open: 'Section overview', booking_moved: 'Moved booking', import_parsed: 'Import read', import_saved: 'Import saved',
+  import_file: 'File import', shared_leg_near_miss: 'Shared-leg near miss', fill_day_open: 'Fill my day', fill_day_request: 'Fill day: asked',
+  fill_day_result: 'Fill day: result', fill_day_added: 'Fill day: added', fill_day_error: 'Fill day: failed',
+  inbox_address_rotated: 'New inbox address', inbox_released: 'Inbox released', guide_viewed: 'City guide', guide_load_more: 'Guide: more',
+  checklist_generated: 'Packing list', currency_converted: 'Currency', invite_accept_failed: 'Invite failed', invite_respond_failed: 'Invite reply failed',
+  collaborator_role_changed: 'Changed access', share_card_preview: 'Trip card preview', share_card_shared: 'Shared trip card',
+  first_class_locked: 'First Class lock', limit_hit: 'Free limit hit', purchase_started: 'Purchase started',
+  purchase_completed: 'Purchased', purchase_restored: 'Purchase restored', customer_center_view: 'Manage subscription', experiment_exposure: 'Experiment seen',
+}
+const short = (e) => SHORT[e] || label(e)
 
 export default function Product({ filters }) {
   const u = useLoad(() => api.usage(filters), [filters])
@@ -77,7 +91,7 @@ export default function Product({ filters }) {
 
       <div className="a-span-5 a-col">
         <Card title="Least used" icon="alert-circle">
-          <BarList rows={least.map(f => ({ label: f.name, value: f.users, sub: `${num(f.uses)} uses` }))} />
+          <BarList rows={least.map(f => ({ label: short(f.event), title: f.name, value: f.users, sub: `${num(f.uses)} uses` }))} />
         </Card>
         <Card title="Platforms and versions" icon="smartphone">
           <BarList rows={Object.entries(d.platforms).map(([k, v]) => ({ label: k, value: v }))} />
@@ -173,7 +187,7 @@ function Engagement({ e, error, reload }) {
           <div className="a-ctx">
             {topByPhase.map(([k, rows]) => (
               <div key={k}><h3>{PHASE_LABEL[k]}</h3>
-                <BarList rows={rows.map(f => ({ label: label(f.feature), value: f.members, sub: `${num(f.uses)} uses` }))} />
+                <BarList rows={rows.map(f => ({ label: short(f.feature), title: label(f.feature), value: f.members, sub: `${num(f.uses)} uses` }))} />
               </div>
             ))}
           </div>
