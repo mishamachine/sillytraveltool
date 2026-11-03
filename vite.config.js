@@ -124,7 +124,7 @@ export default defineConfig(({ mode }) => {
         globIgnores: ['**/admin/**', '**/assets/admin-*'],
         navigateFallback: 'index.html',
         // Workbox tests these against path + query, so `/beta?utm_source=…` needs the `\?` branch
-        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|redeem|upgrade|unsubscribe|delete-account|beta)(\/|\?|$)/]
+        navigateFallbackDenylist: [/^\/api\//, /^\/offline\.html$/, /^\/(privacy|terms|legal|help|admin|cockpit|dashboard|redeem|upgrade|unsubscribe|delete-account|beta)(\/|\?|$)/]
       }
     })
   ].filter(Boolean),
