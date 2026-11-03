@@ -10,8 +10,7 @@ export const CONFIRM_TYPES = {
   recovery:     { title: 'Reset your password', blurb: 'Tap Continue to choose a new password.', start: 'forgot', again: 'Send me a new reset link' },
   magiclink:    { title: 'Sign in', blurb: 'Tap Continue and you are in.', start: 'magic', again: 'Send me a new sign-in link' },
   signup:       { title: 'Confirm your email', blurb: 'Tap Continue to activate your account.', start: 'login', again: 'Back to log in' },
-  email_change: { title: 'Confirm your new email', blurb: 'Tap Continue to switch your account to this address.', start: 'login', again: 'Back to log in' },
-  invite:       { title: 'Join Silly Travel Tool', blurb: 'Tap Continue to open your account.', start: 'login', again: 'Back to log in' },
+  email_change: { title: 'Confirm an email change', blurb: 'Tap Continue to confirm the change to your account\'s email address.', start: 'login', again: 'Back to log in' },
 }
 
 export function isConfirmPath(pathname) {

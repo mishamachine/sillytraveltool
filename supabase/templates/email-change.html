@@ -1,16 +1,17 @@
-<!-- Subject: Confirm your new Silly Travel Tool email -->
+<!-- Subject: Confirm your Silly Travel Tool email change -->
+<!-- The if/else keeps the mobile apps working: their links (RedirectTo is the app scheme) stay Supabase's own link; the website sends https://sillytraveltool.com. -->
 <!-- Paste everything below this line into Supabase: Authentication, Email Templates. See docs/AUTH_EMAIL_TEMPLATES.md. -->
-<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirm your new Silly Travel Tool email</title></head>
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirm your Silly Travel Tool email change</title></head>
 <body style="margin:0;padding:0;background:#F4EEE6;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4EEE6;"><tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFDF9;border-radius:22px;">
 <tr><td style="padding:28px 28px 8px;"><img src="https://sillytraveltool.com/apple-touch-icon.png" width="40" height="40" alt="Silly Travel Tool" style="border-radius:10px;display:block;"></td></tr>
 <tr><td style="padding:12px 28px 24px;">
-<h1 style="margin:0 0 16px;font-family:'Space Grotesk',Helvetica,Arial,sans-serif;font-size:24px;line-height:1.25;color:#2A2520;">Confirm your new email</h1>
-<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#2A2520;">You asked to change the email on your Silly Travel Tool account from {{ .Email }} to {{ .NewEmail }}. Tap the button to confirm.</p>
-<p style="margin:24px 0 8px;"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email_change" style="display:inline-block;background:#B24A17;color:#FFFDF9;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:14px;">Confirm new email</a></p>
+<h1 style="margin:0 0 16px;font-family:'Space Grotesk',Helvetica,Arial,sans-serif;font-size:24px;line-height:1.25;color:#2A2520;">Confirm an email change</h1>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#2A2520;">Someone asked to change the email address on a Silly Travel Tool account. If that was you, tap the button to confirm. You may get a second email at your other address; confirm there too.</p>
+<p style="margin:24px 0 8px;"><a href="{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email_change{{ else }}{{ .ConfirmationURL }}{{ end }}" style="display:inline-block;background:#B24A17;color:#FFFDF9;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:14px;">Confirm new email</a></p>
 <p style="margin:16px 0 0;font-size:14px;line-height:1.55;color:#6B6355;">This link works once and only for a short time. If you didn't ask for this change, ignore this email and nothing will change. You may want to reset your password to be safe.</p>
-<p style="margin:16px 0 0;font-size:13px;line-height:1.55;color:#6B6355;">Button not working? Copy this link into your browser:<br><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email_change" style="color:#B24A17;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email_change</a></p>
+<p style="margin:16px 0 0;font-size:13px;line-height:1.55;color:#6B6355;">Button not working? Copy this link into your browser:<br><a href="{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email_change{{ else }}{{ .ConfirmationURL }}{{ end }}" style="color:#B24A17;word-break:break-all;">{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email_change{{ else }}{{ .ConfirmationURL }}{{ end }}</a></p>
 </td></tr>
 </table>
 <p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">You're getting this because an email change was requested on a Silly Travel Tool account.<br>Silly Travel Tool · B&amp;B Project Factory, 402 Grandey Way NE, Renton, WA 98056, USA</p>

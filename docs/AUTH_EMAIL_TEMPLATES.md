@@ -30,11 +30,11 @@ Dashboard, Authentication, Email Templates. For each row: set the **Subject**, t
 | Reset Password | `supabase/templates/recovery.html` | Reset your Silly Travel Tool password |
 | Magic Link | `supabase/templates/magic-link.html` | Your Silly Travel Tool sign-in link |
 | Confirm signup | `supabase/templates/confirmation.html` | Confirm your Silly Travel Tool account |
-| Change Email Address | `supabase/templates/email-change.html` | Confirm your new Silly Travel Tool email |
+| Change Email Address | `supabase/templates/email-change.html` | Confirm your Silly Travel Tool email change |
 
 Leave the "Invite user" row alone: the app sends its own trip invites.
 
-The links look like `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`. Do not swap them for `{{ .ConfirmationURL }}`; that is the old `supabase.co` link.
+For the website, the links look like `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`. `{{ .ConfirmationURL }}` appears only in the `{{ else }}` branch, for the mobile apps.
 
 ## 3. Set the sender
 
@@ -59,5 +59,6 @@ Before pasting, copy the current text of each row somewhere safe. To roll back, 
 
 ## Notes
 
-- The mobile apps are not affected: they keep using their own deep links.
+- The mobile apps keep working: each template checks where the request came from. The website sends `https://sillytraveltool.com`, so it gets the new `/auth/confirm` link. The apps send their own address (`com.sillytraveltool.app://auth-callback`), so they still get Supabase's own link (`{{ .ConfirmationURL }}`), which opens the app. Do not remove the `{{ if }}` lines when pasting.
+- Until a template is pasted, that email keeps the old behaviour.
 - Strong sender reputation matters too: SPF, DKIM and DMARC on the Resend domain should all pass (Resend shows this on the domain page).

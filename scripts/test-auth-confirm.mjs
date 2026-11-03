@@ -14,7 +14,7 @@ assert.ok(!isConfirmPath(undefined))
 
 // Param parsing
 assert.deepEqual(parseConfirmParams('?token_hash=abc123&type=recovery'), { tokenHash: 'abc123', type: 'recovery' })
-for (const type of ['recovery', 'magiclink', 'signup', 'email_change', 'invite']) {
+for (const type of ['recovery', 'magiclink', 'signup', 'email_change']) {
   assert.deepEqual(parseConfirmParams(`?token_hash=h&type=${type}`), { tokenHash: 'h', type })
 }
 assert.equal(parseConfirmParams('').error, 'incomplete')
@@ -22,6 +22,7 @@ assert.equal(parseConfirmParams('?type=recovery').error, 'incomplete')
 assert.equal(parseConfirmParams('?token_hash=abc').error, 'incomplete')
 assert.equal(parseConfirmParams('?token_hash=%20&type=recovery').error, 'incomplete')
 assert.equal(parseConfirmParams('?token_hash=abc&type=sms').error, 'unknown_type')
+assert.equal(parseConfirmParams('?token_hash=abc&type=invite').error, 'unknown_type')
 assert.equal(parseConfirmParams('?token_hash=abc&type=__proto__').error, 'unknown_type')
 assert.equal(parseConfirmParams('?token_hash=abc&type=toString').error, 'unknown_type')
 for (const r of ['expired', 'network', 'incomplete', 'unknown_type']) assert.ok(REASON_COPY[r].title && REASON_COPY[r].body)
@@ -37,7 +38,7 @@ const fake = (result, { throws } = {}) => {
   const seen = []
   return { seen, auth: { verifyOtp: async (args) => { seen.push(args); if (throws) throw new Error('offline'); return result } } }
 }
-for (const type of ['recovery', 'magiclink', 'signup', 'email_change', 'invite']) {
+for (const type of ['recovery', 'magiclink', 'signup', 'email_change']) {
   const sb = fake({ data: { session: {} }, error: null })
   assert.deepEqual(await confirmLink(sb, { tokenHash: 'h', type }), { ok: true, type })
   assert.deepEqual(sb.seen, [{ token_hash: 'h', type }])
@@ -62,11 +63,15 @@ assert.deepEqual(readdirSync(tdir).sort(), Object.keys(expected).sort())
 for (const [file, type] of Object.entries(expected)) {
   const t = readFileSync(new URL(file, tdir), 'utf8')
   assert.match(t, /^<!-- Subject: .{10,80} -->/, `${file} subject`)
-  assert.ok(t.includes(`{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=${type}`), `${file} link`)
-  assert.ok(!t.includes('.ConfirmationURL') && !t.includes('supabase.co'), `${file} old link`)
+  const link = `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=${type}`
+  // Web (RedirectTo = the site origin that authRedirect() sends) gets our link; the apps' scheme gets Supabase's own
+  const branch = `{{ if eq .RedirectTo "https://sillytraveltool.com" }}${link}{{ else }}{{ .ConfirmationURL }}{{ end }}`
+  assert.equal(t.split(branch).length - 1, 3, `${file} link branch (button, plain link href and text)`)
+  assert.ok(!t.replaceAll(branch, '').includes('/auth/confirm'), `${file} unguarded link`)
+  assert.ok(!t.includes('supabase.co'), `${file} supabase.co`)
   assert.ok(t.includes('Silly Travel Tool'), `${file} name`)
-  const vars = [...t.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map(m => m[1])
-  for (const v of vars) assert.ok(['.SiteURL', '.TokenHash', '.Email', '.NewEmail'].includes(v), `${file} variable ${v}`)
+  const vars = [...t.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map(m => m[1]).map(v => (v.startsWith('if eq') ? '.RedirectTo' : v))
+  for (const v of vars) assert.ok(['.SiteURL', '.TokenHash', '.RedirectTo', '.ConfirmationURL', 'else', 'end'].includes(v), `${file} variable ${v}`)
 }
 
 console.log('auth confirm: ok')

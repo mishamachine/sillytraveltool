@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { CONFIRM_TYPES, REASON_COPY, parseConfirmParams, stripConfirmParams, confirmLink } from '../lib/authConfirm'
-import { Screen, Button, Text, Stack, GooseMark } from '../ui'
+import { Screen, Button, Banner, Text, Stack, GooseMark } from '../ui'
 import './auth/auth.css'
 
 // Read the link once, then remove the one-time params from the address bar. Kept at module level, not in a ref:
@@ -22,6 +22,9 @@ export default function AuthConfirmScreen({ onDone }) {
   const info = CONFIRM_TYPES[parsed.type]
   const [busy, setBusy] = useState(false)
   const [reason, setReason] = useState(parsed.error || null)
+  const [changed, setChanged] = useState(false)
+  // A link can belong to a different account than the one signed in here. Say so before Continue swaps them.
+  const { user, loading } = useAuthStore()
 
   const onContinue = async () => {
     setBusy(true)
@@ -29,12 +32,31 @@ export default function AuthConfirmScreen({ onDone }) {
     if (!res.ok) { setReason(res.reason); setBusy(false); return }
     // The reset link signs the member in; keep the "set new password" step up, as the old redirect flow did
     if (res.type === 'recovery') useAuthStore.getState().setPasswordRecovery(true)
+    // An email change can wait for a second confirmation from the other address, so say that before moving on
+    if (res.type === 'email_change') { setChanged(true); setBusy(false); return }
     onDone()
   }
 
   const askAgain = () => {
     useAuthStore.getState().setAuthStartMode(info?.start || 'login')
     onDone()
+  }
+
+  if (changed) {
+    return (
+      <Screen variant="full" className="c-screen--onboarding auth" labelledBy="auth-confirm-title">
+        <div className="auth-hero">
+          <GooseMark expression="excited" size={96} tile tileSize="lg" />
+          <Stack gap={2} align="center">
+            <Text variant="h1" id="auth-confirm-title" align="center">Email change confirmed</Text>
+            <Text variant="body-lg" tone="secondary" align="center">If the new address does not show up in your account yet, check your other inbox too. We may have sent a second link there to confirm.</Text>
+          </Stack>
+        </div>
+        <div className="auth-actions">
+          <Button variant="primary" size="lg" block onClick={onDone}>Open Silly Travel Tool</Button>
+        </div>
+      </Screen>
+    )
   }
 
   if (reason) {
@@ -69,7 +91,13 @@ export default function AuthConfirmScreen({ onDone }) {
         </Stack>
       </div>
       <div className="auth-actions">
-        <Button variant="primary" size="lg" block loading={busy} onClick={onContinue}>{busy ? 'One moment' : 'Continue'}</Button>
+        {user && (
+          <Banner tone="info" icon="info" title={`You're signed in as ${user.email || 'another account'}`}>
+            Continuing may switch to the account this link is for. If that is not what you want, stay signed in.
+          </Banner>
+        )}
+        <Button variant="primary" size="lg" block loading={busy || loading} onClick={onContinue}>{busy ? 'One moment' : 'Continue'}</Button>
+        {user && <Button variant="ghost" block disabled={busy} onClick={onDone}>Stay signed in</Button>}
         <Text variant="caption" tone="muted" align="center">You are on sillytraveltool.com. If you did not ask for this email, you can close this page.</Text>
       </div>
     </Screen>
