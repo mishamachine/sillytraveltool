@@ -20,7 +20,8 @@ export const useConsentStore = create((set, get) => ({
   asking: null,   // { reason, resolve } while the Allow sheet is open
   saving: false,
   saveError: null,
-  held: 0,        // forwarded emails waiting for the yes
+  held: 0,        // forwarded emails waiting for the yes (or a retry)
+  heldFree: 0,    // forwarded emails kept past the free plan's limit: First Class opens them
   releasing: false,
   released: null, // { filed, ignored, expired, failed, kept, limited } after the last release, for one toast
 
@@ -62,8 +63,16 @@ export const useConsentStore = create((set, get) => ({
   },
 
   loadHeld: async () => {
-    const { count, error } = await supabase.from('held_inbox_emails').select('id', { count: 'exact', head: true })
-    set({ held: error ? 0 : count || 0 })
+    // reason: consent / retry wait for the yes or a retry; over_free_limit waits for First Class (before the
+    // held_email_reason migration there is no column and every row is a consent row)
+    const { data, error } = await supabase.from('held_inbox_emails').select('reason')
+    if (error) {
+      const { count, error: e2 } = await supabase.from('held_inbox_emails').select('id', { count: 'exact', head: true })
+      set({ held: e2 ? 0 : count || 0, heldFree: 0 })
+      return
+    }
+    const free = (data || []).filter(r => r.reason === 'over_free_limit').length
+    set({ held: (data || []).length - free, heldFree: free })
   },
 
   /** Files the held emails, a few per call, until none are left. */
@@ -80,9 +89,9 @@ export const useConsentStore = create((set, get) => ({
         if (error || !data) break
         for (const k of ['filed', 'ignored', 'expired', 'failed', 'kept']) total[k] += data[k] || 0
         total.limited = total.limited || !!data.limited
-        set({ held: data.remaining || 0 })
-        // Done, today's inbox limit is spent, or a temporary failure (retried next time the app opens)
-        if (!data.remaining || data.limited || data.kept) break
+        // Done, nothing left to take (free-plan emails stay held until First Class), today's inbox limit is spent, or a
+        // temporary failure (retried next time the app opens)
+        if (!data.claimed || !data.remaining || data.limited || data.kept) break
       }
       track('inbox_released', total)
       set({ released: total })

@@ -123,8 +123,8 @@ new screens.
      until the functions below are deployed nothing is enforced.
   2. Website (privacy page and app bundle).
   3. Native build 0.20.1 for TestFlight and App Store review.
-  4. Enforcing functions **last**, once 0.20.1 is live on both stores: `parse-booking-email`, `generate-phrases`,
-     `inbox-release` (new), `receive-booking-email`. Older app builds can't show the Allow sheet and get "Update STT…".
+  4. Enforcing functions **last and TOGETHER**, once 0.20.1 (the store build with the consent screen) is live on both
+     stores: `receive-booking-email`, `inbox-release` (new), `parse-booking-email`, `generate-phrases`. Older app builds can't show the Allow sheet and get "Update STT…".
   **Heads-up:** deploying `receive-booking-email` from this branch ALSO switches on the 26 Oct inbox changes (sender
   check `senderAllowed`, 30 AI reads a day per inbox), which production does not have today (prod v56 lacks them). They
   need `20261026090000_inbox_trust.sql` (PR #35) applied first. Existing members get the sheet at their next import;
@@ -983,3 +983,12 @@ Built per `docs/MULTI_CITY_PLAN.md`, all five phases. Proof: `docs/screenshots/m
 - Supabase project `swywrvbuswylvqlktsym` (us-east-2).
 - Google Maps API key (when ready), restricted.
 - Apple Developer and Google Play Console accounts (owner).
+
+## Update — inbox open to any sender; free-plan block and cap logging before the AI (2026-10-30; NOT deployed)
+- **Sender check off:** `INBOX_SENDER_CHECK = false` in `receive-booking-email/ingest.ts`; every inbox takes mail from any sender. The allow list, `inbox_accept_any` and the account-email rule are kept; set the constant to `true` to bring them back.
+- **Order in `ingestEmail`/`ingestOne`:** consent hold, then free-plan lock (`email_import_locked`; logs `function_errors.kind = free_import_blocked`, no email content; answers `{ignored, reason: 'free_limit'}`), then attachment download, then per-inbox daily cap (`consume_inbox_quota`, 30; a denial logs `inbox_cap_hit` with the user id and the cap), then the AI. Mail over the free limit is NOT read and NOT filed: it goes into `held_inbox_emails` (Resend id, sender domain, subject; `reason = 'over_free_limit'`), so the paywall copy is true: "New ones are kept for 30 days, and First Class opens them". `claim_held_emails` hands such a row to `inbox-release` only once `email_import_locked` is false (First Class), and then it is filed through the normal consent, inbox budget and sender checks; a free member's stays held until the daily purge (30 days, then gone: forward it again). The app shows a "N emails saved" toast (See First Class) from `consentStore.heldFree`, and releases on app open once the plan is First Class. At most 50 held per member.
+- Pasted text / file import in the app (`parse-booking-email`, itinerary import) do not call `email_import_locked`; they are unchanged.
+- **Unverified senders** (not the account email, not on `inbox_allowed_senders`, and `inbox_accept_any` off) may only create new items in trips the member owns: no update of a booking matched by confirmation number, no loyalty card update, no shared trips, no trip folding or renaming.
+- **Budget:** each AI read (every attachment, then the body) takes one unit of the 30 a day. **Fail closed:** no ingest lock, or an error from it, answers 503 (retried later); an error from `email_import_locked` is read as locked.
+- **Temporary failures are kept, not lost:** the webhook answers Resend before filing (background work), so a 429 (daily AI limit, or the budget ran out partway through the attachments, in which case nothing is filed), 503 (lock) or 5xx on a fresh delivery puts the email in `held_inbox_emails` with `reason = 'retry'`; `inbox-release` retries it when the app opens. Unverified senders also never stretch a trip's dates and never land in an owned trip that has guests.
+- **Deploy:** apply migration `20261031120000_held_email_reason.sql` FIRST (adds `held_inbox_emails.reason`, and `claim_held_emails` skips over-limit rows until First Class), then deploy `receive-booking-email`, `inbox-release`, `parse-booking-email` and `generate-phrases` TOGETHER, after the store build with the consent screen is live. Without the migration, holding an over-limit or retry email fails (500) and nothing is read.

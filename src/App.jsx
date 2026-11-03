@@ -12,6 +12,9 @@ import AiConsentSheet from './components/shared/AiConsentSheet'
 import InviteConfirmSheet from './components/shared/InviteConfirmSheet'
 import { previewInvite } from './lib/invite'
 import { usePlanStore } from './store/planStore'
+import { hasFirstClass } from './lib/firstClass'
+import { canBuy } from './lib/purchases'
+import { HELD_EMAIL_DAYS as HELD_DAYS } from './lib/aiConsentPolicy'
 import { useConsentStore, hasAiConsent } from './store/consentStore'
 
 import { useVisibilityRestore } from './hooks/useVisibilityRestore'
@@ -71,7 +74,8 @@ export default function App() {
   const [inviteToast, setInviteToast] = useState(null)
   const [invitePreview, setInvitePreview] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const { held, releasing, released, clearReleased, asking: askingAi } = useConsentStore()
+  const plan = usePlanStore(s => s.plan)
+  const { held, heldFree, releasing, released, clearReleased, asking: askingAi } = useConsentStore()
 
   useEffect(() => { init(); initDeepLinks(); initBackButton(); initExternalLinks() }, [])
 
@@ -97,9 +101,11 @@ export default function App() {
   useEffect(() => {
     if (!user || !profileReady) return
     useConsentStore.getState().loadHeld().then(() => {
-      if (hasAiConsent() && useConsentStore.getState().held > 0) useConsentStore.getState().release()
+      const c = useConsentStore.getState()
+      // Waiting for a retry or the yes; or kept past the free limit and the member has First Class by now
+      if (hasAiConsent() && (c.held > 0 || (c.heldFree > 0 && hasFirstClass()))) c.release()
     })
-  }, [user?.id, profileReady])
+  }, [user?.id, profileReady, plan])
 
   useEffect(() => {
     if (!released) return
@@ -221,6 +227,12 @@ export default function App() {
         <Toast icon="inbox" title={held === 1 ? '1 email waiting' : `${held} emails waiting`}
           action={<Button variant="primary" size="sm" onClick={() => useConsentStore.getState().ensure('held')}>Review</Button>}>
           Goose files them once you say it can read them
+        </Toast>
+      )}
+      {heldFree > 0 && !releasing && !askingAi && hasAiConsent() && !hasFirstClass() && (
+        <Toast icon="inbox" title={heldFree === 1 ? '1 email saved' : `${heldFree} emails saved`}
+          action={canBuy ? <Button variant="primary" size="sm" onClick={() => usePlanStore.getState().openPaywall('limit_emails')}>See First Class</Button> : undefined}>
+          Goose keeps them for {HELD_DAYS} days. First Class opens them.
         </Toast>
       )}
       {released && (released.filed > 0 || released.ignored > 0 || released.expired > 0 || released.failed > 0 || released.kept > 0 || released.limited) && (

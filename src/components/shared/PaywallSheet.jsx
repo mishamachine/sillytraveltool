@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HELD_EMAIL_DAYS } from '../../lib/aiConsentPolicy'
 import { useAuthStore } from '../../store'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { STORE, canBuy, buy, restore, storePrices } from '../../lib/purchases'
@@ -19,7 +20,7 @@ const BENEFITS = [
 const LEAD = {
   limit_trips: (n) => `You have ${n.upcoming_trips} upcoming trips, the most the free plan holds.`,
   limit_reservations: (n) => `This trip has ${n.reservations_per_trip} reservations, the most the free plan holds.`,
-  limit_emails: (n) => `You’ve forwarded ${n.email_imports} emails. New ones are saved, and First Class opens them.`,
+  limit_emails: (n) => `You’ve forwarded ${n.email_imports} emails. New ones are kept for ${HELD_EMAIL_DAYS} days, and First Class opens them.`,
   handwritten_import: () => 'Reading handwritten agendas is part of First Class.',
 }
 
