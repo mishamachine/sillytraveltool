@@ -75,6 +75,7 @@ export const useAuthStore = create((set, get) => ({
       const prevUserId = get().user?.id
       set({ session, user: session?.user ?? null })
       if (event === 'PASSWORD_RECOVERY') get().setPasswordRecovery(true)
+      if (event === 'SIGNED_OUT' && get().passwordRecovery) get().setPasswordRecovery(false) // next account in this tab must not inherit it
       // Supabase also sends SIGNED_IN for a session it restores (page load, tab focus); count only real sign-ins
       if (event === 'SIGNED_IN' && session?.user && session.user.id !== prevUserId) {
         const provider = session.user.app_metadata?.provider

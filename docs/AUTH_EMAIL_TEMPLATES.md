@@ -52,6 +52,7 @@ The emails do not invite replies. If you want replies to reach a person, check w
 2. The email should arrive in the inbox (check Spam once) from "Silly Travel Tool", with our wording and a button to `sillytraveltool.com`.
 3. Tap the button. You should see "Reset your password" and a Continue button. Nothing is used up until you tap it.
 4. Continue, then set a new password. Open the same email link a second time: you should see the friendly "That link has run out" page with a way to ask for a new one.
+5. In the iOS or Android app, ask for a reset and a magic link. Each email's button should open the app, not the website.
 
 ## Rollback
 
