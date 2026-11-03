@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import EmailComposer from './EmailComposer'
+import MemberActivity from './MemberActivity'
 import Icon from '../../ui/icons/Icon'
 import { api } from '../api'
 import { Badge, Loading, ErrorNote, useLoad, Modal, Field, Segmented, Table, download, ago, fmtDate, num, minutes,
@@ -155,18 +156,7 @@ function Overview({ d, canAct, role, changed, email }) {
           <div className="a-chips">{fares.map(([t, n]) => <span key={t} className="a-chip">{FARE_LABEL[t] || t} · {n}</span>)}</div>
         )}
       </section>
-      <section>
-        <h3>Trips</h3>
-        <Table rowKey={t => t.id} rows={d.trips} empty="No trips yet." cols={[
-          { key: 'city', label: 'Where', render: t => `${t.city || '—'}${t.country ? `, ${t.country}` : ''}` },
-          { key: 'start', label: 'Dates', render: t => t.start ? `${fmtDate(t.start)} – ${fmtDate(t.end)}` : 'No dates yet', sortValue: t => t.start },
-          { key: 'bookings', label: 'Bookings', num: true },
-          { key: 'by_type', label: 'Types', render: t => Object.entries(t.by_type || {}).map(([k, n]) => `${n} ${k}`).join(', ') || '—' },
-          { key: 'travellers', label: 'People', num: true },
-          { key: 'owner', label: 'Role', render: t => t.owner ? 'Owner' : 'Traveller' },
-        ]} />
-        <p className="a-hint">Places, dates and counts only. Booking details never reach the cockpit.</p>
-      </section>
+      <MemberActivity id={d.id} fallbackTrips={d.trips} />
       <section>
         <h3>Account</h3>
         <Facts rows={[

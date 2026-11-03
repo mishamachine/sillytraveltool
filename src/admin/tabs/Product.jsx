@@ -1,5 +1,7 @@
 import { api } from '../api'
-import { Card, Stat, Table, BarList, Bars, Loading, ErrorNote, useLoad, ExportButton, ago, minutes, num } from '../ui'
+import { Card, Stat, Table, BarList, Bars, Loading, ErrorNote, useLoad, ExportButton, ago, minutes, num,
+  PHASES, PHASE_LABEL, FREQUENCY, FREQUENCY_HINT, CHANNEL_LABEL } from '../ui'
+import { TripCurve, Legend } from './MemberActivity'
 
 // Plain names for the event codes track() sends
 const FEATURE = {
@@ -17,6 +19,7 @@ const label = (e) => FEATURE[e] || e.replace(/_/g, ' ')
 export default function Product({ filters }) {
   const u = useLoad(() => api.usage(filters), [filters])
   const ctx = useLoad(() => api.context(filters), [filters])
+  const eng = useLoad(() => api.engagement(filters), [filters])
   const d = u.data
   if (u.error) return <ErrorNote error={u.error} onRetry={u.reload} />
   if (!d) return <Loading />
@@ -38,6 +41,8 @@ export default function Product({ filters }) {
         </div>
         {d.active < 30 && <p className="a-hint">Fewer than 30 active members: read these as counts of people, not percentages.</p>}
       </Card>
+
+      <Engagement e={eng.data} error={eng.error} reload={eng.reload} />
 
       <Card title="Features, most to least used" icon="compass" className="a-span-7" actions={<ExportButton name="features" rows={features} />}>
         <Table rowKey={f => f.event} rows={features} cols={[
@@ -95,5 +100,67 @@ export default function Product({ filters }) {
         <p className="a-hint">App errors from members with usage stats on. Server errors are in System.</p>
       </Card>
     </div>
+  )
+}
+
+const KIND_LABEL = { booking: 'bookings', plan: 'plans', idea: 'ideas' }
+
+// Usage on and off trips, how often members come back, and how plans get added (admin_engagement, from member_activity_daily)
+function Engagement({ e, error, reload }) {
+  if (error) return <Card title="On and off trips" icon="compass" className="a-span-12"><ErrorNote error={error} onRetry={reload} /></Card>
+  if (!e) return <Card title="On and off trips" icon="compass" className="a-span-12"><Loading /></Card>
+  const phases = PHASES.map(([k, label]) => ({ k, label, ...(e.phases.find(p => p.phase === k) || {}) })).filter(p => p.days)
+  const topByPhase = PHASES.map(([k]) => [k, e.phase_features.filter(f => f.phase === k).sort((a, b) => b.members - a.members || b.uses - a.uses).slice(0, 5)])
+    .filter(([, rows]) => rows.length)
+  const channels = Object.values(e.added.reduce((acc, a) => {
+    const c = acc[a.channel] || (acc[a.channel] = { channel: a.channel, n: 0, members: 0, parts: [], kinds: [] })
+    c.n += a.n; c.members = Math.max(c.members, a.members); c.parts.push(`${a.n} ${KIND_LABEL[a.kind] || a.kind}`); c.kinds.push(KIND_LABEL[a.kind] || a.kind)
+    return acc
+  }, {})).sort((a, b) => b.n - a.n)
+  return (
+    <>
+      <Card title="How often members come back" icon="users" className="a-span-5"
+        actions={<ExportButton name="frequency" rows={FREQUENCY.map(([k, label]) => ({ frequency: label, members: e.frequency[k] || 0 }))} />}>
+        <BarList rows={FREQUENCY.map(([k, label]) => ({ label, value: e.frequency[k] || 0 }))} />
+        <p className="a-hint">{FREQUENCY_HINT} Counted from days they open the app, as of today (not the date window).</p>
+      </Card>
+
+      <Card title="Use by trip phase" icon="compass" className="a-span-7" actions={<ExportButton name="trip-phases" rows={phases} />}>
+        <Table rowKey={p => p.k} rows={phases} empty="No days of use in this window." cols={[
+          { key: 'label', label: 'Where they were' },
+          { key: 'members', label: 'Members', num: true },
+          { key: 'days', label: 'Member-days', num: true },
+          { key: 'sessions', label: 'Sessions', num: true },
+          { key: 'active_min', label: 'Minutes', num: true },
+          { key: 'per', label: 'Min per day', num: true, render: p => p.days ? (p.active_min / p.days).toFixed(1) : '—', sortValue: p => p.days ? p.active_min / p.days : 0 },
+        ]} />
+        <p className="a-hint">Before a trip: one starts within 60 days. Just back: one ended within 14 days. Each member's own local day.</p>
+      </Card>
+
+      <Card title="Activity around a trip" icon="chart" className="a-span-7" subtitle="all members, all trips, minutes per day"
+        actions={<ExportButton name="trip-curve" rows={e.curve} />}>
+        {e.curve.length ? <TripCurve rows={e.curve} tripDays={e.median_trip_days} /> : <p className="a-empty">No use around dated trips yet.</p>}
+        <Legend />
+        <p className="a-hint">Day 0 is the day the trip starts{e.median_trip_days ? `; the median trip lasts ${e.median_trip_days} days, so green bars are after a typical trip` : ''}. All history since {e.since ? new Date(`${e.since}T12:00`).toLocaleDateString() : 'tracking began'}, not just the window. Hover a bar for numbers; export for members and sessions per day.</p>
+      </Card>
+
+      <Card title="How plans get added" icon="plus" className="a-span-5" actions={<ExportButton name="added-via" rows={e.added} />}>
+        <BarList rows={channels.map(c => ({ label: CHANNEL_LABEL[c.channel] || c.channel, value: c.n, sub: c.parts.length > 1 ? `(${c.parts.join(', ')})` : c.kinds[0] }))} empty="Nothing added in this window." />
+        <p className="a-hint">Bookings, plans and saved ideas added in the window. Paste or file import includes older in-app email imports.</p>
+      </Card>
+
+      <Card title="What they use, by trip phase" icon="compass" className="a-span-12">
+        {!topByPhase.length ? <p className="a-empty">No feature use in this window.</p> : (
+          <div className="a-ctx">
+            {topByPhase.map(([k, rows]) => (
+              <div key={k}><h3>{PHASE_LABEL[k]}</h3>
+                <BarList rows={rows.map(f => ({ label: label(f.feature), value: f.members, sub: `${num(f.uses)} uses` }))} />
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="a-hint">Top features by members in each phase. Bars are members; uses alongside.</p>
+      </Card>
+    </>
   )
 }

@@ -135,6 +135,34 @@ export default async function demo(name, args) {
         premium_or_better_pct: 38, affluence_known: 13, paying: 3, lifetime_value: 8997,
         dist: Object.fromEntries(['traveller_type', 'affluence', 'trip_style', 'planning_style', 'persona', 'channel', 'region', 'source', 'country', 'main_platform', 'platform_mix'].map(k => [k, dist(k)])), multi_platform: 9, located: 15 }
     }
+    case 'admin_engagement': {
+      const curve = Array.from({ length: 52 }, (_, i) => i - 30).map(d => ({ trip_day: d, members: 3 + (d >= 0 && d < 7 ? 6 : 0),
+        sessions: 4 + Math.max(0, 12 - Math.abs(d)), active_min: Math.round((d >= 0 && d < 7 ? 22 : d < 0 ? 4 + 12 * Math.exp(d / 6) : 3 * Math.exp(-(d - 7) / 5)) * 10) / 10, events: 40 }))
+      return { refreshed: day(0), since: '2026-10-21', median_trip_days: 7, curve,
+        frequency: { daily: 2, weekly: 5, monthly: 6, occasional: 3, dormant: 4 },
+        phases: [{ phase: 'pre_trip', members: 8, days: 31, sessions: 70, active_min: 210 }, { phase: 'on_trip', members: 5, days: 26, sessions: 96, active_min: 460 },
+          { phase: 'post_trip', members: 3, days: 6, sessions: 8, active_min: 22 }, { phase: 'between', members: 6, days: 12, sessions: 15, active_min: 40 }, { phase: 'no_trip', members: 4, days: 9, sessions: 11, active_min: 25 }],
+        phase_features: [['pre_trip', 'booking_added', 7, 30], ['pre_trip', 'guide_viewed', 6, 41], ['pre_trip', 'checklist_generated', 4, 6], ['on_trip', 'honk_used', 5, 38],
+          ['on_trip', 'translate_used', 4, 22], ['on_trip', 'currency_converted', 4, 17], ['on_trip', 'get_there', 3, 9], ['post_trip', 'share_card_shared', 2, 2], ['no_trip', 'trip_created', 4, 4]]
+          .map(([phase, feature, members, uses]) => ({ phase, feature, members, uses })),
+        daily: [], added: [{ channel: 'email', kind: 'booking', n: 41, members: 9 }, { channel: 'paste_import', kind: 'booking', n: 12, members: 4 },
+          { channel: 'manual', kind: 'booking', n: 6, members: 3 }, { channel: 'manual', kind: 'plan', n: 9, members: 3 }, { channel: 'explore', kind: 'idea', n: 14, members: 5 },
+          { channel: 'honk', kind: 'idea', n: 5, members: 2 }, { channel: 'idea', kind: 'booking', n: 3, members: 2 }] }
+    }
+    case 'admin_member_activity': {
+      const start = new Date(Date.now() - 20 * 864e5).toISOString().slice(0, 10)
+      const days = Array.from({ length: 60 }, (_, i) => i).filter(i => i % 3 !== 1 || (i > 30 && i < 45)).map(i => {
+        const d = new Date(Date.now() - (59 - i) * 864e5).toISOString().slice(0, 10)
+        const tripDay = i - 39
+        const phase = tripDay >= 0 && tripDay < 6 ? 'on_trip' : tripDay < 0 && tripDay >= -60 ? 'pre_trip' : 'post_trip'
+        return { day: d, events: 20, sessions: 2 + (phase === 'on_trip' ? 3 : 0), active_seconds: phase === 'on_trip' ? 1500 : 300 + i * 10, phase, trip_day: tripDay, features: {} }
+      })
+      return { frequency: { frequency: 'weekly', days_28: 11, weeks_4: 4, sessions_28: 34, active_min_28: 141, last_day: days[days.length - 1].day }, days,
+        phases: { pre_trip: { days: 25, sessions: 52, active_min: 160 }, on_trip: { days: 6, sessions: 30, active_min: 150 }, post_trip: { days: 9, sessions: 18, active_min: 50 } },
+        trips: [{ id: 't1', city: 'Lisbon', country: 'PT', start, end: start, status: 'active', owner: true, bookings: 6, plans: 4, ideas: 7, done: 2,
+          by_channel: { email: 5, explore: 6, manual: 4, honk: 1, idea: 1 }, active_days_on: 5 },
+          { id: 't2', city: 'Kyoto', country: 'JP', start: null, end: null, status: 'planning', owner: false, bookings: 0, plans: 0, ideas: 3, done: 0, by_channel: { explore: 3 }, active_days_on: 0 }] }
+    }
     case 'admin_context': return { sessions: 160, dist: { os: [{ value: 'ios', n: 70 }, { value: 'android', n: 41 }, { value: 'mac', n: 30 }, { value: 'windows', n: 19 }],
       display: [{ value: 'browser', n: 90 }, { value: 'app', n: 41 }, { value: 'installed', n: 29 }], screen: [{ value: 'phone', n: 118 }, { value: 'desktop', n: 42 }],
       return_gap: [{ value: 'Within a week', n: 80 }, { value: 'Same day', n: 50 }, { value: 'First session on device', n: 30 }],
