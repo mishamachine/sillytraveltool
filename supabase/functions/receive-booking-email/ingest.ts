@@ -215,6 +215,15 @@ export const INBOX_SENDER_CHECK = false
 /** True when this inbox takes mail from `fromAddress` (always, while INBOX_SENDER_CHECK is off). */
 export async function senderAllowed(supabase: any, profile: InboxProfile, fromAddress: string): Promise<boolean> {
   if (!INBOX_SENDER_CHECK) return true
+  return senderVerified(supabase, profile, fromAddress)
+}
+
+/**
+ * True when the sender is on the member's verified list: their account email, an address they added, or any sender
+ * when they turned on inbox_accept_any. Independent of INBOX_SENDER_CHECK. Mail from anyone else only ever creates new
+ * items in the member's own trips (it never updates a booking or a loyalty card, and never lands in a shared trip).
+ */
+export async function senderVerified(supabase: any, profile: InboxProfile, fromAddress: string): Promise<boolean> {
   if (profile.inbox_accept_any === true) return true
   const from = normalizeAddress(fromAddress)
   if (!from) return false
@@ -278,6 +287,39 @@ async function logInboxRefusal(supabase: any, userId: string) {
   } catch { /* logging is best-effort */ }
 }
 
+/**
+ * A forwarded email past the free plan's limit: saved locked, with no AI read and no attachment download. Only what
+ * needs no AI is kept: the sender's domain, the subject and the time it arrived (created_at). The app shows it as
+ * "Locked" (BookingDetailSheet) until First Class. Opening it for real needs an AI read, which must go through the
+ * normal consent, inbox budget and sender rules (ingestEmail), never around them.
+ */
+async function saveLockedPlaceholder(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
+  const emailId = input.emailId ? String(input.emailId).slice(0, 200) : null
+  if (emailId) {
+    // The same email again (a retry, a release): one placeholder
+    const { data: dupe } = await supabase.from('bookings').select('id').eq('created_by', profile.id).eq('raw_email_id', emailId).limit(1)
+    if (dupe?.length) return ok({ success: true, locked: true, duplicate: true, booking_id: dupe[0].id })
+  }
+  const domain = normalizeAddress(input.fromAddress)?.split('@')[1]?.slice(0, 120) || null
+  const subject = String(input.subject || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+  const { data: row, error } = await supabase.from('bookings').insert({
+    type: 'other',
+    title: subject || (domain ? `Email from ${domain}` : 'Forwarded email'),
+    notes: domain ? `From ${domain}` : null,
+    trip_id: null,
+    created_by: profile.id,
+    source: 'email_import',
+    is_shared: false,
+    locked: true,
+    raw_email_id: emailId,
+  }).select().single()
+  if (error) {
+    console.error('locked placeholder insert failed', error.message)
+    return err('Could not save the email', 503)
+  }
+  return ok({ success: true, locked: true, booking_id: row.id })
+}
+
 export async function ingestEmail(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
   // Not from this member or someone they allowed: dropped without a word, nothing parsed, no body kept
   if (!(await senderAllowed(supabase, profile, input.fromAddress))) {
@@ -317,6 +359,7 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     console.log(`⏸️ Inbox of ${profile.id}: held until AI reading is allowed`)
     return ok({ success: true, held: true })
   }
+  const verified = await senderVerified(supabase, profile, input.fromAddress)
   let locked = false
   for (let i = 0; i < 40 && !locked; i++) {
     const { data, error } = await supabase.rpc('take_ingest_lock', { p_user: profile.id, p_seconds: 90 })
@@ -325,19 +368,27 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     if (!locked) await new Promise(r => setTimeout(r, 1500))
   }
   try {
-    // Free plan, over its forwarded-email limit: stop here, before any attachment download or AI call. Checked once this
-    // member's lock is held, so two emails arriving together can't both slip under the limit.
-    // (email_import_locked is false while app_settings.free_limits.enabled is false. If the RPC errors we carry on,
-    // as before: the per-inbox cap below still applies.)
-    const { data: freeLocked } = await supabase.rpc('email_import_locked', { p_user: profile.id })
-    if (freeLocked === true) {
-      console.log(`🔒 Inbox of ${profile.id}: free import limit reached, not read`)
-      try {
-        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'free_import_blocked', status: 200, user_id: profile.id, message: 'free plan forwarded-email limit reached, no AI read' })
-      } catch { /* logging is best-effort */ }
-      return ok({ success: true, ignored: true, reason: 'free_limit' })
+    // Free plan, over its forwarded-email limit: stop here, before any attachment download or AI call, and save a
+    // locked placeholder (sender domain, subject, time) so the paywall copy stays true. Checked once this member's
+    // lock is held, so two emails arriving together can't both slip under the limit.
+    // (email_import_locked is false while app_settings.free_limits.enabled is false.)
+    // Fails closed: without this member's lock nothing is read; the answer is 503 so the email is retried later
+    // (Resend retries; inbox-release puts a held email back).
+    if (!locked) {
+      console.warn(`Inbox of ${profile.id}: ingest lock not won, try again later`)
+      return err('Busy, try again later', 503)
     }
-    return await ingestOne(supabase, profile, input)
+    const { data: freeRes, error: lockErr } = await supabase.rpc('email_import_locked', { p_user: profile.id })
+    // An error is read as locked (fail closed): no AI read, saved as a locked placeholder
+    if (lockErr) console.warn('email_import_locked failed, treated as locked', lockErr.message)
+    if (lockErr || freeRes === true) {
+      console.log(`🔒 Inbox of ${profile.id}: ${lockErr ? 'limit check failed' : 'free import limit reached'}, saved locked, not read`)
+      try {
+        await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'free_import_blocked', status: 200, user_id: profile.id, message: lockErr ? 'free plan limit check failed, treated as locked, no AI read' : 'free plan forwarded-email limit reached, saved locked, no AI read' })
+      } catch { /* logging is best-effort */ }
+      return await saveLockedPlaceholder(supabase, profile, input)
+    }
+    return await ingestOne(supabase, profile, { ...input, verified })
   } finally {
     if (locked) await supabase.rpc('release_ingest_lock', { p_user: profile.id })
   }
@@ -346,7 +397,7 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
 async function ingestOne(
   supabase: any,
   profile: InboxProfile,
-  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [], loadAttachments, hasAttachments, emailId = null }: {
+  { subject, fromAddress, bodyText, GEMINI_API_KEY, attachments = [], loadAttachments, hasAttachments, emailId = null, verified = false }: {
     subject: string, fromAddress: string, bodyText: string, GEMINI_API_KEY: string,
     attachments?: { name: string, mime: string, bytes: Uint8Array }[],
     // The webhook downloads files only once the sender is accepted
@@ -354,6 +405,7 @@ async function ingestOne(
     loadAttachments?: () => Promise<{ name: string, mime: string, bytes: Uint8Array }[]>,
     emailId?: string | null,  // the Resend email id: stamped on every booking from this email (raw_email_id)
     released?: boolean,       // filed by inbox-release after the member allowed AI reading (skips the hold)
+    verified?: boolean,       // set by ingestEmail: the sender is on the member's verified list (see senderVerified)
   },
 ): Promise<Response> {
   const userId = profile.id
@@ -364,10 +416,16 @@ async function ingestOne(
     console.warn('No email body or readable attachment')
     return ok({ success: true, ignored: true })
   }
-  // Budget first, then the download: a capped inbox fetches nothing
-  if (!(await inboxBudget(supabase, userId))) {
+  // Budget first, then the download: a capped inbox fetches nothing. Every AI read costs one unit (30 a day means 30
+  // AI calls): this first unit pays for the first read, and each later read (another attachment, then the body) buys its own.
+  let prepaid = await inboxBudget(supabase, userId)
+  if (!prepaid) {
     console.warn(`Inbox budget spent for user ${userId}: inbound email not parsed`)
     return err('Daily inbox limit reached', 429)
+  }
+  const chargeRead = async () => {
+    if (prepaid) { prepaid = false; return true }
+    return inboxBudget(supabase, userId)
   }
   if (!attachments.length && loadAttachments) attachments = await loadAttachments()
   if (!bodyText && !attachments.length) {
@@ -386,12 +444,13 @@ async function ingestOne(
   // Trips the sender joined with edit rights: their own bookings belong there too. Marked `shared`, so this
   // function never moves, merges, renames or re-dates them (someone else owns them). Viewers and pending
   // invites don't count.
-  const { data: joined } = await supabase
+  // (Only mail from a verified sender: anyone else lands in the member's own trips alone.)
+  const { data: joined } = verified ? await supabase
     .from('trip_collaborators')
     .select('trip_id')
     .eq('user_id', userId)
     .eq('status', 'accepted')
-    .eq('role', 'collaborator')
+    .eq('role', 'collaborator') : { data: [] }
   const sharedIds = [...new Set((joined || []).map((r: any) => r.trip_id))].filter(id => !(trips || []).some((t: any) => t.id === id))
   const { data: sharedTrips } = sharedIds.length
     ? await supabase.from('trips').select(TRIP_COLS).in('id', sharedIds)
@@ -401,10 +460,11 @@ async function ingestOne(
 
   // ── 4b. Attachments first: an itinerary PDF, a screenshot or a spreadsheet can hold a whole trip ──
   const fromFiles: any[] = []
+  let budgetSpent = false
   for (const a of attachments) {
     const sheet = await sheetToText(a.bytes, { name: a.name, mime: a.mime }).catch(() => null)
     if (sheet == null && !VISION_TYPES.test(a.mime)) continue
-    if (fromFiles.length && !(await inboxBudget(supabase, userId))) break
+    if (!(await chargeRead())) { budgetSpent = true; break }
     const read = await readItinerary(GEMINI_API_KEY, sheet != null
       ? { text: `Spreadsheet itinerary (${a.name}):\n${sheet}`.slice(0, 20000) }
       : { file: { mime: a.mime, data: toBase64(a.bytes) } })
@@ -413,13 +473,19 @@ async function ingestOne(
   }
   if (fromFiles.length) {
     const results: any[] = []
-    for (const parsed of fromFiles.slice(0, 40)) results.push(await fileBooking(supabase, profile, tripList, parsed, emailId))
+    for (const parsed of fromFiles.slice(0, 40)) results.push(await fileBooking(supabase, profile, tripList, parsed, emailId, verified))
     const saved = results.filter(r => r.booking_id && !r.duplicate).length
     console.log(`📎 ${saved} of ${results.length} bookings from attachments for user ${userId}`)
     return ok({ success: true, from_attachments: true, count: saved, bookings: results, trip_ids: [...new Set(results.map(r => r.trip_id).filter(Boolean))] })
   }
 
   // ── 5. Parse email via Gemini ─────────────────────────────
+  // The body read is an AI call of its own: it buys its own unit (the first unit may already have paid for an attachment)
+  if (!bodyText) { console.warn('No email body to read'); return ok({ success: true, ignored: true }) }
+  if (budgetSpent || !(await chargeRead())) {
+    console.warn(`Inbox budget spent for user ${userId}: email body not parsed`)
+    return err('Daily inbox limit reached', 429)
+  }
   const emailContext = [
     subject ? `Subject: ${subject}` : '',
     `From: ${fromAddress}`,
@@ -526,7 +592,7 @@ activity_time, ticket_quantity
 
   // A loyalty statement or membership email: file the card in the traveller's Loyalty wallet, not a booking
   if (parsed.email_kind === 'loyalty' && parsed.loyalty?.program_name) {
-    const r = await fileLoyalty(supabase, userId, parsed.loyalty)
+    const r = await fileLoyalty(supabase, userId, parsed.loyalty, verified)
     return r.error ? err(r.error, 500) : ok({ success: true, loyalty: true, ...r })
   }
   // Not a booking at all (newsletter, receipt without a date): nothing to file
@@ -540,26 +606,26 @@ activity_time, ticket_quantity
   delete parsed.more_legs
   const shared = { type: parsed.type, confirmation_number: parsed.confirmation_number, airline: parsed.airline, transport_mode: parsed.transport_mode,
     passenger_name: parsed.passenger_name, flight_class: parsed.flight_class, change_type: parsed.change_type, currency: parsed.currency }
-  const filed = await fileBooking(supabase, profile, tripList, parsed, emailId)
+  const filed = await fileBooking(supabase, profile, tripList, parsed, emailId, verified)
   if (filed.error || !more.length) return filed.error ? err(filed.error, filed.status || 500) : ok(filed)
   const legs = [filed]
   for (const l of more) {
     const leg = { ...shared, ...l, destination_city: l.destination_city || l.arrival_airport || null }
     leg.title = leg.title || [l.departure_airport, l.arrival_airport].filter(Boolean).join(' -> ')
-    legs.push(await fileBooking(supabase, profile, tripList, leg, emailId))
+    legs.push(await fileBooking(supabase, profile, tripList, leg, emailId, verified))
   }
   return ok({ ...filed, legs: legs.map(r => ({ booking_id: r.booking_id, trip_id: r.trip_id, duplicate: r.duplicate, error: r.error })) })
 }
 
 /** Match one parsed booking to a trip (extend, fold or create one) and insert it. Updates `trips` in place. */
-async function fileBooking(supabase: any, profile: { id: string, home_city?: string | null }, trips: any[], parsed: any, emailId: string | null = null): Promise<Record<string, any>> {
+async function fileBooking(supabase: any, profile: { id: string, home_city?: string | null }, trips: any[], parsed: any, emailId: string | null = null, verified = true): Promise<Record<string, any>> {
   const userId = profile.id
   setGoogleUser(userId)
   // ── 5b. The same confirmation forwarded again: keep the booking we already have ──
   // Hotels, tickets and tables only: an outbound and return flight share one confirmation number
   const tripIds = trips.map((t: any) => t.id)
   const tripOf = (id: string) => trips.find((t: any) => t.id === id)
-  const same = await sameReservation(supabase, userId, tripIds, parsed, id => tripOf(id)?.destination_tz || null, id => !!tripOf(id)?.shared)
+  const same = await sameReservation(supabase, userId, tripIds, parsed, id => tripOf(id)?.destination_tz || null, id => !!tripOf(id)?.shared, verified)
   if (same) return same
   delete parsed.change_type
   if (tripIds.length && parsed.title && !parsed.departure_time) {
@@ -661,7 +727,7 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
 
   // A train or flight that joins this trip to another emailed one: they're one journey
   let foldedTripId: string | null = null
-  if (matchedTrip?.start_date && !matchedTrip.shared && MOVES.has(parsed.type)) {
+  if (verified && matchedTrip?.start_date && !matchedTrip.shared && MOVES.has(parsed.type)) {
     foldedTripId = await foldNeighbour(supabase, matchedTrip, trips.filter((t: any) => t.id !== matchedTrip.id && !t.shared), ends, home)
     if (foldedTripId) trips.splice(trips.findIndex((t: any) => t.id === foldedTripId), 1)
   }
@@ -702,7 +768,7 @@ async function fileBooking(supabase: any, profile: { id: string, home_city?: str
   }
 
   console.log(`✅ Booking created for user ${userId}: ${booking.id} → trip ${matchedTrip?.id || 'unassigned'}`)
-  if (matchedTrip && !matchedTrip.shared) await repointAutoTrip(supabase, matchedTrip, home).catch(e => console.warn('repointAutoTrip', e?.message || e))
+  if (verified && matchedTrip && !matchedTrip.shared) await repointAutoTrip(supabase, matchedTrip, home).catch(e => console.warn('repointAutoTrip', e?.message || e))
 
   return {
     success: true,
@@ -793,12 +859,25 @@ function sameLeg(stored: Record<string, any>, parsed: Record<string, any>): bool
  * train, the same leg: see sameLeg; outbound and return legs share a confirmation number). Returns the action taken,
  * or null when it's a new reservation.
  */
-async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null, isShared: (id: string) => boolean = () => false) {
+async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null, isShared: (id: string) => boolean = () => false, mayUpdate = true) {
   const ref = normRef(parsed.confirmation_number)
   if (!ref || !tripIds.length) return null
   const { data: rows } = await supabase.from('bookings').select('*').in('trip_id', tripIds).eq('created_by', userId).eq('type', parsed.type)
   const existing = (rows || []).find((b: any) => normRef(b.confirmation_number) === ref && (!MOVES.has(parsed.type) || sameLeg(b, parsed)))
   if (!existing) return null
+
+  // Mail from a sender who isn't on the member's verified list never touches a booking that already exists: no note,
+  // no update. The same email again is a plain duplicate; a changed or cancelled one is left for the member to forward from a verified address.
+  if (!mayUpdate) {
+    const next = { ...parsed }
+    await attachZones(supabase, next, { fallbackTz: existing.local_tz || existing.departure_tz || tripTzOf(existing.trip_id), city: parsed.destination_city || '' })
+    const clean = sanitizeBooking(next)
+    const differs = parsed.change_type === 'cancellation' || CHANGE_FIELDS.some(k => !sameValue(k, existing[k], clean[k]))
+    console.log(`↩️ Unverified sender, booking ${existing.id} left as is for user ${userId}${differs ? ' (change not applied)' : ''}`)
+    return differs
+      ? { success: true, ignored: true, reason: 'unverified_sender', booking_id: existing.id, trip_id: existing.trip_id }
+      : { success: true, duplicate: true, booking_id: existing.id, trip_id: existing.trip_id }
+  }
 
   // A cancellation email never cancels or renames the booking (an email can be forged or wrong): it is noted,
   // and the app shows the note so the traveller checks with the provider
@@ -834,7 +913,7 @@ async function sameReservation(supabase: any, userId: string, tripIds: string[],
 }
 
 /** Add or update a loyalty card from a statement: matched by member number, else by program name. */
-async function fileLoyalty(supabase: any, userId: string, l: Record<string, any>): Promise<Record<string, any>> {
+async function fileLoyalty(supabase: any, userId: string, l: Record<string, any>, mayUpdate = true): Promise<Record<string, any>> {
   const clean = (v: unknown) => (v == null || String(v).trim() === '' ? null : String(v).trim().slice(0, 120))
   const digits = (v: unknown) => String(v ?? '').replace(/[^0-9A-Za-z]/g, '').toLowerCase()
   const date = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)
@@ -852,6 +931,11 @@ async function fileLoyalty(supabase: any, userId: string, l: Record<string, any>
   const num = digits(fields.card_number)
   const same = (cards || []).find((c: any) => num && digits(c.card_number) === num) ||
     (cards || []).find((c: any) => String(c.program_name || '').toLowerCase() === program.toLowerCase())
+  if (same && !mayUpdate) {
+    // An unverified sender can add a card but never change one that exists
+    console.log(`💳 Loyalty card ${same.id} left as is for user ${userId} (unverified sender)`)
+    return { card_id: same.id, updated: false, ignored: true, reason: 'unverified_sender', program_name: program }
+  }
   if (same) {
     const { error } = await supabase.from('loyalty_cards').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', same.id)
     if (error) return { error: `Loyalty update failed: ${error.message}` }

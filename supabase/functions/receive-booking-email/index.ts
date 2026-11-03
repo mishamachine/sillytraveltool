@@ -122,11 +122,10 @@ Deno.serve(withGoogleScope(async (req) => {
     }
 
 
-    console.log(`📬 receive-booking-email: subject="${subject}" bodyLen=${bodyText.length}`)
+    console.log(`📬 receive-booking-email: bodyLen=${bodyText.length}`)
 
     // ── 2. Extract user token from To: address ────────────────
     const token = extractToken(toAddress)
-    console.log(`🔑 Token extracted: ${token ? last4(token) : '(none)'}`)
 
     // ── 3. Look up user by token (the only accepted path) ─────
     if (!token) return err('No booking token in recipient address', 404)

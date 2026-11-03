@@ -123,8 +123,8 @@ new screens.
      until the functions below are deployed nothing is enforced.
   2. Website (privacy page and app bundle).
   3. Native build 0.20.1 for TestFlight and App Store review.
-  4. Enforcing functions **last**, once 0.20.1 is live on both stores: `parse-booking-email`, `generate-phrases`,
-     `inbox-release` (new), `receive-booking-email`. Older app builds can't show the Allow sheet and get "Update STT…".
+  4. Enforcing functions **last and TOGETHER**, once 0.20.1 (the store build with the consent screen) is live on both
+     stores: `receive-booking-email`, `inbox-release` (new), `parse-booking-email`, `generate-phrases`. Older app builds can't show the Allow sheet and get "Update STT…".
   **Heads-up:** deploying `receive-booking-email` from this branch ALSO switches on the 26 Oct inbox changes (sender
   check `senderAllowed`, 30 AI reads a day per inbox), which production does not have today (prod v56 lacks them). They
   need `20261026090000_inbox_trust.sql` (PR #35) applied first. Existing members get the sheet at their next import;
@@ -986,6 +986,8 @@ Built per `docs/MULTI_CITY_PLAN.md`, all five phases. Proof: `docs/screenshots/m
 
 ## Update — inbox open to any sender; free-plan block and cap logging before the AI (2026-10-30; NOT deployed)
 - **Sender check off:** `INBOX_SENDER_CHECK = false` in `receive-booking-email/ingest.ts`; every inbox takes mail from any sender. The allow list, `inbox_accept_any` and the account-email rule are kept; set the constant to `true` to bring them back.
-- **Order in `ingestEmail`/`ingestOne`:** consent hold, then free-plan lock (`email_import_locked`; logs `function_errors.kind = free_import_blocked`, no email content; answers `{ignored, reason: 'free_limit'}`), then attachment download, then per-inbox daily cap (`consume_inbox_quota`, 30; a denial logs `inbox_cap_hit` with the user id and the cap), then the AI. Locked mail is no longer filed as a locked booking: it is not read at all.
+- **Order in `ingestEmail`/`ingestOne`:** consent hold, then free-plan lock (`email_import_locked`; logs `function_errors.kind = free_import_blocked`, no email content; answers `{ignored, reason: 'free_limit'}`), then attachment download, then per-inbox daily cap (`consume_inbox_quota`, 30; a denial logs `inbox_cap_hit` with the user id and the cap), then the AI. Mail over the free limit is saved as a LOCKED placeholder booking (`type other`, title = subject, note = sender domain, no trip, `locked = true`, `raw_email_id` set) and is never read by the AI; `inbox-release` does the same for a held email (counted as `locked`, not deleted as ignored). Opening a placeholder for real needs an AI read, which has to go through the normal consent, inbox budget and sender rules; that step is not built yet.
 - Pasted text / file import in the app (`parse-booking-email`, itinerary import) do not call `email_import_locked`; they are unchanged.
-- Deploy: function `receive-booking-email` only. No migration.
+- **Unverified senders** (not the account email, not on `inbox_allowed_senders`, and `inbox_accept_any` off) may only create new items in trips the member owns: no update of a booking matched by confirmation number, no loyalty card update, no shared trips, no trip folding or renaming.
+- **Budget:** each AI read (every attachment, then the body) takes one unit of the 30 a day. **Fail closed:** no ingest lock, or an error from it, answers 503 (retried later); an error from `email_import_locked` is read as locked.
+- **Deploy `receive-booking-email`, `inbox-release`, `parse-booking-email` and `generate-phrases` TOGETHER**, after the store build with the consent screen is live. No migration.

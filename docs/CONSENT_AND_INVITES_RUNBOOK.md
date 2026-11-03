@@ -29,8 +29,8 @@ deploys are done by the owner (or by a session the owner has told to do it), nev
    column is missing (a marked TODO in `_shared/consent.ts` to remove once applied, so a missing column fails closed).
 2. Deploy the website (consent sheet; older app builds do not have it).
 3. Ship native build 0.20.1 and wait until it is live on both stores.
-4. Deploy the enforcing functions LAST: `parse-booking-email`, `generate-phrases`, `receive-booking-email`,
-   `inbox-release`. Enforcing earlier would block imports for installed builds that cannot show the Allow sheet (they only
+4. Deploy the enforcing functions LAST, all four TOGETHER (not one by one) and only after the store build with the
+   consent screen is live: `receive-booking-email`, `inbox-release`, `parse-booking-email`, `generate-phrases`. Enforcing earlier would block imports for installed builds that cannot show the Allow sheet (they only
    see a message telling them to update).
 
 ### Rollback
