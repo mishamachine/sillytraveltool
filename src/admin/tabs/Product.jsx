@@ -5,16 +5,35 @@ import { TripCurve, Legend } from './MemberActivity'
 
 // Plain names for the event codes track() sends
 const FEATURE = {
-  sign_in: 'Signed in', sign_up: 'Signed up', trip_created: 'Created a trip', booking_added: 'Added a booking',
-  booking_edited: 'Edited a booking', booking_deleted: 'Deleted a booking', guide_viewed: 'Read a city guide',
-  guide_load_more: 'Loaded more of a guide', honk_used: 'Used HONK', translate_used: 'Opened Translate',
+  // Account and onboarding
+  sign_in: 'Signed in', sign_up: 'Signed up', sign_out: 'Signed out', session_start: 'Opened the app', account_deleted: 'Deleted their account',
+  onboarding_step: 'Went through a tour step', onboarding_done: 'Finished the tour', onboarding_skip: 'Skipped the tour',
+  analytics_opt_in: 'Turned usage stats on', ai_consent: 'Changed AI consent', ai_consent_answer: 'Answered the AI consent question',
+  help_opened: 'Opened Help', report_issue: 'Reported an issue', section_overview_open: 'Opened a section overview',
+  // Trips, bookings and plans
+  trip_created: 'Created a trip', trip_deleted: 'Deleted a trip', booking_added: 'Added a booking', booking_edited: 'Edited a booking',
+  booking_deleted: 'Deleted a booking', booking_moved: 'Moved a booking to another trip', import_parsed: 'Imported (read)',
+  import_saved: 'Imported (saved)', import_failed: 'Import failed', import_file: 'Imported a file',
+  idea_added: 'Saved an idea', idea_booked: 'Booked an idea', shared_leg_near_miss: 'Nearly-matching shared legs found',
+  fill_day_open: 'Opened Fill my day', fill_day_request: 'Asked Goose to fill a day', fill_day_result: 'Got a filled day',
+  fill_day_added: 'Added a filled day', fill_day_error: 'Fill my day failed',
+  inbox_address_rotated: 'Changed their Goose inbox address', inbox_released: 'Released held inbox emails',
+  // Travel tools
+  guide_viewed: 'Read a city guide', guide_load_more: 'Loaded more of a guide', honk_used: 'Used HONK', translate_used: 'Opened Translate',
   text_translated: 'Translated text', phrases_loaded: 'Loaded a phrasebook', checklist_generated: 'Made a packing list',
-  idea_added: 'Saved an idea', idea_booked: 'Booked an idea', currency_converted: 'Converted currency', sos_opened: 'Opened SOS',
-  get_there: 'Used Get there', section_overview_open: 'Opened a section overview', import_parsed: 'Imported (read)', import_saved: 'Imported (saved)', import_failed: 'Import failed',
-  invite_accepted: 'Accepted an invite', collaborator_role_changed: 'Changed a traveller\'s access', ai_quota_hit: 'Hit an AI limit',
-  share_card_preview: 'Previewed a trip card', share_card_shared: 'Shared a trip card',
+  currency_converted: 'Converted currency', sos_opened: 'Opened SOS', get_there: 'Used Get there',
+  // Sharing
+  invite_sent: 'Sent an invite', invite_accepted: 'Accepted an invite', invite_declined: 'Declined an invite',
+  invite_accept_failed: 'Invite accept failed', invite_respond_failed: 'Invite reply failed',
+  collaborator_role_changed: 'Changed a traveller\'s access', share_card_preview: 'Previewed a trip card', share_card_shared: 'Shared a trip card',
+  // Plans and payments
+  paywall_view: 'Saw the paywall', first_class_locked: 'Hit a First Class feature', limit_hit: 'Hit a free-plan limit',
+  ai_quota_hit: 'Hit an AI limit', purchase_started: 'Started a purchase', purchase_completed: 'Completed a purchase',
+  purchase_restored: 'Restored a purchase', customer_center_view: 'Opened subscription management',
+  // Errors and experiments
+  ai_error: 'AI error', app_error: 'App error', experiment_exposure: 'Saw an experiment',
 }
-const label = (e) => FEATURE[e] || e.replace(/_/g, ' ')
+const label = (e) => FEATURE[e] || (e.charAt(0).toUpperCase() + e.slice(1).replace(/_/g, ' '))
 
 export default function Product({ filters }) {
   const u = useLoad(() => api.usage(filters), [filters])
