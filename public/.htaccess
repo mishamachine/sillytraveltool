@@ -12,6 +12,9 @@ RewriteRule ^(.*)$ https://%1/$1 [L,R=301]
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
+# The owner cockpit also answers at /cockpit and /dashboard (301 to /admin/; the browser keeps any #hash)
+RewriteRule ^(cockpit|dashboard)/?$ /admin/ [L,R=301]
+
 # Invite emails link to /invite?token=... (supabase/functions/send-invite). There is no /invite folder; the app reads
 # ?token on "/" and rewrites the URL. Serve the app shell for this one path only (the query string passes through).
 RewriteRule ^invite/?$ /index.html [L]

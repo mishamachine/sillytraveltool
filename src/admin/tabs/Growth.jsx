@@ -3,6 +3,7 @@ import { Card, Bars, BarList, Sized, Loading, ErrorNote, useLoad, ExportButton, 
 import BetaPanel from './BetaPanel'
 
 // Step 1: our own data (sign-ups, activation, sources, trip stages). GA4 visits, campaigns and social come in steps 3 and 7.
+// Social: not connected (Nov 2026); the card says what it needs.
 export default function Growth({ filters, go, role }) {
   const pulse = useLoad(() => api.pulse(filters), [filters])
   const members = useLoad(() => api.members({}, filters), [filters])
@@ -51,7 +52,7 @@ export default function Growth({ filters, go, role }) {
       </Card>
 
       <Card title="Social and campaigns" icon="megaphone" className="a-span-12">
-        <p className="a-empty">Instagram, Facebook and TikTok (through Postiz, the Meta Graph API and the TikTok API) and UTM campaign tracking are build step 7. You'll need: a Postiz API key, a Meta Business account linked to your Facebook Page and Instagram, and a TikTok developer app.</p>
+        <p className="a-empty">Not connected yet. Posts are scheduled in each platform's own scheduler, so no follower, reach or engagement numbers reach our database. Waitlist sign-ups by platform are in Beta waitlist above. To show social numbers here we need read access to Meta (Instagram and the Facebook Page, through the Meta business portfolio), YouTube and LinkedIn; TikTok's API needs a business account.</p>
       </Card>
     </div>
   )

@@ -7,6 +7,16 @@ export const STAGES = [
   ['new', 'New'], ['dreaming', 'Dreaming'], ['planning', 'Planning'], ['getting_ready', 'Getting ready'],
   ['on_the_road', 'On the road'], ['just_back', 'Just back'], ['between_trips', 'Between trips'], ['lapsed', 'Lapsed'],
 ]
+// Trip phase of a day of use (member_activity_daily.phase) and how often a member comes back (member_frequency)
+export const PHASES = [['pre_trip', 'Before a trip'], ['on_trip', 'On a trip'], ['post_trip', 'Just back'], ['between', 'Between trips'], ['no_trip', 'No dated trip']]
+export const PHASE_LABEL = Object.fromEntries(PHASES)
+export const FREQUENCY = [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['occasional', 'Occasional'], ['dormant', 'Not in 90 days']]
+export const FREQUENCY_HINT = 'Daily: 12+ days of use in the last 28. Weekly: 3 or 4 of the last 4 weeks. Monthly: any use in 28 days. Occasional: in 90 days.'
+// How a booking or plan was added (booking_channel / activity_channel)
+export const CHANNEL_LABEL = {
+  email: 'Forwarded email', paste_import: 'Paste or file import', idea: 'Booked from an idea', explore: 'Explore guide',
+  honk: 'HONK', manual: 'Added by hand',
+}
 export const STAGE_LABEL = Object.fromEntries(STAGES)
 export const STATUS_LABEL = { active: 'Active', warning: 'Warned', restricted: 'Restricted', suspended: 'Suspended', banned: 'Banned' }
 export const PLAN_LABEL = { free: 'Free', first_class: 'First Class' }
@@ -130,8 +140,8 @@ export function Bars({ data, height = 56, label }) {
   return (
     <Sized as="div" className="a-bars" vars={{ '--h': `${height}px` }} role="img" aria-label={label}>
       {data.map(d => (
-        <div key={d.day} className="a-bars__col" title={`${fmtDate(d.day)}: ${num(d.value)}`}>
-          <Sized as="div" className={`a-bars__bar ${d.value ? '' : 'is-zero'}`} vars={{ '--fill': `${Math.max(d.value ? 6 : 2, (d.value / max) * 100)}%` }} />
+        <div key={d.key ?? d.day} className="a-bars__col" title={d.title ?? `${fmtDate(d.day)}: ${num(d.value)}`}>
+          <Sized as="div" className={`a-bars__bar ${d.value ? '' : 'is-zero'} ${d.tone ? `a-bars__bar--${d.tone}` : ''}`} vars={{ '--fill': `${Math.max(d.value ? 6 : 2, (d.value / max) * 100)}%` }} />
         </div>
       ))}
     </Sized>

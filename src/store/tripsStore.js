@@ -276,11 +276,11 @@ export const useTripsStore = create((set, get) => ({
     await get().fillDatesIfUndated(toTripId, bookings.map(b => ({ ...b, trip_id: toTripId })))
   },
 
-  // via (analytics only): 'manual' | 'paste_import' | 'idea'; email-inbox bookings say so in bookingData.source
+  // via: 'manual' | 'paste_import' | 'idea', kept in bookings.added_via for the cockpit; email-inbox bookings say so in bookingData.source
   createBooking: async (tripId, bookingData, { fillDates = true, via = 'manual' } = {}) => {
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('bookings')
-      .insert({ ...bookingData, trip_id: tripId, created_by: user.id }).select().single()
+      .insert({ ...bookingData, trip_id: tripId, created_by: user.id, added_via: via }).select().single()
     if (error) throw upgradeError(error)
     if (fillDates) await get().fillDatesIfUndated(tripId, [data])
     get().refreshStops(tripId, get().activeTrip?.id === tripId ? [...get().bookings, data] : undefined)

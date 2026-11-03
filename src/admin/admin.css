@@ -69,6 +69,16 @@ kbd { border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 5px; 
 .a-bars__col { flex: 1; height: 100%; display: flex; align-items: flex-end; }
 .a-bars__bar { width: 100%; height: var(--fill, 2%); background: var(--accent); border-radius: 3px 3px 1px 1px; }
 .a-bars__bar.is-zero { opacity: 0.35; }
+.a-bars__bar--pre_trip { opacity: 0.45; }
+.a-bars__bar--post_trip { background: var(--success); }
+.a-bars__bar--between, .a-bars__bar--no_trip { background: var(--line-strong); }
+.a-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 0; font-size: 0.75rem; color: var(--ink-secondary); }
+.a-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; background: var(--accent); }
+.a-legend i.is-pre_trip { opacity: 0.45; }
+.a-legend i.is-post_trip { background: var(--success); }
+.a-legend i.is-between { background: var(--line-strong); }
+.a-axis { position: relative; display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--ink-muted); margin-top: 4px; }
+.a-axis__at { position: absolute; left: var(--at); transform: translateX(-50%); }
 .a-mini-charts { display: flex; flex-direction: column; gap: 14px; font-size: 0.8rem; }
 
 .a-barlist { list-style: none; display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
