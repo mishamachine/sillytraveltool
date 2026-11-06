@@ -1,4 +1,5 @@
 // Welcome + sign in / sign up / magic link / password reset (Clay)
+import { openConsentBanner } from '../lib/consent'
 import { useState, useEffect } from 'react'
 import { Browser } from '@capacitor/browser'
 import { supabase } from '../lib/supabase'
@@ -202,7 +203,8 @@ export default function AuthScreen() {
         </Button>
         <Button variant="outline" size="lg" block icon="mail" onClick={() => { setStep('email'); setError(null) }}>Continue with email</Button>
         <Text variant="caption" tone="muted" align="center">
-          By continuing you agree to our <LinkButton href="https://sillytraveltool.com/terms/" target="_blank" rel="noreferrer">Terms</LinkButton> and <LinkButton href="https://sillytraveltool.com/privacy/" target="_blank" rel="noreferrer">Privacy Policy</LinkButton>. Goose uses AI to read bookings and write guides.
+          By continuing you agree to our <LinkButton href="https://sillytraveltool.com/terms/" target="_blank" rel="noreferrer">Terms</LinkButton> and <LinkButton href="https://sillytraveltool.com/privacy/" target="_blank" rel="noreferrer">Privacy Policy</LinkButton>. Goose uses AI to read bookings and write guides.{' '}
+          <LinkButton onClick={openConsentBanner}>Cookie and analytics settings</LinkButton>
         </Text>
         <StoreBadges links={storeLinks} onOpen={(store) => track('store_link_click', { store, surface: 'landing' })} className="auth-stores" />
       </div>

@@ -1,17 +1,18 @@
 import { Capacitor } from '@capacitor/core'
 import { supabase } from './supabase'
 import { initGA, stopGA, gaEvent, gaPageView, gaSetUser } from './ga'
+import { isConsentRegion, readPref, writePref, resolveEnabled, needsChoice } from './consent'
 
 // Product analytics. Every track() goes to two places:
 //  - Supabase `analytics_events` (first party, insert-own RLS; skipped when signed out)
 //  - GA4 (website and app; see ga.js)
 // Fire-and-forget: never throws, never blocks UI. Off when the user turns off "Share usage stats" in
-// Settings; off by default when the browser sends Do Not Track or Global Privacy Control.
+// Settings; off by default when the browser sends Do Not Track or Global Privacy Control, and for visitors in the
+// EU/EEA/UK/Switzerland until they allow it (consent.js; the banner is ConsentBanner.jsx). Web and native apps alike.
 // Props are short codes only: cleanProps() drops anything that looks personal (emails, names, free text,
 // coordinates, confirmation numbers), so pass enums, counts and booleans.
 
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || null
-const PREF_KEY = 'stt_analytics'
 
 // GA4 has recommended names for these; the Supabase rows keep ours
 const GA_NAMES = { sign_in: 'login', screen_view: null }
@@ -47,24 +48,24 @@ function browserSaysNo() {
 }
 
 export function analyticsEnabled() {
-  try {
-    const pref = localStorage.getItem(PREF_KEY)
-    if (pref === 'on') return true
-    if (pref === 'off') return false
-  } catch { /* fall through to the browser signal */ }
-  return !browserSaysNo()
+  return resolveEnabled({ pref: readPref(), region: isConsentRegion(), browserNo: browserSaysNo() })
+}
+
+/** True while the consent banner should be showing: in the region, and no choice saved yet. */
+export function consentChoiceNeeded() {
+  return needsChoice({ pref: readPref(), region: isConsentRegion() })
 }
 
 export function setAnalyticsEnabled(on) {
-  try { localStorage.setItem(PREF_KEY, on ? 'on' : 'off') } catch { /* ignore */ }
-  if (on) { initGA(); track('analytics_opt_in') }
+  writePref(on)
+  if (on) { initGA(); captureFirstTouch(); trackSessionStart(); track('analytics_opt_in'); if (lastScreen) gaPageView(lastScreen) }
   else stopGA()
 }
 
 export function initAnalytics() {
   if (analyticsEnabled()) initGA()
   initErrorTracking()
-  captureFirstTouch()
+  if (analyticsEnabled()) captureFirstTouch() // nothing is stored before consent in the region
   initActiveTime()
   setTimeout(trackSessionStart, 1500)
 }
@@ -74,6 +75,7 @@ export function initAnalytics() {
 // since this device's last session. First party, covered by the Settings opt-out like every other event.
 
 function trackSessionStart() {
+  if (!analyticsEnabled()) return // checked first so the session where someone accepts still gets its session_start
   try {
     if (sessionStorage.getItem('stt_session_started')) return
     sessionStorage.setItem('stt_session_started', '1')
@@ -82,11 +84,13 @@ function trackSessionStart() {
   const os = /android/i.test(ua) ? 'android' : /iphone|ipad|ipod/i.test(ua) ? 'ios' : /mac/i.test(ua) ? 'mac' : /win/i.test(ua) ? 'windows' : /linux|cros/i.test(ua) ? 'linux' : 'other'
   const w = window.innerWidth || 0
   let daysSince
-  try {
-    const last = Number(localStorage.getItem('stt_last_session'))
-    if (last) daysSince = Math.floor((Date.now() - last) / 86400000)
-    localStorage.setItem('stt_last_session', String(Date.now()))
-  } catch { /* storage blocked */ }
+  if (analyticsEnabled()) {
+    try {
+      const last = Number(localStorage.getItem('stt_last_session'))
+      if (last) daysSince = Math.floor((Date.now() - last) / 86400000)
+      localStorage.setItem('stt_last_session', String(Date.now()))
+    } catch { /* storage blocked */ }
+  }
   track('session_start', {
     lang: (navigator.language || '').slice(0, 10),
     tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return undefined } })(),

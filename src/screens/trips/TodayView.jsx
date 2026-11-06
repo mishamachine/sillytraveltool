@@ -44,7 +44,7 @@ function NextUp({ item, tz, companions, onShow }) {
   const cat = category(bookingKind(item))
   const place = placeOf(item)
   return (
-    <Card variant="raised" aria-labelledby="next-up-title">
+    <Card variant="raised" aria-labelledby="next-up-title" data-tour="today-next">
       <Stack row justify="between">
         <Overline tone="accent">Next up · {relativeIn(start)}</Overline>
         {hasClockTime(item) && <Text variant="micro" tone="muted">{bookingTime(item, tz)}{hint ? ` ${hint}` : ''}</Text>}

@@ -44,7 +44,7 @@ function Hub({ open }) {
         <Icon name="chevron-right" size={20} />
       </a>
 
-      <Card variant="raised" onClick={() => open('currency')} aria-label={`Currency converter, ${from} to ${from === home ? 'other currencies' : home}`}>
+      <Card variant="raised" data-tour="tools-currency" onClick={() => open('currency')} aria-label={`Currency converter, ${from} to ${from === home ? 'other currencies' : home}`}>
         <Stack row gap={3}>
           <IconTile icon="currency" tone="success" />
           <Text variant="body-lg" weight={600} as="span" className="grow">Currency</Text>

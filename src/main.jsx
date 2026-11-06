@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
+import ConsentBanner from './components/shared/ConsentBanner'
 import { initSentry } from './lib/sentry'
 import { initAnalytics, analyticsEnabled } from './lib/analytics'
 import { applyTheme, getSavedTheme } from './lib/theme'
@@ -19,6 +20,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('gallery')) 
   root.render(
     <StrictMode>
       <App />
+      <ConsentBanner />
     </StrictMode>
   )
 }

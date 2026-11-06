@@ -16,12 +16,12 @@ const TOPIC_OVERRIDES = {
     ],
     tips: [
       'Someone who accepts can see the whole shared trip, including its booking details, activities and dates. They never see your travel documents or loyalty cards.',
-      'View only stops edits, not viewing: it keeps the plan safe from accidental changes, but a View only traveller can still see the trip.',
+      'View only stops edits, not viewing: it keeps the plan safe from accidental changes, but a View only traveler can still see the trip.',
       'If the trip owner deletes their account, the trip is deleted for everyone.',
     ],
   },
   'together-live': {
-    summary: 'While a trip is open, changes from other travellers appear without a refresh.',
+    summary: 'While a trip is open, changes from other travelers appear without a refresh.',
     steps: [
       'Keep the trip open: new bookings and plans appear on their own.',
       'Times are shown in the local time where they happen, so arrivals line up even across time zones.',
@@ -170,9 +170,10 @@ ${GROUPS.map(g => `
 
   <footer>
     Still stuck? Email <a href="mailto:${HELP_CONTACT}">${HELP_CONTACT}</a>. ·
-    <a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a>
+    <a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="#" data-consent-settings>Cookie and analytics settings</a>
   </footer>
 </main>
+<script src="/legal/consent.js" defer></script>
 </body>
 </html>
 `

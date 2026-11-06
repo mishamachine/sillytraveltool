@@ -78,9 +78,9 @@ export const HELP_TOPICS = [
   {
     id: 'together-bookings', group: 'together', icon: 'inbox', tone: 'accent',
     title: 'Everyone adds their own bookings',
-    summary: 'Each traveller forwards their own booking emails; Goose logs them in the shared trip.',
+    summary: 'Each traveler forwards their own booking emails; Goose logs them in the shared trip.',
     steps: [
-      'Each traveller forwards their own confirmation emails to their own Goose inbox address (Profile → Settings → Goose inbox).',
+      'Each traveler forwards their own confirmation emails to their own Goose inbox address (Profile → Settings → Goose inbox).',
       'Goose reads each one and files it in the shared trip, so nobody has to type anyone else\'s flights.',
       'Flights someone else added show their name, so you can see who lands when.',
     ],
@@ -216,7 +216,7 @@ export const HELP_FAQ = [
   },
   {
     q: 'Can my friends forward their own bookings to the trip?',
-    a: 'Yes. Each traveller forwards to their own Goose inbox address, and Goose logs the booking in the shared trip for everyone.',
+    a: 'Yes. Each traveler forwards to their own Goose inbox address, and Goose logs the booking in the shared trip for everyone.',
   },
   {
     q: 'How do I replay the tour?',

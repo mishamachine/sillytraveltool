@@ -289,7 +289,7 @@ export function TripsArt() {
             <div className="c-card c-card--group tour-card-flat">
               <MockRow icon="trips" tone="neutral" title="Lisbon weekend" meta="6–8 Jun · 3 bookings" />
               <MockRow icon="trips" tone="neutral" title="Tokyo" meta="No dates yet · 4 ideas" />
-              <MockRow icon="trips" tone="neutral" title="Iceland road trip" meta="Sep · 2 travellers" />
+              <MockRow icon="trips" tone="neutral" title="Iceland road trip" meta="Sep · 2 travelers" />
             </div>
           </Screen>
         ) : (
@@ -580,7 +580,7 @@ export function TogetherArt() {
       </div>
       <div className="c-card c-card--group tour-card-flat tour-together__trip">
         <div className="tour-inbox__head">
-          <span className="t-overline">Spain · 3 travellers</span>
+          <span className="t-overline">Spain · 3 travelers</span>
           <span className="tour-live t-micro"><span className="tour-live__dot" />Live</span>
         </div>
         <MockRow icon="plane" tone="info" title="You land in Madrid 11:55" meta="TP 1026 · your booking" />
@@ -924,3 +924,6 @@ export function LocationArt() {
     </div>
   )
 }
+
+// Building blocks, shared with the per-section tours (components/shared/SectionTourArt.jsx)
+export { Phone, Screen as TourScreen, ScreenTitle, Tabs, Sheet as TourSheet, Toast as TourToast, MockRow, Caption, captionAt, useScript, useCountUp, d as delay }

@@ -46,8 +46,8 @@ export function legKey(b) {
 /** Who a booking belongs to: the member who added it and the name on it. */
 export const travellerOf = b => `${b.created_by || ''}|${place(b.passenger_name)}`
 
-/** "Maria Silva", or "Traveller" when the booking has no name on it. */
-export const travellerName = b => String(b.passenger_name || '').trim() || 'Traveller'
+/** "Maria Silva", or "Traveler" when the booking has no name on it. */
+export const travellerName = b => String(b.passenger_name || '').trim() || 'Traveler'
 
 /**
  * Shared legs among `items`: Map of booking id → { key, items } for every booking on a leg that two or more

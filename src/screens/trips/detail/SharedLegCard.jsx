@@ -19,19 +19,19 @@ export default function SharedLegCard({ items, me, hideConf, trailing, onOpen })
   const shown = open || items.length <= VISIBLE ? items : items.slice(0, VISIBLE)
   const listId = `shared-leg-${lead.id}`
   return (
-    <Card className="detail-solo shared-leg" as="section" aria-label={`${cat.label}: ${lead.title}, ${items.length} travellers`}>
+    <Card className="detail-solo shared-leg" as="section" aria-label={`${cat.label}: ${lead.title}, ${items.length} travelers`}>
       <button type="button" className="shared-leg__head" onClick={() => onOpen(lead)}
         aria-label={`${cat.label}: ${lead.title}, ${lead.created_by === me ? 'open your booking' : 'open booking'}`}>
         <Stack row gap={3}>
           <IconTile icon={cat.icon} tone={cat.tone} size="md" />
           <Stack gap={1} grow>
             <Text variant="card-title" as="span">{lead.title}</Text>
-            <Text variant="caption" tone="muted" as="span">{[operator, `${items.length} travellers`].filter(Boolean).join(' · ')}</Text>
+            <Text variant="caption" tone="muted" as="span">{[operator, `${items.length} travelers`].filter(Boolean).join(' · ')}</Text>
           </Stack>
           {trailing}
         </Stack>
       </button>
-      <ul className="shared-leg__list" id={listId} aria-label={`${[operator, route].filter(Boolean).join(', ')}, ${items.length} travellers`}>
+      <ul className="shared-leg__list" id={listId} aria-label={`${[operator, route].filter(Boolean).join(', ')}, ${items.length} travelers`}>
         {shown.map(b => {
           const mine = !!me && b.created_by === me
           const name = mine ? 'You' : travellerName(b)

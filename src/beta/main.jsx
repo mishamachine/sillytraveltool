@@ -2,8 +2,9 @@ import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { TagMark, Wordmark } from '../ui/Logo'
 import Icon from '../ui/icons/Icon'
-import { initGA, gaEvent, gaPageView } from '../lib/ga'
+import { initGA, stopGA, gaEvent, gaPageView } from '../lib/ga'
 import { ANDROID_GROUP_URL, https } from '../lib/appLinks'
+import { isConsentRegion, readPref, resolveEnabled, openConsentBanner, CONSENT_EVENT } from '../lib/consent'
 import { applyTheme, getSavedTheme } from '../lib/theme'
 import './beta.css'
 
@@ -40,24 +41,27 @@ const referrer = (() => {
   } catch { return '' }
 })()
 
-// Same first-touch record the app saves to member_attribution when this device later creates an account
-try {
-  if (!localStorage.getItem('stt_first_touch')) {
-    localStorage.setItem('stt_first_touch', JSON.stringify({
-      utm_source: utm.utm_source || null, utm_medium: utm.utm_medium || null, utm_campaign: utm.utm_campaign || null,
-      referrer_domain: referrer || null, landing_path: '/beta/', first_seen: new Date().toISOString(),
-    }))
-  }
-} catch { /* storage blocked */ }
+// Same consent rule as the app (lib/consent.js): saved choice, else off in the EU/EEA/UK/CH and for Do Not Track / GPC.
+// The banner on this page is public/legal/consent.js.
+const analyticsEnabled = () => {
+  let browserNo = false
+  try { browserNo = navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true } catch { /* ignore */ }
+  return resolveEnabled({ pref: readPref(), region: isConsentRegion(), browserNo })
+}
 
-// Same consent rule as the app (Settings → analytics, else the browser's Do Not Track / GPC)
-const analyticsOn = (() => {
+// Same first-touch record the app saves to member_attribution when this device later creates an account.
+// Not stored before consent in the EU/EEA/UK/CH.
+function saveFirstTouch() {
   try {
-    const pref = localStorage.getItem('stt_analytics')
-    if (pref) return pref === 'on'
-  } catch { /* fall through */ }
-  try { return !(navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true) } catch { return true }
-})()
+    if (analyticsEnabled() && !localStorage.getItem('stt_first_touch')) {
+      localStorage.setItem('stt_first_touch', JSON.stringify({
+        utm_source: utm.utm_source || null, utm_medium: utm.utm_medium || null, utm_campaign: utm.utm_campaign || null,
+        referrer_domain: referrer || null, landing_path: '/beta/', first_seen: new Date().toISOString(),
+      }))
+    }
+  } catch { /* storage blocked */ }
+}
+saveFirstTouch()
 
 function guessPlatform() {
   const ua = navigator.userAgent || ''
@@ -133,7 +137,12 @@ function Beta() {
         location.replace(withUtm(cfg.redirect_url))
       })
       .catch(() => {})
-    if (analyticsOn) { initGA(); gaPageView('beta') }
+    const start = () => {
+      if (analyticsEnabled()) { initGA(); gaPageView('beta'); saveFirstTouch() } else stopGA() // withdrawing stops GA at once
+    }
+    start()
+    window.addEventListener(CONSENT_EVENT, start) // Accept on the banner starts it without a reload
+    return () => window.removeEventListener(CONSENT_EVENT, start)
   }, [])
 
   const submit = async (e) => {
@@ -153,7 +162,7 @@ function Beta() {
       const out = await res.json().catch(() => ({}))
       if (res.ok && out.ok) {
         setState('done')
-        if (analyticsOn) gaEvent('beta_signup', { platform, source: utm.utm_source || 'none' })
+        if (analyticsEnabled()) gaEvent('beta_signup', { platform, source: utm.utm_source || 'none' })
         return
       }
       setState('form')
@@ -166,7 +175,7 @@ function Beta() {
     }
   }
 
-  const open = (p) => { if (analyticsOn) gaEvent('beta_download_click', { platform: p, source: utm.utm_source || 'none' }) }
+  const open = (p) => { if (analyticsEnabled()) gaEvent('beta_download_click', { platform: p, source: utm.utm_source || 'none' }) }
   const webHref = links.web_url && withUtm(links.web_url)
 
   const share = async () => {
@@ -273,7 +282,7 @@ function Beta() {
       </main>
 
       <footer className="b-foot">
-        <a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><span>© {new Date().getFullYear()} Silly Travel Tool</span>
+        <a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><a href="#" onClick={(e) => { e.preventDefault(); openConsentBanner() }}>Cookie and analytics settings</a><span>© {new Date().getFullYear()} Silly Travel Tool</span>
       </footer>
     </div>
   )
