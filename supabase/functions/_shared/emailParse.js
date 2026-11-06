@@ -35,7 +35,7 @@ const emptyBooking = () => `{ ${BOOKING_FIELDS.map(k => `"${k}": null`).join(', 
 export function bookingEmailPrompt({ subject = '', from = '', body = '', receivedAt = null } = {}) {
   // The caller trims the body (emailText.js prepareEmailText); this cap only guards a direct call
   // The email can't close its own wrapper and pass for instructions: a "</email>" inside it is broken up
-  const safe = (v, n) => String(v ?? '').slice(0, n).replace(/<\/?email>/gi, m => m.replace('<', '‹'))
+  const safe = (v, n) => String(v ?? '').slice(0, n).replace(/<\s*\/?\s*email\b[^>]*>/gi, m => m.replace('<', '‹'))
   const email = [subject ? `Subject: ${safe(subject, 300).replace(/\s+/g, ' ')}` : '', `From: ${safe(from, 300).replace(/\s+/g, ' ')}`, '', safe(body, MAX_EMAIL_CHARS)].join('\n')
   // The fixed instructions first and the email last: providers cache a repeated prompt prefix, so the rules are cheap
   return `Extract every booking from the confirmation email at the end and return ONLY a valid JSON object.

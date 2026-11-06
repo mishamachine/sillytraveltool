@@ -348,7 +348,7 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
   }
   let locked = false
   for (let i = 0; i < 40 && !locked; i++) {
-    const { data, error } = await supabase.rpc('take_ingest_lock', { p_user: profile.id, p_seconds: 90 })
+    const { data, error } = await supabase.rpc('take_ingest_lock', { p_user: profile.id, p_seconds: 240 })
     if (error) { console.warn('ingest lock unavailable', error.message); break }
     locked = data === true
     if (!locked) await new Promise(r => setTimeout(r, 1500))
