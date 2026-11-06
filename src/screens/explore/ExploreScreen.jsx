@@ -37,7 +37,7 @@ function teaser(id, data, sections) {
 /** HONK teaser on the Explore overview: mood chips open HONK with that mood. */
 function HonkCard({ onMood }) {
   return (
-    <Card variant="inverse" aria-labelledby="honk-card-title">
+    <Card variant="inverse" aria-labelledby="honk-card-title" data-tour="honk-card">
       <Stack row gap={3}>
         <GooseMark expression="happy" size={44} tile tileSize="sm" />
         <Stack gap={1} grow>
@@ -231,7 +231,7 @@ function GuideHome({ setHonkMood, setMode }) {
                 const busy = TAB_SECTIONS[s.id].some(k => loadingSections[k])
                 const line = teaser(s.id, g.guideData, g.sections)
                 return (
-                  <Card key={s.id} variant="tile" onClick={() => openSection(s.id)} className="explore-tile">
+                  <Card key={s.id} variant="tile" onClick={() => openSection(s.id)} className="explore-tile" data-tour={s.id === GUIDE_SECTIONS[0].id ? 'guide-tile' : undefined}>
                     <IconTile icon={s.icon} tone="accent" />
                     <Text variant="body" weight={600} as="span">{s.label}</Text>
                     <Text variant="micro" tone="muted" as="span" className="explore-tile__line">{busy ? 'Goose is writing this' : line || s.blurb}</Text>

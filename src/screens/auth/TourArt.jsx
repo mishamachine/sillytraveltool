@@ -924,3 +924,6 @@ export function LocationArt() {
     </div>
   )
 }
+
+// Building blocks, shared with the per-section tours (components/shared/SectionTourArt.jsx)
+export { Phone, Screen as TourScreen, ScreenTitle, Tabs, Sheet as TourSheet, Toast as TourToast, MockRow, Caption, captionAt, useScript, useCountUp, d as delay }
