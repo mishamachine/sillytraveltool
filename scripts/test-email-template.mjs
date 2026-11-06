@@ -1,6 +1,6 @@
 // node scripts/test-email-template.mjs: checks member email rendering (supabase/functions/_shared/emailTemplate.js)
 import assert from 'node:assert/strict'
-import { render, fill } from '../supabase/functions/_shared/emailTemplate.js'
+import { render, fill, MARKETING_PAUSED } from '../supabase/functions/_shared/emailTemplate.js'
 
 const tpl = {
   subject: 'Welcome back from {{last_trip_city}}',
@@ -8,7 +8,7 @@ const tpl = {
   cta_label: 'See your recap', cta_url: '{{app_url}}',
 }
 const vars = { first_name: 'Ana', last_trip_city: 'Lisbon', last_trip_days: 7, app_url: 'https://sillytraveltool.com/' }
-const m = render(tpl, vars, { kind: 'marketing', unsubscribeUrl: 'https://sillytraveltool.com/unsubscribe/?t=abc' })
+const m = render(tpl, vars, { kind: 'marketing', unsubscribeUrl: 'https://sillytraveltool.com/unsubscribe/?t=abc', postalAddress: 'PO Box 1, Town ST 00000, USA' })
 
 assert.equal(m.subject, 'Welcome back from Lisbon')
 assert.match(m.html, /Hi Ana,/)
@@ -37,7 +37,7 @@ const ADDRESS = /Grandey|Renton|98056/i
 const unsub = 'https://sillytraveltool.com/unsubscribe/?t=abc'
 assert.equal(FOOTER_LINE, 'Silly Travel Tool · B&B Project Factory')
 assert.equal(POSTAL_ADDRESS, '', 'postal address stays empty until a PO box exists')
-for (const e of [m, s, welcomeEmail({ name: 'Ana' }), confirmEmail({ platform: 'web', unsubscribeUrl: unsub }), inviteEmail({ platform: 'web', link: 'https://x.test/', unsubscribeUrl: unsub })]) {
+for (const e of [s, welcomeEmail({ name: 'Ana' }), confirmEmail({ platform: 'web', unsubscribeUrl: unsub }), inviteEmail({ platform: 'web', link: 'https://x.test/', unsubscribeUrl: unsub })]) {
   assert.ok(!ADDRESS.test(e.html) && !ADDRESS.test(e.text), 'no postal address in rendered email')
   assert.ok(e.html.includes('Silly Travel Tool · B&amp;B Project Factory'), 'house footer in html')
   assert.ok(e.text.includes(FOOTER_LINE), 'house footer in text')
@@ -48,6 +48,13 @@ for (const f of readdirSync(dir)) {
   assert.ok(!ADDRESS.test(h), `${f} has no postal address`)
   assert.ok(h.includes('Silly Travel Tool · B&amp;B Project Factory'), `${f} has the house footer`)
 }
+// Marketing is paused while POSTAL_ADDRESS is empty; beta emails are service and keep their unsubscribe link
+assert.throws(() => render(tpl, vars, { kind: 'marketing', unsubscribeUrl: unsub }), { message: MARKETING_PAUSED })
+assert.throws(() => render(tpl, vars, { kind: 'marketing', unsubscribeUrl: unsub, postalAddress: '  ' }), /paused/)
+for (const b of [confirmEmail({ platform: 'web', unsubscribeUrl: unsub }), inviteEmail({ platform: 'web', link: 'https://x.test/', unsubscribeUrl: unsub })]) {
+  assert.match(b.html, /Unsubscribe<\/a>/); assert.match(b.text, /Unsubscribe: https:\/\/sillytraveltool.com\/unsubscribe/)
+}
+assert.equal(welcomeEmail({ name: 'Ana', appUrl: 'https://staging.example.test' }).html.includes('href="https://staging.example.test"'), true, 'APP_URL drives the CTA')
 // With an address set it prints on marketing emails only
 const addr = '1 Example PO Box, Town ST 00000, USA'
 const mk = render(tpl, vars, { kind: 'marketing', unsubscribeUrl: unsub, postalAddress: addr })

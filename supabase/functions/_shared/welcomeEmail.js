@@ -1,10 +1,10 @@
-// The welcome email new members get (send-welcome-email). Plain JS so scripts/test-welcome-email.mjs can run it in Node.
+// The welcome email new members get (send-welcome-email). Plain JS so scripts/test-email-template.mjs can run it in Node.
 // Same house look as emailTemplate.js: tables plus inline styles so Gmail renders it; no emoji.
 //
 // Headline options (marketing picks; the first is used):
 //   A. "Where to first, {name}?"                      (short, a question the CTA answers)
 //   B. "Your first trip starts with one forwarded email."  (leads with the Goose inbox)
-import { layout } from './emailTemplate.js'
+import { layout, FOOTER_LINE } from './emailTemplate.js'
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -22,7 +22,8 @@ const CTA_LABEL = 'Plan your first trip'
 const CTA_URL = 'https://sillytraveltool.com'
 const REASON = "You're getting this because you just created a Silly Travel Tool account."
 
-export function welcomeEmail({ name } = {}) {
+export function welcomeEmail({ name, appUrl } = {}) {
+  const ctaUrl = /^https?:\/\//.test(appUrl || '') ? appUrl : CTA_URL
   const first = cleanName(name) || 'Traveler'
   const subject = `Welcome to Silly Travel Tool, ${first}!`
   const headline = `Where to first, ${first}?`
@@ -36,8 +37,8 @@ export function welcomeEmail({ name } = {}) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 ${rows}
 </table>
-<p style="margin:8px 0 8px;"><a href="${CTA_URL}" style="display:inline-block;background:#B24A17;color:#FFFDF9;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:14px;">${esc(CTA_LABEL)}</a></p>`
+<p style="margin:8px 0 8px;"><a href="${esc(ctaUrl)}" style="display:inline-block;background:#B24A17;color:#FFFDF9;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:14px;">${esc(CTA_LABEL)}</a></p>`
   const html = layout(subject, inner, esc(REASON))
-  const text = `${headline}\n\n${intro}\n\n${WELCOME_FEATURES.map((f, i) => `${i + 1}. ${f.title}: ${f.line}`).join('\n')}\n\n${CTA_LABEL}: ${CTA_URL}\n\n--\n${REASON}\nSilly Travel Tool · B&B Project Factory`
+  const text = `${headline}\n\n${intro}\n\n${WELCOME_FEATURES.map((f, i) => `${i + 1}. ${f.title}: ${f.line}`).join('\n')}\n\n${CTA_LABEL}: ${ctaUrl}\n\n--\n${REASON}\n${FOOTER_LINE}`
   return { subject, html, text }
 }

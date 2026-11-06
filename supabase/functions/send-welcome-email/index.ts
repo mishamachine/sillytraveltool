@@ -21,10 +21,11 @@ Deno.serve(async (req) => {
     const { displayName } = await req.json().catch(() => ({}))
     const name = displayName || user.email?.split('@')[0] || 'Traveler'
 
+    const appUrl = Deno.env.get('APP_URL') || 'https://sillytraveltool.com'
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
     if (!RESEND_API_KEY) return new Response(JSON.stringify({ error: 'Resend key not configured' }), { status: 500, headers: CORS })
 
-    const { subject, html, text } = welcomeEmail({ name })
+    const { subject, html, text } = welcomeEmail({ name, appUrl })
 
     const resendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',

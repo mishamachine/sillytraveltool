@@ -9,6 +9,8 @@ export const FOOTER_LINE = 'Silly Travel Tool · B&B Project Factory'
 // Leave this empty until a PO box or business address exists; when it is set it is printed on marketing emails only.
 export const POSTAL_ADDRESS = ''
 
+export const MARKETING_PAUSED = 'Marketing emails are paused until a postal address is set.'
+
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 export function fill(text, vars) {
@@ -48,7 +50,8 @@ export function layout(title, inner, foot, addr = '') {
  * render({ subject, body, cta_label, cta_url }, vars, { kind, unsubscribeUrl, why }) → { subject, html, text }
  * Marketing emails carry an unsubscribe line; service emails say why they were sent. `why` replaces the default reason.
  */
-export function render(tpl, vars, { kind, unsubscribeUrl, why, postalAddress = POSTAL_ADDRESS }) {
+export function render(tpl, vars, { kind, unsubscribeUrl, why, postalAddress = POSTAL_ADDRESS, showUnsubscribe = false }) {
+  if (kind === 'marketing' && !String(postalAddress || '').trim()) throw new Error(MARKETING_PAUSED)
   const subject = fill(tpl.subject, vars).replace(/\s+/g, ' ').trim()
   const body = fill(tpl.body, vars)
   const ctaUrl = fill(tpl.cta_url, vars)
@@ -58,11 +61,12 @@ export function render(tpl, vars, { kind, unsubscribeUrl, why, postalAddress = P
   const reason = why || (kind === 'marketing'
     ? "You're getting this because you said yes to travel tips from Silly Travel Tool."
     : "You're getting this because you have a Silly Travel Tool account.")
-  const foot = kind === 'marketing'
+  const unsub = kind === 'marketing' || showUnsubscribe
+  const foot = unsub
     ? `${esc(reason)} <a href="${esc(unsubscribeUrl)}" style="color:#6B6355;">Unsubscribe</a>.`
     : esc(reason)
   const addr = kind === 'marketing' && postalAddress ? String(postalAddress).trim() : ''
   const html = layout(subject, `${bodyHtml(body)}${cta}`, foot, addr)
-  const text = `${bodyText(body)}${tpl.cta_label && ctaUrl ? `\n\n${fill(tpl.cta_label, vars)}: ${ctaUrl}` : ''}\n\n--\n${kind === 'marketing' ? `${why ? `${why}\n` : ''}Unsubscribe: ${unsubscribeUrl}` : reason}\n${FOOTER_LINE}${addr ? `\n${addr}` : ''}`
+  const text = `${bodyText(body)}${tpl.cta_label && ctaUrl ? `\n\n${fill(tpl.cta_label, vars)}: ${ctaUrl}` : ''}\n\n--\n${unsub ? `${why ? `${why}\n` : ''}Unsubscribe: ${unsubscribeUrl}` : reason}\n${FOOTER_LINE}${addr ? `\n${addr}` : ''}`
   return { subject, html, text }
 }
