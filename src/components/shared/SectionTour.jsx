@@ -7,7 +7,7 @@ import {
   SECTION_TOURS, hasSeenSection, markSectionSeen, stepCount, nextStep, prevStep, isLastStep, stepLabel, swipeTarget, keyTarget,
 } from '../../lib/sectionTours'
 import { useUIStore } from '../../store'
-import { Sheet, IconButton, Text, Overline, Button, LinkButton } from '../../ui'
+import { Sheet, IconButton, Text, Button, LinkButton } from '../../ui'
 import StepArt from './SectionTourArt'
 import './sectionTour.css'
 
@@ -61,6 +61,15 @@ export default function SectionTour({ section }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, index, total])
 
+  // "Try it" only when its target is on screen (it may not exist yet, e.g. no upcoming booking); otherwise the button is "Done"
+  const lastStep = !!tour && index === total - 1
+  const [canTry, setCanTry] = useState(true)
+  useEffect(() => {
+    if (!open || !lastStep) return
+    const t = tour.tryIt
+    setCanTry(t.action === 'new-trip' || (!!t.target && !!document.querySelector(`[data-tour="${t.target}"]`)))
+  }, [open, lastStep, tour])
+
   if (!tour) return null
   const n = total
   const step = tour.steps[index]
@@ -68,7 +77,7 @@ export default function SectionTour({ section }) {
 
   const show = () => { setIndex(0); setOpen(true); track('section_overview_open', { s: section }) }
   const close = (how = 'close') => { setOpen(false); track('section_tour_end', { s: section, at: index + 1, how }) }
-  const tryIt = () => { close('try'); runTryIt(tour.tryIt) }
+  const tryIt = () => { close(canTry ? 'try' : 'done'); if (canTry) runTryIt(tour.tryIt) }
   const go = (to) => setIndex(to)
 
   let startX = null
@@ -84,7 +93,7 @@ export default function SectionTour({ section }) {
     <>
       <IconButton icon="info" label="About this section" size="md"
         className={`section-tour__btn${pulse ? ' is-pulse' : ''}`} onClick={show} aria-haspopup="dialog" />
-      <Sheet open={open} onClose={() => close('close')} className="section-tour" labelledBy={titleId}
+      <Sheet open={open} onClose={() => close('close')} className="section-tour" title={tour.overline} subtitle={stepLabel(index, n)} labelledBy={titleId}
         footer={(
           <div className="section-tour__nav">
             <div className="section-tour__row">
@@ -95,23 +104,20 @@ export default function SectionTour({ section }) {
                   onClick={() => go(i)} />
               ))}
             </div>
-            <LinkButton className="section-tour__skip" onClick={() => close(last ? 'done' : 'skip')}>{last ? 'Done' : 'Skip'}</LinkButton>
+            {!last || canTry ? <LinkButton className="section-tour__skip" onClick={() => close(last ? 'done' : 'skip')}>{last ? 'Done' : 'Skip'}</LinkButton> : <span />}
             </div>
             <div className="section-tour__btns">
-              <Button variant="secondary" size="lg" icon="chevron-left" disabled={index === 0} onClick={() => go(prevStep(index, n))}>Back</Button>
+              {index > 0 && <Button variant="secondary" size="lg" icon="chevron-left" onClick={() => go(prevStep(index, n))}>Back</Button>}
               {last
-                ? <Button variant="primary" size="lg" className="grow" iconRight="arrow-right" onClick={tryIt}>{tour.tryIt.label}</Button>
+                ? <Button variant="primary" size="lg" className="grow" iconRight={canTry ? 'arrow-right' : undefined} onClick={tryIt}>{canTry ? tour.tryIt.label : 'Done'}</Button>
                 : <Button variant="primary" size="lg" className="grow" iconRight="arrow-right" onClick={() => go(nextStep(index, n))}>Next</Button>}
             </div>
           </div>
         )}>
         <div className="section-tour__body" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-          <div className="section-tour__head">
-            <Overline tone="accent">{tour.overline}</Overline>
-            <Text variant="micro" tone="muted" as="span">{stepLabel(index, n)}</Text>
-          </div>
           <div className="section-tour__art" key={step.id}><StepArt id={step.art} /></div>
-          <div className="section-tour__copy" aria-live="polite" key={`c-${step.id}`}>
+          <p className="section-tour__sr" role="status" aria-live="polite" aria-atomic="true">{stepLabel(index, n)}: {step.title}</p>
+          <div className="section-tour__copy" key={`c-${step.id}`}>
             <Text variant="h2" id={titleId} as="h2" className="section-tour__title">{step.title}</Text>
             <Text variant="body" tone="secondary" as="p">{step.body}</Text>
           </div>

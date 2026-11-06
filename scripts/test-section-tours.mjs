@@ -18,6 +18,8 @@ const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u
 const allText = JSON.stringify([SECTION_TOURS, SCENES])
 assert.ok(!EMOJI.test(allText), 'no emoji')
 assert.ok(!/\b(beta|trial|demo|free|AI)\b/i.test(allText), 'no restricted words')
+assert.ok(!/travell|colour|programme|favour/i.test(allText), 'US spelling')
+assert.ok(!/Guide and FAQ|Open the Guide/.test(JSON.stringify(SECTION_TOURS.profile) + JSON.stringify(SCENES['profile-help'])), 'Profile calls it Help and FAQ')
 assert.ok(!/@|D-\d{3}|drive\.google|Babar|Misha|Al-Jazari|Ziryab|Nizam|Todar/.test(allText), 'nothing internal in public copy')
 
 for (const [k, t] of Object.entries(SECTION_TOURS)) {

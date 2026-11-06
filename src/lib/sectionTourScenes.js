@@ -14,8 +14,7 @@ export const SCENES = {
       list: {
         title: 'Trips', action: { icon: 'clipboard', label: 'Paste', tap: 'clip' },
         blocks: [
-          { t: 'hero', over: 'In 2 days', title: 'Spain', meta: 'Lisbon, Madrid, Granada, Sevilla · 12–22 May' },
-          { t: 'rows', items: [trip({ title: 'Lisbon weekend', meta: '6–8 Jun · 3 bookings' }), trip({ title: 'Iceland road trip', meta: 'Sep · 2 travellers' })] },
+          { t: 'rows', items: [trip({ title: 'Spain', meta: '12–22 May · 4 stops' }), trip({ title: 'Lisbon weekend', meta: '6–8 Jun · 3 bookings' }), trip({ title: 'Iceland road trip', meta: 'Sep · 2 travelers' })] },
         ],
       },
     },
@@ -54,8 +53,9 @@ export const SCENES = {
       recap: {
         back: true, over: 'Completed', title: 'Lisbon weekend', blocks: [
           { t: 'tiles', items: [{ big: '2', meta: 'nights' }, { big: '2', meta: 'flights' }, { big: '6', meta: 'bookings' }] },
-          { t: 'tiles', items: [{ icon: 'cloud-sun', tone: 'info', big: '21° avg', meta: 'Weather was' }, { big: '5 of 6', meta: 'Plans ticked off' }] },
+          { t: 'label', text: 'Badges earned' },
           { t: 'badges', items: [['plane-takeoff', 'info'], ['pin', 'success'], ['trips', 'accent']] },
+          { t: 'tiles', items: [{ icon: 'cloud-sun', tone: 'info', big: '21° avg', meta: 'Weather was' }, { big: '5 of 6', meta: 'Plans ticked off' }] },
         ],
       },
     },
@@ -63,7 +63,7 @@ export const SCENES = {
       { ms: 2800, screen: 'list', cap: 'Finished trips move to Past' },
       { tap: 'recap', cap: 'Tap Recap' },
       { ms: 4200, screen: 'recap', cap: 'Nights, flights, bookings and the weather' },
-      { ms: 3000, cap: 'Plus the badges you earned' },
+      { ms: 3000, cap: 'Plus the badges you earned, and the weather' },
     ],
   },
   'trips-new': {
@@ -78,11 +78,13 @@ export const SCENES = {
         { t: 'field', icon: 'search', text: 'Destination: Tokyo, Japan' },
         { t: 'field', icon: 'edit', text: 'Trip name: Tokyo in spring' },
         { t: 'facts', items: [['Depart', '10 Apr'], ['Return', '20 Apr']] },
+        { t: 'switch', label: 'Not sure of the dates yet', on: false },
         { t: 'btn', label: 'Add trip', tap: 'add' },
       ] },
       undated: { title: 'New trip', blocks: [
         { t: 'field', icon: 'search', text: 'Destination: Tokyo, Japan' },
-        { t: 'note', icon: 'calendar', text: 'Not sure of the dates yet: on. Goose fills them in when flights or hotels are added.' },
+        { t: 'switch', label: 'Not sure of the dates yet', on: true },
+        { t: 'note', icon: 'calendar', text: 'Goose fills in the dates when flights or hotels are added.' },
         { t: 'btn', label: 'Add trip', tap: 'add' },
       ] },
     },
@@ -100,10 +102,9 @@ export const SCENES = {
   'today-tiles': {
     screens: {
       today: { over: 'Day 3 of 10 · Thursday', title: 'Granada', blocks: [
-        { t: 'hero', over: 'Next up · in 1h 20m', title: 'Alhambra, Nasrid Palaces', meta: '16:30 Granada time · 2 tickets' },
         { t: 'tiles', items: [{ icon: 'sun', tone: 'sun', big: '26°', meta: 'Sunny now', tap: 'weather' }, { icon: 'train', tone: 'accent', big: 'Tomorrow', meta: 'Granada to Sevilla', tap: 'tomorrow' }] },
         { t: 'label', text: 'Later today' },
-        { t: 'rows', items: [{ icon: 'restaurant', tone: 'accent', title: 'Dinner at Damasqueros', meta: '21:00', end: 'Plan' }] },
+        { t: 'rows', items: [{ icon: 'restaurant', tone: 'accent', title: 'Dinner at Damasqueros', meta: '21:00', end: 'Plan' }, { icon: 'museum', tone: 'success', title: 'Sunset at Mirador San Nicolás', meta: '19:45', end: 'Plan' }] },
       ] },
       plan: { back: true, over: '12–22 May', title: 'Spain', blocks: [
         { t: 'tabs', prefix: 'tab', active: 'plan', items: [['plan', 'Plan'], ['weather', 'Weather'], ['pack', 'Pack']] },
@@ -128,8 +129,9 @@ export const SCENES = {
     sheets: {
       ask: { title: 'Plan me a day, Goose', blocks: [
         { t: 'label', text: 'How hard are we going?' },
-        { t: 'chips', items: ['Here to relax', 'Steady pace', 'Packed'], on: 1 },
+        { t: 'chips', items: ['Here to relax', 'Steady pace', 'FULL HONK!'], on: 1 },
         { t: 'label', text: 'What’s the mood?' },
+        { t: 'label', text: 'Pick up to three, or none for a mix.' },
         { t: 'chips', items: ['Cafés', 'Museums', 'Markets', 'Views'], on: [1, 3] },
         { t: 'btn', label: 'Fill it up', tap: 'go' },
       ] },
@@ -145,7 +147,7 @@ export const SCENES = {
     script: [
       { ms: 2600, screen: 'today', cap: 'A day with nothing on it' },
       { tap: 'fill', cap: 'Tap Let Goose fill it' },
-      { ms: 3400, sheet: 'ask', cap: 'Choose a pace and up to three moods' },
+      { ms: 3400, sheet: 'ask', cap: 'Pick a pace and up to three moods' },
       { tap: 'go' },
       { ms: 3600, sheet: 'picks', cap: 'Goose suggests a day. Check times first' },
       { tap: 'add' },
@@ -245,17 +247,17 @@ export const SCENES = {
   // ---------- Tools ----------
   'tools-hub': {
     screens: {
-      hub: { over: 'Set for Spain · stop 2 of 4', title: 'Tools', blocks: [
+      hub: { over: 'Set for Spain', title: 'Tools', blocks: [
         { t: 'rows', items: [{ icon: 'sos', tone: 'danger', title: 'SOS', meta: 'Emergency numbers · embassy · emergency card', tap: 'sos' }] },
         { t: 'hero', over: 'Currency', title: 'EUR to USD', meta: 'Live rates', tap: 'currency' },
         { t: 'tiles', items: [{ icon: 'translate', tone: 'info', big: 'Translate', meta: 'Pocket phrase book', tap: 'translate' }, { icon: 'receipt', tone: 'accent', big: 'Tip & split', meta: 'In Spain', tap: 'tip' }] },
       ] },
     },
     script: [
-      { ms: 3000, screen: 'hub', cap: 'Tools are set for the country you’re in' },
-      { tap: 'sos', cap: 'SOS comes first' },
-      { tap: 'currency', cap: 'Then currency' },
-      { tap: 'translate', cap: 'Phrases and tipping below' },
+      { ms: 3000, screen: 'hub', cap: 'Everything is set for the country you’re in' },
+      { tap: 'sos', cap: 'SOS sits on top, one tap from any screen' },
+      { tap: 'currency', cap: 'Currency converts to your home money' },
+      { tap: 'translate', cap: 'Phrase book and tipping are one tap away' },
       { ms: 2200 },
     ],
   },
@@ -289,6 +291,11 @@ export const SCENES = {
         { t: 'chips', items: ['Food & dining', 'Transport', 'Hotel'], on: 0 },
         { t: 'rows', items: [{ icon: 'volume', tone: 'info', title: 'Una mesa para dos', meta: 'A table for two' }, { icon: 'volume', tone: 'info', title: '¿Qué me recomienda?', meta: 'What do you recommend?' }] },
       ] },
+      playing: { back: true, over: 'Picked for Madrid', title: 'Translate', blocks: [
+        { t: 'hero', title: 'La cuenta, por favor', meta: 'Playing aloud', actions: [{ label: 'Pause' }, { label: 'Show big', ghost: true }] },
+        { t: 'chips', items: ['Food & dining', 'Transport', 'Hotel'], on: 0 },
+        { t: 'rows', items: [{ icon: 'volume', tone: 'info', title: 'Una mesa para dos', meta: 'A table for two' }] },
+      ] },
       type: { back: true, over: 'Picked for Madrid', title: 'Translate', blocks: [
         { t: 'field', icon: 'edit', text: 'My bag is lost. Where is the police station?' },
         { t: 'hero', title: 'Mi bolso se ha perdido. ¿Dónde está la comisaría?', meta: 'Means: my bag is lost, where is the police station?', actions: [{ label: 'Play', tap: 'play' }, { label: 'Show big', ghost: true }] },
@@ -297,7 +304,7 @@ export const SCENES = {
     script: [
       { ms: 3000, screen: 'tr', cap: 'Phrases in the local language' },
       { tap: 'play' },
-      { ms: 2200, toast: 'Playing aloud', cap: 'Tap Play to hear them' },
+      { ms: 2200, screen: 'playing', cap: 'Tap Play to hear it read aloud' },
       { ms: 3400, screen: 'type', cap: 'Or type anything and Goose translates it' },
     ],
   },
@@ -320,17 +327,16 @@ export const SCENES = {
   'tools-currency': {
     screens: {
       ccy: { back: true, title: 'Currency', blocks: [
-        { t: 'big', over: 'You pay · Euro', value: '€48.00', sub: '' },
-        { t: 'btn', label: 'Swap', icon: 'exchange', tap: 'swap' },
-        { t: 'big', over: 'At home · US Dollar', value: '$52.03', sub: 'Live rate, updated today' },
+        { t: 'tiles', items: [{ big: '€48.00', meta: 'You pay · Euro' }, { big: '$52.03', meta: 'At home · US Dollar' }] },
+        { t: 'btn', label: 'Swap currencies', icon: 'exchange', tap: 'swap' },
         { t: 'label', text: 'Quick glance' },
-        { t: 'rows', items: [{ title: '€5', end: '$5.42' }, { title: '€20', end: '$21.68' }, { title: '€100', end: '$108.40' }] },
+        { t: 'rows', items: [{ title: '€5', end: '$5.42' }, { title: '€20', end: '$21.68' }] },
       ] },
     },
     script: [
       { ms: 3200, screen: 'ccy', cap: 'Local price on top, your money below' },
       { tap: 'swap', cap: 'Swap the direction in one tap' },
-      { ms: 3200, cap: 'A quick glance at common amounts' },
+      { ms: 3200, cap: 'Quick glance: small amounts, already converted' },
     ],
   },
 
@@ -339,9 +345,9 @@ export const SCENES = {
     screens: {
       home: { title: 'Profile', blocks: [
         { t: 'hero', over: 'Goose score', title: '1,240', meta: '3 badges earned', big: true },
-        { t: 'tiles', items: [{ big: '8', meta: 'trips' }, { big: '5', meta: 'countries' }, { big: '41', meta: 'days abroad' }, { big: '12', meta: 'flights' }] },
         { t: 'label', text: 'Badges' },
         { t: 'badges', items: [['trips', 'accent'], ['plane-takeoff', 'info'], ['pin', 'success']], tap: 'badges' },
+        { t: 'tiles', items: [{ big: '8', meta: 'trips' }, { big: '5', meta: 'countries' }, { big: '41', meta: 'days abroad' }, { big: '12', meta: 'flights' }] },
       ] },
     },
     script: [
@@ -396,35 +402,34 @@ export const SCENES = {
     screens: {
       settings: { back: true, title: 'Settings', blocks: [
         { t: 'label', text: 'Goose inbox' },
-        { t: 'rows', items: [{ icon: 'mail', tone: 'accent', title: 'Your private address', meta: 'Forward bookings here', end: 'Copy', tap: 'copy' }, { icon: 'refresh', tone: 'neutral', title: 'New address', meta: 'The old address stops working at once' }] },
-        { t: 'label', text: 'Profile' },
-        { t: 'facts', items: [['Home currency', 'USD'], ['Passport country', 'GB']] },
+        { t: 'rows', items: [{ icon: 'mail', tone: 'accent', title: 'Your private address', meta: 'Forward bookings here', end: 'Copy', tap: 'copy' }] },
         { t: 'label', text: 'Appearance' },
         { t: 'chips', items: ['System', 'Light', 'Dark'], on: 0 },
+        { t: 'facts', items: [['Home currency', 'USD'], ['Passport country', 'GB']] },
       ] },
     },
     script: [
       { ms: 2800, screen: 'settings', cap: 'Your private Goose inbox address' },
       { tap: 'copy', cap: 'Tap Copy, then forward bookings to it' },
-      { ms: 2600, toast: 'Inbox address copied', cap: 'Home currency and passport country tune Tools' },
-      { ms: 2600, cap: 'Light, dark, or follow your phone' },
+      { ms: 2600, toast: 'Inbox address copied', cap: 'Light, dark, or follow your phone' },
+      { ms: 2600, cap: 'Home currency and passport country tune Tools' },
     ],
   },
   'profile-help': {
     screens: {
       profile: { title: 'Profile', blocks: [
         { t: 'rows', items: [
-          { icon: 'help', tone: 'success', title: 'Guide and FAQ', meta: 'How everything works', tap: 'help' },
+          { icon: 'help', tone: 'success', title: 'Help and FAQ', meta: 'How everything works', tap: 'help' },
           { icon: 'compass', tone: 'accent', title: 'Take the tour', meta: 'A two-minute look at everything STT does' },
         ] },
       ] },
-      help: { back: true, title: 'Guide and FAQ', blocks: [
+      help: { back: true, title: 'Help and FAQ', blocks: [
         { t: 'field', icon: 'search', text: 'Search, e.g. forward email' },
         { t: 'rows', items: [{ icon: 'inbox', tone: 'accent', title: 'Forward a booking', meta: 'Send it to your Goose inbox' }, { icon: 'users', tone: 'info', title: 'Travel together', meta: 'Invite people to a trip' }] },
       ] },
     },
     script: [
-      { ms: 2600, screen: 'profile', cap: 'Guide and FAQ lives on Profile' },
+      { ms: 2600, screen: 'profile', cap: 'Help and FAQ lives on Profile' },
       { tap: 'help' },
       { ms: 3400, screen: 'help', cap: 'Search for any question' },
       { ms: 2600, cap: 'Or take the full tour any time' },

@@ -56,7 +56,7 @@ function Block({ b }) {
     case 'tabs': return <Tabs items={b.items} active={b.active} prefix={b.prefix} />
     case 'tiles':
       return (
-        <div className="tour-tiles">
+        <div className={cx('tour-tiles', b.items.length === 3 && 'tour-tiles--3')}>
           {b.items.map(t => (
             <span key={`${t.big}-${t.meta}`} data-tap={t.tap} className="tour-tile">
               {t.icon && <Icon name={t.icon} size={20} className={`tone-${t.tone || 'accent'}`} />}
@@ -84,6 +84,7 @@ function Block({ b }) {
           <span className="tour-stepper__ctl"><span><Icon name="minus" size={14} /></span>{b.value}<span data-tap={b.tap}><Icon name="plus" size={14} /></span></span>
         </div>
       )
+    case 'switch': return <div className="tour-switch"><span className="t-label">{b.label}</span><span className={cx('tour-switch__track', b.on && 'is-on')}><span className="tour-switch__knob" /></span></div>
     case 'label': return <span className="t-overline tone-muted tour-day">{b.text}</span>
     case 'badges':
       return (
