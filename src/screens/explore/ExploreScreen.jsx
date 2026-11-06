@@ -212,7 +212,7 @@ function GuideHome({ setHonkMood, setMode }) {
 
       <HonkCard onMood={(id) => { setHonkMood(id); setMode('honk') }} />
 
-      {!destination && (
+      {!destination && g.tripsReady && (
         <PopularCities cities={g.popularCities} onPick={g.setDestination} />
       )}
 

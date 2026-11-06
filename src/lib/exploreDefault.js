@@ -30,12 +30,13 @@ export function pastTrips(trips = []) {
 }
 
 /** Default Explore city, or null. `current` = a destination for the trip you're on / the next trip (or null). */
-export function pickDefaultCity({ current = null, upcoming = null, trips = [], lastViewed = null } = {}) {
+export function pickDefaultCity({ current = null, upcoming = null, trips = [], lastViewed = null, tripsReady = true } = {}) {
   if (current?.city) return current
   if (upcoming?.destination_city) return tripDest(upcoming)
   const past = pastTrips(trips)[0]
   if (past) return tripDest(past)
-  return lastViewed?.city ? lastViewed : null
+  // Until trips have loaded, "no trips" may only mean "not here yet": the remembered city must not win that race
+  return tripsReady && lastViewed?.city ? lastViewed : null
 }
 
 export function readLastCity() {

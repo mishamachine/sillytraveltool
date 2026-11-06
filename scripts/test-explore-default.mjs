@@ -20,6 +20,11 @@ t('else the most recent past trip', () => {
 t('past trip beats the last viewed city', () => assert.equal(pickDefaultCity({ trips: [older], lastViewed: last }).city, 'Paris'))
 t('else the last viewed city', () => assert.equal(pickDefaultCity({ trips: [], lastViewed: last }).city, 'Kyoto'))
 t('only cancelled or undated trips fall through to last viewed', () => assert.equal(pickDefaultCity({ trips: [cancelled, undated], lastViewed: last }).city, 'Kyoto'))
+t('race: trips not loaded yet, the remembered city must not win; once loaded it does', () => {
+  assert.equal(pickDefaultCity({ trips: [], lastViewed: last, tripsReady: false }), null)
+  assert.equal(pickDefaultCity({ trips: [], lastViewed: last, tripsReady: true }).city, 'Kyoto')
+  assert.equal(pickDefaultCity({ trips: [old], lastViewed: last, tripsReady: false }).city, 'Rome') // trips present always win
+})
 t('nothing at all: null, so Explore shows the popular row', () => {
   assert.equal(pickDefaultCity({}), null)
   assert.equal(pickDefaultCity({ trips: [] , lastViewed: null }), null)
