@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { useAuthStore, useTripsStore } from '../../../store'
 import { parseLocalDate } from '../../../lib/dates'
-import { sortByStart, bookingDay, bookingKind, bookingMeta, hasClockTime, bookingTime, bookingArrival, bookingZone, zoneHint } from '../../../lib/trips'
+import { sortByStart, bookingDay, bookingKind, bookingMeta, hasClockTime, bookingTime, bookingArrival, bookingZone, arrivalZone, zoneHint } from '../../../lib/trips'
+import { zoneName } from '../../../lib/localTime'
 import { Card, ListRow, IconButton, Button, Section, Text, Stack, Icon, EmptyState, Skeleton, IconTile, Chip, Banner, category } from '../../../ui'
 import RouteStrip from './RouteStrip'
 import { tripPlace, computeLegs } from '../../../lib/stops'
@@ -38,14 +39,18 @@ function trailingFor(item, tz) {
   }
   if (!hasClockTime(item)) return null
   const start = bookingTime(item, tz)
-  const hint = zoneHint(bookingZone(item, tz))
+  const depZone = bookingZone(item, tz)
+  const hint = zoneHint(depZone)
   const arr = bookingArrival(item)
   if (!arr && !hint) return <span className="c-row__trailing tabular">{start}</span>
+  // Each time carries its own zone: the departure zone next to the departure time, and the arrival zone named
+  // whenever it differs from the departure (or any zone is shown at all), so a time is never read in the wrong zone.
+  const arrZone = arr ? arrivalZone(item) : null
+  const arrHint = arr && (arrZone !== depZone || hint) ? zoneName(arrZone) : ''
   return (
     <span className="detail-times">
-      <span className="t-body w-600 tabular">{start}</span>
-      {arr && <span className="t-micro tone-muted tabular">arr. {arr.time}{arr.plusDays > 0 ? ` +${arr.plusDays}` : ''}</span>}
-      {hint && <span className="t-micro tone-muted">{hint}</span>}
+      <span className="t-body w-600 tabular">{start}{hint && <span className="t-micro tone-muted w-400"> {hint}</span>}</span>
+      {arr && <span className="t-micro tone-muted tabular">arr. {arr.time}{arr.plusDays > 0 ? ` +${arr.plusDays}` : ''}{arrHint ? ` ${arrHint}` : ''}</span>}
     </span>
   )
 }
