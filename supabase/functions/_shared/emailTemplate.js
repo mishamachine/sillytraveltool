@@ -2,6 +2,13 @@
 // Body format: plain text, blank line = new paragraph, **bold**, [link text](https://…), {{variables}}.
 // Clay colours inline (email clients ignore stylesheets): terracotta #B24A17, ink #2A2520, page #F4EEE6.
 
+// The one footer line every email carries. No postal address in it (see POSTAL_ADDRESS below).
+export const FOOTER_LINE = 'Silly Travel Tool · B&B Project Factory'
+
+// Marketing email law (CAN-SPAM) needs a valid postal address in every commercial message.
+// Leave this empty until a PO box or business address exists; when it is set it is printed on marketing emails only.
+export const POSTAL_ADDRESS = ''
+
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 export function fill(text, vars) {
@@ -24,11 +31,24 @@ export function bodyText(text) {
   return String(text ?? '').replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1 ($2)').replace(/\*\*([^*]+)\*\*/g, '$1')
 }
 
+/** The house shell: logo, card with `inner` HTML, then the footer. `foot` is already-escaped HTML. */
+export function layout(title, inner, foot, addr = '') {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head>
+<body style="margin:0;padding:0;background:#F4EEE6;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4EEE6;"><tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFDF9;border-radius:22px;">
+<tr><td style="padding:28px 28px 8px;"><img src="https://sillytraveltool.com/apple-touch-icon.png" width="40" height="40" alt="Silly Travel Tool" style="border-radius:10px;display:block;"></td></tr>
+<tr><td style="padding:12px 28px 24px;">${inner}</td></tr>
+</table>
+<p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">${foot}<br>${esc(FOOTER_LINE)}${addr ? `<br>${esc(addr)}` : ''}</p>
+</td></tr></table></body></html>`
+}
+
 /**
  * render({ subject, body, cta_label, cta_url }, vars, { kind, unsubscribeUrl, why }) → { subject, html, text }
  * Marketing emails carry an unsubscribe line; service emails say why they were sent. `why` replaces the default reason.
  */
-export function render(tpl, vars, { kind, unsubscribeUrl, why }) {
+export function render(tpl, vars, { kind, unsubscribeUrl, why, postalAddress = POSTAL_ADDRESS }) {
   const subject = fill(tpl.subject, vars).replace(/\s+/g, ' ').trim()
   const body = fill(tpl.body, vars)
   const ctaUrl = fill(tpl.cta_url, vars)
@@ -41,15 +61,8 @@ export function render(tpl, vars, { kind, unsubscribeUrl, why }) {
   const foot = kind === 'marketing'
     ? `${esc(reason)} <a href="${esc(unsubscribeUrl)}" style="color:#6B6355;">Unsubscribe</a>.`
     : esc(reason)
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
-<body style="margin:0;padding:0;background:#F4EEE6;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4EEE6;"><tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFDF9;border-radius:22px;">
-<tr><td style="padding:28px 28px 8px;"><img src="https://sillytraveltool.com/apple-touch-icon.png" width="40" height="40" alt="Silly Travel Tool" style="border-radius:10px;display:block;"></td></tr>
-<tr><td style="padding:12px 28px 24px;">${bodyHtml(body)}${cta}</td></tr>
-</table>
-<p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">${foot}<br>Silly Travel Tool · B&amp;B Project Factory, 402 Grandey Way NE, Renton, WA 98056, USA</p>
-</td></tr></table></body></html>`
-  const text = `${bodyText(body)}${tpl.cta_label && ctaUrl ? `\n\n${fill(tpl.cta_label, vars)}: ${ctaUrl}` : ''}\n\n--\n${kind === 'marketing' ? `${why ? `${why}\n` : ''}Unsubscribe: ${unsubscribeUrl}` : reason}\nSilly Travel Tool · B&B Project Factory, 402 Grandey Way NE, Renton, WA 98056, USA`
+  const addr = kind === 'marketing' && postalAddress ? String(postalAddress).trim() : ''
+  const html = layout(subject, `${bodyHtml(body)}${cta}`, foot, addr)
+  const text = `${bodyText(body)}${tpl.cta_label && ctaUrl ? `\n\n${fill(tpl.cta_label, vars)}: ${ctaUrl}` : ''}\n\n--\n${kind === 'marketing' ? `${why ? `${why}\n` : ''}Unsubscribe: ${unsubscribeUrl}` : reason}\n${FOOTER_LINE}${addr ? `\n${addr}` : ''}`
   return { subject, html, text }
 }
