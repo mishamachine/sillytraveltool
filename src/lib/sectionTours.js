@@ -32,7 +32,7 @@ export const SECTION_TOURS = {
       { id: 'tiles', art: 'today-tiles', title: 'Your day, at a glance', body: 'Weather where you are, tomorrow’s first booking, and what’s still to come today.' },
       { id: 'fill', art: 'today-fill', title: 'An empty afternoon?', body: 'On a day with nothing planned, tap Let Goose fill it. Pick a pace and up to three moods, then add the picks you like.' },
       { id: 'shared', art: 'TogetherArt', title: 'Traveling together', body: 'A flight or train your crew is on shows once, with who’s coming along.' },
-      { id: 'get-there', art: 'TodayArt', title: 'Next up, and how to get there', body: 'Next up sits at the top. Open it and tap Get there for walking, transit, driving or a ride app, with real travel times.' },
+      { id: 'get-there', art: 'TodayArt', title: 'Next up, and how to get there', body: 'Tap Next up, then Get there (or Directions right on the card) for walking, transit, driving or a ride app, with real travel times.' },
     ],
   },
   guide: {

@@ -78,6 +78,7 @@ export default function HonkView() {
   const [picking, setPicking] = useState(false) // "Change" location
   const seen = useRef([]) // Google places already suggested this session, so "Another spot" moves on
   const inFlight = useRef(false) // one request at a time: a double tap doesn't start two
+  const request = useRef(0) // bumped per request and on close, so a reply for a closed sheet is dropped
   const [ideaOpen, setIdeaOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const say = (msg, change) => { setToast({ msg, change }); setTimeout(() => setToast(null), change ? 5000 : 2600) }
@@ -125,6 +126,7 @@ export default function HonkView() {
     if (!moodId || inFlight.current) return
     setMood(moodId); setResult(null); setError(null)
     if (!effectiveCity) { setQueued(moodId); return }
+    const id = ++request.current
     inFlight.current = true
     setLoading(true)
     try {
@@ -132,6 +134,7 @@ export default function HonkView() {
       const ask = { city: effectiveCity, country: effectiveCountry, mood: moodLabel }
       // Facts first: the real place from Google shows at once, the Goose's words ink in after
       const discovered = await gooseyDiscover({ ...ask, lat: gpsCoords?.latitude, lng: gpsCoords?.longitude, exclude: seen.current, stage: 'facts' })
+      if (id !== request.current) return
       if (discovered?.place_id) seen.current = [...seen.current, discovered.place_id].slice(-20)
       setResult(discovered)
       if (discovered?.pending) {
@@ -147,9 +150,12 @@ export default function HonkView() {
         if (user) await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_field: 'honks_used', p_amount: 1 })
       } catch {}
     } catch (e) {
+      if (id !== request.current) return
       track('ai_error', { feature: 'honk' }, 'goosey')
       setError(e?.message || 'Something went wrong on our side.')
-    } finally { inFlight.current = false; setLoading(false) }
+    } finally {
+      if (id === request.current) { inFlight.current = false; setLoading(false) }
+    }
   }
 
   // A mood tapped while Goose was still finding you runs as soon as the location is known
@@ -157,7 +163,10 @@ export default function HonkView() {
     if (queued && effectiveCity) { const m = queued; setQueued(null); handleHonk(m) }
   }, [effectiveCity]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const close = () => { setMood(null); setQueued(null); setResult(null); setError(null) }
+  const close = () => {
+    request.current += 1; inFlight.current = false
+    setMood(null); setQueued(null); setResult(null); setError(null); setLoading(false)
+  }
   // The Goose's words "ink in" when they arrive after the place is already on screen
   const inked = useRef(null)
   if (result?.pending) inked.current = result.place_id
