@@ -58,14 +58,14 @@ export function consentChoiceNeeded() {
 
 export function setAnalyticsEnabled(on) {
   writePref(on)
-  if (on) { initGA(); track('analytics_opt_in'); if (lastScreen) gaPageView(lastScreen) }
+  if (on) { initGA(); captureFirstTouch(); track('analytics_opt_in'); if (lastScreen) gaPageView(lastScreen) }
   else stopGA()
 }
 
 export function initAnalytics() {
   if (analyticsEnabled()) initGA()
   initErrorTracking()
-  captureFirstTouch()
+  if (analyticsEnabled()) captureFirstTouch() // nothing is stored before consent in the region
   initActiveTime()
   setTimeout(trackSessionStart, 1500)
 }
@@ -83,11 +83,13 @@ function trackSessionStart() {
   const os = /android/i.test(ua) ? 'android' : /iphone|ipad|ipod/i.test(ua) ? 'ios' : /mac/i.test(ua) ? 'mac' : /win/i.test(ua) ? 'windows' : /linux|cros/i.test(ua) ? 'linux' : 'other'
   const w = window.innerWidth || 0
   let daysSince
-  try {
-    const last = Number(localStorage.getItem('stt_last_session'))
-    if (last) daysSince = Math.floor((Date.now() - last) / 86400000)
-    localStorage.setItem('stt_last_session', String(Date.now()))
-  } catch { /* storage blocked */ }
+  if (analyticsEnabled()) {
+    try {
+      const last = Number(localStorage.getItem('stt_last_session'))
+      if (last) daysSince = Math.floor((Date.now() - last) / 86400000)
+      localStorage.setItem('stt_last_session', String(Date.now()))
+    } catch { /* storage blocked */ }
+  }
   track('session_start', {
     lang: (navigator.language || '').slice(0, 10),
     tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return undefined } })(),

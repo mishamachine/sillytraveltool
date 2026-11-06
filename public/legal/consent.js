@@ -6,7 +6,9 @@
   var KEY = 'stt_analytics'
   var COUNTRIES = ['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE', 'IS', 'LI', 'NO', 'GB', 'CH']
   var NON_ZONES = ['Europe/Moscow', 'Europe/Kaliningrad', 'Europe/Kirov', 'Europe/Samara', 'Europe/Volgograd', 'Europe/Astrakhan', 'Europe/Saratov', 'Europe/Ulyanovsk', 'Europe/Simferopol', 'Europe/Minsk', 'Europe/Istanbul']
-  var EXTRA_ZONES = ['Atlantic/Canary', 'Atlantic/Madeira', 'Atlantic/Azores', 'Africa/Ceuta', 'Atlantic/Reykjavik']
+  var EXTRA_ZONES = ['Atlantic/Canary', 'Atlantic/Madeira', 'Atlantic/Azores', 'Africa/Ceuta', 'Atlantic/Reykjavik',
+    'Asia/Nicosia', 'Asia/Famagusta', 'Indian/Reunion', 'America/Guadeloupe', 'America/Martinique', 'America/Cayenne', 'Indian/Mayotte',
+    'America/St_Barthelemy', 'America/Marigot']
 
   function langRegion(tag) {
     var m = /^[a-z]{2,3}(?:[-_][A-Za-z]{4})?[-_]([A-Za-z]{2}|\d{3})(?:[-_]|$)/i.exec(String(tag || ''))
@@ -15,6 +17,7 @@
   function inRegion() {
     var tz = ''
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '' } catch (e) {}
+    if (!tz || tz === 'UTC' || tz === 'GMT' || tz.indexOf('Etc/') === 0) return true // fail safe: unknown zone counts as in the region
     if (EXTRA_ZONES.indexOf(tz) > -1) return true
     if (tz.indexOf('Europe/') === 0 && NON_ZONES.indexOf(tz) === -1) return true
     var langs = []
@@ -26,6 +29,7 @@
   }
   function save(on) {
     try { localStorage.setItem(KEY, on ? 'on' : 'off') } catch (e) {}
+    try { window.dispatchEvent(new Event('stt-consent-change')) } catch (e) {}
   }
 
   var box
@@ -42,8 +46,8 @@
     box.className = 'stt-consent'
     box.setAttribute('role', 'region')
     box.setAttribute('aria-label', 'Usage stats')
-    box.innerHTML = '<p class="t">Help us improve Silly Travel Tool with anonymous usage stats?</p>' +
-      '<p>Nothing is sent unless you accept. No names, emails or trip details. See our <a href="/privacy/">Privacy Policy</a>.</p>' +
+    box.innerHTML = '<p class="t">Help us improve Silly Travel Tool with usage stats (no names, emails or trip details)?</p>' +
+      '<p>Nothing is sent unless you accept. See our <a href="/privacy/">Privacy Policy</a>.</p>' +
       '<div><button type="button" data-a="1">Accept</button><button type="button" data-a="0">Reject</button></div>'
     box.appendChild(css)
     box.addEventListener('click', function (e) {

@@ -16,7 +16,7 @@ const env = (timeZone, ...languages) => ({ timeZone, languages })
 t('time zone Europe/* counts, with the clear non-EU zones left out', () => {
   for (const z of ['Europe/Berlin', 'Europe/London', 'Europe/Dublin', 'Europe/Zurich', 'Europe/Oslo', 'Atlantic/Canary', 'Atlantic/Reykjavik']) assert.equal(isConsentRegion(env(z, 'en-US')), true, z)
   for (const z of ['Europe/Moscow', 'Europe/Istanbul', 'Europe/Minsk']) assert.equal(isConsentRegion(env(z, 'en-US')), false, z)
-  for (const z of ['America/Los_Angeles', 'America/New_York', 'Asia/Tokyo', 'Australia/Sydney', '']) assert.equal(isConsentRegion(env(z, 'en-US')), false, z)
+  for (const z of ['America/Los_Angeles', 'America/New_York', 'Asia/Tokyo', 'Australia/Sydney']) assert.equal(isConsentRegion(env(z, 'en-US')), false, z)
 })
 t('language region counts when the time zone does not', () => {
   assert.equal(isConsentRegion(env('America/New_York', 'en-GB')), true)
@@ -24,7 +24,19 @@ t('language region counts when the time zone does not', () => {
   assert.equal(isConsentRegion(env('America/Chicago', 'fr-CH')), true)
   assert.equal(isConsentRegion(env('America/Chicago', 'en-US', 'es-MX', 'pt-BR', 'fr-CA', 'de')), false, 'a bare language has no region')
   assert.equal(isConsentRegion(env('Europe/Moscow', 'ru-RU')), false)
-  assert.equal(isConsentRegion({}), false)
+  assert.equal(isConsentRegion({}), true, 'no information at all fails safe: in the region')
+})
+t('fail safe: missing, UTC and Etc/* zones count as in the region', () => {
+  for (const z of ['', undefined, 'UTC', 'GMT', 'Etc/UTC', 'Etc/GMT+5']) assert.equal(isConsentRegion({ timeZone: z, languages: ['en-US'] }), true, String(z))
+  assert.equal(isConsentRegion({ timeZone: 'America/Chicago', languages: ['en'] }), false, 'a known non-EU zone is enough')
+})
+t('Cyprus and the EU overseas zones count', () => {
+  for (const z of ['Asia/Nicosia', 'Asia/Famagusta', 'Indian/Reunion', 'America/Guadeloupe', 'America/Martinique', 'America/Cayenne', 'Indian/Mayotte', 'America/St_Barthelemy', 'America/Marigot']) assert.equal(isConsentRegion(env(z, 'en-US')), true, z)
+})
+t('both banners use the agreed wording, with no "anonymous"', () => {
+  const js = readFileSync(new URL('../public/legal/consent.js', import.meta.url), 'utf8')
+  const jsx = readFileSync(new URL('../src/components/shared/ConsentBanner.jsx', import.meta.url), 'utf8')
+  for (const src of [js, jsx]) { assert.ok(src.includes('Help us improve Silly Travel Tool with usage stats (no names, emails or trip details)?')); assert.ok(!/anonymous/i.test(src)) }
 })
 t('languageRegion reads real tags', () => {
   assert.equal(languageRegion('en-GB'), 'GB'); assert.equal(languageRegion('zh-Hant-TW'), 'TW'); assert.equal(languageRegion('de'), null); assert.equal(languageRegion('es-419'), '419')
@@ -53,7 +65,7 @@ t('Consent Mode v2 defaults: everything denied in the region; ads always denied'
 })
 t('the static-page banner script carries the same lists as src/lib/consent.js', () => {
   const js = readFileSync(new URL('../public/legal/consent.js', import.meta.url), 'utf8')
-  const list = name => [...new RegExp(`var ${name} = \\[(.*?)\\]`).exec(js)[1].matchAll(/'([^']+)'/g)].map(m => m[1])
+  const list = name => [...new RegExp(`var ${name} = \\[([^\\]]*)\\]`).exec(js)[1].matchAll(/'([^']+)'/g)].map(m => m[1])
   assert.deepEqual(list('COUNTRIES'), CONSENT_COUNTRIES)
   assert.deepEqual(list('NON_ZONES'), NON_CONSENT_ZONES)
   assert.deepEqual(list('EXTRA_ZONES'), EXTRA_CONSENT_ZONES)

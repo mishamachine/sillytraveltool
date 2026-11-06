@@ -61,6 +61,7 @@ export function initGA() {
   // Page views are sent by screenView() (routing is Zustand state, not URLs).
   window.gtag('config', GA_ID, {
     send_page_view: false,
+    page_location: pageLocation(native ? 'https://sillytraveltool.com' : window.location.origin, '', window.location.search),
     anonymize_ip: true,
     allow_google_signals: false,
     allow_ad_personalization_signals: false,

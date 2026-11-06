@@ -5,6 +5,12 @@
 
 export const PREF_KEY = 'stt_analytics'
 export const CONSENT_EVENT = 'stt-consent-change'
+export const CONSENT_OPEN_EVENT = 'stt-consent-open'
+
+/** Reopens the consent banner (the "Cookie and analytics settings" links). */
+export function openConsentBanner() {
+  try { window.dispatchEvent(new Event(CONSENT_OPEN_EVENT)) } catch { /* no window */ }
+}
 
 // EU 27, EEA (Iceland, Liechtenstein, Norway), UK, Switzerland
 export const CONSENT_COUNTRIES = [
@@ -17,8 +23,10 @@ export const NON_CONSENT_ZONES = [
   'Europe/Moscow', 'Europe/Kaliningrad', 'Europe/Kirov', 'Europe/Samara', 'Europe/Volgograd', 'Europe/Astrakhan',
   'Europe/Saratov', 'Europe/Ulyanovsk', 'Europe/Simferopol', 'Europe/Minsk', 'Europe/Istanbul',
 ]
-// Non-Europe/* zones that belong to the group (Canaries, Madeira, Azores, Ceuta, Iceland)
-export const EXTRA_CONSENT_ZONES = ['Atlantic/Canary', 'Atlantic/Madeira', 'Atlantic/Azores', 'Africa/Ceuta', 'Atlantic/Reykjavik']
+// Non-Europe/* zones that belong to the group (Canaries, Madeira, Azores, Ceuta, Iceland, Cyprus, EU overseas regions)
+export const EXTRA_CONSENT_ZONES = ['Atlantic/Canary', 'Atlantic/Madeira', 'Atlantic/Azores', 'Africa/Ceuta', 'Atlantic/Reykjavik',
+  'Asia/Nicosia', 'Asia/Famagusta', 'Indian/Reunion', 'America/Guadeloupe', 'America/Martinique', 'America/Cayenne', 'Indian/Mayotte',
+  'America/St_Barthelemy', 'America/Marigot']
 
 /** The region part of a language tag: 'de-AT' -> 'AT', 'en' -> null, 'zh-Hant-TW' -> 'TW'. */
 export function languageRegion(tag) {
@@ -29,6 +37,8 @@ export function languageRegion(tag) {
 /** True when the time zone or any browser language region says EU/EEA/UK/CH. env = { timeZone, languages } */
 export function isConsentRegion(env = browserEnv()) {
   const tz = env?.timeZone || ''
+  // Fail safe: when the zone says nothing (Intl missing, UTC, Etc/*), assume the visitor IS in the region
+  if (!tz || tz === 'UTC' || tz === 'GMT' || tz.startsWith('Etc/')) return true
   if (EXTRA_CONSENT_ZONES.includes(tz)) return true
   if (tz.startsWith('Europe/') && !NON_CONSENT_ZONES.includes(tz)) return true
   return (env?.languages || []).some(l => CONSENT_COUNTRIES.includes(languageRegion(l)))
