@@ -4,7 +4,7 @@
  * `new Date('2026-04-04')` is parsed as UTC midnight, which renders as the previous day
  * in timezones west of UTC. These helpers parse date-only strings as LOCAL dates.
  */
-import { isValidZone, todayIn } from './localTime'
+import { isValidZone, todayIn } from './localTime.js'
 import { zoneOn } from '../../supabase/functions/_shared/route.js'
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
