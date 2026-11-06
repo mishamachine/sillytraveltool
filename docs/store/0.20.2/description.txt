@@ -6,6 +6,9 @@ Forward a flight, hotel, train, restaurant or ticket confirmation to your privat
 YOUR TRIP, DAY BY DAY
 Flights, stays, trains and plans laid out day by day, with the weather for every stop. Visiting several cities? Keep one trip and add a stay in each. While a trip is on, Today shows what's next, how long until it, and directions to get there.
 
+TRAVEL TOGETHER
+Invite people by email as Can edit or View only. Each traveller forwards their own bookings, and everyone sees changes live.
+
 THE GUIDE
 City guides for Know, Eat, See, Transit and Events. Facts like addresses, ratings and hours come from Google; commentary written by Goose (AI) is labelled and can be reported.
 
