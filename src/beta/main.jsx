@@ -2,8 +2,8 @@ import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { TagMark, Wordmark } from '../ui/Logo'
 import Icon from '../ui/icons/Icon'
-import { initGA, gaEvent, gaPageView } from '../lib/ga'
-import { isConsentRegion, readPref, resolveEnabled, CONSENT_EVENT } from '../lib/consent'
+import { initGA, stopGA, gaEvent, gaPageView } from '../lib/ga'
+import { isConsentRegion, readPref, resolveEnabled, openConsentBanner, CONSENT_EVENT } from '../lib/consent'
 import { applyTheme, getSavedTheme } from '../lib/theme'
 import './beta.css'
 
@@ -49,14 +49,17 @@ const analyticsEnabled = () => {
 
 // Same first-touch record the app saves to member_attribution when this device later creates an account.
 // Not stored before consent in the EU/EEA/UK/CH.
-try {
-  if (analyticsEnabled() && !localStorage.getItem('stt_first_touch')) {
-    localStorage.setItem('stt_first_touch', JSON.stringify({
-      utm_source: utm.utm_source || null, utm_medium: utm.utm_medium || null, utm_campaign: utm.utm_campaign || null,
-      referrer_domain: referrer || null, landing_path: '/beta/', first_seen: new Date().toISOString(),
-    }))
-  }
-} catch { /* storage blocked */ }
+function saveFirstTouch() {
+  try {
+    if (analyticsEnabled() && !localStorage.getItem('stt_first_touch')) {
+      localStorage.setItem('stt_first_touch', JSON.stringify({
+        utm_source: utm.utm_source || null, utm_medium: utm.utm_medium || null, utm_campaign: utm.utm_campaign || null,
+        referrer_domain: referrer || null, landing_path: '/beta/', first_seen: new Date().toISOString(),
+      }))
+    }
+  } catch { /* storage blocked */ }
+}
+saveFirstTouch()
 
 function guessPlatform() {
   const ua = navigator.userAgent || ''
@@ -109,7 +112,9 @@ function Beta() {
         location.replace(withUtm(cfg.redirect_url))
       })
       .catch(() => {})
-    const start = () => { if (analyticsEnabled()) { initGA(); gaPageView('beta') } }
+    const start = () => {
+      if (analyticsEnabled()) { initGA(); gaPageView('beta'); saveFirstTouch() } else stopGA() // withdrawing stops GA at once
+    }
     start()
     window.addEventListener(CONSENT_EVENT, start) // Accept on the banner starts it without a reload
     return () => window.removeEventListener(CONSENT_EVENT, start)
@@ -251,7 +256,7 @@ function Beta() {
       </main>
 
       <footer className="b-foot">
-        <a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><span>© {new Date().getFullYear()} Silly Travel Tool</span>
+        <a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><a href="#" onClick={(e) => { e.preventDefault(); openConsentBanner() }}>Cookie and analytics settings</a><span>© {new Date().getFullYear()} Silly Travel Tool</span>
       </footer>
     </div>
   )

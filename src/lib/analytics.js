@@ -58,7 +58,7 @@ export function consentChoiceNeeded() {
 
 export function setAnalyticsEnabled(on) {
   writePref(on)
-  if (on) { initGA(); captureFirstTouch(); track('analytics_opt_in'); if (lastScreen) gaPageView(lastScreen) }
+  if (on) { initGA(); captureFirstTouch(); trackSessionStart(); track('analytics_opt_in'); if (lastScreen) gaPageView(lastScreen) }
   else stopGA()
 }
 
@@ -75,6 +75,7 @@ export function initAnalytics() {
 // since this device's last session. First party, covered by the Settings opt-out like every other event.
 
 function trackSessionStart() {
+  if (!analyticsEnabled()) return // checked first so the session where someone accepts still gets its session_start
   try {
     if (sessionStorage.getItem('stt_session_started')) return
     sessionStorage.setItem('stt_session_started', '1')

@@ -61,6 +61,7 @@
 
   function init() {
     if (inRegion() && pref() === null) open()
+    window.addEventListener('stt-consent-open', open) // React pages (beta) reopen it with this event
     var links = document.querySelectorAll('[data-consent-settings]')
     for (var i = 0; i < links.length; i++) links[i].addEventListener('click', function (e) { e.preventDefault(); open() })
   }

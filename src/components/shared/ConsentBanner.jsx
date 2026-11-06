@@ -21,7 +21,7 @@ export default function ConsentBanner() {
     <aside className="consent-banner" role="region" aria-label="Usage stats">
       <Text variant="body" as="p" className="consent-banner__title">Help us improve Silly Travel Tool with usage stats (no names, emails or trip details)?</Text>
       <Text variant="caption" tone="secondary" as="p">
-        Nothing is sent unless you accept. See our <a href="/privacy/" target="_blank" rel="noreferrer">Privacy Policy</a>.
+        Nothing is sent unless you accept. See our <a href="https://sillytraveltool.com/privacy/" target="_blank" rel="noreferrer">Privacy Policy</a>.
       </Text>
       <div className="consent-banner__actions">
         <Button variant="outline" size="md" block onClick={() => setAnalyticsEnabled(true)}>Accept</Button>
