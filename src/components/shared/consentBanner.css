@@ -1,0 +1,14 @@
+/* Usage stats question (ConsentBanner.jsx). Clay tokens only. Sits at the top so it never covers the bottom nav. */
+.consent-banner {
+  position: fixed; z-index: 1000; left: var(--space-3); right: var(--space-3);
+  top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+  max-width: 420px; margin: 0 auto;
+  display: grid; gap: var(--space-2);
+  padding: var(--space-4); border-radius: var(--radius-lg);
+  background: var(--surface-card); color: var(--ink);
+  border: 1px solid var(--surface-sunken); box-shadow: var(--shadow-card);
+}
+.consent-banner__title { font-weight: 700; margin: 0; }
+.consent-banner p { margin: 0; }
+.consent-banner a { color: var(--accent); font-weight: 600; }
+.consent-banner__actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-1); }
