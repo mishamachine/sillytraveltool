@@ -5,6 +5,7 @@
 //   ?demo&fail=guide,ai   Edge Functions in the list fail (guide, ai = all AI, checklist, honk, phrases)
 //   ?demo&slow=1          Edge Functions take 60s (loading states)
 //   ?demo&empty=1         no trips (empty state)
+//   ?demo&pastonly=1      only finished trips (no upcoming or current trip)
 //   ?demo&flagship=9      the multi-city flagship trip (Seattle → Spain → Germany → Rome), on trip day 9
 //   ?demo&signedout=1     no session (auth screen)
 //   ?demo&plan=first_class  signed in with First Class (default: free)
@@ -145,7 +146,7 @@ export function createDemoClient() {
   PLAN = params.get('plan') === 'first_class' ? 'first_class' : 'free'
   LIMITS = params.has('limits')
   FOUNDERS = params.get('founders') !== 'off'
-  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship'), askAi: params.has('askai'), held: Number(params.get('held')) || 0 })
+  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship'), askAi: params.has('askai'), pastOnly: params.has('pastonly'), held: Number(params.get('held')) || 0 })
   session = params.has('signedout') ? null : {
     access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
   }

@@ -12,7 +12,7 @@ import { upgradeError } from './planStore'
 const stopRuns = new Map() // tripId → { timer, chain }: see refreshStops
 
 export const useTripsStore = create((set, get) => ({
-  trips: [], activeTrip: null, loading: false, error: null,
+  trips: [], tripsLoaded: false, activeTrip: null, loading: false, error: null,
   bookings: [], activities: [], loadingDetail: false,
 
   fetchTrips: async () => {
@@ -105,7 +105,7 @@ export const useTripsStore = create((set, get) => ({
     } catch (e) {
       set({ error: e.message })
     } finally {
-      set({ loading: false })
+      set({ loading: false, tripsLoaded: true })
     }
   },
 

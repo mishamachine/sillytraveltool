@@ -83,3 +83,4 @@
 .explore-place__actions { display: flex; flex-direction: column; gap: var(--space-2); flex-shrink: 0; }
 .explore-place__status { font-weight: 700; }
 .c-iconbtn.is-saved { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.explore-popular { flex-wrap: wrap; overflow: visible; }
