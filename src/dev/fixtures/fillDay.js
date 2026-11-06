@@ -16,7 +16,7 @@ export default function fillDayFixture(body) {
     stop(1, 'Pastelería Lopez-Mezquita', 'Bakery', 'food', '09:30', 45, null, 'Start with a proper Granada breakfast of pastries and coffee.', 37.1761, -3.5995),
     stop(2, 'Cathedral of Granada', 'Cathedral', 'sight', '10:30', 60, 4, 'Right around the corner, and quiet before the tour groups arrive.', 37.1763, -3.5994),
     stop(3, 'Alcaicería', 'Market', 'sight', '11:45', 45, 3, 'The old silk market lanes, good for a slow browse.', 37.1759, -3.5981),
-    stop(4, 'Bar Los Diamantes', 'Tapas bar', 'food', '13:00', 60, 8, 'Lunch with free tapas, a local favourite.', 37.1745, -3.5997),
+    stop(4, 'Bar Los Diamantes', 'Tapas bar', 'food', '13:00', 60, 8, 'Lunch with free tapas, a local favorite.', 37.1745, -3.5997),
     stop(5, 'Mirador de San Nicolás', 'Viewpoint', 'sight', '17:30', 45, 22, 'The classic view of the Alhambra, best in the evening light.', 37.1810, -3.5924),
   ]
   const n = ({ slow: 3, steady: 5, packed: 5 })[body?.pace] || 5

@@ -108,7 +108,7 @@ t('activities and hotels are never grouped (v1: flights and transport)', () => {
   none([hotel(), hotel({ created_by: MARIA_ID })])
   none([{ ...flight(), _kind: 'activity' }, { ...flight({ created_by: MARIA_ID }), _kind: 'activity' }])
 })
-t('a name-less traveller is "Traveller"', () => assert.equal(travellerName(flight({ passenger_name: '  ' })), 'Traveller'))
+t('a name-less traveler is "Traveler"', () => assert.equal(travellerName(flight({ passenger_name: '  ' })), 'Traveler'))
 
 // Plan checks (D4): two travellers on one family booking are not "in the plan twice", and not a tight connection
 const trip = { id: 't1', destination_tz: LIS }

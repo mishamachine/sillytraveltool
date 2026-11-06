@@ -1,7 +1,7 @@
 // Demo-mode response for generate-guide. Shapes mirror what guideStore.getGuideData() reads.
 const r = (name, cuisine, score, extra = {}) => ({
   name, cuisine, goose_score: score, address: `${name}, Granada`, google_maps_query: `${name} Granada`,
-  description: `${name} is a local favourite: short menu, long queue, worth it.`, ...extra,
+  description: `${name} is a local favorite: short menu, long queue, worth it.`, ...extra,
 })
 const a = (name, type, extra = {}) => ({
   name, type, address: `${name}, Granada`, google_maps_query: `${name} Granada`,
