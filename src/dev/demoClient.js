@@ -11,6 +11,7 @@
 //   ?demo&plan=first_class  signed in with First Class (default: free)
 //   ?demo&limits=1        new trips and reservations hit the free-plan limit (paywall)
 //   ?demo&founders=off    the founders (lifetime) offer has ended
+//   ?demo&consent=reject  usage-stats banner already answered (store screenshots)
 //   ?demo&paywall=settings  opens the First Class paywall at launch (cloud device screenshots)
 // App builds have no address bar: VITE_DEMO_PARAMS="limits=1&paywall=settings" sets the same options at build time.
 import { buildFixtures, DEMO_USER } from './fixtures'
@@ -141,6 +142,8 @@ export function demoParams() {
 
 export function createDemoClient() {
   const params = demoParams()
+  // consent=reject: pre-answer the usage-stats banner (the simulator has no region, so it would show). Demo builds only.
+  try { if (params.get('consent') === 'reject') localStorage.setItem('stt_analytics', 'off') } catch { /* no storage */ }
   FAIL = new Set((params.get('fail') || '').split(',').filter(Boolean))
   SLOW = params.has('slow')
   PLAN = params.get('plan') === 'first_class' ? 'first_class' : 'free'

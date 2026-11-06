@@ -5,17 +5,15 @@ Drives one booted simulator through the demo screens and saves PNGs at native re
 order the store listing should show them (01-trips-list, 02-trip-plan, 03-today, 04-guide, 05-honk,
 06-tools, 07-documents). Then checks every PNG against Apple's accepted sizes, resizing and padding if needed.
 
-env: UDID, OUT (dir), KIND (iphone|ipad), TRIP (text on the trip card, default "Spain")
-The demo build is made with VITE_DEMO=1 VITE_DEMO_PARAMS=flagship=10, so the app opens on Today.
-WKWebView content is not reliably in the accessibility tree, so each tap tries a label first and then a
-position worked out from the screen size (the tab bar is five equal columns along the bottom).
+env: UDID, OUT (dir), KIND (iphone|ipad), 
+The demo build is made with VITE_DEMO=1 VITE_DEMO_PARAMS=consent=reject, so the app opens on Today with the usage-stats
+banner already answered. Taps do not reach the WKWebView, so each screen is opened through the demo deep link.
 """
 import json, os, re, struct, subprocess, sys, time
 
 UDID = os.environ['UDID']
 OUT = os.environ.get('OUT', 'shots')
 KIND = os.environ.get('KIND', 'iphone')
-TRIP = os.environ.get('TRIP', 'Spain')
 BUNDLE = 'com.sillytraveltool.app'
 # Accepted App Store sizes (width, height), portrait
 ACCEPTED = {'iphone': [(1320, 2868), (1290, 2796)], 'ipad': [(2064, 2752), (2048, 2732)]}[KIND]
@@ -62,31 +60,18 @@ W, H = screen_size()
 print(f'screen {W}x{H} pt', flush=True)
 
 
-def tap_xy(x, y):
-    run('axe', 'tap', '-x', str(round(x)), '-y', str(round(y)), '--udid', UDID, check=False)
-
-
-def tap(text, fallback, exact=False, wait=3):
-    """Tap the smallest element whose label matches text; else tap the fallback point (x, y in points)."""
-    hits = [(l, f) for l, f in elements() if (l.strip() == text if exact else text.lower() in l.lower())]
-    if hits:
-        label, f = min(hits, key=lambda h: h[1]['width'] * h[1]['height'])
-        print(f'tap "{label}"', flush=True)
-        tap_xy(f['x'] + f['width'] / 2, f['y'] + f['height'] / 2)
-    else:
-        print(f'no element "{text}"; tap fallback {fallback[0]:.0f},{fallback[1]:.0f}', flush=True)
-        tap_xy(*fallback)
+def go(query, wait=4):
+    """Drive the demo app through its deep link (src/dev/demoNav.js); taps don't reach the WKWebView."""
+    run('xcrun', 'simctl', 'openurl', UDID, f'{BUNDLE}://demo?{query}', check=False)
+    end = time.time() + 6
+    while time.time() < end:  # iOS asks "Open in Silly Travel Tool?" for custom-scheme links
+        hits = [f for l, f in elements() if l.strip() == 'Open']
+        if hits:
+            f = min(hits, key=lambda f: f['width'] * f['height'])
+            run('axe', 'tap', '-x', str(round(f['x'] + f['width'] / 2)), '-y', str(round(f['y'] + f['height'] / 2)), '--udid', UDID, check=False)
+            break
+        time.sleep(1)
     time.sleep(wait)
-
-
-def tab(index, name):
-    tap(name, (W * (index + 0.5) / 5, H - 48), exact=True)
-
-
-def swipe_up(amount=0.35):
-    run('axe', 'swipe', '--start-x', str(round(W / 2)), '--start-y', str(round(H * 0.7)),
-        '--end-x', str(round(W / 2)), '--end-y', str(round(H * (0.7 - amount))), '--udid', UDID, check=False)
-    time.sleep(1.5)
 
 
 def png_size(path):
@@ -124,24 +109,30 @@ run('xcrun', 'simctl', 'launch', UDID, BUNDLE)
 time.sleep(14)
 shot('03-today')
 
-tap('All trips', (W * 0.14, H * 0.07))
-time.sleep(2)
+go('trips=list')
 shot('01-trips-list')
-
-tap(TRIP, (W * 0.5, H * 0.3), wait=4)
-swipe_up(0.3)  # down to the BCN -> BER flight and its two time zones
+go('trip=trip-spain', wait=6)  # Plan tab: SEA -> MAD flight with its two time zones
 shot('02-trip-plan')
-
-tab(0, 'Trips')  # closes the trip
-tab(1, 'Guide'); time.sleep(3); shot('04-guide')
-tab(2, 'HONK'); time.sleep(2); shot('05-honk')
-tab(3, 'Tools'); time.sleep(2); shot('06-tools')
-tab(4, 'Profile'); time.sleep(2)
-tap('Travel documents', (W * 0.5, H * 0.72), wait=3)
+go('trip=close&tab=guide', wait=6)
+shot('04-guide')
+go('tab=honk')
+shot('05-honk')
+go('tab=tools')
+shot('06-tools')
+go('tab=profile&profile=docs')
 shot('07-documents')
 
-count = len([n for n in os.listdir(f'{OUT}/{KIND}') if n.endswith('.png')])
+# No two screenshots may be the same picture (the previous run produced seven copies of Today)
+import hashlib
+files = sorted(n for n in os.listdir(f'{OUT}/{KIND}') if n.endswith('.png'))
+digests = {}
+for n in files:
+    digests.setdefault(hashlib.sha256(open(f'{OUT}/{KIND}/{n}', 'rb').read()).hexdigest(), []).append(n)
+for names in digests.values():
+    if len(names) > 1:
+        failures.append('identical: ' + ', '.join(names))
+count = len(files)
 print(f'{count} screenshots in {OUT}/{KIND}', flush=True)
 if failures:
-    print('!! wrong size:', '; '.join(failures), flush=True)
-sys.exit(1 if failures or count < 5 else 0)
+    print('!! ', '; '.join(failures), flush=True)
+sys.exit(1 if failures or count < 7 else 0)
