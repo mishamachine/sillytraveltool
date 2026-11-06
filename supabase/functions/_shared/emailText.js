@@ -54,39 +54,83 @@ export function shortUrl(url) {
   } catch { return url }
 }
 
-const cellText = h => h.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/\|/g, '/').trim()
+/** Raw email text or HTML longer than this is cut before any parsing: every step after it is linear, but bounded too. */
+export const MAX_RAW_CHARS = 300000
 
-/** HTML email → light markdown: tables as "| a | b |" rows, headings, lists, links as text (host/path), no images. */
+const SKIP = new Set(['style', 'script', 'head', 'title', 'noscript'])
+const BLOCK = new Set(['p', 'div', 'ul', 'ol', 'table', 'tbody', 'thead', 'tfoot', 'section', 'article', 'header', 'footer', 'blockquote', 'center'])
+const HREF = /\bhref\s*=\s*["']([^"'>]*)["']/i
+
+/**
+ * HTML email → light markdown: tables as "| a | b |" rows, headings, lists, links as text (host/path), no images.
+ * One pass over the tags (indexOf only, no regex spanning the document), so an unclosed tag can't make it slow.
+ */
 export function htmlToText(html) {
-  let s = decodeQuotedPrintable(String(html ?? ''))
-  s = s.replace(/<(style|script|head|title|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<img\b[^>]*>/gi, '')
-    // Links: their text, and where they go (host and path, no tracking query)
-    .replace(/<a\b[^>]*?href\s*=\s*["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, inner) => {
-      const text = cellText(inner)
-      const to = /^https?:/i.test(href) ? shortUrl(decodeEntities(href)) : ''
-      if (!text) return ''
-      return to && !text.toLowerCase().includes(to.split('/')[0]) ? `${text} (${to})` : text
-    })
-    // Table rows: one line each, cells between pipes
-    .replace(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi, (_, row) => {
-      const cells = [...row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m => cellText(m[1]))
-      return cells.some(Boolean) ? `| ${cells.join(' | ')} |\n` : '\n'
-    })
-    .replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, n, t) => `\n${'#'.repeat(Number(n))} ${cellText(t)}\n`)
-    .replace(/<li\b[^>]*>/gi, '\n- ').replace(/<\/li>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/?(p|div|ul|ol|li|table|tbody|thead|tfoot|section|article|header|footer|blockquote|center)\b[^>]*>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-  return tidy(decodeEntities(s))
+  const s = decodeQuotedPrintable(String(html ?? '').slice(0, MAX_RAW_CHARS))
+  const lower = s.toLowerCase()
+  const unclosed = new Set()
+  const out = []
+  let row = null, cell = null, link = null // open table row (cells), cell text, link { href, text }
+  const emit = t => {
+    if (link) link.text.push(t)
+    else if (cell) cell.push(t)
+    else out.push(t)
+  }
+  let i = 0
+  while (i < s.length) {
+    const lt = s.indexOf('<', i)
+    if (lt < 0) { emit(s.slice(i)); break }
+    if (lt > i) emit(s.slice(i, lt))
+    if (s.startsWith('<!--', lt)) { const end = s.indexOf('-->', lt + 4); i = end < 0 ? s.length : end + 3; continue }
+    const gt = s.indexOf('>', lt + 1)
+    if (gt < 0) { emit(s.slice(lt + 1)); break } // a stray "<": keep the text after it
+    const tag = s.slice(lt + 1, gt)
+    i = gt + 1
+    const m = /^(\/?)\s*([a-z][a-z0-9]*)/i.exec(tag)
+    if (!m) { emit(`<${tag}>`); continue }
+    const close = m[1] === '/', name = m[2].toLowerCase()
+    if (SKIP.has(name) && !close) {
+      // Skip to its closing tag; once one is known to be missing, it's missing for every later tag of that name too
+      const end = unclosed.has(name) ? -1 : lower.indexOf(`</${name}`, i)
+      if (end < 0) unclosed.add(name); else i = s.indexOf('>', end) + 1 || s.length
+      continue
+    }
+    if (name === 'img') continue
+    if (name === 'a') {
+      if (!close) { const h = HREF.exec(tag); link = { href: h ? decodeEntities(h[1]) : '', text: [] }; continue }
+      if (link) {
+        const text = flat(link.text.join(' ')), to = /^https?:/i.test(link.href) ? shortUrl(link.href) : ''
+        link = null
+        if (text) emit(to && !text.toLowerCase().includes(to.split('/')[0]) ? `${text} (${to})` : text)
+      }
+      continue
+    }
+    if (name === 'tr') {
+      if (row) { if (cell) row.push(flat(cell.join(' '))); if (row.some(Boolean)) out.push(`\n| ${row.join(' | ')} |\n`) }
+      row = close ? null : []; cell = null
+      continue
+    }
+    if (name === 'td' || name === 'th') {
+      if (row && cell) row.push(flat(cell.join(' ')))
+      cell = !close && row ? [] : null
+      continue
+    }
+    if (/^h[1-6]$/.test(name)) { emit(close ? '\n' : `\n${'#'.repeat(Number(name[1]))} `); continue }
+    if (name === 'li') { if (!close) emit('\n- '); continue }
+    if (name === 'br') { emit(cell ? ' ' : '\n'); continue }
+    if (BLOCK.has(name)) { if (cell) emit(' '); else { if (row && name === 'table' && close) { row = null } out.push('\n') } continue }
+    emit(' ')
+  }
+  if (row) { if (cell) row.push(flat(cell.join(' '))); if (row.some(Boolean)) out.push(`\n| ${row.join(' | ')} |\n`) }
+  return tidy(decodeEntities(out.join('')))
 }
+const flat = t => t.replace(/\s+/g, ' ').replace(/\|/g, '/').trim()
 
 const tidy = s => s.replace(/\r/g, '').replace(/[ \t ]+/g, ' ').split('\n').map(l => l.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim()
 
 /** The email's text: the HTML part as light markdown (tables survive), unless the plain part says clearly more. */
 export function bestText(text, html) {
-  const t = String(text ?? '').trim()
+  const t = String(text ?? '').slice(0, MAX_RAW_CHARS).trim()
   if (!html) return t
   const h = htmlToText(html)
   return !h || t.length > h.length * 2 ? t : h
@@ -98,15 +142,15 @@ export function bestText(text, html) {
  */
 export function prepareEmailText(raw, { max = MAX_EMAIL_CHARS } = {}) {
   const before = String(raw ?? '').length
-  let s = decodeQuotedPrintable(String(raw ?? ''))
+  let s = decodeQuotedPrintable(String(raw ?? '').slice(0, MAX_RAW_CHARS))
   s = /<(html|body|table|div|p|br|td)\b/i.test(s) ? htmlToText(s) : tidy(decodeEntities(s))
   s = s.replace(/https?:\/\/[^\s<>)"'\]]+/g, u => (/[?#]/.test(u) || u.length > 80 ? shortUrl(u) : u))
-  const capped = s.length > max
+  const capped = s.length > max || before > MAX_RAW_CHARS
   if (capped) s = s.slice(0, max)
   return { text: s, before, after: s.length, capped }
 }
 
 /** A date, a time or a booking word with a number: the body may hold a booking of its own, not just "see attached". */
 export function looksLikeBooking(text) {
-  return /(\b\d{1,2}:\d{2}\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b|\b(booking|reservation|confirmation|itinerary|check[- ]?in)\b.*\d)/i.test(String(text ?? ''))
+  return /(\b\d{1,2}:\d{2}\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b|\b(booking|reservation|confirmation|itinerary|check[- ]?in)\b[^\n]{0,200}\d)/i.test(String(text ?? '').slice(0, MAX_RAW_CHARS))
 }

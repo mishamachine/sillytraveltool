@@ -259,8 +259,15 @@ export async function senderAllowed(supabase: any, profile: InboxProfile, fromAd
   return normalizeAddress(await accountEmailOf(supabase, profile)) === from
 }
 
-// AI reads (the email, each attachment) one inbox may use a day: its own budget, not the member's in-app AI quota
+// Emails one inbox may have read a day: its own budget, not the member's in-app AI quota. One email is one unit,
+// however many AI reads it needs (the body plus up to MAX_READS - 1 attachments)
 export const INBOX_DAILY_PARSES = 30
+export const MAX_READS = 3
+/** Log that a cap stopped reading (no content): the admin sees it in function_errors. */
+async function logCapHit(supabase: any, userId: string, message: string) {
+  console.warn(`Inbox cap for user ${userId}: ${message}`)
+  try { await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_cap_hit', status: 429, user_id: userId, message: message.slice(0, 120) }) } catch { /* best-effort */ }
+}
 // Forwarded emails kept waiting for the yes to AI reading, per member
 export const MAX_HELD = 50
 
@@ -286,14 +293,17 @@ async function inboxBudget(supabase: any, userId: string): Promise<boolean> {
  * Server-side switches (app_settings key 'inbox', value { sender_check, consent_hold }), both OFF when the row or a key
  * is absent, which is how the inbox has always worked live: any sender, read on arrival. consent_hold ON holds emails
  * until the member allows AI reading (needs app builds that can ask); sender_check ON drops mail from anyone but the
- * member and their allowed senders. Read once per email; a read error counts as OFF.
+ * member and their allowed senders. Read once per email; a read error keeps the last value read (OFF on a cold start).
  */
+let lastSwitches = { sender_check: false, consent_hold: false } // a read error keeps the last value read (OFF on a cold start)
 export async function inboxSwitches(supabase: any): Promise<{ sender_check: boolean, consent_hold: boolean }> {
   try {
-    const { data } = await supabase.from('app_settings').select('value').eq('key', 'inbox').maybeSingle()
+    const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'inbox').maybeSingle()
+    if (error) throw error
     const v = data?.value || {}
-    return { sender_check: v.sender_check === true, consent_hold: v.consent_hold === true }
-  } catch { return { sender_check: false, consent_hold: false } }
+    lastSwitches = { sender_check: v.sender_check === true, consent_hold: v.consent_hold === true }
+  } catch (e) { console.warn('inbox switches unreadable, keeping the last value', (e as Error)?.message) }
+  return { ...lastSwitches }
 }
 
 export async function ingestEmail(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
@@ -372,7 +382,7 @@ async function ingestOne(
     return ok({ success: true, ignored: true })
   }
   if (!(await inboxBudget(supabase, userId))) {
-    console.warn(`Inbox budget spent for user ${userId}: inbound email not parsed`)
+    await logCapHit(supabase, userId, `daily inbox limit (${INBOX_DAILY_PARSES} emails) reached: email not read`)
     return err('Daily inbox limit reached', 429)
   }
 
@@ -407,10 +417,12 @@ async function ingestOne(
 
   // ── 4c. Attachments: an itinerary PDF, a screenshot or a spreadsheet can hold a whole trip ──
   const fromFiles: any[] = []
+  let readable = 0
   for (const a of attachments) {
     const sheet = await sheetToText(a.bytes, { name: a.name, mime: a.mime }).catch(() => null)
     if (sheet == null && !VISION_TYPES.test(a.mime)) continue
-    if (fromFiles.length && !(await inboxBudget(supabase, userId))) break
+    // At most MAX_READS AI reads per email, one kept for the body
+    if (++readable > MAX_READS - 1) continue
     const read = await readItinerary(GEMINI_API_KEY, sheet != null
       ? { text: `Spreadsheet itinerary (${a.name}):\n${sheet}`.slice(0, 20000) }
       : { file: { mime: a.mime, data: toBase64(a.bytes) } })
@@ -428,14 +440,14 @@ async function ingestOne(
   // The body is read with the files and both are filed together, so neither hides the other; a short note that only
   // points at the files ("my ticket is attached", no date or time) isn't worth an AI call
   if (fromFiles.length && body.text.length < 300 && !looksLikeBooking(body.text)) return await fileOnly()
-  if (fromFiles.length && !(await inboxBudget(supabase, userId))) return await fileOnly()
+  if (readable > MAX_READS - 1) await logCapHit(supabase, userId, `${readable} readable attachments, ${MAX_READS - 1} read`)
 
   // ── 5. Read the email with the AI: every booking in it, every traveller (prompt and answer shape: _shared/emailParse.js) ──
   const prompt = bookingEmailPrompt({ subject, from: fromAddress, body: body.text, receivedAt })
   const gemRes = await geminiFetch(GEMINI_API_KEY, {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 8000 },
-  }, { timeoutMs: 30000 })
+  }, { timeoutMs: 45000 }) // DeepSeek, then Gemini when it fails or times out (gemini.ts)
 
   if (!gemRes.ok) {
     const gemErr = await gemRes.text()
