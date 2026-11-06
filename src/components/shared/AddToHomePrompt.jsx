@@ -3,7 +3,8 @@ import { Sheet, Button, Text } from '../../ui'
 import StoreBadges from './StoreBadges'
 import { useStoreLinks } from '../../lib/useStoreLinks'
 import { isNative } from '../../lib/authRedirect'
-import { track } from '../../lib/analytics'
+import { track, analyticsEnabled } from '../../lib/analytics'
+import { isConsentRegion } from '../../lib/consent'
 import { recordVisit, isDue, markShown, markDone, guideKind, eligible } from '../../lib/installPrompt'
 import './storeBadges.css'
 
@@ -20,7 +21,9 @@ const standalone = () => {
 export default function AddToHomePrompt({ signedIn, hold }) {
   const [visit] = useState(() => {
     const s = stores()
-    return s && eligible({ native: isNative, standalone: standalone() }) ? recordVisit(s.local, s.session) : 0
+    // EU/EEA/UK/CH: the visit counter is device storage nobody asked for, so it is kept only once they opt in to usage stats
+    const allowed = !isConsentRegion() || analyticsEnabled()
+    return s && allowed && eligible({ native: isNative, standalone: standalone() }) ? recordVisit(s.local, s.session) : 0
   })
   const [event, setEvent] = useState(null)
   const [open, setOpen] = useState(false)
