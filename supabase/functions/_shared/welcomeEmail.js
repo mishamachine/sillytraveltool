@@ -37,7 +37,7 @@ export function welcomeEmail({ name, appUrl, inboxToken } = {}) {
 </tr>`).join('\n')
   const inner = `<h1 style="margin:0 0 12px;font-family:'Space Grotesk',Helvetica,Arial,sans-serif;font-size:28px;line-height:1.2;color:#2A2520;">${esc(headline)}</h1>
 <p style="margin:0 0 ${inbox ? 12 : 24}px;font-size:16px;line-height:1.55;color:#2A2520;">${esc(intro)}</p>${inbox ? `
-<p style="margin:0 0 24px;font-size:14px;line-height:1.5;color:#6B6355;">Your Goose inbox: <span style="font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;color:#2A2520;word-break:break-all;">${esc(inbox)}</span></p>` : ''}
+<p style="margin:0 0 24px;font-size:14px;line-height:1.5;color:#6B6355;">Your Goose inbox:<br><span style="font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:13px;color:#2A2520;">${esc(inbox).replace('@', '@<wbr>')}</span></p>` : ''}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 ${rows}
 </table>
