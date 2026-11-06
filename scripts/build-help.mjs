@@ -170,9 +170,10 @@ ${GROUPS.map(g => `
 
   <footer>
     Still stuck? Email <a href="mailto:${HELP_CONTACT}">${HELP_CONTACT}</a>. ·
-    <a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a>
+    <a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="#" data-consent-settings>Cookie and analytics settings</a>
   </footer>
 </main>
+<script src="/legal/consent.js" defer></script>
 </body>
 </html>
 `

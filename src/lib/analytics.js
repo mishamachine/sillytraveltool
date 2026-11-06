@@ -1,17 +1,18 @@
 import { Capacitor } from '@capacitor/core'
 import { supabase } from './supabase'
 import { initGA, stopGA, gaEvent, gaPageView, gaSetUser } from './ga'
+import { isConsentRegion, readPref, writePref, resolveEnabled, needsChoice } from './consent'
 
 // Product analytics. Every track() goes to two places:
 //  - Supabase `analytics_events` (first party, insert-own RLS; skipped when signed out)
 //  - GA4 (website and app; see ga.js)
 // Fire-and-forget: never throws, never blocks UI. Off when the user turns off "Share usage stats" in
-// Settings; off by default when the browser sends Do Not Track or Global Privacy Control.
+// Settings; off by default when the browser sends Do Not Track or Global Privacy Control, and for visitors in the
+// EU/EEA/UK/Switzerland until they allow it (consent.js; the banner is ConsentBanner.jsx). Web and native apps alike.
 // Props are short codes only: cleanProps() drops anything that looks personal (emails, names, free text,
 // coordinates, confirmation numbers), so pass enums, counts and booleans.
 
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || null
-const PREF_KEY = 'stt_analytics'
 
 // GA4 has recommended names for these; the Supabase rows keep ours
 const GA_NAMES = { sign_in: 'login', screen_view: null }
@@ -47,17 +48,17 @@ function browserSaysNo() {
 }
 
 export function analyticsEnabled() {
-  try {
-    const pref = localStorage.getItem(PREF_KEY)
-    if (pref === 'on') return true
-    if (pref === 'off') return false
-  } catch { /* fall through to the browser signal */ }
-  return !browserSaysNo()
+  return resolveEnabled({ pref: readPref(), region: isConsentRegion(), browserNo: browserSaysNo() })
+}
+
+/** True while the consent banner should be showing: in the region, and no choice saved yet. */
+export function consentChoiceNeeded() {
+  return needsChoice({ pref: readPref(), region: isConsentRegion() })
 }
 
 export function setAnalyticsEnabled(on) {
-  try { localStorage.setItem(PREF_KEY, on ? 'on' : 'off') } catch { /* ignore */ }
-  if (on) { initGA(); track('analytics_opt_in') }
+  writePref(on)
+  if (on) { initGA(); track('analytics_opt_in'); if (lastScreen) gaPageView(lastScreen) }
   else stopGA()
 }
 

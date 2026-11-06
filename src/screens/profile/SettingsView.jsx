@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore, useUIStore } from '../../store'
 import { InboxAddress } from '../trips/InboxHint'
 import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
+import { CONSENT_EVENT, isConsentRegion } from '../../lib/consent'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { useConsentStore } from '../../store/consentStore'
 import { consentCurrent } from '../../lib/aiConsentPolicy'
@@ -84,6 +85,11 @@ export default function SettingsView({ onBack, onDelete }) {
   const [confirmRotate, setConfirmRotate] = useState(false)
   const [inboxError, setInboxError] = useState(null)
   const [shareStats, setShareStats] = useState(analyticsEnabled)
+  useEffect(() => { // the consent banner can change it while Settings is open
+    const sync = () => setShareStats(analyticsEnabled())
+    window.addEventListener(CONSENT_EVENT, sync)
+    return () => window.removeEventListener(CONSENT_EVENT, sync)
+  }, [])
 
   useEffect(() => {
     if (profile?.display_name) setName(profile.display_name)
@@ -214,7 +220,7 @@ export default function SettingsView({ onBack, onDelete }) {
 
       <Section title="Privacy and about">
         <Card variant="group">
-          <Switch label="Share usage stats" description="Which features you use and your device type help us improve the app. No names, emails or trip details."
+          <Switch label="Share usage stats" description={`Which features you use and your device type help us improve the app. No names, emails or trip details.${isConsentRegion() ? ' Off until you allow it.' : ''}`}
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
           <Switch label="AI reading of imports and translations" description="Goose’s AI (DeepSeek, with Google Gemini for photos and PDFs) reads the emails you forward, what you import and the sentences you type to translate. Off: forwarded emails wait for your OK."
             checked={consentCurrent(profile)} onChange={on => {

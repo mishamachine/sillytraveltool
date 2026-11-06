@@ -1,9 +1,12 @@
 import { Capacitor } from '@capacitor/core'
+import { isConsentRegion, consentDefaults } from './consent'
 
 // GA4 on the website and in the Capacitor app. Fed by track() and screenView() in analytics.js; nothing
-// else should call gtag. Every build except the dev server (npm run dev) loads it; the dev server needs
-// VITE_GA_DEV=1 (events are sent with debug_mode, so they show in GA4 DebugView). No ads storage, ad signals
-// or Google signals.
+// else should call gtag, and this is the only place that loads gtag.js. Every build except the dev server (npm run dev)
+// loads it; the dev server needs VITE_GA_DEV=1 (events are sent with debug_mode, so they show in GA4 DebugView).
+// No ads storage, ad signals or Google signals.
+// EU/EEA/UK/Switzerland visitors: initGA() is only called after they opt in (analytics.js), so gtag.js is never fetched
+// before consent ("basic" Consent Mode: no cookieless pings). Consent Mode v2 defaults are still set, denied, before it loads.
 
 // The stream's Google tag ID (GA Admin → Data streams → Configure tag settings). It forwards to the GA4
 // measurement ID G-H7ZP1DBHN3; Google answers 404 when the script or config uses the measurement ID itself.
@@ -39,14 +42,20 @@ function nativeClientId() {
 }
 
 export function initGA() {
-  if (!ENABLED || started || typeof window === 'undefined') return
-  started = true
+  if (!ENABLED || typeof window === 'undefined') return
   KILL_IDS.forEach(id => { window[`ga-disable-${id}`] = false })
+  if (started) {
+    // Opted out earlier this session and back in: lift the switch
+    try { window.gtag('consent', 'update', { analytics_storage: 'granted' }) } catch { /* ignore */ }
+    return
+  }
+  started = true
+  const region = isConsentRegion()
   window.dataLayer = window.dataLayer || []
   window.gtag = function gtag() { window.dataLayer.push(arguments) } // gtag needs the arguments object, not an array
-  window.gtag('consent', 'default', {
-    analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
-  })
+  window.gtag('consent', 'default', consentDefaults(region))
+  // Reaching this point means analytics is on (opted in, or outside the region), so analytics storage is granted
+  if (region) window.gtag('consent', 'update', { analytics_storage: 'granted' })
   window.gtag('js', new Date())
   const native = isNative()
   // Page views are sent by screenView() (routing is Zustand state, not URLs).
@@ -67,7 +76,18 @@ export function initGA() {
 
 // Opting out mid-session: GA's own kill switch stops every later hit.
 export function stopGA() {
-  if (typeof window !== 'undefined') KILL_IDS.forEach(id => { window[`ga-disable-${id}`] = true })
+  if (typeof window === 'undefined') return
+  KILL_IDS.forEach(id => { window[`ga-disable-${id}`] = true })
+  try { window.gtag?.('consent', 'update', { analytics_storage: 'denied' }) } catch { /* ignore */ }
+}
+
+// page_location for GA: the screen's path on the site's host, keeping only utm_* parameters from the query string so
+// campaign tags survive and nothing else (tokens, emails in links) is ever sent.
+export function pageLocation(origin, path, search = '') {
+  const kept = new URLSearchParams()
+  try { new URLSearchParams(search).forEach((v, k) => { if (/^utm_[a-z0-9_]+$/i.test(k)) kept.append(k, v) }) } catch { /* bad query */ }
+  const q = kept.toString()
+  return `${origin}/${path}${q ? `?${q}` : ''}`
 }
 
 export function gaSetUser(userId) {
@@ -85,5 +105,5 @@ export function gaPageView(path) {
   if (!started || !window.gtag) return
   // The app has no real URLs; give GA a stable path per screen on the site's host
   const origin = isNative() ? 'https://sillytraveltool.com' : window.location.origin
-  gaEvent('page_view', { page_title: path, page_location: `${origin}/${path}`, page_path: `/${path}` })
+  gaEvent('page_view', { page_title: path, page_location: pageLocation(origin, path, window.location.search), page_path: `/${path}` })
 }
