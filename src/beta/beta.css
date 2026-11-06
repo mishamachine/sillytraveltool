@@ -125,6 +125,7 @@ a { color: var(--accent); }
 }
 
 /* Android beta: two steps (join the Google Group, then install) */
+.b-get__row--steps { align-items: start; }
 .b-steps { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-3); counter-reset: bstep; }
 .b-steps li { counter-increment: bstep; display: grid; gap: var(--space-2); }
 .b-steps li > span::before { content: counter(bstep) '. '; font-weight: 700; color: var(--accent); }

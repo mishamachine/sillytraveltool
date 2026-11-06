@@ -37,4 +37,6 @@ check(and.html.includes(unsub) && and.text.includes(unsub), 'android unsubscribe
 const custom = inviteEmail({ platform: 'android', link: P, groupLink: 'https://groups.google.com/g/other', unsubscribeUrl: unsub })
 check(custom.text.includes('https://groups.google.com/g/other') && !custom.text.includes(G), 'android_group_url overrides the fallback')
 check(inviteEmail({ platform: 'web', link: 'https://x.y/', unsubscribeUrl: unsub, test: true }).subject.startsWith('[Test] '), 'test subject')
+const paren = inviteEmail({ platform: 'android', link: 'https://play.google.com/x?a=(b)', unsubscribeUrl: unsub })
+check(paren.html.includes('href="https://play.google.com/x?a=(b%29"'), 'close paren in a URL cannot break the link')
 console.log(`beta emails: ${n} checks passed`)

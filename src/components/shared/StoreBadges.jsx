@@ -8,13 +8,22 @@ import './storeBadges.css'
  */
 export default function StoreBadges({ links, only, onOpen, className }) {
   if (!links) return null
-  const ios = links.ios && (!only || only === 'ios')
+  const showIos = !only || only === 'ios'
+  const ios = showIos && links.ios
+  const soon = showIos && !links.ios && links.iosSoon
   const android = links.android && (!only || only === 'android')
-  if (!ios && !android) return null
+  if (!ios && !soon && !android) return null
   const open = (store) => () => onOpen?.(store)
   return (
     <div className={`store-badges ${className || ''}`}>
+      {soon && (
+        <a className="store-badge store-badge--soon" href={links.iosSoon} onClick={open('iphone_waitlist')}>
+          <Icon name="smartphone" size={22} />
+          <span className="store-badge__text"><small>iPhone: coming soon</small><strong>Join the list</strong></span>
+        </a>
+      )}
       {ios && (
+        // TODO: swap for Apple's official "Download on the App Store" badge art once its marketing-guidelines licence is confirmed
         <a className="store-badge" href={links.ios} target="_blank" rel="noreferrer" onClick={open('app_store')}>
           <Icon name="smartphone" size={22} />
           <span className="store-badge__text"><small>Download on the</small><strong>App Store</strong></span>
@@ -25,7 +34,7 @@ export default function StoreBadges({ links, only, onOpen, className }) {
           <p className="store-steps__title">Android beta, two steps</p>
           <a className="store-badge" href={links.android.group} target="_blank" rel="noreferrer" onClick={open('android_group')}>
             <span className="store-badge__num" aria-hidden="true">1</span>
-            <span className="store-badge__text"><small>Use the Google account on your phone</small><strong>Join the beta group</strong></span>
+            <span className="store-badge__text"><small>Use the Google account on your phone</small><strong>Join the Android testers group</strong></span>
           </a>
           <a className="store-badge" href={links.android.install} target="_blank" rel="noreferrer" onClick={open('android_install')}>
             <span className="store-badge__num" aria-hidden="true">2</span>

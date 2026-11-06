@@ -69,6 +69,9 @@ export function confirmEmail({ platform, unsubscribeUrl }) {
   return render(CONFIRM, { platform_label: PLATFORM_LABEL[platform] || 'your phone', web_line }, { kind: 'marketing', unsubscribeUrl, why: WHY })
 }
 
+// Markdown link whose label is the URL; ")" would end the link early, so it is percent-encoded
+const mdLink = (u) => { const e = String(u).replace(/\)/g, '%29'); return `[${e}](${e})` }
+
 export const ANDROID_GROUP_URL = 'https://groups.google.com/g/sillytraveltool-beta'
 
 // link = the platform's app_settings.beta link. Android is two steps: the Google Group (groupLink, falls back to the
@@ -77,6 +80,6 @@ export function inviteEmail({ platform, link, groupLink, unsubscribeUrl, test })
   const tpl = INVITE[platform]
   const android = platform === 'android'
   const group = groupLink || ANDROID_GROUP_URL
-  const m = render({ ...tpl, cta_url: android ? group : link }, android ? { group_url: `[${group}](${group})`, install_url: `[${link}](${link})` } : {}, { kind: 'marketing', unsubscribeUrl, why: WHY })
+  const m = render({ ...tpl, cta_url: android ? group : link }, android ? { group_url: mdLink(group), install_url: mdLink(link) } : {}, { kind: 'marketing', unsubscribeUrl, why: WHY })
   return test ? { ...m, subject: `[Test] ${m.subject}` } : m
 }

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { TagMark, Wordmark } from '../ui/Logo'
 import Icon from '../ui/icons/Icon'
 import { initGA, gaEvent, gaPageView } from '../lib/ga'
-import { ANDROID_GROUP_URL } from '../lib/appLinks'
+import { ANDROID_GROUP_URL, https } from '../lib/appLinks'
 import { applyTheme, getSavedTheme } from '../lib/theme'
 import './beta.css'
 
@@ -97,8 +97,8 @@ function AndroidRow({ groupUrl, installUrl, onClick }) {
         <p>Beta through Google Play, in two quick steps on your phone.</p>
         <ol className="b-steps">
           <li>
-            <span>Join the beta group with the Google account on your phone.</span>
-            <a className="b-btn b-btn--sm" href={groupUrl} onClick={() => onClick('android_group')}>Join the beta group</a>
+            <span>Join the Android testers group with the Google account on your phone.</span>
+            <a className="b-btn b-btn--sm" href={groupUrl} onClick={() => onClick('android_group')}>Join the Android testers group</a>
           </li>
           <li>
             <span>Then install the app from Google Play.</span>
@@ -188,7 +188,7 @@ function Beta() {
         <section className="b-hero">
           <p className="b-overline">Private beta · iPhone, Android and web</p>
           <h1 className="b-title">Get early access to Silly Travel Tool</h1>
-          <p className="b-lede">Every trip in one calm place. The web app is live now, and the iPhone and Android apps are next. Join the list and
+          <p className="b-lede">Every trip in one calm place. The web app is live now and the Android beta is open. The iPhone app is next. Join the list and
             Goose will email your private download link as soon as yours is ready.</p>
         </section>
 
@@ -256,8 +256,8 @@ function Beta() {
               label="Open the web app" onClick={() => open('web')} />
             <GetRow icon="smartphone" name="iPhone" note={links.ios_url ? 'Beta through TestFlight, Apple’s beta app.' : 'Coming soon. Join the list and we’ll email you the link.'}
               href={links.ios_url} label="Join the iPhone beta" onClick={() => open('ios')} />
-            {links.android_url
-              ? <AndroidRow groupUrl={links.android_group_url || ANDROID_GROUP_URL} installUrl={links.android_url} onClick={open} />
+            {https(links.android_url)
+              ? <AndroidRow groupUrl={https(links.android_group_url) || ANDROID_GROUP_URL} installUrl={https(links.android_url)} onClick={open} />
               : <GetRow icon="smartphone" name="Android" note="Coming soon. Join the list and we’ll email you the link." label="Join the Android beta" onClick={() => open('android')} />}
           </div>
         </section>

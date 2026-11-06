@@ -29,7 +29,7 @@ export default function AddToHomePrompt({ signedIn, hold }) {
   const links = useStoreLinks()
   const ios = guideKind({ ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints }) === 'ios'
   const android = /Android/.test(navigator.userAgent)
-  const kind = ios ? 'ios' : 'android'
+  const kind = ios ? 'ios' : android ? 'android' : 'desktop'
 
   useEffect(() => {
     if (!visit) return undefined
@@ -37,7 +37,7 @@ export default function AddToHomePrompt({ signedIn, hold }) {
     const onInstalled = () => {
       const s = stores()
       if (s) markDone(s.local)
-      track('prompt_accepted', { prompt: 'add_to_home', kind, visit })
+      track('app_installed', { kind, visit })
       setOpen(false)
     }
     window.addEventListener('beforeinstallprompt', onPrompt)
@@ -87,7 +87,7 @@ export default function AddToHomePrompt({ signedIn, hold }) {
           <li>Tap <strong>Add</strong>. Goose is on your home screen.</li>
         </ol>
       )}
-      {links && only !== 'none' && (links.ios || links.android) && (
+      {links && only !== 'none' && (
         <div className="a2hs__links">
           <Text variant="caption" as="p" className="a2hs__links-title">Prefer the app?</Text>
           <StoreBadges links={links} only={only} onOpen={(store) => track('store_link_click', { store, surface: 'install_sheet' })} />

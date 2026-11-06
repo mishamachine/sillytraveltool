@@ -32,6 +32,10 @@ recordVisit(l2, mem()); recordVisit(l2, mem())
 markDone(l2)
 assert.equal(isDue(l2, 2), false, 'installed: never again')
 
+// Dismissed the old install toast: treated as done
+const old = mem(); recordVisit(old, mem()); recordVisit(old, mem()); old.setItem('install_banner_dismissed', '1')
+assert.equal(isDue(old, 2), false, 'old toast dismissed: no sheet')
+
 // Blocked or corrupt storage: no visit counted, never due, no throw
 assert.equal(recordVisit(broken, mem()), 0)
 assert.equal(isDue(broken, 2), false)
@@ -56,9 +60,11 @@ assert.equal(eligible({ native: false, standalone: true }), false)
 assert.equal(eligible({ native: false, standalone: false }), true)
 
 // Store links: App Store off by default, Android only once android_url is shown, group falls back
-assert.deepEqual(resolveStoreLinks(null), { ios: null, android: null })
-assert.deepEqual(resolveStoreLinks({ web_url: 'https://sillytraveltool.com/', android_url: null, show_ios_store: false }), { ios: null, android: null })
+assert.deepEqual(resolveStoreLinks(null), { ios: null, iosSoon: '/beta/', android: null })
+assert.deepEqual(resolveStoreLinks({ web_url: 'https://sillytraveltool.com/', android_url: null, show_ios_store: false }), { ios: null, iosSoon: '/beta/', android: null })
 assert.equal(resolveStoreLinks({ show_ios_store: true }).ios, APP_STORE_URL)
+assert.equal(resolveStoreLinks({ show_ios_store: true }).iosSoon, null, 'App Store on: no waitlist row')
+assert.equal(resolveStoreLinks({}).ios, null, 'App Store off by default: no App Store link')
 assert.equal(APP_STORE_URL, 'https://apps.apple.com/app/id6826753531')
 const P = 'https://play.google.com/apps/testing/com.sillytraveltool.app'
 assert.deepEqual(resolveStoreLinks({ android_url: P }).android, { group: ANDROID_GROUP_URL, install: P })

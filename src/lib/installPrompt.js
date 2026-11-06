@@ -32,6 +32,8 @@ export function recordVisit(store, session) {
 /** True when this visit is a prompt visit that has not been shown yet and the member has not installed. */
 export function isDue(store, visit) {
   const s = read(store)
+  // Members who already dismissed the old install toast count as done
+  try { if (store.getItem('install_banner_dismissed')) return false } catch { return false }
   return !!s && !s.done && SHOW_ON_VISITS.includes(visit) && !s.shown.includes(visit)
 }
 

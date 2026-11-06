@@ -24,5 +24,5 @@ export function useStoreLinks() {
     load().then((l) => { if (alive) setLinks(l) })
     return () => { alive = false }
   }, [])
-  return links && (links.ios || links.android) ? links : null
+  return links
 }
