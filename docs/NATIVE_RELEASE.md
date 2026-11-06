@@ -7,7 +7,7 @@ Actions; nothing needs Xcode or Android Studio on the owner's Mac.
 |---|---|---|
 | Workflow | `.github/workflows/ios-release.yml` ("iOS release") | `.github/workflows/android-release.yml` ("Android release") |
 | Output | uploaded to App Store Connect → TestFlight (+ `ios-release-ipa` artifact) | `android-release-aab` artifact (signed `.aab`), uploaded by hand in Play Console |
-| Version | `package.json` `version` (0.20.1) | same |
+| Version | `package.json` `version` (0.20.2) | same |
 | Build number | `package.json` `versionCode` (5) | same (`versionCode`) |
 
 Both stores refuse a build number they have already seen: bump `versionCode` in `package.json` for every upload
