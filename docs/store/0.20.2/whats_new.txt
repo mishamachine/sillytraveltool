@@ -1,0 +1,5 @@
+New HONK tab: tell it your mood, get one nearby pick.
+Explore is now Guide, with a short tour of each tab.
+Clearer times when a trip crosses time zones.
+Choose whether to share usage stats.
+Fixes and polish.
