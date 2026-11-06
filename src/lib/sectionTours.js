@@ -106,8 +106,14 @@ export function keyTarget(i, n, key) {
 
 // ---------- "Seen" memory ----------
 
+// Sections that were renamed: "seen" under the old id still counts (Guide was Explore)
+const SEEN_ALIASES = { guide: 'explore' }
+
 export function hasSeenSection(section, storage) {
-  try { return storage.getItem(SEEN_PREFIX + section) === '1' } catch { return false }
+  try {
+    const old = SEEN_ALIASES[section]
+    return storage.getItem(SEEN_PREFIX + section) === '1' || (!!old && storage.getItem(SEEN_PREFIX + old) === '1')
+  } catch { return false }
 }
 
 export function markSectionSeen(section, storage) {
