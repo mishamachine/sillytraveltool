@@ -105,11 +105,20 @@ async function prepare() {
   const v = await editableVersion()
   await api('PATCH', `/v1/appStoreVersions/${v.id}`, { data: { type: 'appStoreVersions', id: v.id, attributes: { versionString: version, releaseType: 'AFTER_APPROVAL' } } })
   console.log('version set', v.id, version, 'releaseType AFTER_APPROVAL')
-  if (whatsNew.trim()) {
+  // Copy can also come from files in the repo (folder input): description.txt and whats_new.txt, so long multi-line text
+  // doesn't have to pass through a workflow input. A file wins over the whats_new input.
+  const dir = input('FOLDER')
+  const fromFile = (name) => { try { return dir ? fs.readFileSync(path.join(dir, name), 'utf8').trim() : '' } catch { return '' } }
+  const attrs = {}
+  const wn = fromFile('whats_new.txt') || whatsNew.trim()
+  if (wn) attrs.whatsNew = wn
+  const desc = fromFile('description.txt')
+  if (desc) attrs.description = desc
+  if (Object.keys(attrs).length) {
     const loc = await enUS(v.id)
-    await api('PATCH', `/v1/appStoreVersionLocalizations/${loc.id}`, { data: { type: 'appStoreVersionLocalizations', id: loc.id, attributes: { whatsNew } } })
-    console.log('whatsNew updated', loc.id, `${whatsNew.length} chars`)
-  } else console.log('whatsNew not given; left as is')
+    await api('PATCH', `/v1/appStoreVersionLocalizations/${loc.id}`, { data: { type: 'appStoreVersionLocalizations', id: loc.id, attributes: attrs } })
+    console.log('localization updated', loc.id, Object.entries(attrs).map(([k, t]) => `${k} ${t.length} chars`).join(', '))
+  } else console.log('no copy given; left as is')
 
   const q = `/v1/builds?filter[app]=${APP_ID}&filter[version]=${encodeURIComponent(build)}&filter[preReleaseVersion.version]=${encodeURIComponent(version)}&limit=5`
   const deadline = Date.now() + 20 * 60 * 1000
