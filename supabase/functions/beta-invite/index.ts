@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       return {
         from: FROM, to: [to], reply_to: REPLY_TO, subject: m.subject, html: m.html, text: m.text,
         headers: token ? { 'List-Unsubscribe': `<${one(token)}>, <mailto:${REPLY_TO}?subject=unsubscribe>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined,
-        tags: [{ name: 'template', value: `beta_invite_${platform}` }, { name: 'kind', value: 'marketing' }],
+        tags: [{ name: 'template', value: `beta_invite_${platform}` }, { name: 'kind', value: 'service' }],
       }
     }
 

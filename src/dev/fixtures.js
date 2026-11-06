@@ -27,16 +27,18 @@ function at(offset, hh, mm = 0, tz = MAD) {
 }
 
 // askAi: no AI-reading answer yet (the Allow sheet shows); held: that many forwarded emails waiting for it
-export function buildFixtures({ empty = false, flagship = null, askAi = false, held = 0 } = {}) {
+export function buildFixtures({ empty = false, flagship = null, askAi = false, held = 0, pastOnly = false } = {}) {
   const U = DEMO_USER.id
   const next = partsIn(Date.now() + 80 * 60000, MAD) // Alhambra entry, 1h 20m from now in Granada
 
-  const trips = empty ? [] : [
+  const allTrips = empty ? [] : [
     { id: 'trip-spain', owner_id: U, title: 'Madrid · Granada · Sevilla', destination_city: 'Granada', destination_country: 'Spain', destination_country_code: 'ES', destination_lat: 37.1773, destination_lng: -3.5986, start_date: day(-3), end_date: day(6), status: 'planning', notes: null, destination_tz: MAD },
     { id: 'trip-japan', owner_id: U, title: 'Tokyo & Kyoto', destination_city: 'Tokyo', destination_country: 'Japan', destination_country_code: 'JP', start_date: day(24, TYO), end_date: day(32, TYO), status: 'planning', destination_tz: TYO },
     { id: 'trip-lisbon', owner_id: U, title: 'Lisbon', destination_city: 'Lisbon', destination_country: 'Portugal', destination_country_code: 'PT', start_date: '2026-03-06', end_date: '2026-03-12', status: 'completed', destination_tz: LIS },
     { id: 'trip-nyc', owner_id: U, title: 'New York', destination_city: 'New York', destination_country: 'United States', destination_country_code: 'US', start_date: '2026-01-16', end_date: '2026-01-20', status: 'completed', destination_tz: NYC },
   ]
+
+  const trips = pastOnly ? allTrips.filter(t => t.status === 'completed') : allTrips
 
   const b = (o) => ({ created_by: U, source: 'manual', currency: 'EUR', ...o })
   const bookings = empty ? [] : [
