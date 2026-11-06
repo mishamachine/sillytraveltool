@@ -1,0 +1,82 @@
+# App Store screenshots from the demo build (fixture data, no account): iPhone 6.9" and iPad 13".
+# Manual only. Run: gh workflow run ios-store-shots.yml, then download the "ios-store-shots" artifact
+# (iphone/ and ipad/ folders, PNGs numbered in listing order). Feed them to scripts/asc-review.mjs screenshots.
+name: iOS store screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      trip:
+        description: Text on the trip card to open for the Plan screenshot
+        default: Spain
+
+permissions:
+  contents: read
+
+jobs:
+  shots:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Demo web build (native mode) + cap sync ios
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_DEMO: '1'
+          VITE_DEMO_PARAMS: flagship=10
+        run: npx vite build --mode native && npx cap sync ios
+
+      - name: Build for the Simulator
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -40
+
+      - name: Install AXe (taps by accessibility label)
+        run: brew install cameroncooke/axe/axe
+
+      - name: Pick simulators
+        run: |
+          xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          devs = [d for rt, ds in json.load(sys.stdin)["devices"].items() if "iOS" in rt for d in ds]
+          phone = [d for d in devs if re.match(r"iPhone .*Pro Max", d["name"])]
+          pad = [d for d in devs if re.match(r"iPad Pro 13", d["name"])]
+          if not phone or not pad: sys.exit("no iPhone Pro Max or iPad Pro 13-inch simulator on this runner")
+          print("PHONE_UDID=" + phone[-1]["udid"]); print("PAD_UDID=" + pad[-1]["udid"])
+          print("devices:", phone[-1]["name"], "/", pad[-1]["name"], file=sys.stderr)' >> "$GITHUB_ENV"
+
+      - name: Screenshots (iPhone 6.9" then iPad 13")
+        env:
+          TRIP: ${{ inputs.trip }}
+        run: |
+          for KIND in iphone ipad; do
+            if [ "$KIND" = iphone ]; then U="$PHONE_UDID"; else U="$PAD_UDID"; fi
+            xcrun simctl boot "$U"
+            xcrun simctl bootstatus "$U" -b
+            xcrun simctl status_bar "$U" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+            xcrun simctl install "$U" build/Build/Products/Debug-iphonesimulator/App.app
+            UDID="$U" KIND="$KIND" OUT=store-shots python3 scripts/ios-store-shots.py
+            xcrun simctl shutdown "$U"
+          done
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: ios-store-shots
+          path: store-shots
+          retention-days: 7

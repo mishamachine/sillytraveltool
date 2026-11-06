@@ -1,15 +1,29 @@
-# App Store review: show status, or cancel the open review submission (owner-approved, manual only).
-# Run: gh workflow run ios-review.yml -f action=status|cancel
+# App Store review tools (owner-approved, manual only). Run:
+#   gh workflow run ios-review.yml -f action=status|cancel|listing|prepare|screenshots|submit
+# listing is read-only. prepare takes version, build, whats_new. screenshots takes folder (repo path with iphone/ and ipad/).
+# Inputs reach the script as environment variables, never inside the shell command.
 name: iOS review
 
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: status or cancel
+        description: status, cancel, listing (read-only), prepare, screenshots or submit
         type: choice
-        options: [status, cancel]
+        options: [status, cancel, listing, prepare, screenshots, submit]
         default: status
+      version:
+        description: "prepare: version string"
+        default: '0.20.2'
+      build:
+        description: "prepare: build number"
+        default: '10'
+      whats_new:
+        description: "prepare: What's New text (en-US)"
+        default: ''
+      folder:
+        description: "screenshots: repo folder with iphone/ and ipad/ PNGs"
+        default: ''
 
 permissions:
   contents: read
@@ -17,7 +31,7 @@ permissions:
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,6 +41,11 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+          ACTION: ${{ inputs.action }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_BUILD: ${{ inputs.build }}
+          INPUT_WHATS_NEW: ${{ inputs.whats_new }}
+          INPUT_FOLDER: ${{ inputs.folder }}
         run: |
           export ASC_KEY_P8="$(echo "$ASC_KEY_P8_B64" | base64 -d)"
-          node scripts/asc-review.mjs "${{ inputs.action }}"
+          node scripts/asc-review.mjs "$ACTION"
