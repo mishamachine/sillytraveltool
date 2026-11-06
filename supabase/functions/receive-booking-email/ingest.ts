@@ -641,7 +641,8 @@ async function placeGroup(supabase: any, profile: { id: string }, trips: any[], 
   const stops = group.flatMap(f => [f.ends.dep, f.ends.arr, f.ends.at]).filter(Boolean) as Pt[]
   const all = stops.some(p => !transit.has(p)) ? stops.filter(p => !transit.has(p)) : stops
   const away = all.filter(p => !nearHome(p, home))
-  const item = { start: span?.start || null, end: span?.end || null, points: away.length ? away : all }
+  // origin: where the group leaves from, so leaving from near where another trip leaves doesn't put it in that trip
+  const item = { start: span?.start || null, end: span?.end || null, points: away.length ? away : all, origin: legs[0]?.ends.dep || null }
   const live = trips.filter((t: any) => t.status !== 'cancelled')
   const widen = async (t: any) => {
     if (t.shared || !item.start) return

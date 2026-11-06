@@ -3,8 +3,10 @@
 //
 // item:  { start, end }  YYYY-MM-DD local dates of the booking (null for an undated saved place)
 //        points: [{ lat, lng }]  where it happens (both ends for a flight or train)
+//        origin: { lat, lng }  optional: where its first flight or train leaves from
 // trip:  a trips row (start_date, end_date, status, destination_lat/lng) plus
 //        points: [{ lat, lng }]  its stops and booked places, if known
+//        origin: { lat, lng }  optional: where its first flight or train leaves from
 // ctx:   { today: YYYY-MM-DD }
 
 export const NEAR_KM = 75     // a place this close to a stop is on the trip's route
@@ -40,6 +42,22 @@ export function routeKm(trip, item) {
   return best
 }
 
+/**
+ * routeKm, except that where the item starts (item.origin) meeting where the trip starts (trip.origin) doesn't count:
+ * two journeys leaving from the same part of the world (Seattle for Rome, Vancouver for Tokyo) are not one trip.
+ * Without both origins it is routeKm.
+ */
+export function regionKm(trip, item) {
+  const io = valid(item?.origin) ? pt(item.origin) : null, to = valid(trip?.origin) ? pt(trip.origin) : null
+  if (!io || !to) return routeKm(trip, item)
+  let best = Infinity
+  for (const a of (item?.points || []).filter(valid).map(pt)) {
+    const fromStart = distanceKm(a, io) <= NEAR_KM
+    for (const b of tripPoints(trip)) if (!(fromStart && distanceKm(b, to) <= NEAR_KM)) best = Math.min(best, distanceKm(a, b))
+  }
+  return best
+}
+
 const DAY = 86400000
 const dayNum = d => Math.round(Date.parse(`${d}T12:00:00Z`) / DAY)
 
@@ -61,7 +79,7 @@ export function gapDays(trip, item) {
 export function scoreTrip(trip, item, ctx = {}) {
   const none = { score: 0, fit: null, km: Infinity, widen: null }
   if (!trip || trip.status === 'cancelled') return none
-  const km = routeKm(trip, item)
+  const km = regionKm(trip, item)
   const near = km <= NEAR_KM
   const dated = !!(trip.start_date && trip.end_date)
   const closeness = Number.isFinite(km) ? Math.max(0, 20 - km / 50) : 0 // tie-break: nearer wins
