@@ -3,16 +3,28 @@
 <!-- Paste everything below this line into Supabase: Authentication, Email Templates. See docs/AUTH_EMAIL_TEMPLATES.md. -->
 <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirm your Silly Travel Tool account</title></head>
 <body style="margin:0;padding:0;background:#F4EEE6;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Forward one booking and watch your trip build itself.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4EEE6;"><tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFDF9;border-radius:22px;">
 <tr><td style="padding:28px 28px 8px;"><img src="https://sillytraveltool.com/apple-touch-icon.png" width="40" height="40" alt="Silly Travel Tool" style="border-radius:10px;display:block;"></td></tr>
-<tr><td style="padding:12px 28px 24px;">
-<h1 style="margin:0 0 16px;font-family:'Space Grotesk',Helvetica,Arial,sans-serif;font-size:24px;line-height:1.25;color:#2A2520;">Welcome aboard</h1>
-<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#2A2520;">Thanks for signing up for Silly Travel Tool. One tap and your account is ready, with your bookings, your cities and one goose.</p>
-<p style="margin:24px 0 8px;"><a href="{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .ConfirmationURL }}{{ end }}" style="display:inline-block;background:#B24A17;color:#FFFDF9;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:14px;">Confirm my email</a></p>
-<p style="margin:16px 0 0;font-size:14px;line-height:1.55;color:#6B6355;">This link works once. If you didn't sign up, ignore this email and no account will be activated.</p>
-<p style="margin:16px 0 0;font-size:13px;line-height:1.55;color:#6B6355;">Button not working? Copy this link into your browser:<br><a href="{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .ConfirmationURL }}{{ end }}" style="color:#B24A17;word-break:break-all;">{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .ConfirmationURL }}{{ end }}</a></p>
+<tr><td style="padding:12px 28px 8px;">
+<h1 style="margin:0 0 12px;font-family:'Space Grotesk',Helvetica,Arial,sans-serif;font-size:26px;line-height:1.2;color:#2A2520;">Your trips are about to get a lot less chaotic</h1>
+<p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#2A2520;">One tap to confirm and the Goose is on the case. Every booking, every city, every day of your trip, finally in one place.</p>
+<p style="margin:0 0 24px;"><a href="{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .ConfirmationURL }}{{ end }}" style="display:inline-block;background:#B24A17;color:#FFFDF9;text-decoration:none;font-weight:600;font-size:16px;padding:14px 26px;border-radius:14px;">Confirm and start planning</a></p>
+</td></tr>
+<tr><td style="padding:0 28px 8px;">
+<p style="margin:0 0 12px;font-family:'Space Grotesk',Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#B24A17;font-weight:600;">What's waiting for you</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+<tr><td style="padding:0 0 14px;border-bottom:1px solid #EFE6DA;"><p style="margin:0 0 2px;font-size:16px;font-weight:700;color:#2A2520;">Forward it. Forget it.</p><p style="margin:0;font-size:15px;line-height:1.5;color:#4A4339;">Send any flight, hotel or dinner confirmation to your own Goose inbox. It lands in the right trip, on the right day, in local time.</p></td></tr>
+<tr><td style="padding:14px 0;border-bottom:1px solid #EFE6DA;"><p style="margin:0 0 2px;font-size:16px;font-weight:700;color:#2A2520;">Your whole trip on one screen</p><p style="margin:0;font-size:15px;line-height:1.5;color:#4A4339;">Day by day, stop by stop, with the weather for every one.</p></td></tr>
+<tr><td style="padding:14px 0;border-bottom:1px solid #EFE6DA;"><p style="margin:0 0 2px;font-size:16px;font-weight:700;color:#2A2520;">Empty day? Fill it.</p><p style="margin:0;font-size:15px;line-height:1.5;color:#4A4339;">Pick your pace, your budget and your vibe: cafés, museums, food, history. The Goose plans the day.</p></td></tr>
+<tr><td style="padding:14px 0 4px;"><p style="margin:0 0 2px;font-size:16px;font-weight:700;color:#2A2520;">HONK for a spot</p><p style="margin:0;font-size:15px;line-height:1.5;color:#4A4339;">Hungry, bored or lost? The Goose picks somewhere good near you, right now.</p></td></tr>
+</table>
+</td></tr>
+<tr><td style="padding:16px 28px 28px;">
+<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#2A2520;font-weight:600;">Start with one booking. The Goose takes it from there.</p>
+<p style="margin:0;font-size:13px;line-height:1.55;color:#6B6355;">This link works once. If you didn't sign up, ignore this email and no account will be activated. Button not working? Copy this link into your browser:<br><a href="{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .ConfirmationURL }}{{ end }}" style="color:#B24A17;word-break:break-all;">{{ if eq .RedirectTo "https://sillytraveltool.com" }}{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .ConfirmationURL }}{{ end }}</a></p>
 </td></tr>
 </table>
-<p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">You're getting this because this email address was used to sign up for Silly Travel Tool.<br>Silly Travel Tool · B&amp;B Project Factory, 402 Grandey Way NE, Renton, WA 98056, USA</p>
+<p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">You're getting this because this email address was used to sign up for Silly Travel Tool.<br>Silly Travel Tool · B&amp;B Project Factory</p>
 </td></tr></table></body></html>

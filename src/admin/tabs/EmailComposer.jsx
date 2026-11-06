@@ -36,7 +36,7 @@ export default function EmailComposer({ to, template: initial, message: initialM
   useEffect(() => {
     if (!key || !draft) return
     const id = setTimeout(() => {
-      api.emailCheck(payload()).then(setCheck, e => setError(e.message))
+      api.emailCheck(payload()).then(c => { setCheck(c); setError(null) }, e => setError(e.message))
       api.emailPreview({ ...payload(), user_ids: to.userIds?.slice(0, 1) }).then(setPreview, () => setPreview(null))
     }, 400)
     return () => clearTimeout(id)
@@ -48,13 +48,14 @@ export default function EmailComposer({ to, template: initial, message: initialM
   }
   const marketing = tpl?.kind === 'marketing'
   const ownerOnly = marketing && role !== 'owner'
+  const paused = /paused until a postal address/.test(error || '')
   const n = check?.eligible ?? 0
 
   return (
     <Modal wide title={`Email ${to.label}`} onClose={onClose}
       footer={result ? <button className="a-btn a-btn--primary" onClick={onClose}>Done</button> : <>
         <button className="a-btn a-btn--ghost" onClick={onClose}>Cancel</button>
-        <button className="a-btn a-btn--primary" onClick={send} disabled={busy || !n || ownerOnly}>
+        <button className="a-btn a-btn--primary" onClick={send} disabled={busy || !n || ownerOnly || paused}>
           <Icon name="mail" size={16} /> {busy ? 'Sending…' : `Send to ${n}`}</button>
       </>}>
       {result ? (
