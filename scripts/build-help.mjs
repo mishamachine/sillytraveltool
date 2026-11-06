@@ -21,7 +21,7 @@ const TOPIC_OVERRIDES = {
     ],
   },
   'together-live': {
-    summary: 'While a trip is open, changes from other travellers appear without a refresh.',
+    summary: 'While a trip is open, changes from other travelers appear without a refresh.',
     steps: [
       'Keep the trip open: new bookings and plans appear on their own.',
       'Times are shown in the local time where they happen, so arrivals line up even across time zones.',

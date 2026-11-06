@@ -51,7 +51,7 @@ export const BADGES = {
   // Tier 3 — Hard
   world_citizen: { name: 'Passport full', tier: 'hard', description: 'Visited 15 countries. You\'re running out of pages.', icon: 'passport', target: 15, stat: 'countries_visited' },
   seven_summits: { name: 'Geographically aggressive', tier: 'hard', description: 'Visited 7+ countries', icon: 'mountain', target: 7, stat: 'countries_visited' },
-  jet_set: { name: 'Airline\'s favourite human', tier: 'hard', description: 'Booked 25 flights. Sky miles? Many.', icon: 'plane', target: 25, stat: 'total_flights' },
+  jet_set: { name: 'Airline\'s favorite human', tier: 'hard', description: 'Booked 25 flights. Sky miles? Many.', icon: 'plane', target: 25, stat: 'total_flights' },
   michelin_goose: { name: 'Expense account vibes', tier: 'hard', description: 'Added 5 splurge restaurants. Treating yourself.', icon: 'star', target: 5, stat: 'splurge_restaurants' },
   festival_goose: { name: 'Never sleeping in', tier: 'hard', description: 'Attended 10 events. Goose is tired for you.', icon: 'event', target: 10, stat: null },
   road_warrior: { name: 'Never actually home', tier: 'hard', description: '100+ days abroad. What is a bed?', icon: 'road', target: 100, stat: 'days_abroad' },

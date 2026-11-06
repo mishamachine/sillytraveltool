@@ -51,7 +51,7 @@ export default function ProfileHome({ docCount, cardCount, onOpen }) {
         <GooseMark expression="happy" size={52} tile tileSize="sm" className="profile-id__avatar" />
         <Stack gap={0} grow>
           <Text variant="h1" id="profile-title" className="profile-id__name" truncate>{displayName(profile, user)}</Text>
-          <Text variant="caption" tone="muted">{since ? `Travelling since ${since}` : user?.email}</Text>
+          <Text variant="caption" tone="muted">{since ? `Traveling since ${since}` : user?.email}</Text>
         </Stack>
         <span className="profile-id__actions">
           <SectionTour section="profile" />
@@ -82,7 +82,7 @@ export default function ProfileHome({ docCount, cardCount, onOpen }) {
       </Section>
 
       <Card variant="group">
-        <ListRow data-tour="profile-help" icon="help" tone="success" title="Guide and FAQ" meta="How everything works, including travelling together" chevron onClick={() => onOpen('help')} />
+        <ListRow data-tour="profile-help" icon="help" tone="success" title="Guide and FAQ" meta="How everything works, including traveling together" chevron onClick={() => onOpen('help')} />
         <ListRow icon="compass" tone="accent" title="Take the tour" meta="A two-minute look at everything STT does" chevron onClick={openTour} />
       </Card>
 
