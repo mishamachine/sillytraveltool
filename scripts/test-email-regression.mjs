@@ -155,6 +155,7 @@ async function send(db, id, { profile = {}, received = RECEIVED, attachments } =
   const res = await quiet(() => ingestEmail(db, { id: 'u1', home_city: null, ...profile }, { subject: e.subject, fromAddress: e.from, bodyText: e.body, GEMINI_API_KEY: 'fake', emailId: `em-${id}`, receivedAt: received, attachments }))
   return res.json()
 }
+const flight = (num, from, to, dep, arr, x = {}) => ({ type: 'flight', flight_number: num, departure_airport: from, arrival_airport: to, departure_time: dep, arrival_time: arr, ...x })
 const booking1 = b => ({ email_kind: 'booking', change_type: 'new', loyalty: [], travelers: [], bookings: [b], unclear: null })
 const pdf = [{ name: 'ticket.pdf', mime: 'application/pdf', bytes: new Uint8Array([37, 80, 68, 70]) }]
 const sendAll = async (db, ids, opts) => { for (const id of ids) await send(db, id, id === 'E10b' ? { ...opts, attachments: pdf } : opts) }
@@ -612,6 +613,34 @@ await t('switches: a read error keeps the last value read', async () => {
   broken.from = t => { if (t !== 'app_settings') return makeDb().from(t); return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'down' } }) }) }) } }
   assert.equal((await send(broken, 'E13a')).reason, 'sender', 'still on after the error')
   await send(makeDb(), 'E1') // a good read (no row: off) resets it
+})
+
+// ── 9. Round trips with no hotel between the legs (4-14 day gaps), each leg its own email, either order ──
+await t('round trip without a hotel (G10): a 7- and a 12-day gap stay one trip, in one email or two, return first or outbound first, with or without a home city', async () => {
+  const out = (ref, back) => booking1(flight('UA 901', 'SFO', 'LHR', '2027-04-10T16:25', '2027-04-11T10:45', { confirmation_number: ref, arrival_city: 'London', destination_city: 'London' }))
+  const ret = (ref, day) => booking1(flight('UA 930', 'LHR', 'SFO', `2027-04-${day}T11:30`, `2027-04-${day}T14:40`, { confirmation_number: ref, arrival_city: 'San Francisco', destination_city: 'San Francisco' }))
+  GEO.unshift(['san francisco', 37.77, -122.42, 'San Francisco', 'US', 'America/Los_Angeles'])
+  for (const day of ['18', '23']) { // 7 and 12 days after landing on 11 Apr
+    for (const refs of [['RT-OUT', 'RT-BACK'], ['RT-SAME', 'RT-SAME']]) {
+      for (const order of [['out', 'back'], ['back', 'out']]) {
+        for (const home_city of [null, 'San Francisco']) {
+          const db = makeDb()
+          ANSWERS['rt-out'] = out(refs[0]); ANSWERS['rt-back'] = ret(refs[1], day)
+          for (const leg of order) await send(db, `rt-${leg}`, { profile: { home_city } })
+          const label = `gap to ${day} Apr, refs ${refs.join('/')}, ${order.join(' then ')}, home ${home_city}`
+          assert.equal(db.tables.bookings.length, 2, label)
+          assert.equal(db.tables.trips.length, 1, `${label}: ${db.tables.trips.map(x => x.title).join(', ')}`)
+          assert.equal(db.tables.trips[0].title, 'Trip to London', label)
+          assert.equal(db.tables.trips[0].start_date, '2027-04-10'); assert.equal(db.tables.trips[0].end_date, `2027-04-${day}`)
+        }
+      }
+    }
+  }
+    // Both legs in one email (the G10 case of the shared-trip run): one trip
+    const db = makeDb()
+    ANSWERS['rt-both'] = { ...out('RT-ONE'), bookings: [out('RT-ONE').bookings[0], ret('RT-ONE', day).bookings[0]] }
+    await send(db, 'rt-both')
+    assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].title, 'Trip to London'); assert.equal(db.tables.bookings.length, 2)
 })
 
 console.log(`\n${n} passed`)
