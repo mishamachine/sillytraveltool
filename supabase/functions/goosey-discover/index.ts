@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { geocode, searchText, routeOne, withGoogleScope, setGoogleUser, type Place } from '../_shared/google.ts'
-// HONK mood → what to ask Google for (new and pre-0.20.2 labels). Results are open now and walkable from the user.
+// HONK mood → what to ask Google for (today's labels and the ones older app builds still send). Results are open now and walkable from the user.
 import { moodQuery } from '../_shared/honkMoods.js'
 
 const CORS = {

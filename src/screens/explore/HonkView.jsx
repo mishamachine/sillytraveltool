@@ -77,6 +77,7 @@ export default function HonkView() {
   const [manualCity, setManualCity] = useState(null)
   const [picking, setPicking] = useState(false) // "Change" location
   const seen = useRef([]) // Google places already suggested this session, so "Another spot" moves on
+  const inFlight = useRef(false) // one request at a time: a double tap doesn't start two
   const [ideaOpen, setIdeaOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const say = (msg, change) => { setToast({ msg, change }); setTimeout(() => setToast(null), change ? 5000 : 2600) }
@@ -121,9 +122,10 @@ export default function HonkView() {
   }
 
   const handleHonk = async (moodId) => {
-    if (!moodId) return
+    if (!moodId || inFlight.current) return
     setMood(moodId); setResult(null); setError(null)
     if (!effectiveCity) { setQueued(moodId); return }
+    inFlight.current = true
     setLoading(true)
     try {
       const moodLabel = MOODS.find(m => m.id === moodId)?.label || moodId
@@ -147,7 +149,7 @@ export default function HonkView() {
     } catch (e) {
       track('ai_error', { feature: 'honk' }, 'goosey')
       setError(e?.message || 'Something went wrong on our side.')
-    } finally { setLoading(false) }
+    } finally { inFlight.current = false; setLoading(false) }
   }
 
   // A mood tapped while Goose was still finding you runs as soon as the location is known
@@ -238,7 +240,7 @@ export default function HonkView() {
               <Stack gap={2}>
                 <Text variant="label" as="p">Get there</Text>
                 {result.lat != null || result.address ? (
-                  <GetThereRow place={result} from={gpsCoords} countryCode={effectiveCountryCode}
+                  <GetThereRow place={result} countryCode={effectiveCountryCode}
                     onAnother={<Button variant="ghost" size="sm" icon="refresh" onClick={() => handleHonk(mood)}>Another spot</Button>} />
                 ) : (
                   <Stack row gap={2}>

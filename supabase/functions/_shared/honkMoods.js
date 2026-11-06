@@ -1,7 +1,7 @@
 // HONK moods, shared by the app (src/screens/explore/HonkView.jsx) and goosey-discover. Plain JS so the app,
 // the Edge Function and scripts/test-honk-moods.mjs all import the same list.
 
-// The HONK tab's six moods (app 0.20.2+). `label` is what the app sends; `id` goes into honk_used.mood.
+// The HONK tab's six moods (web from this release, native apps from 0.20.2). `label` is what the app sends; `id` goes into honk_used.mood.
 export const MOODS = [
   { id: 'hungry',  label: 'Feed me',       hint: 'Local favourites and street eats',          icon: 'restaurant', tone: 'accent',  query: 'best local restaurants and street food' },
   { id: 'wow',     label: 'Wow me',        hint: 'Views, landmarks and hidden gems',          icon: 'compass',    tone: 'sun',     query: 'viewpoints landmarks and hidden gems' },
@@ -11,7 +11,7 @@ export const MOODS = [
   { id: 'nightlife', label: 'Night out',     hint: 'Bars, live music, late spots',              icon: 'moon',       tone: 'stay',    query: 'bars live music and nightlife' },
 ]
 
-// Moods sent by app builds up to 0.20.1. Keep them until those builds are gone.
+// Moods sent by the earlier web app and native builds up to 0.20.1. Keep them until those builds are gone.
 const LEGACY_QUERY = {
   "I'm hungry": 'best places to eat',
   'Show me something': 'interesting sights and hidden gems',

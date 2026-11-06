@@ -38,8 +38,8 @@ function teaser(id, data, sections) {
 function quickFacts(stats) {
   if (!stats) return []
   return [
-    ['chat', stats.language],
-    ['currency', stats.currency?.replace(/\s*\(.*\)$/, '')],
+    ['chat', stats.language && String(stats.language)],
+    ['currency', stats.currency && String(stats.currency).replace(/\s*\(.*\)$/, '')],
     ['sun', stats.avg_temp_summer && `${stats.avg_temp_summer} in summer`],
   ].filter(([, v]) => v)
 }

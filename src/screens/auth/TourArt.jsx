@@ -716,10 +716,10 @@ export function GuideMoreArt() {
   )
 }
 
-// ---------- HONK: a few minutes to kill → tap a mood → one good spot ----------
+// ---------- HONK: 40 minutes to kill → tap a mood → one good spot ----------
 
 const HONK = [
-  { ms: 3000, cap: { n: 1, text: '40 minutes free and nothing planned?' } },
+  { ms: 3000, cap: { n: 1, text: '40 minutes and nothing planned?' } },
   { ms: 1800, cap: { n: 2, text: 'Open HONK and tap a mood' } },
   { ms: 1300, cap: { n: 3, text: 'HONK!' } },
   { ms: 2000 },

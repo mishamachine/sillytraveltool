@@ -31,7 +31,7 @@
 .honk-where { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
 .honk-where .c-icon, .honk-where > svg { color: var(--accent); flex-shrink: 0; }
 .honk-where__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.honk-where__change { flex-shrink: 0; margin-left: 6px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--accent); min-height: 32px; }
+.honk-where__change { flex-shrink: 0; margin-left: 6px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--accent); min-height: var(--touch-min); }
 .honk-blurb { font-size: 1.0625rem; line-height: 1.45; color: var(--ink); margin-top: calc(var(--space-1) * -1); }
 .honk-moods { flex: 1 0 auto; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: minmax(128px, 1fr); gap: var(--space-3); }
 .honk-mood {
