@@ -29,7 +29,7 @@ export const SECTION_TOURS = {
   honk: {
     overline: 'About HONK',
     cards: [
-      { icon: 'megaphone', title: 'What is HONK?', body: 'For when you have time to kill and nothing planned. Tap a mood and Goose finds something great a short walk away, open now.' },
+      { icon: 'megaphone', title: 'What is HONK?', body: 'For when you have time to kill and nothing planned. Tap a mood and Goose finds something great a short walk away.' },
       { icon: 'navigation', title: 'Go, or save it', body: 'Add the spot to your trip, or get walking, transit or driving directions in one tap. Not feeling it? Tap Another spot.' },
     ],
   },
@@ -43,7 +43,7 @@ export const SECTION_TOURS = {
     overline: 'About Profile',
     cards: [
       { icon: 'wallet', title: 'Your travel wallet', body: 'Goose score and badges, passports and documents, loyalty cards.' },
-      { icon: 'book', title: 'Guide and FAQ', body: 'How everything works, whenever you need a hand.' },
+      { icon: 'book', title: 'Help and FAQ', body: 'How everything works, whenever you need a hand.' },
     ],
   },
 }

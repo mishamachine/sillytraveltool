@@ -207,7 +207,7 @@ export default function ExploreScreen() {
             </div>
           )}
           {!overviewFailed && (
-            <div className="grid-2">
+            <div className="grid-2" data-tour="guide-sections">
               {GUIDE_SECTIONS.map(s => {
                 const busy = TAB_SECTIONS[s.id].some(k => loadingSections[k])
                 const line = teaser(s.id, g.guideData, g.sections)

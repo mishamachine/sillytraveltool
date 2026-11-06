@@ -352,7 +352,10 @@ button.tour-now { cursor: pointer; }
 
 .tour-honk__top { min-height: 120px; }
 .tour-honk__card { flex: 1; justify-content: center; }
-.tour-honk .tour-chips .c-chip { position: relative; }
+/* A tapped chip ripples around its edge, so the tap never covers its label */
+.tour-chip--tapped { animation: tour-chip-tap 0.7s ease-out 0.15s both; }
+@keyframes tour-chip-tap { from { box-shadow: 0 0 0 0 var(--accent); } to { box-shadow: 0 0 0 10px transparent; } }
+@media (prefers-reduced-motion: reduce) { .tour-chip--tapped { animation: none; } }
 .tour-tap--static { left: 50%; top: 50%; }
 .tour-honk__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .tour-honk__actions .tour-btn { margin-top: 0; flex: 1; }

@@ -18,17 +18,8 @@ import { tripsForPlace, saveIdeaTo, moveIdea, createTripAndSave } from './saveId
 import { suggestForPlace } from '../../lib/tripPick'
 import TripPickerSheet from '../../components/shared/TripPickerSheet'
 import { useTripsStore, useIdeasStore, tripForCity } from '../../store'
+import { MOODS } from '../../../supabase/functions/_shared/honkMoods.js'
 import './explore.css'
-
-// Six moods that pull up different things. `label` is also the key goosey-discover maps to a Google search.
-const MOODS = [
-  { id: 'hungry',  label: 'Feed me',       hint: 'Local favourites and street eats',         icon: 'restaurant', tone: 'accent' },
-  { id: 'wow',     label: 'Wow me',        hint: 'Views, landmarks and hidden gems',         icon: 'compass',    tone: 'sun' },
-  { id: 'culture', label: 'Culture fix',   hint: 'Museums, galleries, old streets',          icon: 'museum',     tone: 'info' },
-  { id: 'cheap',   label: 'Cheap thrills', hint: 'Free sights and budget bites',             icon: 'currency',   tone: 'success' },
-  { id: 'local',   label: 'Go local',      hint: 'Markets, corner cafés, neighbourhood bars', icon: 'map',        tone: 'danger' },
-  { id: 'night',   label: 'Night out',     hint: 'Bars, live music, late spots',             icon: 'moon',       tone: 'stay' },
-]
 
 function useGeolocation() {
   const [state, setState] = useState({ loading: true, city: null, country: null, error: null, coords: null })
@@ -185,7 +176,7 @@ export default function HonkView() {
           <span className="honk-where">
             <Icon name="navigation" size={16} />
             <span className="honk-where__text">{where}</span>
-            {!asking && !(geo.loading && !manualCity) && <button type="button" className="honk-where__change" onClick={() => setPicking(true)}>Change</button>}
+            {!asking && !(geo.loading && !manualCity) && <button type="button" className="honk-where__change" onClick={() => setPicking(true)} data-tour="honk-where">Change</button>}
           </span>
         )} />
 
@@ -208,7 +199,7 @@ export default function HonkView() {
         <Text variant="body" as="p" className="honk-blurb">Got time to kill? HONK your mood and Goose finds something great nearby, open now and a short walk away.</Text>
       )}
 
-      <div className="honk-moods" role="group" aria-label="Moods">
+      <div className="honk-moods" role="group" aria-label="Moods" data-tour="honk-moods">
         {MOODS.map(m => (
           <button key={m.id} type="button" className={`honk-mood tint-${m.tone}`} onClick={() => handleHonk(m.id)} disabled={asking}>
             <IconTile icon={m.icon} tone={m.tone} size="lg" className="c-tile--solid" />
@@ -223,6 +214,7 @@ export default function HonkView() {
       {sheetOpen && (
         <Sheet onClose={close} title={result?.name || MOODS.find(m => m.id === mood)?.label}
           subtitle={result ? [result.type, result.neighbourhood, result.price_range].filter(Boolean).join(' · ') : null} className="honk-sheet">
+          <div className="honk-sheet__content" data-tour="honk-result">
           {(loading || (queued && !effectiveCity)) && (
             <Loading title={effectiveCity ? `Goose is scouting ${effectiveCity}` : 'Finding where you are'}>Usually under 10 seconds.</Loading>
           )}
@@ -233,7 +225,7 @@ export default function HonkView() {
             <>
               {result.photo && <PlacePhoto name={result.photo} alt={result.name} className="honk-photo" />}
               <Stack row gap={2} wrap>
-                {result.goose_rating && <Chip icon="sparkles" tone="accent" className={honkInk} aria-label={`Goose says: ${result.goose_rating}`}>{`Goose ${result.goose_rating}`}</Chip>}
+                {result.goose_rating && <Chip icon="star" tone="accent" className={honkInk} aria-label={`Goose says: ${result.goose_rating}`}>{result.goose_rating}</Chip>}
                 <GoogleRating rating={result.rating} count={result.rating_count} />
                 {result.open_now && <OpenNow open />}
                 {result.walk_min != null && <Chip icon="walk">{`${result.walk_min} min walk`}</Chip>}
@@ -257,10 +249,12 @@ export default function HonkView() {
                   </Stack>
                 )}
               </Stack>
+              <Text variant="micro" tone="muted" as="p">Opening hours and walking times come from Google and can change. Check before you set off.</Text>
               {result.place_id && <GoogleAttribution />}
               <AiDisclosure city={effectiveCity} what="HONK" />
             </>
           )}
+          </div>
         </Sheet>
       )}
       {pickFor && result && <TripPickerSheet title={pickFor.from ? 'Move to' : 'Save to'} subtitle={result.name} ranked={pickFor.ranked} city={effectiveCity}

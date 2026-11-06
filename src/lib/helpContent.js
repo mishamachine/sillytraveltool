@@ -5,7 +5,7 @@
 export const HELP_GROUPS = [
   { id: 'start', title: 'Getting started' },
   { id: 'together', title: 'Travel together' },
-  { id: 'explore', title: 'Explore a city' },
+  { id: 'explore', title: 'Guide and HONK' },
   { id: 'travel', title: 'On the trip' },
   { id: 'account', title: 'Your account' },
 ]
@@ -220,7 +220,7 @@ export const HELP_FAQ = [
   },
   {
     q: 'How do I replay the tour?',
-    a: 'Tap Take the tour at the top of this Guide and FAQ, or in Profile.',
+    a: 'Tap Take the tour at the top of this Help and FAQ, or in Profile.',
   },
   {
     q: 'Something isn\'t working. How do I tell you?',

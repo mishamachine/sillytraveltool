@@ -742,10 +742,7 @@ export function HonkArt() {
           <span className="t-label">What are you in the mood for?</span>
           <div className="tour-chips">
             {['Feed me', 'Wow me', 'Culture fix', 'Cheap thrills', 'Go local', 'Night out'].map((m, k) => (
-              <span key={m} className={cx('c-chip c-chip--neutral', k === 0 && s >= 1 && 'tour-chip--on')}>
-                {m}
-                {k === 0 && s === 1 && <span className="tour-tap tour-tap--static"><span className="tour-tap__ring" /></span>}
-              </span>
+              <span key={m} className={cx('c-chip c-chip--neutral', k === 0 && s >= 1 && 'tour-chip--on', k === 0 && s === 1 && 'tour-chip--tapped')}>{m}</span>
             ))}
           </div>
         </div>
@@ -875,7 +872,7 @@ function ProfileHomeMock() {
       <div className="c-card c-card--group tour-card-flat">
         <MockRow tap="docs" icon="passport" tone="info" title="Travel documents" trailing={<span className="t-caption tone-muted">3</span>} />
         <MockRow tap="loyalty" icon="card" tone="accent" title="Loyalty cards" trailing={<span className="t-caption tone-muted">2</span>} />
-        <MockRow icon="help" tone="success" title="Guide and FAQ" />
+        <MockRow icon="help" tone="success" title="Help and FAQ" />
       </div>
     </>
   )

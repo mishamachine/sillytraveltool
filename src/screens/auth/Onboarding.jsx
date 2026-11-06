@@ -65,7 +65,7 @@ const STEPS = [
   {
     id: 'honk', Art: HonkArt, overline: 'New · HONK',
     title: 'What is HONK?',
-    body: 'Got time to kill and nothing planned? Tap HONK in the middle of the bar, pick a mood, and Goose finds something great a short walk away, open now.',
+    body: 'Got time to kill and nothing planned? Tap HONK in the middle of the bar, pick a mood, and Goose finds something great a short walk away.',
   },
   {
     id: 'tools', Art: ToolsArt, overline: 'Tools',
@@ -75,7 +75,7 @@ const STEPS = [
   {
     id: 'you', Art: YouArt, overline: 'Profile',
     title: 'Your travel wallet',
-    body: 'Goose score and badges, passports and documents, loyalty cards, and the Guide and FAQ whenever you need a hand.',
+    body: 'Goose score and badges, passports and documents, loyalty cards, and the Help and FAQ whenever you need a hand.',
   },
   { id: 'location', Art: LocationArt, firstRunOnly: true },
   { id: 'ai', firstRunOnly: true }, // Apple 5.1.2(i): ask before Goose's AI reads what you send it

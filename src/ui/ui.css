@@ -51,7 +51,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: calc(var(--safe-top) + var(--space-5)) var(--space-5) calc(var(--nav-height) + var(--safe-bottom) + var(--space-6));
+  padding: calc(var(--safe-top) + var(--space-5)) var(--space-5) calc(var(--nav-height) + var(--safe-bottom) + var(--nav-raise) + var(--space-4));
   background: var(--surface-page);
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -430,7 +430,7 @@ h1.tone-inverse, h2.tone-inverse, h3.tone-inverse { color: var(--ink-inverse); }
   background: var(--surface-inverse); color: var(--ink-inverse); box-shadow: var(--shadow-inverse);
   animation: c-fade 200ms ease;
 }
-.c-toast--bottom { bottom: calc(var(--nav-height) + var(--safe-bottom) + var(--space-3)); }
+.c-toast--bottom { bottom: calc(var(--nav-height) + var(--safe-bottom) + var(--nav-raise) + var(--space-2)); }
 .c-toast--top { top: calc(var(--safe-top) + var(--space-4)); }
 .c-toast__icon { color: var(--accent-on-inverse); }
 .c-toast__body { flex: 1; min-width: 0; }
