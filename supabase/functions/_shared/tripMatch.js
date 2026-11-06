@@ -55,7 +55,8 @@ export function regionKm(trip, item) {
     const fromStart = distanceKm(a, io) <= NEAR_KM
     for (const b of tripPoints(trip)) if (!(fromStart && distanceKm(b, to) <= NEAR_KM)) best = Math.min(best, distanceKm(a, b))
   }
-  return best
+  // Only the two starts were known: that is not "unknown, so it joins" but outside the region
+  return best === Infinity && Number.isFinite(routeKm(trip, item)) ? REGION_KM + 1 : best
 }
 
 const DAY = 86400000

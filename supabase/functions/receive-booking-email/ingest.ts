@@ -143,7 +143,9 @@ async function foldNeighbour(admin: any, trip: any, trips: any[], ends: { dep: P
     const gap = gapDays(other, { start: trip.start_date, end: trip.end_date })
     if (gap > HOME_DAYS) continue
     if (!other.points) await loadTripPoints(admin, other, home)
-    const touches = [ends.dep, ends.arr].some(p => p && !nearHome(p, home) && routeKm(other, { points: [p] }) <= NEAR_KM)
+    // Where both trips start (leaving it or coming back to it) doesn't join them: Vancouver to Rome, Vancouver to Tokyo
+    const bothStart = (p: Pt) => !!(trip.origin && other.origin && distanceKm(p, trip.origin) <= NEAR_KM && distanceKm(p, other.origin) <= NEAR_KM)
+    const touches = [ends.dep, ends.arr].some(p => p && !nearHome(p, home) && !bothStart(p) && routeKm(other, { points: [p] }) <= NEAR_KM)
     const wayHome = other.start_date >= trip.start_date && !other.stays && other.legs?.length > 0 &&
       other.legs.every((l: any) => l.arr && (nearHome(l.arr, home) || (trip.origin && distanceKm(l.arr, trip.origin) <= NEAR_KM))) &&
       other.legs.some((l: any) => l.dep && !nearHome(l.dep, home) && !(trip.origin && distanceKm(l.dep, trip.origin) <= NEAR_KM) && routeKm(trip, { points: [l.dep] }) <= NEAR_KM)

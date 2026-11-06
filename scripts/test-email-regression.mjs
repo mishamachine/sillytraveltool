@@ -653,12 +653,14 @@ await t('region: a SEA-FCO round trip overlapping a YVR-HND trip makes its own t
     flight('AZ 610', 'SEA', 'FCO', '2027-04-15T13:10', '2027-04-16T09:45', { confirmation_number: 'TSTX1', arrival_city: 'Rome', destination_city: 'Rome' }),
     flight('AZ 611', 'FCO', 'SEA', '2027-04-26T11:30', '2027-04-26T14:55', { confirmation_number: 'TSTX1', arrival_city: 'Seattle', destination_city: 'Seattle' }),
   ] }
-  ANSWERS['rg-tokyo'] = tokyo; ANSWERS['rg-rome'] = rome
-  for (const order of [['rg-tokyo', 'rg-rome'], ['rg-rome', 'rg-tokyo']]) {
-    for (const home_city of [null, 'Seattle', 'Vancouver']) {
+  // The same, leaving from the same airport as the Tokyo trip (YVR): still two trips, nothing folded
+  const fromYvr = { ...rome, bookings: rome.bookings.map(b => ({ ...b, departure_airport: b.departure_airport === 'SEA' ? 'YVR' : b.departure_airport, arrival_airport: b.arrival_airport === 'SEA' ? 'YVR' : b.arrival_airport })) }
+  for (const [from, answer] of [['SEA', rome], ['YVR', fromYvr]]) for (const order of [['rg-tokyo', 'rg-rome'], ['rg-rome', 'rg-tokyo']]) {
+    ANSWERS['rg-tokyo'] = tokyo; ANSWERS['rg-rome'] = answer
+    for (const home_city of from === 'YVR' ? [null] : [null, 'Seattle', 'Vancouver']) {
       const db = makeDb()
       for (const id of order) await send(db, id, { profile: { home_city } })
-      const label = `${order.join(' then ')}, home ${home_city}: ${db.tables.trips.map(x => `${x.title} ${x.start_date}→${x.end_date}`).join('; ')}`
+      const label = `from ${from}, ${order.join(' then ')}, home ${home_city}: ${db.tables.trips.map(x => `${x.title} ${x.start_date}→${x.end_date}`).join('; ')}`
       assert.equal(db.tables.bookings.length, 3, label)
       assert.equal(db.tables.trips.length, 2, label)
       const tk = tripOf(db, byRef(db, 'TSTB107')[0]), rm = tripsOf(db, 'TSTX1')
