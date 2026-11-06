@@ -201,7 +201,7 @@ export default function HonkView() {
         <Text variant="body" as="p" className="honk-blurb">Got time to kill? HONK your mood and Goose finds something great nearby, open now and a short walk away.</Text>
       )}
 
-      <div className="honk-moods" role="group" aria-label="Moods" data-tour="honk-moods">
+      <div className="honk-moods" role="group" aria-label="Moods" data-tour="honk-card">
         {MOODS.map(m => (
           <button key={m.id} type="button" className={`honk-mood tint-${m.tone}`} onClick={() => handleHonk(m.id)} disabled={asking}>
             <IconTile icon={m.icon} tone={m.tone} size="lg" className="c-tile--solid" />

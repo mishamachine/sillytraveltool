@@ -130,6 +130,8 @@ button.tour-now { cursor: pointer; }
   animation: tour-screen-in 0.35s cubic-bezier(.2, .8, .2, 1) both;
 }
 .tour-screen--still { animation: none; }
+/* Blocks keep their real height (fields, buttons, switches): a full screen runs off the bottom like a real one */
+.tour-screen > *, .tour-sheet > * { flex-shrink: 0; }
 .tour-screen .c-card--group { padding: 2px var(--space-3); }
 .tour-screen .c-row { min-height: 52px; gap: var(--space-2); }
 .tour-screen .c-row .c-tile--sm { width: 34px; height: 34px; }

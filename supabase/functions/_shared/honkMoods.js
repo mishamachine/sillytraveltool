@@ -3,11 +3,11 @@
 
 // The HONK tab's six moods (web from this release, native apps from 0.20.2). `label` is what the app sends; `id` goes into honk_used.mood.
 export const MOODS = [
-  { id: 'hungry',  label: 'Feed me',       hint: 'Local favourites and street eats',          icon: 'restaurant', tone: 'accent',  query: 'best local restaurants and street food' },
+  { id: 'hungry',  label: 'Feed me',       hint: 'Local favorites and street eats',          icon: 'restaurant', tone: 'accent',  query: 'best local restaurants and street food' },
   { id: 'wow',     label: 'Wow me',        hint: 'Views, landmarks and hidden gems',          icon: 'compass',    tone: 'sun',     query: 'viewpoints landmarks and hidden gems' },
   { id: 'culture', label: 'Culture fix',   hint: 'Museums, galleries, old streets',           icon: 'museum',     tone: 'info',    query: 'museums galleries and historic sights' },
-  { id: 'cheap',   label: 'Cheap thrills', hint: 'Free sights and budget bites',              icon: 'currency',   tone: 'success', query: 'free attractions and cheap eats' },
-  { id: 'local',   label: 'Go local',      hint: 'Markets, corner cafés, neighbourhood bars', icon: 'map',        tone: 'danger',  query: 'local favourite market cafe or neighbourhood bar' },
+  { id: 'cheap',   label: 'Cheap thrills', hint: 'Budget bites and bargain sights',           icon: 'currency',   tone: 'success', query: 'free attractions and cheap eats' },
+  { id: 'local',   label: 'Go local',      hint: 'Markets, corner cafés, neighborhood bars', icon: 'map',        tone: 'danger',  query: 'local favourite market cafe or neighbourhood bar' },
   { id: 'nightlife', label: 'Night out',     hint: 'Bars, live music, late spots',              icon: 'moon',       tone: 'stay',    query: 'bars live music and nightlife' },
 ]
 

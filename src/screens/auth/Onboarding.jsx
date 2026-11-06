@@ -50,7 +50,7 @@ const STEPS = [
   {
     id: 'together', Art: TogetherArt, overline: 'Travel together · 2 of 2',
     title: 'Everyone forwards. Goose logs it.',
-    body: 'Each traveller forwards their own booking emails to Goose, and they land in the shared trip automatically, in real time. Who lands when, who’s on which train, where you meet: all in one place.',
+    body: 'Each traveler forwards their own booking emails to Goose, and they land in the shared trip automatically, in real time. Who lands when, who’s on which train, where you meet: all in one place.',
   },
   {
     id: 'guide', Art: GuideArt, overline: 'City guides · 1 of 2',
@@ -317,7 +317,7 @@ export default function Onboarding({ onDone, replay = false }) {
             {step.id === 'welcome' && (
               <div className="tour-note">
                 <Icon name="users" size={20} className="tone-accent" />
-                <Text variant="caption" tone="secondary">You’re one of our first travellers, so thank you for flying with us. If anything looks off, tap <strong>Report an issue</strong> in Profile or Help.</Text>
+                <Text variant="caption" tone="secondary">You’re one of our first travelers, so thank you for flying with us. If anything looks off, tap <strong>Report an issue</strong> in Profile or Help.</Text>
               </div>
             )}
             {step.id === 'inbox' && (

@@ -64,11 +64,11 @@ export function confirmEmail({ platform, unsubscribeUrl }) {
   const web_line = platform === 'web'
     ? "Good news: the web app is already live. Start now at [sillytraveltool.com](https://sillytraveltool.com/?utm_source=beta_email&utm_medium=email&utm_campaign=beta)."
     : "Can't wait? The web app is already live at [sillytraveltool.com](https://sillytraveltool.com/?utm_source=beta_email&utm_medium=email&utm_campaign=beta), and your trips will be there when the app arrives."
-  return render(CONFIRM, { platform_label: PLATFORM_LABEL[platform] || 'your phone', web_line }, { kind: 'marketing', unsubscribeUrl, why: WHY })
+  return render(CONFIRM, { platform_label: PLATFORM_LABEL[platform] || 'your phone', web_line }, { kind: 'service', unsubscribeUrl, why: WHY, showUnsubscribe: true })
 }
 
 export function inviteEmail({ platform, link, unsubscribeUrl, test }) {
   const tpl = INVITE[platform]
-  const m = render({ ...tpl, cta_url: link }, {}, { kind: 'marketing', unsubscribeUrl, why: WHY })
+  const m = render({ ...tpl, cta_url: link }, {}, { kind: 'service', unsubscribeUrl, why: WHY, showUnsubscribe: true })
   return test ? { ...m, subject: `[Test] ${m.subject}` } : m
 }

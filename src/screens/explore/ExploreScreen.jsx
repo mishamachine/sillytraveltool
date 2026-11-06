@@ -174,7 +174,7 @@ export default function ExploreScreen() {
   // ── Overview ─────────────────────────────────────
   return (
     <Screen gap={4} labelledBy="guide-title">
-      <ScreenHeader title="Guide" titleId="guide-title" actions={<SectionTour section="explore" />}>
+      <ScreenHeader title="Guide" titleId="guide-title" actions={<SectionTour section="guide" />}>
         <CityAutocomplete label="Search a city" hideLabel icon="search" placeholder={destination ? `${destination.city}, ${destination.country}` : 'Search a city'}
           onSelect={g.selectCity} />
         {g.cityChips.length > 0 && (
@@ -212,7 +212,8 @@ export default function ExploreScreen() {
                 const busy = TAB_SECTIONS[s.id].some(k => loadingSections[k])
                 const line = teaser(s.id, g.guideData, g.sections)
                 return (
-                  <Card key={s.id} variant="tile" onClick={() => openSection(s.id)} className={`explore-tile guide-tile tint-${s.tone}`}>
+                  <Card key={s.id} variant="tile" onClick={() => openSection(s.id)} className={`explore-tile guide-tile tint-${s.tone}`}
+                    data-tour={s.id === GUIDE_SECTIONS[0].id ? 'guide-tile' : undefined}>
                     <IconTile icon={s.icon} tone={s.tone} className="c-tile--solid" />
                     <Text variant="body" weight={700} as="span" className="guide-tile__title">{s.label}</Text>
                     {(busy || line) && <Text variant="caption" as="span" className="explore-tile__line guide-tile__line">{busy ? 'Goose is writing this' : line}</Text>}
