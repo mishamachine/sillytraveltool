@@ -10,6 +10,7 @@
 export const NEAR_KM = 75     // a place this close to a stop is on the trip's route
 export const EDGE_DAYS = 3    // a booking this close to a trip's ends extends it when it is on the route
 export const LIVE_KM = 500    // during a trip, saves within this distance of its stops belong to it
+export const REGION_KM = 1000 // overlapping dates join a trip only within this distance of its stops (one region)
 
 const R = 6371
 export function distanceKm(a, b) {
@@ -53,7 +54,7 @@ export function gapDays(trip, item) {
 
 /**
  * How well a trip fits an item: { score, fit, km, widen } where fit is
- * 'inside' (dates overlap) | 'edge' (within EDGE_DAYS of an end and on the route: widen gives new dates) |
+ * 'inside' (dates overlap, within REGION_KM) | 'edge' (within EDGE_DAYS of an end and on the route: widen gives new dates) |
  * 'live' (undated save during the trip, near enough) | 'upcoming' (undated save near a dated trip's stops) |
  * 'undated' (undated trip near the item) | null (no fit; score 0).
  */
@@ -71,7 +72,8 @@ export function scoreTrip(trip, item, ctx = {}) {
       const end = item.end || item.start
       const union = { start_date: item.start < trip.start_date ? item.start : trip.start_date, end_date: end > trip.end_date ? end : trip.end_date }
       const widen = union.start_date !== trip.start_date || union.end_date !== trip.end_date ? union : null
-      if (gap === 0) return { score: 80 + closeness, fit: 'inside', km, widen }
+      // Overlapping dates in another region (Berlin while a New York trip runs) are another trip; unknown places still join
+      if (gap === 0) return Number.isFinite(km) && km > REGION_KM ? { ...none, km } : { score: 80 + closeness, fit: 'inside', km, widen }
       if (gap <= EDGE_DAYS && near) return { score: 60 + closeness - gap, fit: 'edge', km, widen }
       return { ...none, km }
     }

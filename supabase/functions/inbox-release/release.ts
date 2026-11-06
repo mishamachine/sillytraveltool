@@ -10,7 +10,7 @@ export const PER_CALL = 1      // one email per call: a call stays well inside t
 export const MAX_ATTEMPTS = 5  // tries before a held email is dropped
 
 export type ReleaseDeps = {
-  fetchEmail: (emailId: string) => Promise<{ subject: string, from: string, text: string, attachments: unknown } | null>
+  fetchEmail: (emailId: string) => Promise<{ subject: string, from: string, text: string, attachments: unknown, created_at?: string | null } | null>
   fetchAttachments: (emailId: string, listed: unknown) => Promise<{ name: string, mime: string, bytes: Uint8Array }[]>
   GEMINI_API_KEY: string
 }
@@ -60,7 +60,7 @@ export async function releaseHeld(admin: any, profile: any, deps: ReleaseDeps): 
       const res = await ingestEmail(admin, profile, {
         subject: email.subject, fromAddress: email.from, bodyText: email.text, GEMINI_API_KEY: deps.GEMINI_API_KEY,
         loadAttachments: () => deps.fetchAttachments(h.email_id, email.attachments),
-        emailId: h.email_id, released: true,
+        emailId: h.email_id, released: true, receivedAt: email.created_at || null,
       })
       if (res.status === 429) { await putBack(h, false); out.limited = true; break }
       if (res.status >= 500) { await putBack(h, true); continue }

@@ -10,12 +10,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 //
 // Inbound address scheme:
 //   {12-hex token}@bookings.sillytraveltool.com (server-made; older 8-hex tokens work until rotated)
-// Only mail from the member's account email, their allowed senders, or anyone if they opted in, is read
-// (ingest.ts senderAllowed).
+// Any sender is read unless the server switch app_settings.inbox.sender_check is on; then only the member's account
+// email, their allowed senders, or anyone if they opted in (ingest.ts inboxSwitches, senderAllowed).
 // ============================================================
 
 import { CORS, ok, err, ingestEmail } from './ingest.ts'
-import { fetchAttachments, htmlToText } from './resend.ts'
+import { fetchAttachments, bestText } from './resend.ts'
 import { withGoogleScope } from '../_shared/google.ts'
 import { last4 } from '../_shared/invite.js'
 
@@ -93,9 +93,7 @@ Deno.serve(withGoogleScope(async (req) => {
 
     const fromAddress = String(payload.from ?? payload.From ?? '')
     const subject     = String(payload.subject ?? payload.Subject ?? '')
-    let bodyText      = payload.text ?? payload.plain ?? ''
-    const html        = payload.html ?? ''
-    if (!bodyText && html) bodyText = htmlToText(html)
+    let bodyText      = bestText(payload.text ?? payload.plain ?? '', payload.html ?? '')
 
     if (!toAddress) return err('No recipient address in webhook payload')
     // ── Body fetch via Resend receiving API (body not in webhook payload) ──
@@ -114,9 +112,7 @@ Deno.serve(withGoogleScope(async (req) => {
         return err('Failed to fetch email body from Resend', 502)
       }
       const fetchedEmail = await fetchRes.json()
-      bodyText = fetchedEmail.text ?? ''
-      const fetchedHtml = fetchedEmail.html ?? ''
-      if (!bodyText && fetchedHtml) bodyText = htmlToText(fetchedHtml)
+      bodyText = bestText(fetchedEmail.text, fetchedEmail.html)
       console.log(`📥 Fetched email body — length: ${bodyText.length}`)
     }
 
@@ -160,7 +156,8 @@ Deno.serve(withGoogleScope(async (req) => {
     // and a slow answer makes Resend send the email again
     const work = (async () => {
       const loadAttachments = () => fetchAttachments((rawBody?.data ?? rawBody)?.email_id, payload.attachments)
-      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, loadAttachments, emailId: (rawBody?.data ?? rawBody)?.email_id || null })
+      const res = await ingestEmail(supabase, profile, { subject, fromAddress, bodyText, GEMINI_API_KEY, loadAttachments, emailId: (rawBody?.data ?? rawBody)?.email_id || null,
+        receivedAt: (rawBody?.data ?? rawBody)?.created_at || rawBody?.created_at || new Date().toISOString() })
       console.log(`📨 Filed: ${res.status} ${(await res.text()).slice(0, 300)}`)
     })().catch(e => console.error('receive-booking-email background error:', e))
     // @ts-ignore EdgeRuntime is provided by Supabase Edge Functions
