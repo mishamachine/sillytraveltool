@@ -38,11 +38,11 @@ export function layout(title, inner, foot, addr = '') {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:#F4EEE6;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4EEE6;"><tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFDF9;border-radius:22px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#FFFDF9;border-radius:22px;">
 <tr><td style="padding:28px 28px 8px;"><img src="https://sillytraveltool.com/apple-touch-icon.png" width="40" height="40" alt="Silly Travel Tool" style="border-radius:10px;display:block;"></td></tr>
 <tr><td style="padding:12px 28px 24px;">${inner}</td></tr>
 </table>
-<p style="max-width:520px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">${foot}<br>${esc(FOOTER_LINE)}${addr ? `<br>${esc(addr)}` : ''}</p>
+<p style="max-width:600px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#6B6355;">${foot}<br>${esc(FOOTER_LINE)}${addr ? `<br>${esc(addr)}` : ''}</p>
 </td></tr></table></body></html>`
 }
 
