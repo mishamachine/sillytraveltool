@@ -8,7 +8,7 @@ export const MOODS = [
   { id: 'culture', label: 'Culture fix',   hint: 'Museums, galleries, old streets',           icon: 'museum',     tone: 'info',    query: 'museums galleries and historic sights' },
   { id: 'cheap',   label: 'Cheap thrills', hint: 'Free sights and budget bites',              icon: 'currency',   tone: 'success', query: 'free attractions and cheap eats' },
   { id: 'local',   label: 'Go local',      hint: 'Markets, corner cafés, neighbourhood bars', icon: 'map',        tone: 'danger',  query: 'local favourite market cafe or neighbourhood bar' },
-  { id: 'night',   label: 'Night out',     hint: 'Bars, live music, late spots',              icon: 'moon',       tone: 'stay',    query: 'bars live music and nightlife' },
+  { id: 'nightlife', label: 'Night out',     hint: 'Bars, live music, late spots',              icon: 'moon',       tone: 'stay',    query: 'bars live music and nightlife' },
 ]
 
 // Moods sent by app builds up to 0.20.1. Keep them until those builds are gone.
