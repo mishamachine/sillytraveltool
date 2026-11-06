@@ -16,7 +16,7 @@ const TOPIC_OVERRIDES = {
     ],
     tips: [
       'Someone who accepts can see the whole shared trip, including its booking details, activities and dates. They never see your travel documents or loyalty cards.',
-      'View only stops edits, not viewing: it keeps the plan safe from accidental changes, but a View only traveller can still see the trip.',
+      'View only stops edits, not viewing: it keeps the plan safe from accidental changes, but a View only traveler can still see the trip.',
       'If the trip owner deletes their account, the trip is deleted for everyone.',
     ],
   },
