@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { supabase } from './supabase'
-import { initGA, stopGA, gaEvent, gaPageView, gaSetUser } from './ga'
+import { initGA, stopGA, gaEvent, gaPageView } from './ga'
 import { isConsentRegion, readPref, writePref, resolveEnabled, needsChoice } from './consent'
 
 // Product analytics. Every track() goes to two places:
@@ -214,7 +214,6 @@ export function track(event, props = {}, screen) {
       .then(() => supabase.auth.getSession())
       .then(({ data }) => {
         const userId = data?.session?.user?.id
-        gaSetUser(userId)
         if (!userId) return
         if (event === 'sign_up') saveAttribution(userId)
         return supabase.from('analytics_events').insert({

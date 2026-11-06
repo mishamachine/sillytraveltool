@@ -18,7 +18,6 @@ const DEBUG = import.meta.env.DEV
 const CLIENT_KEY = 'stt_ga_client_id'
 
 let started = false
-let lastUserId
 
 function isNative() {
   try { return Capacitor.isNativePlatform() } catch { return false }
@@ -91,11 +90,6 @@ export function pageLocation(origin, path, search = '') {
   return `${origin}/${path}${q ? `?${q}` : ''}`
 }
 
-export function gaSetUser(userId) {
-  if (!started || !window.gtag || userId === lastUserId) return
-  lastUserId = userId
-  try { window.gtag('set', { user_id: userId || null }) } catch { /* ignore */ }
-}
 
 export function gaEvent(name, params = {}) {
   if (!started || !window.gtag) return
