@@ -5,7 +5,7 @@ import { track } from './analytics'
 // screen, never the member's email, trips or bookings.
 export const REPORT_EMAIL = 'hello@sillytraveltool.com'
 
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.20.1'
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.20.2'
 
 function platform() {
   try { return Capacitor.getPlatform() } catch { return 'web' }
