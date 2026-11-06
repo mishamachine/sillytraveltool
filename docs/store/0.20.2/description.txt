@@ -1,4 +1,4 @@
-Forward each booking email and your trip builds itself, day by day, in local time.
+Forward your booking emails and get your whole trip, day by day, in local time.
 
 FORWARD IT, DONE
 Forward a flight, hotel, train, restaurant or ticket confirmation to your private Goose inbox. Goose reads it and files it into the right trip, with every time shown in the local time where it happens. No email? Paste the confirmation text, or add a booking by hand.
@@ -16,7 +16,7 @@ IN YOUR POCKET
 Currency, phrases, tipping and SOS numbers that switch to the country you're in. A wallet for passport, insurance and vaccine records that flags anything close to expiry.
 
 FIRST CLASS
-First Class is the optional paid plan. Choose a yearly subscription, which renews automatically until you cancel, or a one-time lifetime purchase. Manage or cancel any time in your App Store account settings.
+First Class is the paid plan: unlimited trips, unlimited reservations, unlimited email import, and every past trip kept. Choose a yearly subscription, which renews automatically until you cancel, or a one-time lifetime purchase. Manage or cancel any time in your App Store account settings.
 
 Privacy Policy: https://sillytraveltool.com/privacy/
 Terms of Use: https://sillytraveltool.com/terms/
