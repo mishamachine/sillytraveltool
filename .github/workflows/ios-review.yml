@@ -1,0 +1,32 @@
+# App Store review: show status, or cancel the open review submission (owner-approved, manual only).
+# Run: gh workflow run ios-review.yml -f action=status|cancel
+name: iOS review
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: status or cancel
+        type: choice
+        options: [status, cancel]
+        default: status
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+        run: |
+          export ASC_KEY_P8="$(echo "$ASC_KEY_P8_B64" | base64 -d)"
+          node scripts/asc-review.mjs "${{ inputs.action }}"
