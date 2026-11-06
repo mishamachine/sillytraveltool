@@ -17,8 +17,10 @@ const PLATFORMS = [
     help: 'The web app is live, so this is set from day one.' },
 ]
 const FREQ = { rarely: 'Once a year or less', few_year: 'A few times a year', monthly: 'About once a month', weekly: 'Most weeks', not_given: 'Not given' }
-const DEFAULTS = { ios_url: '', android_url: '', web_url: '', show_ios: false, show_android: false, show_web: true, redirect_url: '', redirect_on: false }
+const DEFAULTS = { ios_url: '', android_url: '', android_group_url: '', web_url: '', show_ios: false, show_android: false, show_ios_store: false, show_web: true, redirect_url: '', redirect_on: false }
 const FIELDS = Object.keys(DEFAULTS)
+// Sent only when changed, so saving still works until the migration that accepts them (20261105100000) is applied
+const NEW_FIELDS = ['android_group_url', 'show_ios_store']
 const fromSettings = (s) => Object.fromEntries(FIELDS.map(k => [k, s?.[k] ?? DEFAULTS[k]]))
 
 export default function BetaPanel({ filters, role }) {
@@ -41,7 +43,7 @@ export default function BetaPanel({ filters, role }) {
   const dirty = FIELDS.some(k => form[k] !== saved[k])
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const linkOk = (v) => !v || /^https:\/\/[^\s"<>]+$/.test(v)
-  const bad = ['ios_url', 'android_url', 'web_url', 'redirect_url'].filter(k => !linkOk(form[k]))
+  const bad = ['ios_url', 'android_url', 'android_group_url', 'web_url', 'redirect_url'].filter(k => !linkOk(form[k]))
   const by = Object.fromEntries((d.platforms || []).map(p => [p.platform, p]))
   const count = (key, field) => key === 'all' ? PLATFORMS.reduce((n, p) => n + (by[p.key]?.[field] || 0), 0) : by[key]?.[field] || 0
   const live = PLATFORMS.filter(p => s[p.link])
@@ -55,7 +57,7 @@ export default function BetaPanel({ filters, role }) {
     try { const out = await fn(); setNote({ ok: true, text: done(out) }); data.reload() }
     catch (e) { setNote({ ok: false, text: e.message }) } finally { setBusy(false) }
   }
-  const save = () => run(() => api.betaSettingsSet(Object.fromEntries(FIELDS.map(k => [k, typeof DEFAULTS[k] === 'boolean' ? !!form[k] : String(form[k] || '').trim()]))), () => 'Saved.')
+  const save = () => run(() => api.betaSettingsSet(Object.fromEntries(FIELDS.filter(k => !NEW_FIELDS.includes(k) || form[k] !== saved[k]).map(k => [k, typeof DEFAULTS[k] === 'boolean' ? !!form[k] : String(form[k] || '').trim()]))), () => 'Saved.')
   const exportCsv = () => run(async () => {
     const rows = await api.betaRows()
     download(`beta-waitlist-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows))
@@ -145,6 +147,15 @@ export default function BetaPanel({ filters, role }) {
             </label>
           </div>
         ))}
+        <div className="a-beta-link">
+          <Field label="Android beta group link" hint="Step 1 of the Android beta (join the Google Group). Leave empty to use the built-in link."
+            error={!linkOk(form.android_group_url) ? 'Must start with https://' : null}>
+            <input value={form.android_group_url} placeholder="https://groups.google.com/g/sillytraveltool-beta" disabled={!isOwner} onChange={e => set('android_group_url', e.target.value)} />
+          </Field>
+          <label className="a-check" title="Show the App Store link on the landing page, in Settings and in the install sheet. Turn on once Apple approves the app.">
+            <input type="checkbox" checked={!!form.show_ios_store} disabled={!isOwner} onChange={e => set('show_ios_store', e.target.checked)} /> Show App Store link
+          </label>
+        </div>
         <div className="a-beta-link">
           <Field label="After launch, send /beta to" hint="Every /beta visit goes here (UTM tags kept), so no social link has to change."
             error={!linkOk(form.redirect_url) ? 'Must start with https://' : form.redirect_on && !form.redirect_url ? 'Add the address first' : null}>

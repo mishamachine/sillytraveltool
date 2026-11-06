@@ -21,7 +21,7 @@ export function bodyHtml(text) {
 }
 
 export function bodyText(text) {
-  return String(text ?? '').replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1 ($2)').replace(/\*\*([^*]+)\*\*/g, '$1')
+  return String(text ?? '').replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => (label === url ? url : `${label} (${url})`)).replace(/\*\*([^*]+)\*\*/g, '$1')
 }
 
 /**

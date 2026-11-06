@@ -36,15 +36,17 @@ Please keep this link to yourself while we're in beta. Reply to this email with 
     cta_label: 'Join the iPhone beta',
   },
   android: {
-    subject: 'Your Silly Travel Tool beta invite for Android',
-    body: `Hi,
+    subject: "You're in: test Silly Travel Tool on Android",
+    body: `You signed up for the Silly Travel Tool beta, and Android is ready for you. Two quick steps on your phone:
+1. Join the beta group: {{group_url}} (use the Google account on your phone)
+2. Install the app: {{install_url}}
 
-The Silly Travel Tool beta is open, and you're in.
+Forward a booking confirmation to your Goose inbox and watch your trip build itself.
 
-On your Android phone, open the button below, tap Become a tester, then install Silly Travel Tool from Google Play. Use the Google account you sign in to Play with.
+One favour: keep the beta installed for at least two weeks. It's how we unlock the public launch on Google Play.
 
-Please keep this link to yourself while we're in beta. Reply to this email with anything that breaks or confuses you. Goose reads every reply.`,
-    cta_label: 'Join the Android beta',
+Questions or bugs? Reply to hello@sillytraveltool.com.`,
+    cta_label: 'Join the beta group',
   },
   web: {
     subject: 'Your Silly Travel Tool beta invite',
@@ -67,8 +69,14 @@ export function confirmEmail({ platform, unsubscribeUrl }) {
   return render(CONFIRM, { platform_label: PLATFORM_LABEL[platform] || 'your phone', web_line }, { kind: 'marketing', unsubscribeUrl, why: WHY })
 }
 
-export function inviteEmail({ platform, link, unsubscribeUrl, test }) {
+export const ANDROID_GROUP_URL = 'https://groups.google.com/g/sillytraveltool-beta'
+
+// link = the platform's app_settings.beta link. Android is two steps: the Google Group (groupLink, falls back to the
+// constant) and the Play testing page (link = android_url).
+export function inviteEmail({ platform, link, groupLink, unsubscribeUrl, test }) {
   const tpl = INVITE[platform]
-  const m = render({ ...tpl, cta_url: link }, {}, { kind: 'marketing', unsubscribeUrl, why: WHY })
+  const android = platform === 'android'
+  const group = groupLink || ANDROID_GROUP_URL
+  const m = render({ ...tpl, cta_url: android ? group : link }, android ? { group_url: `[${group}](${group})`, install_url: `[${link}](${link})` } : {}, { kind: 'marketing', unsubscribeUrl, why: WHY })
   return test ? { ...m, subject: `[Test] ${m.subject}` } : m
 }
