@@ -116,7 +116,14 @@ async function prepare() {
   if (desc) attrs.description = desc
   if (Object.keys(attrs).length) {
     const loc = await enUS(v.id)
-    await api('PATCH', `/v1/appStoreVersionLocalizations/${loc.id}`, { data: { type: 'appStoreVersionLocalizations', id: loc.id, attributes: attrs } })
+    const patch = (attributes) => api('PATCH', `/v1/appStoreVersionLocalizations/${loc.id}`, { data: { type: 'appStoreVersionLocalizations', id: loc.id, attributes } })
+    try { await patch(attrs) } catch (e) {
+      // A first App Store release can't have "What's New": Apple answers 409. Save the rest without it.
+      if (!attrs.whatsNew || !/409/.test(String(e.message))) throw e
+      console.log("whatsNew refused (first release); saving without it")
+      delete attrs.whatsNew
+      if (Object.keys(attrs).length) await patch(attrs)
+    }
     console.log('localization updated', loc.id, Object.entries(attrs).map(([k, t]) => `${k} ${t.length} chars`).join(', '))
   } else console.log('no copy given; left as is')
 
