@@ -636,11 +636,13 @@ await t('round trip without a hotel (G10): a 7- and a 12-day gap stay one trip, 
       }
     }
   }
-    // Both legs in one email (the G10 case of the shared-trip run): one trip
+  // Both legs in one email (the G10 case of the shared-trip run): one trip
+  for (const day of ['18', '23']) {
     const db = makeDb()
     ANSWERS['rt-both'] = { ...out('RT-ONE'), bookings: [out('RT-ONE').bookings[0], ret('RT-ONE', day).bookings[0]] }
     await send(db, 'rt-both')
     assert.equal(db.tables.trips.length, 1); assert.equal(db.tables.trips[0].title, 'Trip to London'); assert.equal(db.tables.bookings.length, 2)
+  }
 })
 
 console.log(`\n${n} passed`)
