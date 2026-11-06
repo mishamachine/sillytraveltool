@@ -32,7 +32,8 @@ import { ONBOARDED_KEY, markOnboarded } from './screens/auth/onboardingState'
 // Lazy-load heavy screens — reduces initial bundle
 const TripsScreen = lazy(() => import('./screens/trips/TripsScreen'))
 const TripDetailScreen = lazy(() => import('./screens/trips/TripDetailScreen'))
-const ExploreScreen = lazy(() => import('./screens/explore/ExploreScreen'))
+const GuideScreen = lazy(() => import('./screens/explore/ExploreScreen'))
+const HonkScreen = lazy(() => import('./screens/explore/HonkView'))
 const ToolboxScreen = lazy(() => import('./screens/toolbox/ToolboxScreen'))
 const ProfileScreen = lazy(() => import('./screens/profile/ProfileScreen'))
 const Onboarding = lazy(() => import('./screens/auth/Onboarding'))
@@ -40,7 +41,8 @@ const TripForm = lazy(() => import('./screens/trips/TripForm'))
 
 const SCREENS = {
   trips: TripsScreen,
-  explore: ExploreScreen,
+  guide: GuideScreen,
+  honk: HonkScreen,
   tools: ToolboxScreen,
   profile: ProfileScreen,
 }

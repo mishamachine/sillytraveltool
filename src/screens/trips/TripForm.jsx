@@ -86,7 +86,7 @@ export default function TripForm() {
           return
         }
         const trip = await createTrip(datesOf(form))
-        // Start writing the city guide now, so it's ready when they open Explore
+        // Start writing the city guide now, so it's ready when they open Guide
         warmGuide(form.destination_city, form.destination_country, form.destination_country_code)
         if (tripType === 'group' && trip?.id) {
           setNewTripId(trip.id)

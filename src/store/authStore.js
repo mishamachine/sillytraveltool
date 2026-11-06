@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { track } from '../lib/analytics'
-import { useUIStore } from './uiStore'
 
 // Call Edge Function to check and award badges server-side
 async function checkAndAwardBadges(userId, accessToken) {
@@ -151,7 +150,5 @@ export const useAuthStore = create((set, get) => ({
     await Promise.race([track('sign_out'), new Promise(r => setTimeout(r, 1500))])
     await supabase.auth.signOut()
     set({ user: null, profile: null, session: null })
-    // The next member starts on the guide, not on a HONK screen left open by the last session
-    useUIStore.getState().setExploreMode('guide')
   }
 }))

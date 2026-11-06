@@ -9,14 +9,20 @@ const CORS = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
 // HONK mood → what to ask Google for. Results are open now and walkable from the user.
+// The first six are the HONK tab's moods (app 0.20.2+); the rest stay for older app builds.
 const MOOD_QUERY: Record<string, string> = {
+  'Feed me': 'best local restaurants and street food',
+  'Wow me': 'viewpoints landmarks and hidden gems',
+  'Culture fix': 'museums galleries and historic sights',
+  'Cheap thrills': 'free attractions and cheap eats',
+  'Go local': 'local favourite market cafe or neighbourhood bar',
+  'Night out': 'bars live music and nightlife',
   "I'm hungry": 'best places to eat',
   'Show me something': 'interesting sights and hidden gems',
   "I'm bored": 'fun things to do',
   'Treat myself': 'special treat dessert spa or upscale bar',
   'On a budget': 'cheap eats and free things to do',
   'Culture me': 'museums galleries and historic sights',
-  'Night out': 'bars live music and nightlife',
   'Be a local': 'local favourite cafe market or neighbourhood bar',
 }
 

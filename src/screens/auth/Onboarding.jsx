@@ -55,17 +55,17 @@ const STEPS = [
   {
     id: 'guide', Art: GuideArt, overline: 'City guides · 1 of 2',
     title: 'Know a city before you land',
-    body: 'Every city in five sections. Know has the numbers and local quirks, Eat runs from cheap to splurge. Tap + on any place to add it to your trip.',
+    body: 'Every city in five sections. The lowdown has the numbers and local quirks, Where to eat runs from cheap to splurge. Tap + on any place to add it to your trip.',
   },
   {
     id: 'guide-more', Art: GuideMoreArt, overline: 'City guides · 2 of 2',
     title: 'Sights, transit and festivals',
-    body: 'See covers museums, landmarks, areas and day trips. Transit shows how locals get around and which apps to use. Events lists festivals and what’s on.',
+    body: 'Must-sees covers landmarks, museums, areas and day trips. Getting around shows how locals travel and which apps to use. What’s on lists festivals and events.',
   },
   {
     id: 'honk', Art: HonkArt, overline: 'New · HONK',
     title: 'What is HONK?',
-    body: 'It’s for when you have a few minutes to kill and nothing planned. Pick a mood, tap HONK, and Goose finds one good spot within walking distance.',
+    body: 'Got time to kill and nothing planned? Tap HONK in the middle of the bar, pick a mood, and Goose finds something great a short walk away, open now.',
   },
   {
     id: 'tools', Art: ToolsArt, overline: 'Tools',

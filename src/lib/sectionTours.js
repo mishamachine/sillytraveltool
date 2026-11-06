@@ -18,12 +18,19 @@ export const SECTION_TOURS = {
       { icon: 'cloud-sun', title: 'Packed for the forecast', body: 'See the weather for each stop, and Goose writes a packing list for the trip.' },
     ],
   },
+  // The Guide tab keeps the 'explore' key so the "seen" memory from when it was called Explore carries over
   explore: {
-    overline: 'About Explore',
+    overline: 'About Guide',
     cards: [
-      { icon: 'explore', title: 'Know a city before you land', body: 'Every city in five sections. Know has the numbers and local quirks; Eat runs from cheap to splurge. Tap + on any place to add it to your trip.' },
-      { icon: 'museum', title: 'Sights, transit and festivals', body: 'See covers museums, landmarks, areas and day trips. Transit shows how locals get around. Events lists what’s on.' },
-      { icon: 'megaphone', title: 'What is HONK?', body: 'For when you have a few minutes and nothing planned. Pick a mood, tap HONK, and Goose finds one good spot within walking distance.' },
+      { icon: 'book', title: 'Know a city before you land', body: 'Every city in five sections. The lowdown has the numbers and local quirks; Where to eat runs from cheap to splurge. Tap + on any place to add it to your trip.' },
+      { icon: 'museum', title: 'Sights, transport and festivals', body: 'Must-sees covers landmarks, museums, areas and day trips. Getting around shows how locals travel. What’s on lists festivals and events.' },
+    ],
+  },
+  honk: {
+    overline: 'About HONK',
+    cards: [
+      { icon: 'megaphone', title: 'What is HONK?', body: 'For when you have time to kill and nothing planned. Tap a mood and Goose finds something great a short walk away, open now.' },
+      { icon: 'navigation', title: 'Go, or save it', body: 'Add the spot to your trip, or get walking, transit or driving directions in one tap. Not feeling it? Tap Another spot.' },
     ],
   },
   toolbox: {

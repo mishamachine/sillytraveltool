@@ -40,7 +40,7 @@ function guideCities(trips, upcomingTrips) {
 }
 
 /**
- * City-guide state for Explore: destination (defaults to the next trip), overview load on
+ * City-guide state for the Guide tab: destination (defaults to the next trip), overview load on
  * destination change, sub-section load when a section is opened, analytics.
  * `open` = a section detail view is showing (its sections are requested).
  */
@@ -68,14 +68,14 @@ export function useCityGuide(open) {
   const picked = useRef(false)
   const setDestination = (d) => { picked.current = true; setPicked(d) }
 
-  // Explore can be the first tab opened: make sure trips (for the default city) are loaded
+  // Guide can be the first tab opened: make sure trips (for the default city) are loaded
   useEffect(() => { if (!trips.length && !tripsLoading) fetchTrips() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (defaultDest && !picked.current && defaultDest.city !== destination?.city) setPicked(defaultDest)
   }, [defaultDest?.city]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load overview on destination change — also fires when the Explore tab becomes active
+  // Load overview on destination change — also fires when the Guide tab becomes active
   useEffect(() => {
     if (destination && !EXCLUDED.includes(destination.country_code)) loadGuide(destination.city, destination.country, destination.country_code)
   }, [destination?.city, activeTab]) // eslint-disable-line react-hooks/exhaustive-deps

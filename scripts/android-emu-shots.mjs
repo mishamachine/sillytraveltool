@@ -1,6 +1,6 @@
 // Android emulator check (GitHub Actions, .github/workflows/android.yml): installs the demo APK, drives the app's
 // WebView through Chrome DevTools (debug builds allow it), takes screenshots and checks the First Class paywall,
-// the free-plan limit, the onboarding tour (Profile → Take the tour), Tools → Tip & split and the Explore tab.
+// the free-plan limit, the onboarding tour (Profile → Take the tour), Tools → Tip & split and the Guide tab.
 // Needs a booted emulator (adb) and an APK built with VITE_DEMO=1 VITE_DEMO_PARAMS=limits=1.
 // Usage: node scripts/android-emu-shots.mjs [apk]   →   shots/*.png + shots/results.json; exits 1 when a check fails.
 import { execSync } from 'node:child_process'
@@ -179,11 +179,11 @@ try {
     check('tour closes back to Profile', await waitText('Take the tour'))
   })
 
-  // ── 5. Explore tab loads ──
+  // ── 5. Guide tab loads ──
   await section('explore', async () => {
-    await tab('explore'); await sleep(800)
+    await tab('guide'); await sleep(800)
     let header = false
-    for (let i = 0; i < 60 && !header; i++) { header = await js(`return !!document.getElementById('explore-title')`); if (!header) await sleep(250) }
+    for (let i = 0; i < 60 && !header; i++) { header = await js(`return !!document.getElementById('guide-title')`); if (!header) await sleep(250) }
     check('explore loads', header)
     await sleep(2000) // guide sections fetch (demo fixtures) and render
     check('explore shows no error screen', !(await js(`return __t.has(${JSON.stringify(ERROR_SCREEN)}) || __t.has('Guide unavailable')`)))

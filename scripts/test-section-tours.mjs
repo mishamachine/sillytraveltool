@@ -5,15 +5,15 @@ import { SECTION_TOURS, SEEN_PREFIX, hasSeenSection, markSectionSeen } from '../
 const mem = () => { const m = new Map(); return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) } }
 const broken = { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } }
 
-assert.deepEqual(Object.keys(SECTION_TOURS), ['trips', 'today', 'explore', 'toolbox', 'profile'])
+assert.deepEqual(Object.keys(SECTION_TOURS), ['trips', 'today', 'explore', 'honk', 'toolbox', 'profile'])
 const text = JSON.stringify(SECTION_TOURS)
 for (const [k, t] of Object.entries(SECTION_TOURS)) {
   assert.ok(t.cards.length >= 1 && t.cards.length <= 3, `${k}: 1-3 cards`)
   assert.match(t.overline, /^About /)
 }
-// Wording rules: HONK lives in Explore only; no emoji; no price, trial or AI wording; no numbers
+// Wording rules: HONK is explained on its own tab only; no emoji; no price, trial or AI wording; no numbers
 for (const [k, t] of Object.entries(SECTION_TOURS)) {
-  assert.equal(/honk/i.test(JSON.stringify(t)), k === 'explore', `${k}: HONK on Explore only`)
+  assert.equal(/honk/i.test(JSON.stringify(t)), k === 'honk', `${k}: HONK on the HONK tab only`)
 }
 assert.ok(!/\b(beta|trial|demo|free|AI)\b/i.test(text), 'no restricted words')
 assert.ok(!/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(text), 'no emoji')

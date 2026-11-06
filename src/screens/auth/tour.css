@@ -217,10 +217,6 @@ button.tour-now { cursor: pointer; }
 }
 .tour-clock { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius-pill); background: var(--surface-card); box-shadow: var(--shadow-card); color: var(--ink-secondary); }
 .tour-honk__card { position: relative; display: flex; flex-direction: column; gap: var(--space-3); min-height: 168px; }
-.tour-honk__btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; border-radius: var(--radius-md);
-  background: var(--accent-fill); color: var(--on-accent); font: 700 1rem var(--font-display); letter-spacing: 0.06em; box-shadow: var(--shadow-accent);
-}
 .tour-honk__pick { font-family: var(--font-display); font-weight: 700; font-size: 1.375rem; letter-spacing: -0.02em; color: var(--ink); }
 .tour-honk__again { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
 .tour-idle { animation: tour-bob 2.4s ease-in-out infinite; }
@@ -356,7 +352,7 @@ button.tour-now { cursor: pointer; }
 
 .tour-honk__top { min-height: 120px; }
 .tour-honk__card { flex: 1; justify-content: center; }
-.tour-honk__btn { position: relative; height: 54px; }
+.tour-honk .tour-chips .c-chip { position: relative; }
 .tour-tap--static { left: 50%; top: 50%; }
 .tour-honk__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .tour-honk__actions .tour-btn { margin-top: 0; flex: 1; }

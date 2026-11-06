@@ -5,28 +5,29 @@ import { fetchWithTimeout } from '../../lib/http'
 import { track } from '../../lib/analytics'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import {
-  Screen, ScreenHeader, Card, Chip, Button, IconButton, Text, Stack, Icon, Banner, Loading, ErrorState, GooseMark, LinkButton, Toast,
+  Screen, ScreenHeader, Card, Chip, Button, Text, Stack, Icon, IconTile, Banner, Loading, ErrorState, GooseMark, Toast, Sheet,
 } from '../../ui'
+import SectionTour from '../../components/shared/SectionTour'
 import AiDisclosure from './AiDisclosure'
 import { safeUrl } from '../../lib/safeUrl'
 import { reverseGeocode } from '../../lib/places'
 import { PlacePhoto, GoogleRating, OpenNow, GoogleAttribution, InkWait } from '../../components/shared/PlaceMedia'
-import GetThereSheet from '../../components/shared/GetThereSheet'
+import GetThereRow from '../../components/shared/GetThereRow'
 import IdeaSheet from './IdeaSheet'
 import { tripsForPlace, saveIdeaTo, moveIdea, createTripAndSave } from './saveIdea'
 import { suggestForPlace } from '../../lib/tripPick'
 import TripPickerSheet from '../../components/shared/TripPickerSheet'
 import { useTripsStore, useIdeasStore, tripForCity } from '../../store'
+import './explore.css'
 
-export const MOODS = [
-  { id: 'hungry',    label: "I'm hungry",        icon: 'restaurant' },
-  { id: 'explore',   label: 'Show me something', icon: 'compass' },
-  { id: 'bored',     label: "I'm bored",         icon: 'sparkles' },
-  { id: 'treat',     label: 'Treat myself',      icon: 'star' },
-  { id: 'cheap',     label: 'On a budget',       icon: 'currency' },
-  { id: 'culture',   label: 'Culture me',        icon: 'museum' },
-  { id: 'nightlife', label: 'Night out',         icon: 'moon' },
-  { id: 'local',     label: 'Be a local',        icon: 'map' },
+// Six moods that pull up different things. `label` is also the key goosey-discover maps to a Google search.
+const MOODS = [
+  { id: 'hungry',  label: 'Feed me',       hint: 'Local favourites and street eats',         icon: 'restaurant', tone: 'accent' },
+  { id: 'wow',     label: 'Wow me',        hint: 'Views, landmarks and hidden gems',         icon: 'compass',    tone: 'sun' },
+  { id: 'culture', label: 'Culture fix',   hint: 'Museums, galleries, old streets',          icon: 'museum',     tone: 'info' },
+  { id: 'cheap',   label: 'Cheap thrills', hint: 'Free sights and budget bites',             icon: 'currency',   tone: 'success' },
+  { id: 'local',   label: 'Go local',      hint: 'Markets, corner cafés, neighbourhood bars', icon: 'map',        tone: 'danger' },
+  { id: 'night',   label: 'Night out',     hint: 'Bars, live music, late spots',             icon: 'moon',       tone: 'stay' },
 ]
 
 function useGeolocation() {
@@ -74,29 +75,30 @@ function useGeolocation() {
   return { ...state, retry: () => setAttempt(a => a + 1) }
 }
 
-/** HONK: one great place near you, right now. */
-export default function HonkView({ initialMood = null, onBack }) {
+/** HONK tab: pick a mood, Goose finds one great place near you, open now. The spot opens in a sheet. */
+export default function HonkView() {
   const geo = useGeolocation()
-  const [selectedMood, setSelectedMood] = useState(initialMood)
+  const [mood, setMood] = useState(null)   // the mood behind the open sheet
+  const [queued, setQueued] = useState(null) // tapped before the location was known; runs once it is
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [manualCity, setManualCity] = useState(null)
+  const [picking, setPicking] = useState(false) // "Change" location
   const seen = useRef([]) // Google places already suggested this session, so "Another spot" moves on
-  const [getThere, setGetThere] = useState(false)
   const [ideaOpen, setIdeaOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const say = (msg, change) => { setToast({ msg, change }); setTimeout(() => setToast(null), change ? 5000 : 2600) }
-  const autoRan = useRef(false)
 
-  // Effective location: GPS city if available, else manual selection
-  const effectiveCity = geo.city || manualCity?.city || null
-  const effectiveCountry = geo.city ? geo.country : (manualCity?.country || '')
-  const effectiveCountryCode = geo.city ? geo.countryCode : (manualCity?.country_code || '')
+  // Effective location: a city picked by hand wins, else the GPS city
+  const effectiveCity = manualCity?.city || geo.city || null
+  const effectiveCountry = manualCity ? (manualCity.country || '') : geo.country
+  const effectiveCountryCode = manualCity ? (manualCity.country_code || '') : geo.countryCode
+  const gpsCoords = manualCity ? null : geo.coords
 
   // Save the spot to the trip that fits by dates and distance (or pick / start one), same as the guide
   const trips = useTripsStore(s => s.trips)
-  const here = result?.lat != null ? { lat: Number(result.lat), lng: Number(result.lng) } : geo.coords ? { lat: geo.coords.latitude, lng: geo.coords.longitude } : null
+  const here = result?.lat != null ? { lat: Number(result.lat), lng: Number(result.lng) } : gpsCoords ? { lat: gpsCoords.latitude, lng: gpsCoords.longitude } : null
   const honkTrip = (here && suggestForPlace(trips, here)?.trip) || tripForCity(trips, effectiveCity)
   const { load: loadIdeas, statusFor } = useIdeasStore()
   useIdeasStore(s => s.byTrip[honkTrip?.id])
@@ -127,15 +129,16 @@ export default function HonkView({ initialMood = null, onBack }) {
     say(`Saved to your new trip, ${trip.title}`)
   }
 
-  const handleHonk = async (moodId = selectedMood) => {
-    if (!moodId || !effectiveCity) return
-    setLoading(true); setError(null)
+  const handleHonk = async (moodId) => {
+    if (!moodId) return
+    setMood(moodId); setResult(null); setError(null)
+    if (!effectiveCity) { setQueued(moodId); return }
+    setLoading(true)
     try {
       const moodLabel = MOODS.find(m => m.id === moodId)?.label || moodId
-      const coords = geo.city ? geo.coords : null
       const ask = { city: effectiveCity, country: effectiveCountry, mood: moodLabel }
       // Facts first: the real place from Google shows at once, the Goose's words ink in after
-      const discovered = await gooseyDiscover({ ...ask, lat: coords?.latitude, lng: coords?.longitude, exclude: seen.current, stage: 'facts' })
+      const discovered = await gooseyDiscover({ ...ask, lat: gpsCoords?.latitude, lng: gpsCoords?.longitude, exclude: seen.current, stage: 'facts' })
       if (discovered?.place_id) seen.current = [...seen.current, discovered.place_id].slice(-20)
       setResult(discovered)
       if (discovered?.pending) {
@@ -144,7 +147,7 @@ export default function HonkView({ initialMood = null, onBack }) {
           .then(words => setResult(r => (r?.place_id === discovered.place_id ? { ...r, ...words, pending: false } : r)))
           .catch(() => setResult(r => (r?.place_id === discovered.place_id ? { ...r, why: r.summary || '', pending: false } : r)))
       }
-      track('honk_used', { mood: moodId, gps: !!geo.city }, 'goosey')
+      track('honk_used', { mood: moodId, gps: !!gpsCoords }, 'goosey')
       // Stat trigger: HONK used
       try {
         const { data: { user } } = await supabase.auth.getUser()
@@ -156,120 +159,115 @@ export default function HonkView({ initialMood = null, onBack }) {
     } finally { setLoading(false) }
   }
 
-  // A mood picked on the Explore card runs as soon as the location is known
+  // A mood tapped while Goose was still finding you runs as soon as the location is known
   useEffect(() => {
-    if (initialMood && effectiveCity && !autoRan.current) { autoRan.current = true; handleHonk(initialMood) }
+    if (queued && effectiveCity) { const m = queued; setQueued(null); handleHonk(m) }
   }, [effectiveCity]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const reset = () => { setResult(null); setSelectedMood(null); setError(null) }
+  const close = () => { setMood(null); setQueued(null); setResult(null); setError(null) }
   // The Goose's words "ink in" when they arrive after the place is already on screen
   const inked = useRef(null)
   if (result?.pending) inked.current = result.place_id
   const honkInk = result && !result.pending && inked.current === result.place_id ? 'ink-in' : undefined
   const place = effectiveCity ? `${effectiveCity}${effectiveCountry ? `, ${effectiveCountry}` : ''}` : null
+  const asking = picking || (!geo.loading && geo.error && !manualCity)
+  const sheetOpen = !!mood && !asking
+
+  const where = geo.loading && !manualCity ? 'Finding where you are' : place ? `Near ${place}` : 'Tell Goose where you are'
+  const addLabel = honkStatus?.state === 'booked' ? `Booked on ${honkTrip.title}`
+    : honkStatus ? `On ${honkTrip.title} ideas`
+      : honkTrip ? `Add to ${honkTrip.title}` : 'Add to a trip'
 
   return (
-    <Screen gap={4} labelledBy="honk-title">
-      <ScreenHeader onBack={onBack} backLabel="Back to Explore" title="HONK" titleId="honk-title"
-        meta={geo.loading ? 'Finding where you are' : place ? `Near ${place}` : 'Tell Goose where you are'} />
+    <Screen gap={4} labelledBy="honk-title" className="honk">
+      <ScreenHeader title="HONK" titleId="honk-title" actions={<SectionTour section="honk" />}
+        meta={(
+          <span className="honk-where">
+            <Icon name="navigation" size={16} />
+            <span className="honk-where__text">{where}</span>
+            {!asking && !(geo.loading && !manualCity) && <button type="button" className="honk-where__change" onClick={() => setPicking(true)}>Change</button>}
+          </span>
+        )} />
 
-      {geo.loading && !manualCity && (
-        <Loading title="Finding where you are">Goose uses your location to pick somewhere walkable.</Loading>
-      )}
-
-      {!geo.loading && geo.error && !manualCity && (
+      {asking ? (
         <Card variant="raised">
           <Stack row gap={3}>
             <GooseMark expression="worried" size={44} tile tileSize="sm" />
             <Stack gap={1} grow>
               <Text variant="card-title" as="h2">Where are you?</Text>
-              <Text variant="caption" tone="muted">{geo.error}</Text>
+              <Text variant="caption" tone="muted">{picking ? 'Pick the city Goose should look in.' : geo.error}</Text>
             </Stack>
           </Stack>
-          <CityAutocomplete label="Your city" placeholder="Type your city" icon="search" onSelect={(r) => setManualCity(r)} />
-          <Button variant="ghost" icon="navigation" onClick={geo.retry}>Try my location again</Button>
+          <CityAutocomplete label="Your city" placeholder="Type your city" icon="search" onSelect={(r) => { setManualCity(r); setPicking(false) }} />
+          <Stack row gap={2} wrap>
+            <Button variant="ghost" icon="navigation" onClick={() => { setManualCity(null); setPicking(false); geo.retry() }}>Use my location</Button>
+            {picking && <Button variant="ghost" onClick={() => setPicking(false)}>Cancel</Button>}
+          </Stack>
         </Card>
+      ) : (
+        <Text variant="body" as="p" className="honk-blurb">Got time to kill? HONK your mood and Goose finds something great nearby, open now and a short walk away.</Text>
       )}
 
-      {effectiveCity && !result && !loading && (
-        <>
-          {error && (
-            <ErrorState compact onRetry={selectedMood ? () => handleHonk() : undefined}>
-              {`Goose couldn't find a spot this time. ${error}`}
-            </ErrorState>
+      <div className="honk-moods" role="group" aria-label="Moods">
+        {MOODS.map(m => (
+          <button key={m.id} type="button" className={`honk-mood tint-${m.tone}`} onClick={() => handleHonk(m.id)} disabled={asking}>
+            <IconTile icon={m.icon} tone={m.tone} size="lg" className="c-tile--solid" />
+            <span className="honk-mood__text">
+              <span className="honk-mood__label">{m.label}</span>
+              <span className="honk-mood__hint">{m.hint}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {sheetOpen && (
+        <Sheet onClose={close} title={result?.name || MOODS.find(m => m.id === mood)?.label}
+          subtitle={result ? [result.type, result.neighbourhood, result.price_range].filter(Boolean).join(' · ') : null} className="honk-sheet">
+          {(loading || (queued && !effectiveCity)) && (
+            <Loading title={effectiveCity ? `Goose is scouting ${effectiveCity}` : 'Finding where you are'}>Usually under 10 seconds.</Loading>
           )}
-          <Card variant="inverse">
-            <Stack row gap={3}>
-              <GooseMark expression={selectedMood ? 'excited' : 'happy'} size={44} tile tileSize="sm" />
-              <Stack gap={1} grow>
-                <Text variant="title" tone="inverse" as="h2">What are you in the mood for?</Text>
-                <Text variant="caption" tone="inverse-muted">One great place, walkable from where you are.</Text>
-              </Stack>
-            </Stack>
-            <div className="explore-moods" role="radiogroup" aria-label="Mood">
-              {MOODS.map(m => (
-                <Chip key={m.id} icon={m.icon} role="radio" aria-checked={selectedMood === m.id} aria-pressed={undefined}
-                  selected={selectedMood === m.id} onClick={() => setSelectedMood(m.id)} className="explore-mood">
-                  {m.label}
-                </Chip>
-              ))}
-            </div>
-          </Card>
-          <Button variant="primary" size="lg" block icon="megaphone" disabled={!selectedMood} onClick={() => handleHonk()}>HONK</Button>
-          {manualCity && <LinkButton icon="navigation" onClick={() => { setManualCity(null); geo.retry() }}>Use my location instead</LinkButton>}
-        </>
-      )}
-
-      {loading && <Loading title={`Goose is scouting ${effectiveCity}`}>Usually under 10 seconds.</Loading>}
-
-      {result && !loading && (
-        <>
-          <Card variant="raised" aria-labelledby="honk-result">
-            <Stack row justify="between" align="start" gap={3}>
-              <Stack gap={1} grow>
-                <Text variant="overline" tone="accent" as="p">Goose says go here</Text>
-                <Text variant="title" as="h2" id="honk-result">{result.name}</Text>
-                <Text variant="caption" tone="muted">{[result.type, result.neighbourhood, result.price_range].filter(Boolean).join(' · ')}</Text>
-              </Stack>
-              {result.goose_rating && <Chip icon="star" className={honkInk} aria-label={`Goose says: ${result.goose_rating}`}>{result.goose_rating}</Chip>}
-            </Stack>
-            {result.photo && <PlacePhoto name={result.photo} alt={result.name} />}
-            {(result.rating != null || result.walk_min != null || result.open_now) && (
+          {error && !loading && (
+            <ErrorState compact onRetry={() => handleHonk(mood)}>{`Goose couldn't find a spot this time. ${error}`}</ErrorState>
+          )}
+          {result && !loading && (
+            <>
+              {result.photo && <PlacePhoto name={result.photo} alt={result.name} className="honk-photo" />}
               <Stack row gap={2} wrap>
+                {result.goose_rating && <Chip icon="sparkles" tone="accent" className={honkInk} aria-label={`Goose says: ${result.goose_rating}`}>{`Goose ${result.goose_rating}`}</Chip>}
                 <GoogleRating rating={result.rating} count={result.rating_count} />
                 {result.open_now && <OpenNow open />}
                 {result.walk_min != null && <Chip icon="walk">{`${result.walk_min} min walk`}</Chip>}
               </Stack>
-            )}
-            {result.pending ? <InkWait lines={3} label="The Goose is writing" />
-              : result.why && <Text variant="body" tone="secondary" className={honkInk}>{result.why}</Text>}
-            {result.best_time && (
-              <Stack row gap={2} className={honkInk}><Icon name="clock" size={18} className="tone-muted" /><Text variant="caption" tone="muted">Best time: {result.best_time}</Text></Stack>
-            )}
-            {result.insider_tip && <Banner icon="lightbulb" title="Insider tip" className={honkInk}>{result.insider_tip}</Banner>}
-            <Stack row gap={2}>
-              {(result.lat != null || result.address) && (
-                <Button variant="primary" className="grow" icon="navigation" onClick={() => setGetThere(true)}>Get there</Button>
-              )}
-              {!result.lat && !result.address && safeUrl(result.google_maps_url) && (
-                <a className="c-btn c-btn--primary c-btn--md grow" href={safeUrl(result.google_maps_url)} target="_blank" rel="noreferrer">Directions</a>
-              )}
-              <IconButton icon={honkStatus?.state === 'booked' ? 'calendar' : honkStatus ? 'check' : 'plus'} variant={honkStatus?.state === 'booked' ? 'accent' : 'sunken'}
-                className={honkStatus?.state === 'idea' ? 'is-saved' : undefined} aria-pressed={!!honkStatus}
-                label={honkStatus ? `${result.name} is on your trip` : `Save ${result.name} to trip ideas`} onClick={saveHonk} />
-              <IconButton icon="refresh" variant="sunken" label="Another spot" onClick={reset} />
-            </Stack>
-          </Card>
-          {result.place_id && <GoogleAttribution />}
-          <AiDisclosure city={effectiveCity} what="HONK" />
-          {getThere && <GetThereSheet place={result} countryCode={effectiveCountryCode} onClose={() => setGetThere(false)} />}
-          {pickFor && <TripPickerSheet title={pickFor.from ? 'Move to' : 'Save to'} subtitle={result.name} ranked={pickFor.ranked} city={effectiveCity}
-            onPick={pickTrip} onCreate={createAndSave} onClose={() => setPickFor(null)} />}
-          {ideaOpen && honkTrip && <IdeaSheet item={result} kind={honkKind} status={honkStatus} trip={honkTrip} onSaved={say} onClose={() => setIdeaOpen(false)} />}
-          {toast && <Toast icon="check" title={toast.msg}
-            action={toast.change && <Button size="sm" variant="secondary" onClick={() => { toast.change(); setToast(null) }}>Change</Button>} />}
-        </>
+              {result.pending ? <InkWait lines={2} label="The Goose is writing" />
+                : result.why && <Text variant="body" tone="secondary" className={honkInk}>{result.why}</Text>}
+              {result.insider_tip && <Banner icon="lightbulb" title="Insider tip" className={honkInk}>{result.insider_tip}</Banner>}
+              <Button variant={honkStatus ? 'secondary' : 'primary'} size="lg" block
+                icon={honkStatus?.state === 'booked' ? 'calendar' : honkStatus ? 'check' : 'plus'} onClick={saveHonk}>{addLabel}</Button>
+              <Stack gap={2}>
+                <Text variant="label" as="p">Get there</Text>
+                {result.lat != null || result.address ? (
+                  <GetThereRow place={result} from={gpsCoords} countryCode={effectiveCountryCode}
+                    onAnother={<Button variant="ghost" size="sm" icon="refresh" onClick={() => handleHonk(mood)}>Another spot</Button>} />
+                ) : (
+                  <Stack row gap={2}>
+                    {safeUrl(result.google_maps_url) && (
+                      <a className="c-btn c-btn--secondary c-btn--md grow" href={safeUrl(result.google_maps_url)} target="_blank" rel="noreferrer">Directions</a>
+                    )}
+                    <Button variant="ghost" icon="refresh" onClick={() => handleHonk(mood)}>Another spot</Button>
+                  </Stack>
+                )}
+              </Stack>
+              {result.place_id && <GoogleAttribution />}
+              <AiDisclosure city={effectiveCity} what="HONK" />
+            </>
+          )}
+        </Sheet>
       )}
+      {pickFor && result && <TripPickerSheet title={pickFor.from ? 'Move to' : 'Save to'} subtitle={result.name} ranked={pickFor.ranked} city={effectiveCity}
+        onPick={pickTrip} onCreate={createAndSave} onClose={() => setPickFor(null)} />}
+      {ideaOpen && honkTrip && result && <IdeaSheet item={result} kind={honkKind} status={honkStatus} trip={honkTrip} onSaved={say} onClose={() => setIdeaOpen(false)} />}
+      {toast && <Toast icon="check" title={toast.msg}
+        action={toast.change && <Button size="sm" variant="secondary" onClick={() => { toast.change(); setToast(null) }}>Change</Button>} />}
     </Screen>
   )
 }

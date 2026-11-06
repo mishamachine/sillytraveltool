@@ -109,10 +109,10 @@ export const HELP_TOPICS = [
   {
     id: 'guide', group: 'explore', icon: 'book', tone: 'success',
     title: 'City guide',
-    summary: 'Know, Eat, See, Transit and Events for any city.',
+    summary: 'The lowdown, Where to eat, Must-sees, Getting around and What\'s on for any city.',
     steps: [
-      'Open Explore. Your next trip\'s city loads on its own, or search any city.',
-      'Pick a section: Know (history and local quirks), Eat (cheap to splurge), See, Transit or Events.',
+      'Open Guide. Your next trip\'s city loads on its own, or search any city.',
+      'Pick a section: The lowdown (history and local quirks), Where to eat (cheap to splurge), Must-sees, Getting around or What\'s on.',
       'Each list shows 15 places with photos and ratings. Tap Show 15 more for the next batch.',
     ],
     tips: [
@@ -124,11 +124,11 @@ export const HELP_TOPICS = [
     title: 'HONK: what\'s good near me',
     summary: 'Tell Goose your mood and get one good pick within walking distance.',
     steps: [
-      'Open Explore and tap a mood on the HONK card, or More moods.',
+      'Tap HONK, the Goose button in the middle of the bottom bar, then tap a mood.',
       'Allow location when asked. HONK uses it once to find spots near you.',
       'Goose picks a place with its real walking time. Not feeling it? Tap Another spot.',
     ],
-    tips: ['Moods include I\'m hungry, Treat myself, On a budget, Culture me and Night out.'],
+    tips: ['Moods: Feed me, Wow me, Culture fix, Cheap thrills, Go local and Night out.'],
   },
   {
     id: 'ideas', group: 'explore', icon: 'plus', tone: 'accent',
