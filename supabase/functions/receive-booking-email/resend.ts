@@ -1,5 +1,6 @@
 // Reading a received email back from Resend (the inbound webhook carries no body): used by receive-booking-email
 // and, for emails held until the member allows AI reading, by inbox-release.
+import { htmlToText, bestText } from '../_shared/emailText.js'
 
 // Files worth reading: PDFs, images over 20 KB (not logos or signatures), CSV / Excel sheets; two at most, 6 MB each.
 const READABLE = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif)|text\/(csv|plain|tab-separated-values)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)$/
@@ -32,35 +33,20 @@ export async function fetchAttachments(emailId: string | undefined, listed: unkn
   }
 }
 
-// Extract plain text from HTML (basic — strips tags)
-export function htmlToText(html: string): string {
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/?(p|div|tr|li)[^>]*>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
+// HTML to text (tables kept as rows of cells, entities and quoted-printable decoded): _shared/emailText.js
+export { htmlToText, bestText }
 
 /**
  * The received email's subject, sender and text (HTML turned to text), or null when Resend no longer has it (404/410).
  * Any other failure throws: the caller keeps the email and tries again later.
  */
-export async function fetchReceivedEmail(emailId: string): Promise<{ subject: string, from: string, text: string, attachments: unknown } | null> {
+export async function fetchReceivedEmail(emailId: string): Promise<{ subject: string, from: string, text: string, attachments: unknown, created_at?: string | null } | null> {
   const key = Deno.env.get('RESEND_API_KEY')
   if (!key || !emailId) throw new Error('Resend not configured')
   const res = await fetch(`https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}`, { headers: { Authorization: `Bearer ${key}` } })
   if (res.status === 404 || res.status === 410) { console.warn(`Resend receiving ${emailId}: ${res.status}`); return null }
   if (!res.ok) throw new Error(`Resend receiving ${res.status}`)
   const e = await res.json()
-  const text = e.text || (e.html ? htmlToText(e.html) : '')
-  return { subject: String(e.subject ?? ''), from: String(e.from ?? ''), text: String(text), attachments: e.attachments }
+  const text = bestText(e.text, e.html)
+  return { subject: String(e.subject ?? ''), from: String(e.from ?? ''), text: String(text), attachments: e.attachments, created_at: e.created_at ?? null }
 }

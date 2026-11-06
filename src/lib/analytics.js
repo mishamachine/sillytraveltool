@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { supabase } from './supabase'
 import { initGA, stopGA, gaEvent, gaPageView } from './ga'
 import { isConsentRegion, readPref, writePref, resolveEnabled, needsChoice } from './consent'
+import { cleanProps } from './analyticsProps.js'
 
 // Product analytics. Every track() goes to two places:
 //  - Supabase `analytics_events` (first party, insert-own RLS; skipped when signed out)
@@ -175,28 +176,8 @@ function initActiveTime() {
   }, TICK_S * 1000)
 }
 
-// --- privacy guard -----------------------------------------------------------------------------------
-
-const BLOCKED_KEY = /mail|name|title|note|text|query|phone|address|coord|confirm|passport|token|url|(^|_)(lat|lng|lon|number)($|_)/i
-
-function cleanValue(v) {
-  if (typeof v === 'boolean') return v
-  if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v * 100) / 100 : undefined
-  if (typeof v !== 'string') return undefined
-  // Short codes only: 'flight', 'email_import', 'GB', 'ja'. Long strings, '@' and long digit runs are dropped.
-  if (v.length > 40 || v.includes('@') || /\d{5,}/.test(v)) return undefined
-  return v
-}
-
-export function cleanProps(props) {
-  const out = {}
-  for (const [k, v] of Object.entries(props || {})) {
-    if (BLOCKED_KEY.test(k) || k.length > 40) continue
-    const clean = cleanValue(v)
-    if (clean !== undefined && clean !== null && clean !== '') out[k] = clean
-  }
-  return out
-}
+// --- privacy guard: analyticsProps.js (kept apart so the tests can import it) ---------------------------
+export { cleanProps }
 
 // --- events ----------------------------------------------------------------------------------------
 

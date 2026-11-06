@@ -1,0 +1,682 @@
+{
+ "note": "Fictional booking emails (all names, brands and codes invented) from the live AI checks of 6 Nov 2026: batch 1 (E*), the loyalty emails of batch 1 (L*, rewritten from their description), batch 2 (B2-*). Used by scripts/test-email-regression.mjs.",
+ "emails": [
+  {
+   "id": "E1",
+   "subject": "Your Northwind Air e-ticket TST1A1 - Sat, Nov 14",
+   "from": "traveller@example.test",
+   "body": "Northwind Air - e-ticket receipt (FICTIONAL TEST DATA, not a real booking.)\n\nBooking reference: TST1A1\nPassenger: Jordan Ellis\n\nFlight NW 218\nDeparts: Seattle-Tacoma (SEA)  Nov 14, 2026 7:05 PM PST\nArrives: New York JFK (JFK)   Nov 15, 2026 3:40 AM EST\nSeat 14C - Economy\n\nTotal paid: 412.60 USD",
+   "expected": "1 flight SEA->JFK, 1 passenger. Departs 2026-11-14 19:05 Seattle (= 2026-11-15T03:05Z), arrives 2026-11-15 03:40 New York (= 08:40Z). Shown in local times. New trip \"Trip to New York\"."
+  },
+  {
+   "id": "E2",
+   "subject": "Itinerary TST2B2: Seattle - London - Paris - Seattle",
+   "from": "traveller@example.test",
+   "body": "Northwind Air - multi-city itinerary (FICTIONAL TEST DATA, not a real booking.)\nBooking reference: TST2B2    Passenger: Priya Raman\n\nLeg 1  NW 71    Fri 20 Nov 2026   SEA 19:05  ->  LHR 12:50 (Sat 21 Nov)\nLeg 2  NW 1304  Sun 22 Nov 2026   LHR 09:30  ->  CDG 11:50\nLeg 3  NW 72    Fri 27 Nov 2026   CDG 12:10  ->  SEA 13:55\n\nAll times are local to each airport (24-hour clock).",
+   "expected": "3 flight bookings on one trip (SEA->LHR, LHR->CDG, CDG->SEA), same reference. Instants: 2026-11-21T03:05Z->12:50Z; 11-22T09:30Z->10:50Z; 11-27T11:10Z->21:55Z. Local zones America/Los_Angeles, Europe/London, Europe/Paris. Trip 2026-11-20 to 2026-11-27."
+  },
+  {
+   "id": "E3",
+   "subject": "Northwind Air booking TST3C3 - Nunez-Whitaker family to Paris",
+   "from": "traveller@example.test",
+   "body": "Northwind Air - e-ticket receipt (FICTIONAL TEST DATA, not a real booking.)\nBooking reference: TST3C3\n\nPassengers (5):\n 1. NUÑEZ-WHITAKER / SØREN MR      (adult)\n 2. NUÑEZ-WHITAKER / AMÉLIE MRS    (adult)\n 3. NUÑEZ-WHITAKER / ZOË MISS      (child, 11)\n 4. NUÑEZ-WHITAKER / ISMAËL MSTR   (child, 8)\n 5. NUÑEZ-WHITAKER / LÉA-MARIE     (infant on lap, 1)\n\nFlight NW 108   Sun 20 Dec 2026\nSFO 15:40  ->  CDG 11:25 (Mon 21 Dec 2026)\nSeats: 31A 31B 31C 31D (infant on lap, no seat)",
+   "expected": "1 flight SFO->CDG, ALL 5 travellers listed (accents and hyphens intact; infant shown as lap infant). Departs 2026-12-20 15:40 San Francisco (=23:40Z), arrives 2026-12-21 11:25 Paris (=10:25Z). Trip \"Trip to Paris\". NOTE: the parser has ONE passenger_name field; predicted risk that only one name is kept."
+  },
+  {
+   "id": "E4",
+   "subject": "Reservation TST4D4 - Hotel Lumiere Test, Paris",
+   "from": "traveller@example.test",
+   "body": "Hotel Lumière Test, 12 rue de l'Exemple, 75011 Paris, France (FICTIONAL TEST DATA, not a real booking.)\nReservation: TST4D4\nGuest: Priya Raman\nRooms: 2 x Double room\n\nArrivée / Check-in:  22/11/2026 (from 15:00)\nDépart / Check-out:  27.11.2026 (until 11:00)\n\nTotal: 1 480,00 EUR",
+   "expected": "1 hotel, 2 rooms noted, check-in 2026-11-22, check-out 2026-11-27 (both date styles read as day/month), Paris, France. Joins the E2 trip."
+  },
+  {
+   "id": "E5",
+   "subject": "Your Iberian Escape package TST5E5: flights, hotels and car",
+   "from": "traveller@example.test",
+   "body": "Iberian Escape Packages (FICTIONAL TEST DATA, not a real booking.)\nPackage reference: TST5E5     Traveller: Marcus Oyelaran\n\nFLIGHT NW 2038: JFK -> LIS, Fri, 5 Mar 2027, departs 21:30, arrives Sat 6 Mar 2027 09:40 (+1)\n\nHOTEL 1: Casa Teste Alfama, Rua da Amostra 5, Lisbon. Check-in 06/03/2027, check-out 09/03/2027\n\nCAR RENTAL: Lisbon Airport pick-up Tue 9 March 2027 at 10:00 am; drop-off Porto Airport 12 March 2027 at 6:00 pm. Ref CAR-TST5E5\n\nHOTEL 2: Palacete Prova, Rua do Ensaio 9, Porto. Check-in 2027-03-09, check-out 2027-03-12\n\nFLIGHT NW 4410: OPO -> MAD, Fri, 12 Mar 2027, departs 20:45, arrives 22:45\n\nHOTEL 3: Hostal Prueba Centro, Calle de la Muestra 3, Madrid. Check-in 12 Mar 2027, check-out 15 Mar 2027",
+   "expected": "ONE email, 6 items, 3 cities: flight JFK->LIS, hotel Lisbon, rental car Lisbon->Porto, hotel Porto, flight OPO->MAD, hotel Madrid, all on ONE trip, none dropped, dates as printed. PREDICTED FAIL: the parser returns a single booking plus extra flight legs (more_legs) only, so hotels/car beyond the first item may be silently dropped."
+  },
+  {
+   "id": "E6",
+   "subject": "Aurora Rail tickets TST6F6: Berlin - Hamburg - Berlin",
+   "from": "traveller@example.test",
+   "body": "Aurora Rail e-tickets (FICTIONAL TEST DATA, not a real booking.)\nBooking: TST6F6   Passenger: Kim Becker\n\nOutbound: Thu 12 Nov, train AR 701, Berlin Hbf 07:15 -> Hamburg Hbf 08:56\nReturn:   train AR 718, 2026-11-14T19:05 Hamburg Hbf -> Berlin Hbf 2026-11-14T20:46",
+   "expected": "2 train bookings. Outbound year inferred as 2026 (next Thu 12 Nov), 07:15 -> 08:56 Europe/Berlin; return 2026-11-14 19:05 -> 20:46. One trip \"Trip to Hamburg\" (or Berlin)."
+  },
+  {
+   "id": "E7",
+   "subject": "Northwind Air TST7G7: Los Angeles - Sydney return",
+   "from": "traveller@example.test",
+   "body": "Northwind Air e-ticket (FICTIONAL TEST DATA, not a real booking.)\nBooking: TST7G7   Passenger: Aiko Tanaka\n\nNW 7   LAX -> SYD\nDeparts Sat 14 Nov 2026 22:30 (Los Angeles)\nArrives Mon 16 Nov 2026 08:50 (Sydney)  [+2 days]\n\nNW 8   SYD -> LAX\nDeparts Tue 24 Nov 2026 11:00 (Sydney)\nArrives Tue 24 Nov 2026 05:10 (Los Angeles)  [same day]",
+   "expected": "2 flights. Out: 2026-11-14 22:30 PST (=2026-11-15T06:30Z) -> 2026-11-16 08:50 AEDT (=11-15T21:50Z). Back: 11-24 11:00 AEDT (=11-24T00:00Z) -> 11-24 05:10 PST (=13:10Z), shown as arriving BEFORE it leaves on the wall clock, which is correct. Trip 14-24 Nov, \"Trip to Sydney\"."
+  },
+  {
+   "id": "E8a",
+   "subject": "Ihre Fahrkarte TST8H8: München Hbf - Zürich HB",
+   "from": "traveller@example.test",
+   "body": "Alpenrail Fahrkarte / ticket (FICTIONAL TEST DATA, not a real booking.)\nBuchung: TST8H8   Reisende: Lena Hofmann\nZug EC 99, Samstag 20.03.2027\nMünchen Hbf 09:03  ->  Zürich HB 12:58",
+   "expected": "1 train booking, 2027-03-20 09:03 Munich -> 12:58 Zurich (Europe/Berlin, Europe/Zurich), city names kept with umlauts. Own trip (Zurich/Munich)."
+  },
+  {
+   "id": "E8b",
+   "subject": "Channel Ferries booking TST8J8: Dover - Calais",
+   "from": "traveller@example.test",
+   "body": "Channel Ferries (FICTIONAL TEST DATA, not a real booking.)\nBooking: TST8J8   Passenger: Lena Hofmann, 1 car\nFri 2 April 2027\nDover 14:00 (UK time)  ->  Calais 16:30 (French time)",
+   "expected": "1 ferry booking (transport), 2027-04-02 14:00 Dover (=13:00Z) -> 16:30 Calais (=14:30Z). Own trip, separate from E8a (13 days apart)."
+  },
+  {
+   "id": "E9a",
+   "subject": "Table confirmed TST9K9: Le Petit Atelier, Tue 22 Dec, 7pm, party of 5",
+   "from": "traveller@example.test",
+   "body": "Le Petit Atelier (fictional restaurant), 8 rue de la Maquette, 75003 Paris (FICTIONAL TEST DATA, not a real booking.)\nConfirmation TST9K9\nTable for 5 (2 adults, 3 children), Tuesday 22 December 2026 at 7pm. Name: Nuñez-Whitaker",
+   "expected": "1 restaurant booking, 2026-12-22 19:00 Paris, party of 5, on the E3 family trip (no new trip)."
+  },
+  {
+   "id": "E9b",
+   "subject": "Votre visite TST9L9: Balade des lumieres en famille",
+   "from": "traveller@example.test",
+   "body": "Balade des lumières - visite en famille (fictional tour) (FICTIONAL TEST DATA, not a real booking.)\nRéservation TST9L9 - 5 billets (famille)\nMercredi 23 décembre 2026 à 19h00\nPoint de rencontre : Place de l'Exemple, Paris",
+   "expected": "1 activity, 2026-12-23 19:00 Paris, 5 tickets, on the E3 family trip."
+  },
+  {
+   "id": "E9c",
+   "subject": "Reminder: your table tomorrow at 7pm (TST9M9)",
+   "from": "traveller@example.test",
+   "body": "Osteria Prova (fictional), Via dell'Esempio 4, Rome (FICTIONAL TEST DATA, not a real booking.)\nConfirmation TST9M9. Your table for 2 is booked for tomorrow at 7pm.",
+   "expected": "RELATIVE DATE. Date = the day the email arrives + 1 (send it on day D: expect D+1 19:00, Rome). Parser prompt has no rule for \"tomorrow\"; if the model has no send date it may guess or leave the date empty. Report what is filed."
+  },
+  {
+   "id": "E10a",
+   "subject": "Fwd: Fwd: Fwd: Your stay is confirmed TST10N1",
+   "from": "traveller@example.test",
+   "body": "FYI see below\n\n---------- Forwarded message ---------\nFrom: Pat <pat@example.test>\nSubject: Fwd: Fwd: Your stay is confirmed TST10N1\n\n> ---------- Forwarded message ---------\n> From: Harbourview Test Hotel <reservations@harbourview.example.test>\n> Subject: Your stay is confirmed TST10N1\n>\n> > Harbourview Test Hotel, 1 Sample Quay, Sydney NSW 2000, Australia (FICTIONAL TEST DATA, not a real booking.)\n> > Confirmation: TST10N1    Guest: Aiko Tanaka\n> > Check-in: Monday 16 November 2026 (from 2:00 PM)\n> > Check-out: Tuesday 24 November 2026 (by 10:00 AM)\n> > Total AUD 2,160.00\n>\n> To manage your stay visit harbourview.example.test/manage\n>\n> Sent from my phone",
+   "expected": "Hotel read from the forward chain (not the \"FYI\" line, not the forwarders). Check-in 2026-11-16, check-out 2026-11-24, Sydney, joins the E7 trip. No duplicate on re-forward."
+  },
+  {
+   "id": "E10b",
+   "subject": "Tour ticket attached TST10P2",
+   "from": "traveller@example.test",
+   "body": "Hi, my tour ticket is attached as a PDF (docs-local/0.20.2-email-sim/E10b-tour-ticket-FICTIONAL.pdf). Please file it.",
+   "attachment": "tour ticket PDF (Harbour Test Cruise)",
+   "expected": "PDF read: 1 activity, Harbour Test Cruise, 2026-11-18 10:30 Sydney, 2 tickets, joins the E7 trip."
+  },
+  {
+   "id": "E11a",
+   "subject": "Schedule change - Northwind Air TST2B2",
+   "from": "traveller@example.test",
+   "body": "Northwind Air (FICTIONAL TEST DATA, not a real booking.)\nBooking TST2B2, passenger Priya Raman. SCHEDULE CHANGE for NW 1304, Sun 22 Nov 2026:\nLHR 10:15  ->  CDG 12:35 (new times; previously 09:30 -> 11:50).",
+   "expected": "Send AFTER E2. The existing LHR->CDG booking is UPDATED in place (departure 10:15 London = 10:15Z, arrival 12:35 Paris = 11:35Z). Still 3 flight bookings, no 4th."
+  },
+  {
+   "id": "E11b",
+   "subject": "Cancellation of reservation TST4D4",
+   "from": "traveller@example.test",
+   "body": "Hotel Lumière Test (FICTIONAL TEST DATA, not a real booking.)\nYour reservation TST4D4 (22/11/2026 - 27.11.2026) has been CANCELLED. No charge.",
+   "expected": "Send AFTER E4. By design the hotel is NOT deleted: it is flagged \"Cancellation email received on <date>\" with a note (code: cancellation_received_at). Report whether the card shows the note clearly; no duplicate."
+  },
+  {
+   "id": "E12",
+   "subject": "Confirmacion de reserva TST12Q1 - Hotel Prueba Mar, Valencia",
+   "from": "traveller@example.test",
+   "body": "Hotel Prueba Mar (hotel ficticio), Avenida del Ejemplo 10, Valencia, España (FICTIONAL TEST DATA, not a real booking.)\nReserva: TST12Q1    Huésped: Carmen Ruiz\nEntrada: viernes, 12 de febrero de 2027 (desde las 15:00)\nSalida: lunes, 15 de febrero de 2027 (hasta las 12:00)\nImporte total: 1.234,56 €  (3 noches)",
+   "expected": "1 hotel, 2027-02-12 to 2027-02-15, Valencia ES, price 1234.56 EUR (not 1.23 / 1234560). Own trip."
+  },
+  {
+   "id": "E13a",
+   "subject": "Booking TST13R1 - Stranger Sender Hotel, Lisbon",
+   "from": "stranger.sender@example.test",
+   "body": "Stranger Sender Hotel, Rua do Teste 1, Lisbon (FICTIONAL TEST DATA, not a real booking.)\nReservation TST13R1. Guest: Aiko Tanaka. Check-in 2027-01-10, check-out 2027-01-12.",
+   "expected": "Owner decision: ANY sender accepted. +test7 has given AI consent, so it should be FILED (Lisbon trip). Code at ad0a9f9 (offline-proven): DROPPED silently unless the \"accept any sender\" switch is on (default off). Report what the app shows."
+  },
+  {
+   "id": "E13b",
+   "subject": "Booking TST13S2 - Consent Gate Hotel, Rome",
+   "from": "traveller@example.test",
+   "body": "Consent Gate Hotel, Via del Test 2, Rome (FICTIONAL TEST DATA, not a real booking.)\nReservation TST13S2. Guest: Test Eight. Check-in 2027-01-20, check-out 2027-01-22.",
+   "expected": "+test8 must NEVER tap Allow AI. Email is HELD (nothing filed, no trip) and AI is not called. Then: sign +test8 in, Allow, wait a minute: it is released and filed. Also resend E13a (from the other mailbox) to +test8 and compare."
+  },
+  {
+   "id": "L1",
+   "subject": "Your Northwind Miles statement",
+   "from": "traveller@example.test",
+   "body": "Northwind Miles (FICTIONAL TEST DATA)\nMember: Jordan Ellis   Member number: TST-NW-118204\nTier: Silver\nBalance: 8,420 miles as of 1 Nov 2026",
+   "expected": "1 loyalty card Northwind Miles, Silver, number TST-NW-118204"
+  },
+  {
+   "id": "L2",
+   "subject": "Lumière Rewards: your Gold status",
+   "from": "traveller@example.test",
+   "body": "Lumière Rewards (FICTIONAL TEST DATA)\nMember: Priya Raman   No. TST-LR-55012\nStatus: Gold   Points: 12,450   Points expire 31 March 2027",
+   "expected": "1 card Lumière Rewards Gold, 12450 points, expiry 2027-03-31"
+  },
+  {
+   "id": "L3",
+   "subject": "Welcome to SwiftDrive Club",
+   "from": "traveller@example.test",
+   "body": "SwiftDrive Club (FICTIONAL TEST DATA)\nWelcome Kim Becker! Your member number: TST-SD-7731   Level: Preferred",
+   "expected": "1 card SwiftDrive Club, Preferred"
+  },
+  {
+   "id": "L4",
+   "subject": "Northwind Air e-ticket TST1A9 (frequent flyer number added)",
+   "from": "traveller@example.test",
+   "body": "Northwind Air e-ticket (FICTIONAL TEST DATA)\nBooking reference: TST1A9   Passenger: Jordan Ellis   Frequent flyer: Northwind Miles TST-NW-118204\nFlight NW 220  Seattle (SEA) Dec 3, 2026 8:00 AM -> New York (JFK) Dec 3, 2026 4:30 PM",
+   "expected": "1 flight; the FF number does not create a duplicate card and is not stored on the booking"
+  },
+  {
+   "id": "B2-01",
+   "subject": "Cirrus Air booking TSTB101 - Okafor / Reyes party to Lisbon",
+   "from": "traveller@example.test",
+   "body": "Cirrus Air e-ticket receipt (FICTIONAL TEST DATA, not a real booking.)\nBooking reference: TSTB101        Issued: 02 Feb 2027\n\nPASSENGERS\n 1. MR DANIEL OKAFOR        (adult)   e-ticket 9991234500011\n 2. MRS LUCIA REYES         (adult)   e-ticket 9991234500012\n 3. MSTR NOAH OKAFOR        (child, 9) e-ticket 9991234500013\n 4. MISS ZOE REYES          (child, 5) e-ticket 9991234500014\n 5. INF MIA OKAFOR          (infant under 2, on lap)  e-ticket 9991234500015\n\nFLIGHTS\nCA 418  Fri 12 Mar 2027  BOS 21:40 -> LIS 09:55 (+1, Sat 13 Mar)  Economy (T)\nCA 419  Sat 20 Mar 2027  LIS 11:20 -> BOS 14:05                   Economy (T)\nAll times local.\n\nSEATS AND BAGS\n+-------------------+---------+---------+-------------------+\n| Passenger         | CA 418  | CA 419  | Checked bags      |\n+-------------------+---------+---------+-------------------+\n| OKAFOR/DANIEL MR  | 31A     | 29A     | 1 x 23kg          |\n| REYES/LUCIA MRS   | 31B     | 29B     | 1 x 23kg          |\n| OKAFOR/NOAH MSTR  | 32A     | 30A     | 1 x 23kg          |\n| REYES/ZOE MISS    | 32B     | 30B     | 1 x 23kg          |\n| OKAFOR/MIA INF    | lap     | lap     | none (stroller ok)|\n+-------------------+---------+---------+-------------------+\nFare total: USD 2,318.40 (4 seats + infant tax)",
+   "expected": "2 flight bookings, one reference TSTB101, on ONE new trip \"Trip to Lisbon\" (not \"Trip to LIS\"), 2027-03-12 to 2027-03-20.\n- CA 418 BOS 21:40 America/New_York (EST, UTC-5, 2027-03-13T02:40Z) -> LIS 09:55 Europe/Lisbon (WET, UTC+0) on 2027-03-13.\n- CA 419 LIS 11:20 Europe/Lisbon (UTC+0) -> BOS 14:05 America/New_York (EDT, UTC-4) on 2027-03-20 (US DST began 14 Mar: different offset than the outbound).\n- Travelers: ALL 5 captured (not just the first), with titles; Okafor and Reyes surnames kept; infant flagged as lap infant; party size 5 (4 seats + 1 infant).\n- Seats: 31A/31B/32A/32B out, 29A/29B/30A/30B back; 4 checked bags.\n- Price USD 2318.40.\n- Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "flight": 2
+    },
+    "travelers": 5,
+    "trips": 1,
+    "trip_name": "Trip to Lisbon",
+    "price": {
+     "amount": 2318.4,
+     "currency": "USD"
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-02",
+   "subject": "Re: Re: Re: Mehta family India trip - tickets issued TSTB102",
+   "from": "traveller@example.test",
+   "body": "Hi Arjun,\n\nPerfect, thank you! Dad's vegetarian meal is noted. Will send the hotel list tomorrow.\n\nMarisol\nCompass Travel Desk (Test)\n\nOn Tue, 9 Feb 2027 at 16:41, Arjun Mehta <arjun.mehta@example.test> wrote:\n> Marisol, can you add a vegetarian meal for my father-in-law? Also is the\n> Frankfurt connection long enough for the kids?\n>\n> On Tue, 9 Feb 2027 at 11:02, Marisol Quist <marisol@compasstravel.example.test> wrote:\n> > Yes 2h55 at FRA is fine, minimum is 60 min. Tickets are issued, see below.\n> >\n> > On Mon, 8 Feb 2027 at 09:15, Marisol Quist wrote:\n> > > Tern Airways ticket confirmation (FICTIONAL TEST DATA, not a real booking.)\n> > > Booking reference: TSTB102\n> > > Passengers (7):\n> > >   MR ARJUN MEHTA, MRS PRIYA MEHTA, MSTR KABIR MEHTA (11),\n> > >   MISS ANAYA MEHTA (8), MRS SUNITA KAPOOR, MR VIKRAM KAPOOR,\n> > >   MR JAMES HOLLOWAY\n> > >\n> > > OUTBOUND\n> > > TN 91   Tue 16 Mar 2027  ORD 17:25 -> FRA 07:40 (Wed 17 Mar)\n> > > TN 756  Wed 17 Mar 2027  FRA 10:35 -> BOM 23:35 (Wed 17 Mar)\n> > > RETURN\n> > > TN 757  Wed 31 Mar 2027  BOM 02:45 -> FRA 08:15\n> > > TN 92   Wed 31 Mar 2027  FRA 11:20 -> ORD 13:30\n> > > All times local, 24h clock. Total USD 7,964.00 for 7 passengers.\n> >\n> > Compass Travel Desk is a (fictional) test agency. Confidential.",
+   "expected": "4 flight bookings from the DEEPEST quoted message (buried under 3 replies), reference TSTB102, one trip \"Trip to Mumbai\" (or India), 2027-03-16 to 2027-03-31.\n- TN 91 ORD 17:25 America/Chicago (CDT, UTC-5; 22:25Z) -> FRA 07:40 Europe/Berlin (CET, UTC+1) on 17 Mar.\n- TN 756 FRA 10:35 CET -> BOM 23:35 Asia/Kolkata (IST, UTC+5:30) on 17 Mar. Connection at FRA 2h55 in the same booking (not a separate trip).\n- TN 757 BOM 02:45 IST 31 Mar -> FRA 08:15 Europe/Berlin (CEST, UTC+2; EU DST began 28 Mar).\n- TN 92 FRA 11:20 CEST -> ORD 13:30 CDT, 31 Mar.\n- Travelers: all 7 with titles (3 surnames: Mehta x4, Kapoor x2, Holloway); children ages 11 and 8.\n- Price USD 7964.00. Must NOT create bookings from the chit-chat (Frankfurt \"2h55\", hotel list) and no hotel.\n- Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "flight": 4
+    },
+    "travelers": 7,
+    "trips": 1,
+    "price": {
+     "amount": 7964,
+     "currency": "USD"
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-03",
+   "subject": "Your Voyaja trip is booked: Honolulu, 6-13 Feb (Itinerary TSTB103)",
+   "from": "traveller@example.test",
+   "body": "VOYAJA (fictional online travel agency)    (FICTIONAL TEST DATA, not a real booking.)\nItinerary number: TSTB103      Booked on: 20 Dec 2026\nTravelers: MS HANNAH BRIGHTWELL, MR OWEN LLEWELLYN\n\n======== FLIGHTS ========\nKestrel Air KA 88   Sat 6 Feb 2027\n  Depart Seattle (SEA) 8:15 AM  ->  Arrive Honolulu (HNL) 12:20 PM\n  Confirmation: KQ7T2M\nKestrel Air KA 89   Sat 13 Feb 2027\n  Depart Honolulu (HNL) 1:30 PM  ->  Arrive Seattle (SEA) 9:15 PM\n\n======== HOTEL ========\nLanai Breeze Waikiki (Test) - Ocean View King\n2 Example Beach Rd, Honolulu, HI 96815\nCheck-in Sat 6 Feb (from 3:00 PM)   Check-out Sat 13 Feb (by 11:00 AM)\nHotel confirmation: LB-558201   7 nights, 1 room, 2 guests\n\n======== CAR ========\nPalmRent (Test) - Compact (Toyota Yaris or similar)\nPick-up: Honolulu Airport (HNL) Sat 6 Feb 2027, 1:15 PM\nDrop-off: Honolulu Airport (HNL) Tue 9 Feb 2027, 11:00 AM\nConfirmation: PR-90417\n\n======== TRANSFER ========\nAloha Private Transfers (Test) - Hotel to Honolulu Airport\nSat 13 Feb 2027, pick-up 10:45 AM at Lanai Breeze Waikiki, 1 vehicle, 2 passengers\nConfirmation: APT-3318\n\nPackage total: USD 3,486.20 (flights 1,102.40 + hotel 2,184.00 + car 168.20 + transfer 31.60)",
+   "expected": "One trip \"Trip to Honolulu\" (not \"Trip to SEA\"), 2027-02-06 to 2027-02-13, 5 bookings (ALL items, not just flights):\n- 2 flights: KA 88 SEA 08:15 America/Los_Angeles (PST, UTC-8) -> HNL 12:20 Pacific/Honolulu (UTC-10); KA 89 HNL 13:30 HST -> SEA 21:15 PST (13 Feb). Airline confirmation KQ7T2M.\n- 1 hotel: Lanai Breeze Waikiki (Test), 6-13 Feb, check-in from 15:00, check-out 11:00, 7 nights, confirmation LB-558201, USD 2184.00.\n- 1 car rental: PalmRent, pick-up HNL 6 Feb 13:15, drop-off 9 Feb 11:00 Pacific/Honolulu, PR-90417.\n- 1 transfer: hotel to HNL, 13 Feb 10:45 Pacific/Honolulu, 2 passengers, APT-3318.\n- Travelers: Hannah Brightwell, Owen Llewellyn. Total USD 3486.20 (package; line prices are a bonus).\n- Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "flight": 2,
+     "hotel": 1,
+     "car": 1,
+     "transfer": 1
+    },
+    "travelers": 2,
+    "trips": 1,
+    "trip_name": "Trip to Honolulu",
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-04",
+   "subject": "Meridian Voyages booking TSTB104 - 7-night Western Mediterranean, MV Test Horizon",
+   "from": "traveller@example.test",
+   "body": "MERIDIAN VOYAGES (fictional cruise line)   (FICTIONAL TEST DATA, not a real booking.)\nBooking number: TSTB104     Ship: MV Test Horizon     Sailing: 8 May 2027, 7 nights\n\nGUESTS\nCabin 9146 (Balcony): MR THEO ANDERSEN, MRS SOFIE ANDERSEN, MSTR LUKAS ANDERSEN (14)\nCabin 9148 (Balcony): MR HARALD ANDERSEN, MRS INGRID ANDERSEN\nDining: Main seating 6:00 PM, table for 5 + table for 2\n\nITINERARY (all times local ship time)\nSat 08 May  Barcelona, Spain          Embark from 2:00 PM    Sail 6:00 PM\nSun 09 May  At sea\nMon 10 May  Marseille, France         Arrive 8:00 AM         Sail 5:30 PM\nTue 11 May  Genoa, Italy              Arrive 8:00 AM         Sail 6:00 PM\nWed 12 May  Civitavecchia (Rome), Italy  Arrive 7:00 AM      Sail 7:00 PM\nThu 13 May  Naples, Italy             Arrive 8:00 AM         Sail 5:00 PM\nFri 14 May  At sea\nSat 15 May  Barcelona, Spain          Arrive 6:30 AM         Disembark by 9:00 AM\n\nTotal fare for 2 cabins: EUR 6,382.00 (incl. port charges). Final payment received.",
+   "expected": "One trip (e.g. \"Trip to Barcelona\" or a Mediterranean cruise), 2027-05-08 to 2027-05-15, with 1 cruise booking (type cruise/other; NOT a hotel, NOT 8 separate bookings).\n- Ship MV Test Horizon, booking TSTB104; embark Barcelona 8 May (board from 14:00, sail 18:00 Europe/Madrid); disembark Barcelona 15 May by 09:00.\n- Ports of call kept (in notes/itinerary): Marseille 10 May 08:00-17:30; Genoa 11 May 08:00-18:00; Civitavecchia 12 May 07:00-19:00; Naples 13 May 08:00-17:00; 9 and 14 May at sea. All CEST (UTC+2).\n- Travelers: 5 (Theo, Sofie, Lukas 14, Harald, Ingrid Andersen); 2 cabins 9146 and 9148.\n- Price EUR 6382.00. Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "cruise": 1
+    },
+    "travelers": 5,
+    "trips": 1,
+    "price": {
+     "amount": 6382,
+     "currency": "EUR"
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-05",
+   "subject": "Bookwell: 3 stays confirmed for your California coast road trip (TSTB105)",
+   "from": "traveller@example.test",
+   "body": "Bookwell Stays (fictional)    (FICTIONAL TEST DATA, not a real booking.)\nHi Rosalind, your three reservations are confirmed. Guest: MS ROSALIND ACHTERBERG, 2 adults.\n\n(1) Seaglass Inn Monterey (Test)   Confirmation TSTB105-A\n    10 Example Wharf Rd, Monterey, CA\n    Mon 14 Jun 2027 - Wed 16 Jun 2027 (2 nights)   Check-in from 3 PM, check-out 11 AM\n    USD 289.00 per night, USD 578.00 total\n\n(2) Big Sur Pines Lodge (Test)     Confirmation TSTB105-B\n    Highway 1 Mile 41 (Test), Big Sur, CA\n    Wed 16 Jun 2027 - Thu 17 Jun 2027 (1 night)    Check-in from 4 PM, check-out 10:30 AM\n    USD 455.00 total, FREE cancellation until 14 Jun 2027 6 PM\n\n(3) Cambria Harbor Hotel (Test)    Confirmation TSTB105-C\n    1 Example Pier, Cambria, CA\n    Thu 17 Jun 2027 - Sat 19 Jun 2027 (2 nights)   Check-in from 3 PM, check-out 11 AM\n    USD 301.50 per night, USD 603.00 total\n\nGrand total: USD 1,636.00\n\n----------------------------------------------------------------\nGREAT DEALS JUST FOR YOU! Flights to Tokyo from $499 (travel 1 Aug - 15 Aug 2027).\nParis hotels from $89/night - book by 30 Nov. Rome 3 nights from EUR 249 (14-17 Sep 2027).\nDownload the Bookwell app. Earn 2x Bookwell Bucks this month. Gift cards from $25.\nFollow us: Facebook | Instagram | X | TikTok | YouTube | Pinterest | LinkedIn\nBookwell Stays Inc (fictional), 100 Example Plaza, Suite 9, Nowhere City.\nYou are receiving this email because you made a booking on bookwell.example.test.\nPrices shown are per person, based on double occupancy, subject to availability and taxes.\nTerms and conditions apply. Offers valid until 30 Nov 2026. Do not reply to this email.\nPrivacy Policy | Cookie Preferences | Unsubscribe | Manage email preferences | Help centre\nCopyright 2026 Bookwell Stays Inc. All rights reserved. Registered in a made-up jurisdiction.\nBookwell Bucks have no cash value and expire 12 months after issue. Member terms apply.\nThis message and any attachments are confidential. If you received it in error, delete it.\nTokyo, Paris, Rome, Lisbon, Bangkok, Sydney, Cape Town, Reykjavik, Lima: see all deals now.\n----------------------------------------------------------------",
+   "expected": "One trip, e.g. \"Trip to Monterey\" or \"California Coast\", 2027-06-14 to 2027-06-19, with 3 hotel bookings (back to back, NOT merged into one):\n- Seaglass Inn Monterey, 14-16 Jun, from 15:00 / out 11:00, USD 578.00, TSTB105-A.\n- Big Sur Pines Lodge, 16-17 Jun, from 16:00 / out 10:30, USD 455.00, TSTB105-B, free cancellation until 2027-06-14 18:00.\n- Cambria Harbor Hotel, 17-19 Jun, from 15:00 / out 11:00, USD 603.00, TSTB105-C.\n- All America/Los_Angeles (PDT, UTC-7). Guest Rosalind Achterberg, 2 adults. Total 1636.00 (sum is right: 578+455+603).\n- The marketing footer (Tokyo 1-15 Aug, Paris, Rome 14-17 Sep, prices) must NOT create bookings, trips or price noise. Loyalty cards: none (Bookwell Bucks has no number).",
+   "expected_struct": {
+    "bookings": {
+     "hotel": 3
+    },
+    "travelers": 1,
+    "trips": 1,
+    "price": {
+     "amount": 1636,
+     "currency": "USD"
+    },
+    "loyalty_cards": 0,
+    "no_extra_trips": true
+   }
+  },
+  {
+   "id": "B2-06",
+   "subject": "Tern Airways TSTB106: Denver - Atlanta - San Jose (Costa Rica)",
+   "from": "traveller@example.test",
+   "body": "Tern Airways itinerary (FICTIONAL TEST DATA, not a real booking.)\nRecord locator: TSTB106            Passenger: MS ELENA VASQUEZ-LINDQVIST\n\nFlight 1: TN 2290   Mon 8 Mar 2027\n  Denver (DEN)  14:20  ->  Atlanta (ATL)  19:20      Economy\n\n  *** Overnight connection in Atlanta: 10h 55m. Hotel not included. ***\n\nFlight 2: TN 5502   Tue 9 Mar 2027\n  Atlanta (ATL) 06:15  ->  San Jose, Costa Rica (SJO) 09:00     Economy\n\nCheck-in closes 45 minutes before departure. Times are local, 24-hour clock.\nFare: USD 611.80",
+   "expected": "2 flight bookings, one reference TSTB106, ONE trip \"Trip to San Jose\" (Costa Rica; not \"Trip to SJO\", not split in two), 2027-03-08 to 2027-03-09.\n- TN 2290 DEN 14:20 America/Denver (MST, UTC-7; 21:20Z) -> ATL 19:20 America/New_York (EST, UTC-5; 00:20Z 9 Mar). Arrives on the 8th local.\n- TN 5502 ATL 06:15 America/New_York (EST; 11:15Z 9 Mar) -> SJO 09:00 America/Costa_Rica (UTC-6; 15:00Z). The overnight layover must not make the arrival date 8 Mar or the second flight date 8 Mar.\n- Traveler Elena Vasquez-Lindqvist (hyphenated surname intact). Price USD 611.80. Layover noted (hotel not included) - bonus. Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "flight": 2
+    },
+    "travelers": 1,
+    "trips": 1,
+    "price": {
+     "amount": 611.8,
+     "currency": "USD"
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-07",
+   "subject": "Marlin Pacific e-ticket TSTB107 - Vancouver / Tokyo (operated by Sakura Wings)",
+   "from": "traveller@example.test",
+   "body": "Marlin Pacific Airlines    (FICTIONAL TEST DATA, not a real booking.)\nBooking reference: TSTB107      Passenger: MR GABRIEL TREMBLAY\n\nOUTBOUND\nMP 5    operated by Sakura Wings as SW 18\nWed, Apr 21, 2027   Depart Vancouver (YVR) 11:45 AM   Arrive Tokyo Haneda (HND) Thu, Apr 22, 1:55 PM\n\nRETURN\nMP 6    operated by Sakura Wings as SW 17\nWed, May 5, 2027    Depart Tokyo Haneda (HND) 5:10 PM   Arrive Vancouver (YVR) 10:05 AM (same day)\n\nFARE DETAILS\nBase fare                USD   812.00\nTaxes and carrier fees   USD   143.20\nFare total               USD   955.20\nCharged to Visa ending 4242 in CAD at 1.3625:   CAD 1,301.46",
+   "expected": "2 flight bookings, one reference TSTB107, one trip \"Trip to Tokyo\" 2027-04-21 to 2027-05-05.\n- Outbound: MP 5 (operated by Sakura Wings, SW 18; marketing number MP 5 or SW 18, the codeshare must be noted) YVR 11:45 America/Vancouver (PDT, UTC-7; 18:45Z) -> HND 13:55 Asia/Tokyo (JST, UTC+9) on 2027-04-22.\n- Return: MP 6 (operated by Sakura Wings, SW 17) HND 17:10 JST (08:10Z) -> YVR 10:05 PDT (17:05Z), same calendar day 2027-05-05 (arrives before it leaves on the wall clock).\n- 12-hour clock read correctly (5:10 PM = 17:10).\n- Price: the booking total is CAD 1301.46; the fare is USD 955.20. Accept either only if the currency label matches the number; FAIL if 955.20 CAD or 1301.46 USD.\n- Traveler Gabriel Tremblay. Loyalty cards: none (card tail 4242 is not a loyalty number).",
+   "expected_struct": {
+    "bookings": {
+     "flight": 2
+    },
+    "travelers": 1,
+    "trips": 1,
+    "price": {
+     "amount": 1301.46,
+     "currency": "CAD",
+     "alt": {
+      "amount": 955.2,
+      "currency": "USD"
+     }
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-08",
+   "subject": "Your Channel Tunnel Express tickets TSTB108 - London to Paris",
+   "from": "traveller@example.test",
+   "body": "CHANNEL TUNNEL EXPRESS (fictional high-speed rail)    (FICTIONAL TEST DATA, not a real booking.)\nBooking reference: TSTB108\n\nPassengers: MR TOBY WREN (adult), MISS IMOGEN WREN (child 10)\nTicket type: Standard Premier, flexible\n\nOUTWARD   Fri 19 Mar 2027\n  London St Pancras Intl  08:31  ->  Paris Gare du Nord  11:47\n  Train 9014   Coach 7   Seats 41 and 42   Check-in closes 07:56\nRETURN    Sun 21 Mar 2027\n  Paris Gare du Nord  18:13  ->  London St Pancras Intl  19:29\n  Train 9041   Coach 3   Seats 62 and 63   Check-in closes 17:38\n\nPlease note: Paris is one hour ahead of London. All times are local.\nTotal: GBP 412.00",
+   "expected": "2 rail bookings (type train), one reference TSTB108, one trip \"Trip to Paris\" 2027-03-19 to 2027-03-21.\n- Train 9014: London St Pancras 08:31 Europe/London (GMT, UTC+0) -> Paris Gare du Nord 11:47 Europe/Paris (CET, UTC+1; 10:47Z), 2h16 elapsed, coach 7 seats 41/42.\n- Train 9041: Paris Gare du Nord 18:13 CET (17:13Z) -> London St Pancras 19:29 GMT, coach 3 seats 62/63. (UK DST starts 28 Mar, so still GMT.)\n- Travelers: Toby Wren (adult), Imogen Wren (child 10). Price GBP 412.00. Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "train": 2
+    },
+    "travelers": 2,
+    "trips": 1,
+    "price": {
+     "amount": 412,
+     "currency": "GBP"
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-09",
+   "subject": "Reserved seat tickets TSTB109 - Tsubame Line Test: Tokyo / Shin-Osaka / Hiroshima",
+   "from": "traveller@example.test",
+   "body": "Tsubame Line Test (fictional rail company) Reserved Seat Confirmation    (FICTIONAL TEST DATA, not a real booking.)\nReservation No. TSTB109        Passengers: 2 adults (MR HIRO TAKAHASHI, MS EMMA TAKAHASHI-LEE)\n\n[1] 2027/04/12 (Mon)   Tsubame 233\n    Tokyo 09:03 (Platform 20)  ->  Shin-Osaka 11:33 (Platform 22)\n    Car 8, Seats 12A, 12B (reserved, ordinary car)    JPY 14,720 x 2\n\n[2] 2027/04/15 (Thu)   Tsubame 541\n    Shin-Osaka 14:11 (Platform 21)  ->  Hiroshima 15:41 (Platform 14)\n    Car 3, Seats 7D, 7E (reserved, ordinary car)      JPY 9,810 x 2\n\nTotal JPY 49,060. Please pick up tickets at any ticket machine with the reservation number.\nDeparture times are Japan Standard Time. Keep your tickets until you exit the arrival gate.",
+   "expected": "2 rail bookings, one reference TSTB109, one trip \"Trip to Hiroshima\" or \"Trip to Osaka\" (not 2 trips), 2027-04-12 to 2027-04-15, all Asia/Tokyo (JST, UTC+9).\n- Tsubame 233 12 Apr Tokyo 09:03 (platform 20) -> Shin-Osaka 11:33 (platform 22), car 8, seats 12A/12B.\n- Tsubame 541 15 Apr Shin-Osaka 14:11 (platform 21) -> Hiroshima 15:41 (platform 14), car 3, seats 7D/7E.\n- Travelers: Hiro Takahashi, Emma Takahashi-Lee. Price JPY 49060 total (zero decimals; not 490.60).\n- Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "train": 2
+    },
+    "travelers": 2,
+    "trips": 1,
+    "price": {
+     "amount": 49060,
+     "currency": "JPY"
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-10",
+   "subject": "Invitation: Bus Prague -> Vienna @ Sat 3 Jul 2027 8:30am - 12:45pm (CEST)",
+   "from": "traveller@example.test",
+   "body": "(FICTIONAL TEST DATA, not a real booking.)\nYou have been invited to the following event.\n\nBus Prague -> Vienna (SprintCoach Test, booking TSTB110)\n\nWhen:   Saturday 3 July 2027, 08:30 - 12:45 (Central European Summer Time - Prague)\nWhere:  Prague Florenc Bus Station, Platform 7 (Nadrazi Florenc, Test)\nArrives: Vienna Erdberg Bus Terminal, Platform 3\nWho:    * mina.horvat@example.test - organizer\n        * MS MINA HORVAT - passenger\n        * MR LEON HORVAT - passenger\nSeats:  Coach 1, seats 14 and 15\nTicket: EUR 31.80 total, paid\n\nBEGIN:VCALENDAR\nDTSTART;TZID=Europe/Prague:20270703T083000\nDTEND;TZID=Europe/Vienna:20270703T124500\nSUMMARY:Bus Prague -> Vienna\nLOCATION:Florenc Platform 7\nEND:VCALENDAR\n\nReply: Yes - Maybe - No | more options\nInvitation from Google Calendar (fictional). You are receiving this because you are an attendee.",
+   "expected": "1 bus booking (type bus), reference TSTB110, new trip \"Trip to Vienna\" 2027-07-03 (single day).\n- Depart Prague Florenc Bus Station, platform 7, 08:30 Europe/Prague (CEST, UTC+2; 06:30Z) -> arrive Vienna Erdberg Bus Terminal, platform 3, 12:45 Europe/Vienna (CEST; 10:45Z). No timezone shift (both +2).\n- Travelers: Mina Horvat, Leon Horvat; seats 14/15. Price EUR 31.80.\n- The email is NOT a calendar RSVP task: no event, no \"organizer\" traveler, no duplicate from the ICS block (one booking, not two). Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "bus": 1
+    },
+    "travelers": 2,
+    "trips": 1,
+    "price": {
+     "amount": 31.8,
+     "currency": "EUR"
+    },
+    "loyalty_cards": 0,
+    "no_duplicates": true
+   }
+  },
+  {
+   "id": "B2-11",
+   "subject": "ご予約確認 TSTB111 - ホテル テスト京都",
+   "from": "traveller@example.test",
+   "body": "ホテル テスト京都（架空のホテル）  (FICTIONAL TEST DATA, not a real booking.)\nご予約番号: TSTB111\nご宿泊者名: 山田 花子 様\n\nチェックイン: 2027年5月3日(月) 15:00以降\nチェックアウト: 2027年5月5日(水) 11:00まで\nご宿泊数: 2泊\nお部屋: デラックスツイン 1室 / 大人2名\n所在地: 京都府京都市下京区テスト町1-2-3\nお支払い金額（税込）: 38,400円\n\nキャンセルポリシー: ご宿泊日の3日前（2027年4月30日）18:00まで無料。",
+   "expected": "1 hotel booking, reference TSTB111, new trip \"Trip to Kyoto\" 2027-05-03 to 2027-05-05, Asia/Tokyo (JST).\n- Hotel name \"ホテル テスト京都\" (Japanese name kept, English transliteration acceptable); address Kyoto, JP.\n- Check-in from 15:00, check-out by 11:00; 2 nights; 1 room, 2 adults.\n- Guest 山田 花子 (Yamada Hanako) kept as-is, not mangled to \"?\".\n- Price JPY 38400 (zero decimals). Free cancellation until 2027-04-30 18:00 JST (bonus).\n- Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "hotel": 1
+    },
+    "travelers": 1,
+    "trips": 1,
+    "price": {
+     "amount": 38400,
+     "currency": "JPY"
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-12",
+   "subject": "Conferma prenotazione TSTB112 - Hotel Prova Bellavista, Firenze (tariffa non rimborsabile)",
+   "from": "traveller@example.test",
+   "body": "Hotel Prova Bellavista (hotel fittizio), Via dell'Esempio 5, 50123 Firenze, Italia  (FICTIONAL TEST DATA, not a real booking.)\n\nGentile Giulia Ferrari,\nla sua prenotazione e' confermata.\n\nNumero prenotazione: TSTB112\nArrivo: venerdi 25 giugno 2027 (check-in dalle 14:00 alle 20:00)\nPartenza: lunedi 28 giugno 2027 (check-out entro le 11:00)\nCamera: Doppia Superior, 2 adulti, 3 notti\nTariffa: NON RIMBORSABILE - pagamento anticipato. Nessuna modifica o cancellazione.\nTermine di pagamento: la prenotazione sara' annullata automaticamente se non pagata entro il 11 giugno 2027 alle 23:59.\nImporto totale: EUR 712,50. Tassa di soggiorno di EUR 15,00 da pagare in hotel.",
+   "expected": "1 hotel booking, reference TSTB112, new trip \"Trip to Florence\" (or Firenze) 2027-06-25 to 2027-06-28, Europe/Rome (CEST, UTC+2).\n- Check-in window 14:00-20:00, check-out by 11:00; 3 nights; 2 adults. Guest Giulia Ferrari.\n- Price EUR 712.50 (not 712500 / 7.125). City tax EUR 15 on top is NOT added into the total (bonus: kept as a note).\n- Non-refundable rate noted AND the payment deadline 2027-06-11 23:59 kept as a deadline, NOT treated as a cancellation date or check-in date.\n- Italian text parsed; loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "hotel": 1
+    },
+    "travelers": 1,
+    "trips": 1,
+    "price": {
+     "amount": 712.5,
+     "currency": "EUR"
+    },
+    "loyalty_cards": 0,
+    "non_refundable": true
+   }
+  },
+  {
+   "id": "B2-13",
+   "subject": "Palmetto Cove Resort - reservation TSTB113 (2 rooms, all-inclusive)",
+   "from": "traveller@example.test",
+   "body": "Palmetto Cove Resort & Spa (fictional), Km 12 Zona Hotelera, Cancun, Mexico   (FICTIONAL TEST DATA, not a real booking.)\nReservation: TSTB113     Lead guest: MR RAHUL DESAI\n\nROOM 1  Oceanfront Family Suite  (conf TSTB113-1)\n  Guests: MR RAHUL DESAI, MRS NEHA DESAI, children ARJUN (7) and MEERA (4)\nROOM 2  Garden Villa             (conf TSTB113-2)\n  Guests: MR SANJAY NAIR, MRS LATA NAIR\n\nArrival: Monday 5 July 2027    Check-in: from noon (early check-in subject to availability; guaranteed room 3 PM)\nDeparture: Monday 12 July 2027  Check-out: 11 AM\nBoard: All-inclusive. 7 nights.\nTotal for both rooms: USD 6,940.00 (resort fee included)\nAirport shuttle not included.",
+   "expected": "One hotel stay (either 1 booking with 2 rooms, or 2 booking rows under TSTB113 - both acceptable but NOT 1 room only), new trip \"Trip to Cancun\" 2027-07-05 to 2027-07-12, America/Cancun (UTC-5, no DST).\n- Check-in from 12:00 (noon, \"from noon\" parsed as a time), check-out 11:00; guaranteed room 15:00 is a note.\n- 6 guests across rooms: Rahul Desai, Neha Desai, Arjun (7), Meera (4), Sanjay Nair, Lata Nair; two surnames; Room 1 Oceanfront Family Suite, Room 2 Garden Villa.\n- Price USD 6940.00 total (not per room twice). All-inclusive noted. Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "hotel": "1-2"
+    },
+    "travelers": 6,
+    "trips": 1,
+    "price": {
+     "amount": 6940,
+     "currency": "USD"
+    },
+    "loyalty_cards": 0
+   }
+  },
+  {
+   "id": "B2-14",
+   "subject": "Booking confirmed TSTB114 &nbsp;|&nbsp; Aurora Nest Hotel, Reykjav=C3=ADk",
+   "from": "traveller@example.test",
+   "body": "<table width=\"600\" cellpadding=\"0\"><tr><td style=\"font-family:Arial\">\n<img src=\"cid:logo.png\" alt=\"Aurora Nest Hotel\"><br />\n<b>Hi {{guest_first_name}},</b>&nbsp;&nbsp;your stay is confirmed. (FICTIONAL TEST DATA, not a real booking.)<br /></td></tr>\n<tr><td>Hotel:&nbsp;Aurora Nest Hotel (Test), Bergs=C3=B3rsgata 4, 101 Reykjav=C3=ADk, Iceland<br />\nGuest:&nbsp;Ms Bergl=C3=B3t Sigur=C3=B0ard=C3=B3ttir<br />\nConfirmation:&nbsp;<strong>TSTB114</strong><br />\nCheck-in:&nbsp;Tue 2 Mar 2027, from 3:00 PM &nbsp; Check-out:&nbsp;Fri 5 Mar 2027, 11:00 AM<br />\nTotal:&nbsp;ISK&nbsp;118,400 (3 nights, 1 room, 1 adult)</td></tr>\n<tr><td><a href=\"https://hotel.example.test/manage?id=TSTB114\">Manage booking</a> &copy; 2027 Aurora Nest<br />\n<!-- tracking pixel --> <img src=\"https://t.example.test/p.gif\" width=\"1\" height=\"1\"></td></tr></table>",
+   "expected": "1 hotel booking, reference TSTB114, new trip \"Trip to Reykjavik\" 2027-03-02 to 2027-03-05, Atlantic/Reykjavik (UTC+0).\n- Hotel \"Aurora Nest Hotel (Test)\", Reykjavik, IS; check-in from 15:00, check-out 11:00; 3 nights, 1 adult.\n- Price ISK 118400 (zero decimals). Currency ISK, not \"EUR\".\n- Guest name decoded to Berglót Sigurðardóttir (quoted-printable =C3=B3/=C3=AD/=C3=B0 decoded; accept the plain-letter form but NOT \"=C3=B3\" left in the name).\n- No HTML tags, \"&nbsp;\" or \"{{guest_first_name}}\" in the traveler/hotel names or notes; no \"Manage booking\" URL as hotel name. Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "hotel": 1
+    },
+    "travelers": 1,
+    "trips": 1,
+    "price": {
+     "amount": 118400,
+     "currency": "ISK"
+    },
+    "loyalty_cards": 0,
+    "no_markup_leak": true
+   }
+  },
+  {
+   "id": "B2-15",
+   "subject": "Schedule and aircraft change - Northwind Air TST2B2 (NW 71)",
+   "from": "traveller@example.test",
+   "body": "Northwind Air (FICTIONAL TEST DATA, not a real booking.)\nBooking TST2B2, passenger Priya Raman.\n\nIMPORTANT: change to your flight NW 71, Fri 20 Nov 2026.\n  OLD: Seattle (SEA) 19:05 -> London Heathrow (LHR) 12:50 (Sat 21 Nov)\n  NEW: Seattle (SEA) 20:20 -> London Heathrow (LHR) 14:05 (Sat 21 Nov)\n\nAIRCRAFT CHANGE: this flight will now be operated by an Airbus A330-300 (was Boeing 787-9).\nYour seat 34K has been reassigned to 36K (window).\nYour other flights on this booking are unchanged (NW 1304 remains 10:15 -> 12:35 as notified earlier, NW 72).",
+   "after": "TST2B2 (batch 1 E2, E11a)",
+   "expected": "Send AFTER batch 1 E2 and E11a (TST2B2). The existing NW 71 booking is UPDATED IN PLACE; still 3 flight bookings on the trip, NO 4th, NO new trip.\n- NW 71 dep 2026-11-20 20:20 America/Los_Angeles (PST; 2026-11-21T04:20Z) -> arr 14:05 Europe/London (GMT; 2026-11-21T14:05Z). Elapsed stays 9h45.\n- Aircraft recorded as Airbus A330-300 (was 787-9); seat 36K (was 34K).\n- NW 1304 stays 10:15 -> 12:35 (do not revert to the E2 09:30 -> 11:50); NW 72 untouched.\n- Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "flight": 0
+    },
+    "updates": [
+     {
+      "code": "TST2B2",
+      "leg": "NW 71",
+      "dep": "2026-11-20T20:20-08:00",
+      "arr": "2026-11-21T14:05+00:00",
+      "seat": "36K",
+      "aircraft": "A330-300"
+     }
+    ],
+    "trips": 0,
+    "loyalty_cards": 0,
+    "no_duplicates": true
+   }
+  },
+  {
+   "id": "B2-16",
+   "subject": "Your seat selection has been updated - TST7G7",
+   "from": "traveller@example.test",
+   "body": "Northwind Air seat confirmation (FICTIONAL TEST DATA, not a real booking.)\nBooking TST7G7, passenger Aiko Tanaka.\n\nNW 7   Sat 14 Nov 2026   LAX -> SYD     Seat changed: 38K -> 22A (aisle, extra legroom)\nNW 8   Tue 24 Nov 2026   SYD -> LAX     Seat changed: 38K -> 22A (aisle, extra legroom)\n\nSeat fee paid: USD 140.00 (USD 70.00 per flight). Flight times have not changed.",
+   "after": "TST7G7 (batch 1 E7)",
+   "expected": "Send AFTER batch 1 E7 (TST7G7). Both existing flights UPDATED in place: seat 22A on NW 7 and NW 8. NO new bookings, NO new trip, times unchanged (LAX 22:30 PST -> SYD 08:50 +2; SYD 11:00 -> LAX 05:10), still the \"Trip to Sydney\".\n- The seat fee USD 140.00 must NOT overwrite the booking's fare price (price stays whatever it was; if a price field changes, flag it).\n- Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "flight": 0
+    },
+    "updates": [
+     {
+      "code": "TST7G7",
+      "leg": "NW 7",
+      "seat": "22A"
+     },
+     {
+      "code": "TST7G7",
+      "leg": "NW 8",
+      "seat": "22A"
+     }
+    ],
+    "trips": 0,
+    "loyalty_cards": 0,
+    "no_duplicates": true,
+    "price_unchanged": true
+   }
+  },
+  {
+   "id": "B2-17",
+   "subject": "Modificacion de reserva TST12Q1 - Hotel Prueba Mar, Valencia",
+   "from": "traveller@example.test",
+   "body": "Hotel Prueba Mar (hotel ficticio), Avenida del Ejemplo 10, Valencia, España (FICTIONAL TEST DATA, not a real booking.)\nSu reserva TST12Q1 ha sido MODIFICADA.\n\nHuésped: Carmen Ruiz\nFechas anteriores: viernes, 12 de febrero de 2027 - lunes, 15 de febrero de 2027\nFechas nuevas:    sábado, 13 de febrero de 2027 (desde las 15:00) - martes, 16 de febrero de 2027 (hasta las 12:00)\nImporte total: 1.234,56 € (3 noches, sin cambios)",
+   "after": "TST12Q1 (batch 1 E12)",
+   "expected": "Send AFTER batch 1 E12 (TST12Q1). The existing Valencia hotel is UPDATED IN PLACE to 2027-02-13 (check-in from 15:00) -> 2027-02-16 (check-out by 12:00), Europe/Madrid (CET). Still 1 hotel, NO second hotel, NO duplicate trip; the trip dates move to 13-16 Feb.\n- Price stays 1234.56 EUR (not 1.23, not doubled). The \"previous dates\" must NOT create a booking.\n- Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "hotel": 0
+    },
+    "updates": [
+     {
+      "code": "TST12Q1",
+      "check_in": "2027-02-13",
+      "check_out": "2027-02-16",
+      "price": 1234.56
+     }
+    ],
+    "trips": 0,
+    "loyalty_cards": 0,
+    "no_duplicates": true
+   }
+  },
+  {
+   "id": "B2-18",
+   "subject": "Marlin Pacific: partial cancellation confirmed - TSTB107 (MP 6)",
+   "from": "traveller@example.test",
+   "body": "Marlin Pacific Airlines (FICTIONAL TEST DATA, not a real booking.)\nBooking reference: TSTB107     Passenger: MR GABRIEL TREMBLAY\n\nAs requested, we have CANCELLED the following flight only:\n  MP 6 (operated by Sakura Wings SW 17)   Wed 5 May 2027   HND 5:10 PM -> YVR 10:05 AM\n\nYour outbound flight MP 5, Wed 21 Apr 2027, YVR 11:45 AM -> HND 1:55 PM, remains CONFIRMED.\nRefund of unused return: CAD 612.30 to the original form of payment in 7-10 business days.",
+   "after": "B2-07",
+   "expected": "Send AFTER B2-07 (TSTB107). By design the return flight is NOT deleted: it is flagged cancellation received (cancellation_received_at set, MP 6 only). Outbound MP 5 stays active and untouched. Still 2 bookings, no new trip, no duplicate; the trip keeps 2027-04-21 to 2027-05-05 or shrinks to the outbound only (either acceptable, but the outbound must not be cancelled).\n- FAIL if both legs cancelled or the whole booking removed. Refund CAD 612.30 is NOT the price. Loyalty cards: none.",
+   "expected_struct": {
+    "bookings": {
+     "flight": 0
+    },
+    "updates": [
+     {
+      "code": "TSTB107",
+      "leg": "MP 6",
+      "cancelled": true
+     },
+     {
+      "code": "TSTB107",
+      "leg": "MP 5",
+      "cancelled": false
+     }
+    ],
+    "trips": 0,
+    "loyalty_cards": 0,
+    "no_duplicates": true
+   }
+  },
+  {
+   "id": "B2-19",
+   "subject": "Your Tern Rewards statement - February 2027",
+   "from": "traveller@example.test",
+   "body": "Tern Rewards monthly statement (FICTIONAL TEST DATA, not a real booking.)\nMember: MS ELENA VASQUEZ-LINDQVIST        Member number: TSTB-TR-5521097\nStatement period: 1 Feb - 28 Feb 2027\n\nTIER: Silver\nTier progress: 14,300 of 25,000 tier miles toward GOLD (10,700 to go). Tier year ends 31 Dec 2027.\n\nPOINTS SUMMARY\n Opening balance     44,095\n Earned this month   + 6,120\n Redeemed             -    0\n Expired              - 2,000   (2,000 miles will expire on 31 Mar 2027 unless you earn or spend)\n CLOSING BALANCE     48,215 miles\n\nACTIVITY\n 03 Feb  TN 2290 DEN-ATL   +1,430\n 09 Feb  Partner hotel     +1,000\n 14 Feb  TN 91 ORD-FRA     +3,690\n\nNext statement: 1 Apr 2027. Book your next trip at tern.example.test.",
+   "expected": "ignored for bookings (0 flights/hotels: the Activity lines are PAST earnings, not reservations). 1 loyalty card:\n- Program Tern Rewards (airline), member number TSTB-TR-5521097, holder Elena Vasquez-Lindqvist, tier Silver, points 48215.\n- Tier progress 14,300 / 25,000 toward Gold (bonus), 2,000 miles expiring 2027-03-31 (bonus).\n- If it matches an existing card by number it must update, not duplicate. No trip created.",
+   "expected_struct": {
+    "bookings": {},
+    "trips": 0,
+    "loyalty_cards": 1,
+    "cards": [
+     {
+      "program": "Tern Rewards",
+      "number": "TSTB-TR-5521097",
+      "tier": "Silver",
+      "points": 48215,
+      "expiry_note": "2027-03-31"
+     }
+    ]
+   }
+  },
+  {
+   "id": "B2-20",
+   "subject": "Harbourline Honors: 1,850 points posted + your new membership card",
+   "from": "traveller@example.test",
+   "body": "Harbourline Honors (FICTIONAL TEST DATA, not a real booking.)\nHello Marcus Oyelaran,\n\n1,850 points have been added to your account for your stay at Harbourline Wellington (3-6 Jan 2027).\n\nPoints balance: 23,400\nStatus: Platinum (renews 31 Jan 2028)\n\nYour card has been replaced. Your membership number changed:\n  Old number: HH-TSTB-88214   (no longer valid)\n  New number: HH-TSTB-90377\nPlease use the new number for future stays.",
+   "expected": "0 bookings (the Wellington stay is past; do NOT create a hotel booking or trip). 1 loyalty card for Harbourline Honors (hotel), holder Marcus Oyelaran, tier Platinum, points 23400.\n- Number: HH-TSTB-90377 (new). If a card with the old number HH-TSTB-88214 exists it is UPDATED to the new number (no second card); if none exists, only the new number is created, NEVER the old one.\n- Renewal 2028-01-31 (bonus).",
+   "expected_struct": {
+    "bookings": {},
+    "trips": 0,
+    "loyalty_cards": 1,
+    "cards": [
+     {
+      "program": "Harbourline Honors",
+      "number": "HH-TSTB-90377",
+      "tier": "Platinum",
+      "points": 23400,
+      "old_number_must_not_exist": "HH-TSTB-88214"
+     }
+    ]
+   }
+  },
+  {
+   "id": "B2-21",
+   "subject": "Welcome to Kestrel Club - your status match is confirmed",
+   "from": "traveller@example.test",
+   "body": "Kestrel Club (fictional airline loyalty) (FICTIONAL TEST DATA, not a real booking.)\nDear MR PAOLO BIANCHI-ROSS,\n\nBased on your Tern Rewards Gold status, we have matched you to KESTREL CLUB SILVER ELITE.\n\nYour Kestrel Club number: TSTB-KC-770132\nMatched tier: Silver Elite (valid 90 days, to 2027-06-30)\nKeep it through 2028: fly 2 Kestrel flights before 30 Jun 2027.\nStarting balance: 0 miles (a 2,500-mile welcome bonus arrives after your first flight).\n\nWe have not changed your Tern Rewards account.",
+   "expected": "0 bookings, 0 trips. 1 loyalty card: Kestrel Club (airline), number TSTB-KC-770132, holder Paolo Bianchi-Ross, tier Silver Elite, points 0, tier valid to 2027-06-30 (status-match; bonus).\n- The mention of \"Tern Rewards Gold\" must NOT create a second card (no member number given). Welcome bonus 2,500 is not the balance.",
+   "expected_struct": {
+    "bookings": {},
+    "trips": 0,
+    "loyalty_cards": 1,
+    "cards": [
+     {
+      "program": "Kestrel Club",
+      "number": "TSTB-KC-770132",
+      "tier": "Silver Elite",
+      "points": 0
+     }
+    ]
+   }
+  },
+  {
+   "id": "B2-22",
+   "subject": "Your loyalty wallet this month - 3 programs, one place",
+   "from": "traveller@example.test",
+   "body": "Pocket Perks (fictional loyalty wallet) (FICTIONAL TEST DATA, not a real booking.)\nHi Imani, here is your monthly snapshot.\n\n AIRLINE   Albatross Air Plus      No. TSTB-AA-30415     Silver     12,904 points\n HOTEL     Cobalt Hotels Circle    No. TSTB-CHC-7719053  Member     3,200 points\n CAR       Zephyr Rental Rewards   No. TSTB-ZR-11820     Gold       1,440 points\n\nNot yet joined: Bluebird Rail Pass - join free today and earn double points!\nTip: add your numbers when you book to earn automatically.\nHolder name on all cards: IMANI WANJIKU",
+   "expected": "0 bookings, 0 trips. Exactly 3 loyalty cards, holder Imani Wanjiku:\n- Albatross Air Plus (airline), TSTB-AA-30415, Silver, 12904 points.\n- Cobalt Hotels Circle (hotel), TSTB-CHC-7719053, tier Member (or none), 3200 points.\n- Zephyr Rental Rewards (car), TSTB-ZR-11820, Gold, 1440 points.\n- Bluebird Rail Pass (no number, not joined) must NOT become a card. Program categories (airline/hotel/car) correct.",
+   "expected_struct": {
+    "bookings": {},
+    "trips": 0,
+    "loyalty_cards": 3,
+    "cards": [
+     {
+      "program": "Albatross Air Plus",
+      "number": "TSTB-AA-30415",
+      "tier": "Silver",
+      "points": 12904
+     },
+     {
+      "program": "Cobalt Hotels Circle",
+      "number": "TSTB-CHC-7719053",
+      "points": 3200
+     },
+     {
+      "program": "Zephyr Rental Rewards",
+      "number": "TSTB-ZR-11820",
+      "tier": "Gold",
+      "points": 1440
+     }
+    ]
+   }
+  },
+  {
+   "id": "B2-23",
+   "subject": "Deals to Paris: flights from $389 + 3 hotel steals",
+   "from": "traveller@example.test",
+   "body": "Voyaja Weekly Deals (FICTIONAL TEST DATA, not a real booking.)\nThis week only: fly to Paris from $389 round trip.\n  Sat 12 Mar - Sat 19 Mar 2027: Seattle -> Paris (CDG), Kestrel Air KA 410, dep 10:15 AM\n  Hotel Lumiere Test, Paris: 3 nights from $329 (check-in Fri 19 Mar)\n  Rental car from $19/day. Book by Sunday! Use code TSTBDEAL.\nAlso: Rome, Lisbon, Reykjavik, Tokyo from $499.\nYour Voyaja Rewards: log in to see your balance (no balance shown here).\nUnsubscribe | View in browser | Manage preferences",
+   "expected": "ignored: marketing newsletter. 0 bookings, 0 trips, 0 loyalty cards. The flight KA 410, dates, hotel and \"check-in Fri 19 Mar\" are offers, not reservations. TSTBDEAL is a promo code, not a booking reference. The importer should reply/log \"no booking found\" and create nothing.",
+   "expected_struct": {
+    "bookings": {},
+    "trips": 0,
+    "loyalty_cards": 0,
+    "ignored": true
+   }
+  },
+  {
+   "id": "B2-24",
+   "subject": "Never miss a gate change: get flight status alerts free",
+   "from": "traveller@example.test",
+   "body": "Tern Airways (FICTIONAL TEST DATA, not a real booking.)\nTrack any flight in real time with the Tern app.\nExample alert: \"TN 91 ORD 17:25 -> FRA 07:40. Gate B22, on time.\"\nStep 1: Download the app. Step 2: Enter your confirmation code (like ABC123). Step 3: Relax.\nTry it now: check status for a sample flight TN 100, JFK -> LHR, today.\nTerms apply. Unsubscribe.",
+   "expected": "ignored: flight-status marketing. 0 bookings (the example alert TN 91 ORD -> FRA and sample TN 100 are illustrations), 0 trips, 0 loyalty cards. \"ABC123\" is a placeholder, not a booking code. Nothing created.",
+   "expected_struct": {
+    "bookings": {},
+    "trips": 0,
+    "loyalty_cards": 0,
+    "ignored": true
+   }
+  },
+  {
+   "id": "B2-25",
+   "subject": "Receipt: Safeguard Travel Insurance, policy TSTB-INS-2209",
+   "from": "traveller@example.test",
+   "body": "Safeguard Travel Insurance (fictional) - Payment receipt (FICTIONAL TEST DATA, not a real booking.)\nPolicy number: TSTB-INS-2209\nInsured: HANNAH BRIGHTWELL and OWEN LLEWELLYN\nTrip covered: Honolulu, 6 Feb 2027 - 13 Feb 2027 (trip cost insured USD 3,486.20)\nPlan: Silver Comprehensive. Premium paid: USD 118.40 on 21 Dec 2026, Visa ending 4242.\nFor claims call the number on your policy card.",
+   "expected": "ignored as a booking: insurance is not a flight/hotel/car/rail item. Expected handling: 0 bookings, 0 loyalty cards, NO new trip from the covered dates. Acceptable: nothing created, or (bonus) a note/document attached to the existing Honolulu trip from B2-03 (TSTB103). FAIL: new trip \"Trip to Honolulu\", a hotel/flight booking, or USD 118.40 overwriting a booking price.",
+   "expected_struct": {
+    "bookings": {},
+    "trips": 0,
+    "loyalty_cards": 0,
+    "ignored": true,
+    "may_attach_note_to": "TSTB103"
+   }
+  }
+ ]
+}

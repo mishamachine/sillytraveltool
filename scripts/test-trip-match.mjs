@@ -65,4 +65,14 @@ t('wallSpan reads printed dates', () => {
   assert.deepEqual(wallSpan({ check_in_date: '2026-11-10', check_out_date: '2026-11-13' }), { start: '2026-11-10', end: '2026-11-13' })
   assert.equal(wallSpan({}), null)
 })
+t('overlapping dates in another region: no match (Berlin train during a New York trip)', () => {
+  const ny = trip('ny', '2026-11-12', '2026-11-16', { lat: 40.64, lng: -73.78 }, [{ lat: 47.45, lng: -122.31 }])
+  assert.equal(bestTrip([ny], { start: '2026-11-12', end: '2026-11-14', points: [C.berlin, { lat: 53.55, lng: 10.0 }] }), null)
+  // Los Angeles → Sydney: LAX is 1,500 km from Seattle, still another region
+  assert.equal(bestTrip([ny], { start: '2026-11-14', end: '2026-11-16', points: [{ lat: 33.94, lng: -118.41 }, { lat: -33.94, lng: 151.18 }] }), null)
+})
+t('overlapping dates within the region still join (Barcelona hotel on a Madrid trip; unknown place joins)', () => {
+  assert.equal(bestTrip([spain], { start: '2026-11-11', end: '2026-11-12', points: [C.barcelona] }).fit, 'inside')
+  assert.equal(bestTrip([spain], { start: '2026-11-11', end: '2026-11-12', points: [] }).fit, 'inside')
+})
 console.log(`\n${n} passed`)
