@@ -645,4 +645,32 @@ await t('round trip without a hotel (G10): a 7- and a 12-day gap stay one trip, 
   }
 })
 
+// ── 10. Overlapping dates in another region (live, 6 Nov 2026): a Rome round trip from Seattle must not join a
+// Vancouver-Tokyo trip on the same dates just because both leave from the Pacific Northwest ──
+await t('region: a SEA-FCO round trip overlapping a YVR-HND trip makes its own trip, either order, with or without a home city; Tokyo keeps its dates', async () => {
+  const tokyo = booking1(flight('MP 107', 'YVR', 'HND', '2027-04-21T11:45', '2027-04-22T13:55', { confirmation_number: 'TSTB107', arrival_city: 'Tokyo', destination_city: 'Tokyo' }))
+  const rome = { ...booking1(null), bookings: [
+    flight('AZ 610', 'SEA', 'FCO', '2027-04-15T13:10', '2027-04-16T09:45', { confirmation_number: 'TSTX1', arrival_city: 'Rome', destination_city: 'Rome' }),
+    flight('AZ 611', 'FCO', 'SEA', '2027-04-26T11:30', '2027-04-26T14:55', { confirmation_number: 'TSTX1', arrival_city: 'Seattle', destination_city: 'Seattle' }),
+  ] }
+  // The same, leaving from the same airport as the Tokyo trip (YVR): still two trips, nothing folded
+  const fromYvr = { ...rome, bookings: rome.bookings.map(b => ({ ...b, departure_airport: b.departure_airport === 'SEA' ? 'YVR' : b.departure_airport, arrival_airport: b.arrival_airport === 'SEA' ? 'YVR' : b.arrival_airport })) }
+  for (const [from, answer] of [['SEA', rome], ['YVR', fromYvr]]) for (const order of [['rg-tokyo', 'rg-rome'], ['rg-rome', 'rg-tokyo']]) {
+    ANSWERS['rg-tokyo'] = tokyo; ANSWERS['rg-rome'] = answer
+    for (const home_city of from === 'YVR' ? [null] : [null, 'Seattle', 'Vancouver']) {
+      const db = makeDb()
+      for (const id of order) await send(db, id, { profile: { home_city } })
+      const label = `from ${from}, ${order.join(' then ')}, home ${home_city}: ${db.tables.trips.map(x => `${x.title} ${x.start_date}→${x.end_date}`).join('; ')}`
+      assert.equal(db.tables.bookings.length, 3, label)
+      assert.equal(db.tables.trips.length, 2, label)
+      const tk = tripOf(db, byRef(db, 'TSTB107')[0]), rm = tripsOf(db, 'TSTX1')
+      assert.equal(rm.length, 1, `both Rome legs on one trip: ${label}`)
+      assert.notEqual(rm[0], tk.id, label)
+      assert.equal(tk.title, 'Trip to Tokyo', label); assert.equal(tk.start_date, '2027-04-21', label); assert.equal(tk.end_date, '2027-04-22', label)
+      const r = db.tables.trips.find(x => x.id === rm[0])
+      assert.equal(r.title, 'Trip to Rome', label); assert.equal(r.start_date, '2027-04-15', label); assert.equal(r.end_date, '2027-04-26', label)
+    }
+  }
+})
+
 console.log(`\n${n} passed`)

@@ -75,4 +75,21 @@ t('overlapping dates within the region still join (Barcelona hotel on a Madrid t
   assert.equal(bestTrip([spain], { start: '2026-11-11', end: '2026-11-12', points: [C.barcelona] }).fit, 'inside')
   assert.equal(bestTrip([spain], { start: '2026-11-11', end: '2026-11-12', points: [] }).fit, 'inside')
 })
+t('leaving from the same part of the world is not the same region (Seattle-Rome during Vancouver-Tokyo)', () => {
+  const yvr = { lat: 49.19, lng: -123.18 }, hnd = { lat: 35.55, lng: 139.78 }, sea = { lat: 47.45, lng: -122.31 }, fco = { lat: 41.8, lng: 12.25 }
+  const tokyo = { ...trip('tokyo', '2027-04-21', '2027-04-22', C.tokyo, [yvr, hnd]), origin: yvr }
+  const rome = { start: '2027-04-15', end: '2027-04-26', points: [sea, fco, sea], origin: sea }
+  assert.equal(bestTrip([tokyo], rome), null)
+  // and the mirror: Tokyo arriving while the Rome trip exists
+  const romeTrip = { ...trip('rome', '2027-04-15', '2027-04-26', C.rome, [sea, fco]), origin: sea }
+  assert.equal(bestTrip([romeTrip], { start: '2027-04-21', end: '2027-04-22', points: [yvr, hnd], origin: yvr }), null)
+  // only the starts are near each other (a hop Seattle → Boeing Field during a trip leaving Seattle for Tokyo): no match
+  const bfi = { lat: 47.53, lng: -122.30 }, nrt = { lat: 35.77, lng: 140.39 }
+  const fromSea = { ...trip('tokyo2', '2027-04-21', '2027-04-25', C.tokyo, [sea, hnd, nrt]), origin: sea }
+  assert.equal(bestTrip([fromSea], { start: '2027-04-22', end: '2027-04-22', points: [sea, bfi], origin: sea }), null)
+  // still joins: the way back from the trip's stop, a hotel where the trip leaves from, a leg on to the same region
+  assert.equal(bestTrip([romeTrip], { start: '2027-04-26', end: '2027-04-26', points: [fco, sea], origin: fco }).trip.id, 'rome')
+  assert.equal(bestTrip([tokyo], { start: '2027-04-20', end: '2027-04-21', points: [yvr] }).trip.id, 'tokyo')
+  assert.equal(bestTrip([romeTrip], { start: '2027-04-18', end: '2027-04-18', points: [sea, C.barcelona], origin: sea }).trip.id, 'rome')
+})
 console.log(`\n${n} passed`)
