@@ -4,6 +4,7 @@ import { hasTripEnded } from '../../lib/dates'
 import { compareTripStart } from '../../lib/trips'
 import { currentPlace } from '../../lib/stops'
 import { track } from '../../lib/analytics'
+import { POPULAR_CITIES, pickDefaultCity, pastTrips, readLastCity, saveLastCity } from '../../lib/exploreDefault'
 
 // Sub-sections each guide section needs (loaded lazily, per section, to avoid Edge Function timeouts)
 export const TAB_SECTIONS = {
@@ -36,6 +37,8 @@ function guideCities(trips, upcomingTrips) {
     add(cp.trip.id, toDest(cp.trip))
   }
   for (const t of upcomingTrips) add(t.id, toDest(t))
+  // With nothing coming up, past trips keep chips on screen (the most recent few)
+  if (!out.length) for (const t of pastTrips(trips).slice(0, 3)) add(t.id, toDest(t))
   return out
 }
 
@@ -58,18 +61,23 @@ export function useCityGuide(open) {
     .filter(t => !hasTripEnded(t) && t.status !== 'cancelled')
     .sort(compareTripStart)
   const upcomingTrip = upcomingTrips[0]
-  // Default city: where you are today on a trip in progress, else where the next trip starts
   const cp = currentPlace(trips)
-  const defaultDest = cp ? { city: cp.city, country: cp.country || '', country_code: cp.country_code || '' } : upcomingTrip ? toDest(upcomingTrip) : null
+  // Default city: the trip you're on, else the next trip, else the latest past trip, else the last city viewed
+  const [lastViewed] = useState(readLastCity)
+  const [tripsSettled, setTripsSettled] = useState(false) // trips asked for once, so the remembered city never beats a real trip
+  const current = cp ? { city: cp.city, country: cp.country || '', country_code: cp.country_code || '' } : null
+  const defaultDest = pickDefaultCity({ current, upcoming: upcomingTrip, trips, lastViewed: tripsSettled ? lastViewed : null })
   const cityChips = guideCities(trips, upcomingTrips)
 
   const [destination, setPicked] = useState(defaultDest)
   // Until the traveller picks a city, the guide follows where they are (stops arrive after the trips)
   const picked = useRef(false)
-  const setDestination = (d) => { picked.current = true; setPicked(d) }
+  const setDestination = (d) => { picked.current = true; saveLastCity(d); setPicked(d) }
 
   // Explore can be the first tab opened: make sure trips (for the default city) are loaded
-  useEffect(() => { if (!trips.length && !tripsLoading) fetchTrips() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    Promise.resolve(!trips.length && !tripsLoading ? fetchTrips() : null).catch(() => {}).finally(() => setTripsSettled(true))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (defaultDest && !picked.current && defaultDest.city !== destination?.city) setPicked(defaultDest)
@@ -137,7 +145,7 @@ export function useCityGuide(open) {
   return {
     destination, selectCity, selectTrip, upcomingTrips, upcomingTrip, cityChips, setDestination,
     guideData, sections, loadingSections, guideError, lastSectionFromCache,
-    activeGuideTab, setGuideTab, neededSections, isSectionLoading, isSectionLoaded,
+    popularCities: POPULAR_CITIES, activeGuideTab, setGuideTab, neededSections, isSectionLoading, isSectionLoaded,
     loadMore, loadingMore, retry, retrySection,
     excluded: !!destination && EXCLUDED.includes(destination.country_code),
   }

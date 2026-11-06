@@ -15,6 +15,7 @@ import { suggestForPlace } from '../../lib/tripPick'
 import TripPickerSheet from '../../components/shared/TripPickerSheet'
 import GetThereSheet from '../../components/shared/GetThereSheet'
 import AiDisclosure from './AiDisclosure'
+import PopularCities from './PopularCities'
 import './explore.css'
 
 const SUB_LABEL = {
@@ -212,7 +213,7 @@ function GuideHome({ setHonkMood, setMode }) {
       <HonkCard onMood={(id) => { setHonkMood(id); setMode('honk') }} />
 
       {!destination && (
-        <EmptyState goose="worried" title="Where to?">Search any city above. Your next trip's city loads here on its own.</EmptyState>
+        <PopularCities cities={g.popularCities} onPick={g.setDestination} />
       )}
 
       {g.excluded && (
