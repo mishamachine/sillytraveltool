@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           from: FROM, to: [email], reply_to: REPLY_TO, subject: m.subject, html: m.html, text: m.text,
           headers: { 'List-Unsubscribe': `<${one}>, <mailto:${REPLY_TO}?subject=unsubscribe>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
-          tags: [{ name: 'template', value: 'beta_confirm' }, { name: 'kind', value: 'marketing' }],
+          tags: [{ name: 'template', value: 'beta_confirm' }, { name: 'kind', value: 'service' }],
         }),
       }) : null
       if (sent?.ok) {

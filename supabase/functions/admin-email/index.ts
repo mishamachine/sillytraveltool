@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { render } from '../_shared/emailTemplate.js'
+import { render, POSTAL_ADDRESS, MARKETING_PAUSED } from '../_shared/emailTemplate.js'
 
 // Member emails from the owner cockpit, sent with Resend. Admin only (admin_guard with the caller's session).
 // Service emails (account notices, welcome): support role, members only. Marketing (recaps, win-backs, offers,
@@ -102,6 +102,7 @@ Deno.serve(async (req) => {
     const tpl = { ...(stored || {}), ...(b.template || {}) }
     if (!tpl.subject || !tpl.body) return json({ error: 'Pick a template or write a subject and message' }, 400)
     const kind = stored?.kind || (b.template?.kind === 'service' ? 'service' : 'marketing')
+    if (kind === 'marketing' && !POSTAL_ADDRESS.trim()) return json({ error: MARKETING_PAUSED }, 400)
     if (kind === 'marketing' && role !== 'owner') return json({ error: 'Only the owner can send marketing emails' }, 403)
     const message = typeof b.message === 'string' ? b.message.slice(0, 4000) : ''
 
