@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { getSavedTheme, saveTheme, resolveDark } from '../lib/theme'
 
-// Read persisted tab from sessionStorage. Pre-Clay tab ids map onto the four Clay tabs.
-const LEGACY_TABS = { guide: 'explore', goosey: 'explore', toolbox: 'tools' }
+// Read persisted tab from sessionStorage. Older tab ids map onto today's tabs (Explore became Guide; HONK, once
+// Goosey, has its own tab).
+const LEGACY_TABS = { explore: 'guide', goosey: 'honk', toolbox: 'tools' }
 function getSavedTab() {
   try {
     const t = sessionStorage.getItem('stt_active_tab') || 'trips'
@@ -15,7 +16,6 @@ const initialTheme = getSavedTheme()
 export const useUIStore = create((set) => ({
   activeTab: getSavedTab(),
   activeTripTab: 'itinerary',
-  exploreMode: 'guide', // 'guide' | 'honk'
   activeGuideTab: 'know',
   activeToolboxTab: 'currency',
   activeProfileTab: 'docs',
@@ -25,18 +25,12 @@ export const useUIStore = create((set) => ({
   themePref: initialTheme,
   darkMode: resolveDark(initialTheme),
 
-  // Any tab tap (Explore included) lands on the guide, so leaving HONK open never hides search and the guide
   setTab: (tab) => {
-    try { sessionStorage.setItem('stt_active_tab', tab) } catch {}
-    set({ activeTab: tab, exploreMode: 'guide' })
+    const id = LEGACY_TABS[tab] || tab
+    try { sessionStorage.setItem('stt_active_tab', id) } catch {}
+    set({ activeTab: id })
   },
   setTripTab: (tab) => set({ activeTripTab: tab }),
-  setExploreMode: (mode) => set({ exploreMode: mode }),
-  // Open Explore on HONK (from the Today view) or on the Guide
-  openExplore: (mode = 'guide') => {
-    try { sessionStorage.setItem('stt_active_tab', 'explore') } catch {}
-    set({ activeTab: 'explore', exploreMode: mode })
-  },
   setGuideTab: (tab) => set({ activeGuideTab: tab }),
   setToolboxTab: (tab) => set({ activeToolboxTab: tab }),
   setProfileTab: (tab) => set({ activeProfileTab: tab }),

@@ -6,6 +6,8 @@
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* How far the raised HONK button rises above the nav bar (34px + its 5px ring): screens and toasts clear it */
+  --nav-raise: 40px;
   --transition: 150ms ease;
 }
 

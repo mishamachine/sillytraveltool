@@ -38,7 +38,10 @@ function getSessionId() {
 let lastScreen = null
 function currentScreen() {
   if (lastScreen) return lastScreen.split('/')[0]
-  try { return sessionStorage.getItem('stt_active_tab') || null } catch { return null }
+  try {
+    const tab = sessionStorage.getItem('stt_active_tab')
+    return tab === 'guide' || tab === 'honk' ? 'explore' : tab || null // same top level as the screen paths
+  } catch { return null }
 }
 
 // --- consent ---------------------------------------------------------------------------------------

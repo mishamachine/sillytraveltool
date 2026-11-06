@@ -1,10 +1,11 @@
 import { useUIStore, useTripsStore } from '../../store'
 import { BottomNav as Nav } from '../../ui'
 
-// Trips · Explore · Tools · Profile. HONK lives inside Explore (with the Guide).
+// Trips · Guide · HONK · Tools · Profile. HONK is the raised Goose button in the middle.
 export const TABS = [
   { id: 'trips', label: 'Trips', icon: 'trips' },
-  { id: 'explore', label: 'Explore', icon: 'explore' },
+  { id: 'guide', label: 'Guide', icon: 'book' },
+  { id: 'honk', label: 'HONK', feature: true },
   { id: 'tools', label: 'Tools', icon: 'tools' },
   { id: 'profile', label: 'Profile', icon: 'profile' },
 ]

@@ -155,31 +155,31 @@ export const SCENES = {
     ],
   },
 
-  // ---------- Explore ----------
-  'explore-search': {
+  // ---------- Guide ----------
+  'guide-search': {
     screens: {
-      explore: { title: 'Explore', blocks: [
+      guide: { title: 'Guide', blocks: [
         { t: 'field', icon: 'search', text: 'Sevilla, Spain' },
         { t: 'chips', items: ['Madrid', 'Sevilla', 'Granada'], on: 1 },
         { t: 'label', text: 'Sevilla guide' },
         { t: 'tiles', items: [
-          { icon: 'info', tone: 'accent', big: 'Know', meta: 'History, numbers and local quirks', tap: 'know' },
-          { icon: 'restaurant', tone: 'accent', big: 'Eat', meta: 'Cheap eats to a proper splurge' },
-          { icon: 'eye', tone: 'accent', big: 'See', meta: 'Museums, areas, parks, day trips' },
-          { icon: 'metro', tone: 'accent', big: 'Transit', meta: 'Metro, taxis and apps like a local' },
+          { icon: 'info', tone: 'info', big: 'The lowdown', meta: 'History, quirks, tips', tap: 'know' },
+          { icon: 'restaurant', tone: 'accent', big: 'Where to eat', meta: 'Cheap eats to a proper splurge' },
+          { icon: 'eye', tone: 'sun', big: 'Must-sees', meta: 'Landmarks, museums, day trips' },
+          { icon: 'metro', tone: 'success', big: 'Getting around', meta: 'Metro, taxis and apps' },
         ] },
       ] },
     },
     script: [
-      { ms: 3000, screen: 'explore', cap: 'Search any city, or tap one from your trip' },
-      { ms: 3000, cap: 'Five sections, each with a teaser' },
+      { ms: 3000, screen: 'guide', cap: 'Search any city, or tap one from your trip' },
+      { ms: 3000, cap: 'Five sections, each with a first look' },
       { tap: 'know', cap: 'Tap a section to open it' },
       { ms: 2200 },
     ],
   },
-  'explore-save': {
+  'guide-save': {
     screens: {
-      eat: { back: true, over: 'Sevilla guide', title: 'Eat', blocks: [
+      eat: { back: true, over: 'Sevilla guide', title: 'Where to eat', blocks: [
         { t: 'chips', items: ['Cheap', 'Mid-range', 'Splurge'], on: 0 },
         { t: 'rows', items: [
           { icon: 'restaurant', tone: 'accent', title: 'Bodega Santa Cruz', meta: 'Tapas from €3', end: '+', tap: 'plus' },
@@ -201,31 +201,47 @@ export const SCENES = {
     ],
   },
 
-  // ---------- HONK (own tour, used once HONK has its own tab) ----------
+  // ---------- HONK ----------
   'honk-moods': {
     screens: {
       honk: { title: 'HONK', blocks: [
-        { t: 'hero', title: 'What are you in the mood for?', meta: 'One great place, walkable from where you are.' },
-        { t: 'chips', items: ['I’m hungry', 'Show me something', 'I’m bored', 'Treat myself', 'On a budget', 'Culture me', 'Night out', 'Be a local'], on: 0, tap: 'hungry' },
+        { t: 'tiles', items: [
+          { icon: 'restaurant', tone: 'accent', big: 'Feed me', meta: 'Local favorites, street eats', tap: 'hungry' },
+          { icon: 'compass', tone: 'sun', big: 'Wow me', meta: 'Views and hidden gems' },
+          { icon: 'museum', tone: 'info', big: 'Culture fix', meta: 'Museums, old streets' },
+          { icon: 'currency', tone: 'success', big: 'Cheap thrills', meta: 'Budget bites, bargain sights' },
+          { icon: 'map', tone: 'danger', big: 'Go local', meta: 'Markets, corner bars' },
+          { icon: 'moon', tone: 'stay', big: 'Night out', meta: 'Bars, live music' },
+        ] },
       ] },
     },
     script: [
-      { ms: 3000, screen: 'honk', cap: 'Eight moods to choose from' },
+      { ms: 3000, screen: 'honk', cap: 'Six moods, each says what it finds' },
       { tap: 'hungry', cap: 'Tap the one that fits' },
       { ms: 2400, cap: 'Goose goes scouting, usually under ten seconds' },
     ],
   },
   'honk-result': {
     screens: {
-      result: { title: 'HONK', blocks: [
-        { t: 'hero', over: 'Goose says go here', title: 'Bodega Castañeda', meta: 'Tapas bar, open now · 4 min walk', btn: { label: 'Get there', icon: 'navigation', tap: 'go' } },
-        { t: 'btn', label: 'Another spot', icon: 'refresh', tap: 'again' },
+      honk: { title: 'HONK', blocks: [{ t: 'note', icon: 'sparkles', text: 'Goose is scouting Granada' }] },
+    },
+    sheets: {
+      spot: { title: 'Bodega Castañeda', blocks: [
+        { t: 'btn', icon: 'plus', label: 'Add to Spain', tap: 'add' },
+        { t: 'tiles', items: [
+          { icon: 'walk', big: '4 min', meta: 'Walk', tap: 'walk' },
+          { icon: 'metro', big: 'Transit', meta: 'Maps' },
+          { icon: 'car', big: 'Drive', meta: 'Maps' },
+        ] },
+        { t: 'rows', items: [{ title: 'Another spot', end: 'Try again', tap: 'again' }] },
       ] },
     },
     script: [
-      { ms: 3200, screen: 'result', cap: 'One spot, close enough to walk' },
-      { tap: 'go', cap: 'Get there opens your route' },
-      { ms: 2400, toast: 'Opening Maps' },
+      { ms: 2000, screen: 'honk', cap: 'One spot, close enough to walk' },
+      { ms: 2800, sheet: 'spot' },
+      { tap: 'add', cap: 'Add it to your trip' },
+      { ms: 2000, toast: 'Saved to Spain ideas' },
+      { tap: 'walk', cap: 'Or open the walk in Maps' },
       { tap: 'again', cap: 'Not feeling it? Ask for another' },
       { ms: 2200 },
     ],
@@ -233,14 +249,14 @@ export const SCENES = {
   'honk-where': {
     screens: {
       where: { title: 'HONK', blocks: [
-        { t: 'note', icon: 'pin', text: 'Goose uses your location to pick somewhere walkable.' },
+        { t: 'note', icon: 'navigation', text: 'Near Albaicín, Granada · Change' },
         { t: 'label', text: 'Where are you?' },
         { t: 'field', icon: 'search', text: 'Type your city' },
       ] },
     },
     script: [
       { ms: 3200, screen: 'where', cap: 'HONK uses where you are' },
-      { ms: 3200, cap: 'Location off? Type your city instead' },
+      { ms: 3200, cap: 'Location off? Type a city instead' },
     ],
   },
 

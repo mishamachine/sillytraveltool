@@ -30,16 +30,16 @@ const TOPIC_OVERRIDES = {
   },
   guide: {
     steps: [
-      'Open Explore. Your next trip\'s city loads on its own, or search any city.',
-      'Pick a section: Know (history and local quirks), Eat (cheap to splurge), See, Transit or Events.',
+      'Open Guide. Your next trip\'s city loads on its own, or search any city.',
+      'Pick a section: The lowdown (history and local quirks), Where to eat (cheap to splurge), Must-sees, Getting around or What\'s on.',
       'Tap Show 15 more for the next batch of places.',
     ],
   },
   honk: {
-    tips: ['Moods include I\'m hungry, Treat myself, On a budget, Culture me and Night out.', 'Your location is sent to Google to find nearby places. See the Privacy Policy.'],
+    tips: ['Moods: Feed me, Wow me, Culture fix, Cheap thrills, Go local and Night out.', 'Your location is sent to Google to find nearby places. See the Privacy Policy.'],
     summary: 'Pick a mood and get nearby place picks.',
     steps: [
-      'Open Explore and tap a mood on the HONK card, or More moods.',
+      'Tap HONK, the Goose button in the middle of the bottom bar, then tap a mood.',
       'Your browser asks to share your location. HONK uses it only when you allow it. If you would rather not, choose a city yourself.',
       'Goose picks a place and shows its walking time. Not feeling it? Tap Another spot.',
     ],

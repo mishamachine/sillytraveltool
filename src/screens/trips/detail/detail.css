@@ -1,5 +1,5 @@
 /* Trip detail: overlay above the tab screen, below the bottom nav */
-.detail { position: fixed; inset: 0; z-index: 99; max-width: var(--app-max); margin: 0 auto; padding-top: calc(var(--safe-top) + var(--space-4)); padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 96px); }
+.detail { position: fixed; inset: 0; z-index: 99; max-width: var(--app-max); margin: 0 auto; padding-top: calc(var(--safe-top) + var(--space-4)); padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + var(--nav-raise) + 96px); }
 .detail-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .detail-status { margin-top: var(--space-1); }
 .detail-tabs { position: sticky; top: calc(-1 * var(--space-4)); z-index: 5; margin: 0 calc(-1 * var(--space-5)); padding: var(--space-2) var(--space-5); background: var(--surface-page); }

@@ -1,24 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { geminiFetch, cap, checkAiQuota, QUOTA_MESSAGE } from '../_shared/gemini.ts'
 import { geocode, searchText, routeOne, withGoogleScope, setGoogleUser, type Place } from '../_shared/google.ts'
+// HONK mood → what to ask Google for (today's labels and the ones older app builds still send). Results are open now and walkable from the user.
+import { moodQuery } from '../_shared/honkMoods.js'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
-
-// HONK mood → what to ask Google for. Results are open now and walkable from the user.
-const MOOD_QUERY: Record<string, string> = {
-  "I'm hungry": 'best places to eat',
-  'Show me something': 'interesting sights and hidden gems',
-  "I'm bored": 'fun things to do',
-  'Treat myself': 'special treat dessert spa or upscale bar',
-  'On a budget': 'cheap eats and free things to do',
-  'Culture me': 'museums galleries and historic sights',
-  'Night out': 'bars live music and nightlife',
-  'Be a local': 'local favourite cafe market or neighbourhood bar',
-}
 
 const PRICE = ['free', '$', '$$', '$$$', '$$$$']
 
@@ -132,7 +122,7 @@ Deno.serve(withGoogleScope(async (req) => {
     const origin = gps ? { lat, lng } : await geocode(`${city}, ${country}`)
     let candidates: Candidate[] = []
     if (origin) {
-      const query = `${MOOD_QUERY[mood] || mood}${filters.length ? ` (${filters.join(', ')})` : ''}`
+      const query = `${moodQuery(mood)}${filters.length ? ` (${filters.join(', ')})` : ''}`
       const r = await searchText(query, { openNow: true, minRating: 4.2, near: { lat: origin.lat, lng: origin.lng, radius: 1500 }, pageSize: 20 })
       candidates = (r?.places || [])
         .filter(p => !p.closed && !exclude.includes(p.place_id))

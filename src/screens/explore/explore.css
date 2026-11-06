@@ -1,11 +1,51 @@
-/* Explore tab: guide overview tiles, section detail, HONK */
+/* Guide and HONK tabs: guide overview tiles, section detail, HONK moods and result */
 .explore-tile { align-items: flex-start; min-height: 132px; text-align: left; }
 .explore-tile__line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.guide-tile { gap: 6px; min-height: 150px; }
+.guide-tile__title { font-family: var(--font-display); font-size: 1.0625rem; margin-top: var(--space-1); }
+.guide-tile__line { color: var(--ink); }
+.guide-tile__meta { margin-top: auto; }
+.guide-facts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.guide-fact {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 var(--space-3);
+  border-radius: var(--radius-pill); background: var(--surface-card); box-shadow: var(--shadow-card);
+  font-size: 0.8125rem; font-weight: 600; color: var(--ink-secondary);
+}
+.guide-fact .c-icon, .guide-fact > svg { color: var(--accent); }
 .explore-tile--hint { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong); justify-content: center; }
 
-.explore-moods { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.c-card--inverse .explore-mood { background: transparent; color: var(--ink-inverse); box-shadow: inset 0 0 0 1px var(--progress-track-inverse); }
-.c-card--inverse .explore-mood.is-selected { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
+/* Colour tints shared by the HONK moods and the guide tiles: a wash of the tone over the card, a solid icon tile */
+.tint-accent, .tint-info, .tint-sun, .tint-success, .tint-stay, .tint-danger { background: var(--surface-card); }
+.tint-accent { --tint: var(--accent); }
+.tint-info { --tint: var(--info); }
+.tint-sun { --tint: var(--weather-sun); }
+.tint-success { --tint: var(--success); }
+.tint-stay { --tint: var(--stay); }
+.tint-danger { --tint: var(--danger); }
+@supports (background: color-mix(in srgb, red 10%, white)) {
+  .tint-accent, .tint-info, .tint-sun, .tint-success, .tint-stay, .tint-danger { background: linear-gradient(165deg, color-mix(in srgb, var(--tint) 13%, var(--surface-card)) 0%, color-mix(in srgb, var(--tint) 9%, var(--surface-card)) 60%, var(--surface-card) 130%); }
+}
+.tint-accent .c-tile--solid, .tint-info .c-tile--solid, .tint-sun .c-tile--solid, .tint-success .c-tile--solid, .tint-stay .c-tile--solid, .tint-danger .c-tile--solid { background: var(--tint); color: var(--surface-card); box-shadow: var(--shadow-lip); }
+
+/* HONK tab */
+.honk-where { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+.honk-where .c-icon, .honk-where > svg { color: var(--accent); flex-shrink: 0; }
+.honk-where__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.honk-where__change { flex-shrink: 0; margin-left: 6px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--accent); min-height: var(--touch-min); }
+.honk-blurb { font-size: 1.0625rem; line-height: 1.45; color: var(--ink); margin-top: calc(var(--space-1) * -1); }
+.honk-moods { flex: 1 0 auto; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: minmax(128px, 1fr); gap: var(--space-3); }
+.honk-mood {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 10px;
+  padding: var(--space-4) 14px 14px; border: 0; border-radius: var(--radius-xl); text-align: left;
+  box-shadow: var(--shadow-card), var(--shadow-lip); color: var(--ink);
+}
+.honk-mood:active { transform: scale(0.97); }
+.honk-mood:disabled { opacity: 0.5; }
+.honk-mood__text { display: flex; flex-direction: column; gap: 3px; }
+.honk-mood__label { font: 700 1.125rem/1.15 var(--font-display); }
+.honk-mood__hint { font-size: 0.8125rem; line-height: 1.3; color: var(--ink-muted); }
+.honk-sheet__content { display: flex; flex-direction: column; gap: var(--space-4); }
+.honk-photo { aspect-ratio: 2.2 / 1; }
 
 /* Guide place card: photo | name, one meta line, quip (2 lines) | add. Rating lives in the meta line so the text gets the width */
 .explore-place { gap: var(--space-3); padding: var(--space-3); }

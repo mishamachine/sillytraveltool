@@ -3,7 +3,7 @@ import { useTripsStore } from '../store/tripsStore'
 import { useAuthStore } from '../store/authStore'
 import { screenView } from './analytics'
 
-// Routing is Zustand state, so screen views come from the stores: tab, open trip + its tab, Explore mode.
+// Routing is Zustand state, so screen views come from the stores: tab, open trip + its tab.
 function currentPath() {
   const { user, loading, passwordRecovery } = useAuthStore.getState()
   if (loading) return null
@@ -11,7 +11,8 @@ function currentPath() {
   const ui = useUIStore.getState()
   if (ui.showTripForm) return 'trip_form'
   if (useTripsStore.getState().activeTrip) return `trip/${ui.activeTripTab}`
-  if (ui.activeTab === 'explore') return `explore/${ui.exploreMode}`
+  // Guide and HONK keep the paths they had as Explore modes, so the cockpit's screen history stays continuous
+  if (ui.activeTab === 'guide' || ui.activeTab === 'honk') return `explore/${ui.activeTab}`
   return ui.activeTab
 }
 

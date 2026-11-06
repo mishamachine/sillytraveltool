@@ -82,7 +82,7 @@ export default function ProfileHome({ docCount, cardCount, onOpen }) {
       </Section>
 
       <Card variant="group">
-        <ListRow data-tour="profile-help" icon="help" tone="success" title="Guide and FAQ" meta="How everything works, including traveling together" chevron onClick={() => onOpen('help')} />
+        <ListRow data-tour="profile-help" icon="help" tone="success" title="Help and FAQ" meta="How everything works, including traveling together" chevron onClick={() => onOpen('help')} />
         <ListRow icon="compass" tone="accent" title="Take the tour" meta="A two-minute look at everything STT does" chevron onClick={openTour} />
       </Card>
 

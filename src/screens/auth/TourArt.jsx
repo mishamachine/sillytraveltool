@@ -337,7 +337,7 @@ export function TodayArt() {
             <span className="tour-mini-hero__title tour-mini-hero__title--sm">Alhambra, Nasrid Palaces</span>
             <span className="t-micro tone-muted">16:30 Granada time · 2 tickets</span>
             <span className="tour-mini-hero__actions">
-              <span data-tap="open" className="tour-pill tour-pill--light">Open booking</span>
+              <span data-tap="open" className="tour-pill tour-pill--light">Show tickets</span>
               <span className="tour-pill tour-pill--ghost">Directions</span>
             </span>
           </div>
@@ -595,13 +595,13 @@ export function TogetherArt() {
   )
 }
 
-// ---------- City guide 1: Know → Eat → add to trip ----------
+// ---------- City guide 1: The lowdown → Where to eat → add to trip ----------
 
-const SECTIONS = [['know', 'Know', 'info'], ['eat', 'Eat', 'restaurant'], ['see', 'See', 'eye'], ['move', 'Transit', 'metro'], ['events', 'Events', 'event']]
+const SECTIONS = [['know', 'The lowdown', 'info'], ['eat', 'Where to eat', 'restaurant'], ['see', 'Must-sees', 'eye'], ['move', 'Getting around', 'metro'], ['events', 'What’s on', 'event']]
 
 const GUIDE1 = [
-  { ms: 3400, cap: { n: 1, text: 'Know: the numbers and local quirks' } },
-  { tap: 'sec-eat', cap: { n: 2, text: 'Tap Eat' } },
+  { ms: 3400, cap: { n: 1, text: 'The lowdown: the numbers and local quirks' } },
+  { tap: 'sec-eat', cap: { n: 2, text: 'Tap Where to eat' } },
   { ms: 3000, cap: { n: 3, text: 'Cheap eats to a proper splurge' } },
   { tap: 'save', cap: { n: 4, text: 'Tap + to add it to your trip' } },
   { ms: 3000, cap: { n: 5, text: 'Saved as a trip idea: book it when you’re ready' } },
@@ -655,13 +655,13 @@ export function GuideArt() {
   )
 }
 
-// ---------- City guide 2: See → Transit → Events ----------
+// ---------- City guide 2: Must-sees → Getting around → What's on ----------
 
 const GUIDE2 = [
-  { ms: 3000, cap: { n: 1, text: 'See: museums, landmarks, areas, day trips' } },
-  { tap: 'sec-move', cap: { n: 2, text: 'Tap Transit' } },
+  { ms: 3000, cap: { n: 1, text: 'Must-sees: landmarks, museums, areas, day trips' } },
+  { tap: 'sec-move', cap: { n: 2, text: 'Tap Getting around' } },
   { ms: 3400, cap: { n: 3, text: 'Getting around like a local, with the right apps' } },
-  { tap: 'sec-events', cap: { n: 4, text: 'Tap Events' } },
+  { tap: 'sec-events', cap: { n: 4, text: 'Tap What’s on' } },
   { ms: 3600, cap: { n: 5, text: 'Festivals and what’s on while you’re there' } },
 ]
 
@@ -716,12 +716,12 @@ export function GuideMoreArt() {
   )
 }
 
-// ---------- HONK: a few minutes to kill → HONK → one good spot ----------
+// ---------- HONK: 40 minutes to kill → tap a mood → one good spot ----------
 
 const HONK = [
-  { ms: 3000, cap: { n: 1, text: '40 minutes free and nothing planned?' } },
-  { ms: 1800, cap: { n: 2, text: 'Pick a mood' } },
-  { ms: 1300, cap: { n: 3, text: 'Tap HONK' } },
+  { ms: 3000, cap: { n: 1, text: '40 minutes and nothing planned?' } },
+  { ms: 1800, cap: { n: 2, text: 'Open HONK and tap a mood' } },
+  { ms: 1300, cap: { n: 3, text: 'HONK!' } },
   { ms: 2000 },
   { ms: 4400, cap: { n: 4, text: 'Goose picks one good spot near you' } },
 ]
@@ -741,14 +741,10 @@ export function HonkArt() {
         <div className="c-card tour-card-flat tour-honk__card">
           <span className="t-label">What are you in the mood for?</span>
           <div className="tour-chips">
-            {["I'm hungry", 'Show me something', 'Treat myself', 'Culture me', 'On a budget'].map((m, k) => (
-              <span key={m} className={cx('c-chip c-chip--neutral', k === 0 && s >= 1 && 'tour-chip--on')}>{m}</span>
+            {['Feed me', 'Wow me', 'Culture fix', 'Cheap thrills', 'Go local', 'Night out'].map((m, k) => (
+              <span key={m} className={cx('c-chip c-chip--neutral', k === 0 && s >= 1 && 'tour-chip--on', k === 0 && s === 1 && 'tour-chip--tapped')}>{m}</span>
             ))}
           </div>
-          <span className={cx('tour-honk__btn', s >= 2 && 'is-pressed')}>
-            <Icon name="megaphone" size={18} />HONK
-            {s === 2 && <span className="tour-tap tour-tap--static"><span className="tour-tap__ring" /></span>}
-          </span>
         </div>
       ) : (
         <div className="c-card tour-card-flat tour-honk__card tour-in">
@@ -756,7 +752,7 @@ export function HonkArt() {
           <span className="tour-honk__pick">Bodega Castañeda</span>
           <span className="t-caption tone-secondary">Tapas bar, open now. Insider tip: order the croquetas and stand at the bar.</span>
           <span className="tour-honk__actions">
-            <span className="tour-btn"><Icon name="navigation" size={16} />Get there</span>
+            <span className="tour-btn"><Icon name="plus" size={16} />Add to trip</span>
             <span className="tour-honk__again t-label"><Icon name="refresh" size={16} />Another spot</span>
           </span>
         </div>
@@ -876,7 +872,7 @@ function ProfileHomeMock() {
       <div className="c-card c-card--group tour-card-flat">
         <MockRow tap="docs" icon="passport" tone="info" title="Travel documents" trailing={<span className="t-caption tone-muted">3</span>} />
         <MockRow tap="loyalty" icon="card" tone="accent" title="Loyalty cards" trailing={<span className="t-caption tone-muted">2</span>} />
-        <MockRow icon="help" tone="success" title="Guide and FAQ" />
+        <MockRow icon="help" tone="success" title="Help and FAQ" />
       </div>
     </>
   )

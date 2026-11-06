@@ -151,7 +151,7 @@ export const useAuthStore = create((set, get) => ({
     await Promise.race([track('sign_out'), new Promise(r => setTimeout(r, 1500))])
     await supabase.auth.signOut()
     set({ user: null, profile: null, session: null })
-    // The next member starts on the guide, not on a HONK screen left open by the last session
-    useUIStore.getState().setExploreMode('guide')
+    // The next member starts on Trips, not on HONK (which would ask for their location straight away)
+    useUIStore.getState().setTab('trips')
   }
 }))

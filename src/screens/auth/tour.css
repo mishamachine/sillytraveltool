@@ -130,6 +130,8 @@ button.tour-now { cursor: pointer; }
   animation: tour-screen-in 0.35s cubic-bezier(.2, .8, .2, 1) both;
 }
 .tour-screen--still { animation: none; }
+/* Blocks keep their real height (fields, buttons, switches): a full screen runs off the bottom like a real one */
+.tour-screen > *, .tour-sheet > * { flex-shrink: 0; }
 .tour-screen .c-card--group { padding: 2px var(--space-3); }
 .tour-screen .c-row { min-height: 52px; gap: var(--space-2); }
 .tour-screen .c-row .c-tile--sm { width: 34px; height: 34px; }
@@ -217,10 +219,6 @@ button.tour-now { cursor: pointer; }
 }
 .tour-clock { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius-pill); background: var(--surface-card); box-shadow: var(--shadow-card); color: var(--ink-secondary); }
 .tour-honk__card { position: relative; display: flex; flex-direction: column; gap: var(--space-3); min-height: 168px; }
-.tour-honk__btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; border-radius: var(--radius-md);
-  background: var(--accent-fill); color: var(--on-accent); font: 700 1rem var(--font-display); letter-spacing: 0.06em; box-shadow: var(--shadow-accent);
-}
 .tour-honk__pick { font-family: var(--font-display); font-weight: 700; font-size: 1.375rem; letter-spacing: -0.02em; color: var(--ink); }
 .tour-honk__again { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
 .tour-idle { animation: tour-bob 2.4s ease-in-out infinite; }
@@ -356,7 +354,10 @@ button.tour-now { cursor: pointer; }
 
 .tour-honk__top { min-height: 120px; }
 .tour-honk__card { flex: 1; justify-content: center; }
-.tour-honk__btn { position: relative; height: 54px; }
+/* A tapped chip ripples around its edge, so the tap never covers its label */
+.tour-chip--tapped { animation: tour-chip-tap 0.7s ease-out 0.15s both; }
+@keyframes tour-chip-tap { from { box-shadow: 0 0 0 0 var(--accent); } to { box-shadow: 0 0 0 10px transparent; } }
+@media (prefers-reduced-motion: reduce) { .tour-chip--tapped { animation: none; } }
 .tour-tap--static { left: 50%; top: 50%; }
 .tour-honk__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .tour-honk__actions .tour-btn { margin-top: 0; flex: 1; }

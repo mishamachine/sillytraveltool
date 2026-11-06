@@ -13,7 +13,7 @@ const mem = () => { const m = new Map(); return { getItem: k => (m.has(k) ? m.ge
 const broken = { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } }
 
 // ---------- Tours as data ----------
-assert.deepEqual(Object.keys(SECTION_TOURS), ['trips', 'today', 'explore', 'honk', 'toolbox', 'profile'])
+assert.deepEqual(Object.keys(SECTION_TOURS), ['trips', 'today', 'guide', 'honk', 'toolbox', 'profile'])
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{FE0F}]/u
 const allText = JSON.stringify([SECTION_TOURS, SCENES])
 assert.ok(!EMOJI.test(allText), 'no emoji')
@@ -48,8 +48,15 @@ const src = walk('src').filter(f => /\.jsx$/.test(f) && !f.includes('SectionTour
 for (const [k, t] of Object.entries(SECTION_TOURS)) {
   if (t.tryIt.target) assert.ok(new RegExp(`data-tour=(\"|\{[^}]*')${t.tryIt.target}`).test(src), `${k}: data-tour="${t.tryIt.target}" is in the app`)
 }
-// The section tours are wired to their screens (honk waits for its tab)
-for (const k of ['trips', 'today', 'explore', 'toolbox', 'profile']) assert.ok(src.includes(`section="${k}"`), `${k}: has an "i" button`)
+// Every section tour is wired to its screen
+for (const k of Object.keys(SECTION_TOURS)) assert.ok(src.includes(`section="${k}"`), `${k}: has an "i" button`)
+// The tour names a tab the way the bottom nav does
+assert.equal(SECTION_TOURS.guide.overline, 'About Guide')
+assert.ok(!/Explore|\bKnow\b|\bSee\b|Transit shows|Events lists/.test(JSON.stringify([SECTION_TOURS.guide, SCENES['guide-search'], SCENES['guide-save']])), 'Guide tour uses the Guide names')
+// HONK copy: today's six moods; no HONK button to tap, no "Get there" (the sheet has none)
+const honkText = JSON.stringify([SECTION_TOURS.honk, SCENES['honk-moods'], SCENES['honk-result'], SCENES['honk-where']])
+for (const m of ['Feed me', 'Wow me', 'Culture fix', 'Cheap thrills', 'Go local', 'Night out']) assert.ok(honkText.includes(m), `HONK tour names ${m}`)
+assert.ok(!/tap HONK|Get there|I’m bored|Be a local|Treat myself/i.test(honkText), 'HONK tour matches the HONK tab')
 
 // ---------- Scenes ----------
 const walkBlocks = (scene, fn) => [...Object.values(scene.screens), ...Object.values(scene.sheets || {})].forEach(v => v.blocks.forEach(fn))
@@ -111,4 +118,9 @@ assert.equal(s.getItem(SEEN_PREFIX + 'trips'), '1')
 assert.equal(hasSeenSection('trips', broken), false)
 markSectionSeen('trips', broken)
 assert.equal(hasSeenSection('trips', null), false)
+// Seen on Explore before the rename counts as seen on Guide
+const r = mem()
+r.setItem(SEEN_PREFIX + 'explore', '1')
+assert.equal(hasSeenSection('guide', r), true)
+assert.equal(hasSeenSection('honk', r), false)
 console.log('section tours: ok')

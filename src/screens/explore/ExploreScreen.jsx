@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react'
 import { useUIStore, useGuideStore, useTripsStore, useIdeasStore, tripForCity } from '../../store'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import {
-  Screen, ScreenHeader, Section, Card, Chip, Text, Stack, Icon, IconTile, ListRow, Button,
-  Loading, ErrorState, EmptyState, Skeleton, GooseMark, Toast,
+  Screen, ScreenHeader, Section, Card, Chip, Text, Icon, IconTile, ListRow, Button,
+  Loading, ErrorState, EmptyState, Skeleton, Toast,
 } from '../../ui'
 import SectionTour from '../../components/shared/SectionTour'
 import { useCityGuide, TAB_SECTIONS } from './useCityGuide'
 import { GUIDE_SECTIONS, KnowSection, EatSection, SeeSection, MoveSection, EventsSection } from './GuideSections'
-import HonkView, { MOODS } from './HonkView'
 import IdeaSheet from './IdeaSheet'
 import { tripsForPlace, placePoint, saveIdeaTo, moveIdea, createTripAndSave } from './saveIdea'
 import { suggestForPlace } from '../../lib/tripPick'
@@ -29,50 +28,28 @@ import { useBackHandler } from '../../lib/backStack'
 function teaser(id, data, sections) {
   if (id === 'know') return data?.city_stats?.goose_facts?.[0]?.fact || data?.history_text?.split('. ')[0]
   if (id === 'eat') return (data?.eat_cheap?.[0] || data?.eat_mid?.[0])?.name && `Start with ${(data.eat_cheap?.[0] || data.eat_mid[0]).name}`
-  if (id === 'see') return data?.see_museums?.[0]?.name
+  if (id === 'see') return (data?.see_temples?.[0] || data?.see_museums?.[0])?.name
   if (id === 'move') return data?.move_content?.options?.[0]?.type
   if (id === 'events') return sections.events && (data?.events?.[0]?.name || 'Nothing big on')
   return null
 }
 
-/** HONK teaser on the Explore overview: mood chips open HONK with that mood. */
-function HonkCard({ onMood }) {
-  return (
-    <Card variant="inverse" aria-labelledby="honk-card-title" data-tour="honk-card">
-      <Stack row gap={3}>
-        <GooseMark expression="happy" size={44} tile tileSize="sm" />
-        <Stack gap={1} grow>
-          <Text variant="title" tone="inverse" as="h2" id="honk-card-title">HONK</Text>
-          <Text variant="caption" tone="inverse-muted">What are you in the mood for, near you?</Text>
-        </Stack>
-      </Stack>
-      <div className="explore-moods">
-        {MOODS.slice(0, 3).map(m => (
-          <Chip key={m.id} icon={m.icon} onClick={() => onMood(m.id)} className="explore-mood">{m.label}</Chip>
-        ))}
-        <Chip icon="more" onClick={() => onMood(null)} className="explore-mood">More moods</Chip>
-      </div>
-    </Card>
-  )
+// Quick facts above the tiles: language, currency, summer weather, from the overview
+function quickFacts(stats) {
+  if (!stats) return []
+  return [
+    ['chat', stats.language && String(stats.language)],
+    ['currency', stats.currency && String(stats.currency).replace(/\s*\(.*\)$/, '')],
+    ['sun', stats.avg_temp_summer && `${stats.avg_temp_summer} in summer`],
+  ].filter(([, v]) => v)
 }
 
 const reportGuide = (city) => { window.location.href = `mailto:hello@sillytraveltool.com?subject=${encodeURIComponent(`Guide error - ${city}`)}` }
 
 const SECTION_VIEW = { know: KnowSection, eat: EatSection, see: SeeSection, move: MoveSection, events: EventsSection }
 
+/** Guide tab: city guide overview, then one section at a time. */
 export default function ExploreScreen() {
-  const mode = useUIStore(s => s.exploreMode)
-  const setMode = useUIStore(s => s.setExploreMode)
-  const [honkMood, setHonkMood] = useState(null)
-  const closeHonk = () => { setHonkMood(null); setMode('guide') }
-  useBackHandler(mode === 'honk', closeHonk)
-
-  // HONK renders on its own, so opening it from Today doesn't also load a city guide
-  if (mode === 'honk') return <HonkView initialMood={honkMood} onBack={closeHonk} />
-  return <GuideHome setHonkMood={setHonkMood} setMode={setMode} />
-}
-
-function GuideHome({ setHonkMood, setMode }) {
   const [open, setOpen] = useState(false)
   const [ideaFor, setIdeaFor] = useState(null) // { item, kind, status }
   const [pickFor, setPickFor] = useState(null) // { item, kind, ranked, point, from?: { tripId, idea } }: the "Save to" picker
@@ -138,7 +115,7 @@ function GuideHome({ setHonkMood, setMode }) {
     const failed = !g.isSectionLoading && g.guideError && !g.isSectionLoaded
     return (
       <Screen gap={4} labelledBy="guide-section-title">
-        <ScreenHeader onBack={() => setOpen(false)} backLabel="Back to Explore" overline={`${destination.city} guide`} title={meta.label} titleId="guide-section-title" />
+        <ScreenHeader onBack={() => setOpen(false)} backLabel="Back to Guide" overline={`${destination.city} guide`} title={meta.label} titleId="guide-section-title" />
         <div className="c-chip-row explore-chips" role="tablist" aria-label="Guide sections">
           {GUIDE_SECTIONS.map(s => (
             <Chip key={s.id} role="tab" aria-selected={s.id === meta.id} aria-pressed={undefined} icon={s.icon}
@@ -196,8 +173,8 @@ function GuideHome({ setHonkMood, setMode }) {
 
   // ── Overview ─────────────────────────────────────
   return (
-    <Screen gap={4} labelledBy="explore-title">
-      <ScreenHeader title="Explore" titleId="explore-title" actions={<SectionTour section="explore" />}>
+    <Screen gap={4} labelledBy="guide-title">
+      <ScreenHeader title="Guide" titleId="guide-title" actions={<SectionTour section="guide" />}>
         <CityAutocomplete label="Search a city" hideLabel icon="search" placeholder={destination ? `${destination.city}, ${destination.country}` : 'Search a city'}
           onSelect={g.selectCity} />
         {g.cityChips.length > 0 && (
@@ -209,8 +186,6 @@ function GuideHome({ setHonkMood, setMode }) {
           </div>
         )}
       </ScreenHeader>
-
-      <HonkCard onMood={(id) => { setHonkMood(id); setMode('honk') }} />
 
       {!destination && g.tripsReady && (
         <PopularCities cities={g.popularCities} onPick={g.setDestination} />
@@ -226,16 +201,23 @@ function GuideHome({ setHonkMood, setMode }) {
           {overviewFailed && (
             <ErrorState onRetry={g.retry} onReport={() => reportGuide(destination.city)}>The guide took too long to write. Your trips and bookings are fine.</ErrorState>
           )}
+          {!overviewFailed && quickFacts(g.guideData?.city_stats).length > 0 && (
+            <div className="guide-facts" aria-label="Quick facts">
+              {quickFacts(g.guideData.city_stats).map(([icon, v]) => <span key={icon} className="guide-fact"><Icon name={icon} size={16} />{v}</span>)}
+            </div>
+          )}
           {!overviewFailed && (
-            <div className="grid-2">
+            <div className="grid-2" data-tour="guide-sections">
               {GUIDE_SECTIONS.map(s => {
                 const busy = TAB_SECTIONS[s.id].some(k => loadingSections[k])
                 const line = teaser(s.id, g.guideData, g.sections)
                 return (
-                  <Card key={s.id} variant="tile" onClick={() => openSection(s.id)} className="explore-tile" data-tour={s.id === GUIDE_SECTIONS[0].id ? 'guide-tile' : undefined}>
-                    <IconTile icon={s.icon} tone="accent" />
-                    <Text variant="body" weight={600} as="span">{s.label}</Text>
-                    <Text variant="micro" tone="muted" as="span" className="explore-tile__line">{busy ? 'Goose is writing this' : line || s.blurb}</Text>
+                  <Card key={s.id} variant="tile" onClick={() => openSection(s.id)} className={`explore-tile guide-tile tint-${s.tone}`}
+                    data-tour={s.id === GUIDE_SECTIONS[0].id ? 'guide-tile' : undefined}>
+                    <IconTile icon={s.icon} tone={s.tone} className="c-tile--solid" />
+                    <Text variant="body" weight={700} as="span" className="guide-tile__title">{s.label}</Text>
+                    {(busy || line) && <Text variant="caption" as="span" className="explore-tile__line guide-tile__line">{busy ? 'Goose is writing this' : line}</Text>}
+                    <Text variant="micro" tone="muted" as="span" className="guide-tile__meta">{s.blurb}</Text>
                   </Card>
                 )
               })}

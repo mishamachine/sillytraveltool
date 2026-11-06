@@ -10,11 +10,11 @@ import { PlacePhoto, GoogleRating, GoogleAttribution, InkWait } from '../../comp
 
 // Guide section metadata (overview tiles, detail chips)
 export const GUIDE_SECTIONS = [
-  { id: 'know',   label: 'Know',   icon: 'info',       blurb: 'History, numbers and local quirks' },
-  { id: 'eat',    label: 'Eat',    icon: 'restaurant', blurb: 'Cheap eats to a proper splurge' },
-  { id: 'see',    label: 'See',    icon: 'eye',        blurb: 'Museums, areas, parks, day trips' },
-  { id: 'move',   label: 'Transit', icon: 'metro',      blurb: 'Metro, taxis and apps like a local' },
-  { id: 'events', label: 'Events', icon: 'event',      blurb: 'Festivals and what is on' },
+  { id: 'know',   label: 'The lowdown',    icon: 'info',       tone: 'info',    blurb: 'History, quirks, tips' },
+  { id: 'eat',    label: 'Where to eat',   icon: 'restaurant', tone: 'accent',  blurb: 'Cheap eats to a proper splurge' },
+  { id: 'see',    label: 'Must-sees',      icon: 'eye',        tone: 'sun',     blurb: 'Landmarks, museums, day trips' },
+  { id: 'move',   label: 'Getting around', icon: 'metro',      tone: 'success', blurb: 'Metro, taxis and apps' },
+  { id: 'events', label: "What's on",      icon: 'event',      tone: 'stay',    blurb: 'Festivals and events' },
 ]
 
 // Google's weekday lines run Monday → Sunday ("Monday: 9:00 AM – 5:00 PM")

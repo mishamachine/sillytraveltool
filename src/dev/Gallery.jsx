@@ -11,7 +11,8 @@ import {
 
 const NAV = [
   { id: 'trips', label: 'Trips', icon: 'trips' },
-  { id: 'explore', label: 'Explore', icon: 'explore' },
+  { id: 'guide', label: 'Guide', icon: 'book' },
+  { id: 'honk', label: 'HONK', feature: true },
   { id: 'tools', label: 'Tools', icon: 'tools' },
   { id: 'profile', label: 'Profile', icon: 'profile' },
 ]

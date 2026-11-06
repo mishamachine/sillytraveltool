@@ -59,7 +59,7 @@ export default function HelpView({ onBack }) {
 
   return (
     <Screen gap={4} labelledBy="help-title">
-      <ScreenHeader onBack={onBack} backLabel="Back to profile" title="Guide and FAQ" titleId="help-title"
+      <ScreenHeader onBack={onBack} backLabel="Back to profile" title="Help and FAQ" titleId="help-title"
         meta="How every part of the app works, and answers to common questions." />
       <Field label="Search help" hideLabel icon="search" type="search" placeholder="Search, e.g. forward email"
         value={query} onChange={e => setQuery(e.target.value)} />

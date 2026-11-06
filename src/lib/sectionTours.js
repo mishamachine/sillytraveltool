@@ -32,28 +32,27 @@ export const SECTION_TOURS = {
       { id: 'tiles', art: 'today-tiles', title: 'Your day, at a glance', body: 'Weather where you are, tomorrow’s first booking, and what’s still to come today.' },
       { id: 'fill', art: 'today-fill', title: 'An empty afternoon?', body: 'On a day with nothing planned, tap Let Goose fill it. Pick a pace and up to three moods, then add the picks you like.' },
       { id: 'shared', art: 'TogetherArt', title: 'Traveling together', body: 'A flight or train your crew is on shows once, with who’s coming along.' },
-      { id: 'get-there', art: 'TodayArt', title: 'Next up, and how to get there', body: 'Next up sits at the top. Tap Get there for walking, transit, driving or a ride app, with real travel times.' },
+      { id: 'get-there', art: 'TodayArt', title: 'Next up, and how to get there', body: 'Tap Next up, then Get there (or Directions right on the card) for walking, transit, driving or a ride app, with real travel times.' },
     ],
   },
-  explore: {
-    overline: 'About Explore',
+  guide: {
+    overline: 'About Guide',
     tryIt: { label: 'Open a guide', target: 'guide-tile', click: true },
     steps: [
-      { id: 'search', art: 'explore-search', title: 'Pick any city', body: 'Search a city, or tap one from your trip. Goose writes the guide in five sections and saves it.' },
-      { id: 'know-eat', art: 'GuideArt', title: 'Know it, then eat well', body: 'Know has the numbers and local quirks. Eat runs from cheap to splurge.' },
-      { id: 'see-more', art: 'GuideMoreArt', title: 'Sights, transit and festivals', body: 'See covers museums, landmarks, areas and day trips. Transit shows how locals get around. Events lists what’s on.' },
-      { id: 'save', art: 'explore-save', title: 'Keep what you like', body: 'Tap + on any place and pick a trip. It’s saved as an idea, ready to book when you are.' },
+      { id: 'search', art: 'guide-search', title: 'Pick any city', body: 'Search a city, or tap one from your trip. Goose writes the guide in five sections and saves it.' },
+      { id: 'know-eat', art: 'GuideArt', title: 'The lowdown, then where to eat', body: 'The lowdown has the numbers and local quirks. Where to eat runs from cheap to splurge.' },
+      { id: 'see-more', art: 'GuideMoreArt', title: 'Sights, transport and festivals', body: 'Must-sees covers landmarks, museums, areas and day trips. Getting around shows how locals travel. What’s on lists festivals and events.' },
+      { id: 'save', art: 'guide-save', title: 'Keep what you like', body: 'Tap + on any place and pick a trip. It’s saved as an idea, ready to book when you are.' },
     ],
   },
-  // Its own tour for when HONK has its own tab. Nothing renders it yet.
   honk: {
     overline: 'About HONK',
-    tryIt: { label: 'Try a HONK', target: 'honk-card', click: false },
+    tryIt: { label: 'Pick a mood', target: 'honk-card', click: false },
     steps: [
-      { id: 'what', art: 'HonkArt', title: 'A few minutes and nothing planned', body: 'Pick a mood, tap HONK, and Goose finds one good spot within walking distance.' },
-      { id: 'moods', art: 'honk-moods', title: 'Choose a mood', body: 'Hungry, bored, on a budget, culture, a night out, or be a local. Pick the one that fits.' },
-      { id: 'result', art: 'honk-result', title: 'One good spot', body: 'Goose says where to go and how far. Tap Get there, or Another spot if it isn’t right.' },
-      { id: 'where', art: 'honk-where', title: 'Uses where you are', body: 'HONK uses your location to stay walkable. No location? Type your city instead.' },
+      { id: 'what', art: 'HonkArt', title: 'Time to kill, nothing planned', body: 'Tap a mood and Goose finds something great a short walk away.' },
+      { id: 'moods', art: 'honk-moods', title: 'Six moods', body: 'Feed me, Wow me, Culture fix, Cheap thrills, Go local or Night out. Each tile says what it pulls up.' },
+      { id: 'result', art: 'honk-result', title: 'One good spot', body: 'Goose says where to go and how far. Add it to your trip, open the walk in Maps, or ask for another spot.' },
+      { id: 'where', art: 'honk-where', title: 'Uses where you are', body: 'HONK uses your location to stay walkable. No location, or somewhere else in mind? Type a city instead.' },
     ],
   },
   toolbox: {
@@ -107,8 +106,14 @@ export function keyTarget(i, n, key) {
 
 // ---------- "Seen" memory ----------
 
+// Sections that were renamed: "seen" under the old id still counts (Guide was Explore)
+const SEEN_ALIASES = { guide: 'explore' }
+
 export function hasSeenSection(section, storage) {
-  try { return storage.getItem(SEEN_PREFIX + section) === '1' } catch { return false }
+  try {
+    const old = SEEN_ALIASES[section]
+    return storage.getItem(SEEN_PREFIX + section) === '1' || (!!old && storage.getItem(SEEN_PREFIX + old) === '1')
+  } catch { return false }
 }
 
 export function markSectionSeen(section, storage) {
