@@ -25,9 +25,10 @@ export const useUIStore = create((set) => ({
   themePref: initialTheme,
   darkMode: resolveDark(initialTheme),
 
+  // Any tab tap (Explore included) lands on the guide, so leaving HONK open never hides search and the guide
   setTab: (tab) => {
     try { sessionStorage.setItem('stt_active_tab', tab) } catch {}
-    set({ activeTab: tab })
+    set({ activeTab: tab, exploreMode: 'guide' })
   },
   setTripTab: (tab) => set({ activeTripTab: tab }),
   setExploreMode: (mode) => set({ exploreMode: mode }),
