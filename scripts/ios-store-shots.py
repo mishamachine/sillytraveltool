@@ -103,11 +103,29 @@ def shot(name):
     return path
 
 
-# Launch on Today (the demo trip is in progress)
-run('xcrun', 'simctl', 'terminate', UDID, BUNDLE, check=False)
-run('xcrun', 'simctl', 'launch', UDID, BUNDLE)
-time.sleep(14)
-shot('03-today')
+# Permissions are granted up front so no iOS prompt (location) lands on a screenshot; the demo trip is in Granada
+for svc in ('location', 'location-always', 'photos', 'camera', 'notifications'):
+    run('xcrun', 'simctl', 'privacy', UDID, 'grant', svc, BUNDLE, check=False)
+run('xcrun', 'simctl', 'location', UDID, 'set', '37.1773,-3.5986', check=False)
+
+
+def is_blank(path):
+    """A flat screen compresses to a tiny PNG; real app screens are far bigger."""
+    return os.path.getsize(path) < 150_000
+
+
+# Launch on Today (the demo trip is in progress). The first cold start can show only the splash colour,
+# so retry with a relaunch until the screen has content.
+for attempt in range(4):
+    run('xcrun', 'simctl', 'terminate', UDID, BUNDLE, check=False)
+    run('xcrun', 'simctl', 'launch', UDID, BUNDLE)
+    time.sleep(14 + 6 * attempt)
+    path = shot('03-today')
+    if not is_blank(path):
+        break
+    print(f'03-today looks blank (attempt {attempt + 1}), relaunching', flush=True)
+else:
+    failures.append(f'{KIND}/03-today is blank')
 
 go('trips=list')
 shot('01-trips-list')
@@ -131,6 +149,9 @@ for n in files:
 for names in digests.values():
     if len(names) > 1:
         failures.append('identical: ' + ', '.join(names))
+for n in files:
+    if is_blank(f'{OUT}/{KIND}/{n}'):
+        failures.append('blank: ' + n)
 count = len(files)
 print(f'{count} screenshots in {OUT}/{KIND}', flush=True)
 if failures:
