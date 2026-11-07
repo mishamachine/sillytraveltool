@@ -9,7 +9,7 @@ env: UDID, OUT (dir), KIND (iphone|ipad),
 The demo build is made with VITE_DEMO=1 VITE_DEMO_PARAMS=consent=reject, so the app opens on Today with the usage-stats
 banner already answered. Taps do not reach the WKWebView, so each screen is opened through the demo deep link.
 """
-import json, os, re, struct, subprocess, sys, time
+import json, os, re, struct, subprocess, sys, time, zlib
 
 UDID = os.environ['UDID']
 OUT = os.environ.get('OUT', 'shots')
@@ -93,11 +93,61 @@ def fit(path):
     print(f'{os.path.basename(path)} {size[0]}x{size[1]} -> {png_size(path)}', flush=True)
 
 
+def flatten_rgb(path, bg=(0xF5, 0xEF, 0xE6)):
+    """Rewrite the PNG as 8-bit RGB with no alpha channel (App Store Connect rejects/flags transparency)."""
+    data = open(path, 'rb').read()
+    pos, idat, ihdr = 8, b'', None
+    while pos < len(data):
+        n, typ = struct.unpack('>I4s', data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + n]
+        if typ == b'IHDR':
+            ihdr = struct.unpack('>IIBBBBB', body)
+        elif typ == b'IDAT':
+            idat += body
+        pos += 12 + n
+    w, h, depth, ctype, _, _, interlace = ihdr
+    if depth != 8 or interlace or ctype not in (2, 6):
+        raise SystemExit(f'cannot flatten {path}: unsupported PNG {ihdr}')
+    bpp = 4 if ctype == 6 else 3
+    raw = zlib.decompress(idat)
+    stride = w * bpp
+    prev = bytearray(stride)
+    out = bytearray()
+    i = 0
+    for _ in range(h):
+        f = raw[i]; row = bytearray(raw[i + 1:i + 1 + stride]); i += 1 + stride
+        for x in range(stride):
+            a = row[x - bpp] if x >= bpp else 0
+            b = prev[x]
+            c = prev[x - bpp] if x >= bpp else 0
+            if f == 1: row[x] = (row[x] + a) & 255
+            elif f == 2: row[x] = (row[x] + b) & 255
+            elif f == 3: row[x] = (row[x] + ((a + b) >> 1)) & 255
+            elif f == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                row[x] = (row[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        prev = row
+        if bpp == 4:
+            rgb = bytearray(w * 3)
+            for x in range(w):
+                al = row[x * 4 + 3]
+                for k in range(3):
+                    rgb[x * 3 + k] = (row[x * 4 + k] * al + bg[k] * (255 - al)) // 255
+            out += b'\x00' + rgb
+        else:
+            out += b'\x00' + row
+    def chunk(t, b):
+        return struct.pack('>I', len(b)) + t + b + struct.pack('>I', zlib.crc32(t + b) & 0xffffffff)
+    open(path, 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+                           + chunk(b'IDAT', zlib.compress(bytes(out), 6)) + chunk(b'IEND', b''))
+
+
 def shot(name):
     path = f'{OUT}/{KIND}/{name}.png'
     os.makedirs(os.path.dirname(path), exist_ok=True)
     run('xcrun', 'simctl', 'io', UDID, 'screenshot', path)
     fit(path)
+    flatten_rgb(path)
     if png_size(path) not in ACCEPTED:
         failures.append(f'{KIND}/{name} is {png_size(path)}')
     return path
