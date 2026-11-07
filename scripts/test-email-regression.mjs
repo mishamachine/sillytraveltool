@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import assert from 'node:assert/strict'
 import { ANSWERS, PDF_ANSWER, PRIVATE_ANSWER, PRIVATE_SECRETS } from './fixtures/live-email-answers.mjs'
 import { bookingEmailPrompt, normalizeEmailParse, cleanTravelers, travelerSummary, scrubNotes, legTitle, BOOKING_FIELDS, EMAIL_KEYS, TRAVELER_KEYS, LOYALTY_FIELDS } from '../supabase/functions/_shared/emailParse.js'
+import { guardArrival } from '../supabase/functions/_shared/legTimes.js'
 import { airportCity, cityName } from '../supabase/functions/_shared/airportCities.js'
 import { AIRPORT_TZ } from '../supabase/functions/_shared/airportZones.ts'
 import { cleanProps } from '../src/lib/analyticsProps.js'
@@ -360,6 +361,95 @@ await t('B2-15 schedule change: NW 71 moved in place, the "unchanged" legs untou
   const nw71 = legs.find(b => b.flight_number === 'NW 71')
   assert.equal(nw71.departure_time, '2026-11-21T04:20:00.000Z'); assert.equal(nw71.seat_number, '36K')
   assert.equal(legs.find(b => b.flight_number === 'NW 1304').departure_time, '2026-11-22T10:15:00.000Z')
+})
+// What the live AI answered (6-7 Nov 2026): B2-07's arrival date left out, B2-15's unchanged leg carrying the changed leg's date
+const asAnswered = async (id, answer, fn) => { const keep = ANSWERS[id]; ANSWERS[id] = answer; try { return await fn() } finally { ANSWERS[id] = keep } }
+const NW1304_CARRIED = { confirmation_number: 'TST2B2', departure_time: '2026-11-20T10:15', arrival_time: '2026-11-20T12:35' }
+const nw71Change = { confirmation_number: 'TST2B2', change_type: 'change', changed: ['departure_time', 'arrival_time', 'seat_number'], seat_number: '36K' }
+const b215 = nw1304 => ({ email_kind: 'booking', change_type: 'change', loyalty: [], travelers: [], unclear: null, bookings: [
+  flight('NW 71', 'SEA', 'LHR', '2026-11-20T20:20', '2026-11-21T14:05', nw71Change), flight('NW 1304', 'LHR', 'CDG', null, null, nw1304)] })
+const afterE2E11a = async () => { const db = makeDb(); await sendAll(db, ['E2', 'E11a']); return db }
+const leg = (db, no) => byRef(db, 'TST2B2').find(b => b.flight_number === no)
+const untouchedSnapshot = db => JSON.stringify(['NW 1304', 'NW 72'].map(no => { const { notes, ...rest } = leg(db, no); return rest }))
+await t('B2-15 (fix): an unchanged leg the AI dates with the changed leg\'s day keeps its own date, whatever its change_type', async () => {
+  // Marked unchanged, or marked a change without saying which fields: neither may move the leg
+  for (const kind of [{ change_type: 'unchanged' }, { change_type: 'change' }, {}]) {
+    const db = await afterE2E11a()
+    const before = untouchedSnapshot(db)
+    await asAnswered('B2-15', b215({ ...NW1304_CARRIED, departure_airport: 'LHR', arrival_airport: 'CDG', ...kind }), () => send(db, 'B2-15'))
+    assert.equal(byRef(db, 'TST2B2').length, 3, JSON.stringify(kind))
+    assert.equal(leg(db, 'NW 71').departure_time, '2026-11-21T04:20:00.000Z'); assert.equal(leg(db, 'NW 71').arrival_time, '2026-11-21T14:05:00.000Z'); assert.equal(leg(db, 'NW 71').seat_number, '36K')
+    assert.equal(leg(db, 'NW 1304').departure_time, '2026-11-22T10:15:00.000Z', JSON.stringify(kind)); assert.equal(leg(db, 'NW 1304').arrival_time, '2026-11-22T11:35:00.000Z')
+    assert.equal(untouchedSnapshot(db), before, JSON.stringify(kind))
+  }
+})
+await t('B2-15 (fix): a real date change on one leg moves that leg and only that leg', async () => {
+  const db = await afterE2E11a()
+  const moved = { confirmation_number: 'TST2B2', change_type: 'change', changed: ['departure_time', 'arrival_time'], departure_time: '2026-11-23T10:15', arrival_time: '2026-11-23T12:35' }
+  await asAnswered('B2-15', { ...booking1(flight('NW 1304', 'LHR', 'CDG', null, null, moved)), change_type: 'change' }, () => send(db, 'B2-15'))
+  assert.equal(leg(db, 'NW 1304').departure_time, '2026-11-23T10:15:00.000Z'); assert.equal(leg(db, 'NW 1304').arrival_time, '2026-11-23T11:35:00.000Z')
+  assert.equal(leg(db, 'NW 71').departure_time, '2026-11-21T03:05:00.000Z'); assert.equal(leg(db, 'NW 72').departure_time, '2026-11-27T11:10:00.000Z')
+})
+await t('B2-15 (fix): both legs rescheduled and no `changed` anywhere: both update; the B2-15 pattern notes the leg it did not move', async () => {
+  const db = await afterE2E11a()
+  const both = { email_kind: 'booking', change_type: 'change', loyalty: [], travelers: [], unclear: null, bookings: [
+    flight('NW 71', 'SEA', 'LHR', '2026-11-20T21:00', '2026-11-21T15:00', { confirmation_number: 'TST2B2' }),
+    flight('NW 1304', 'LHR', 'CDG', '2026-11-22T11:00', '2026-11-22T13:20', { confirmation_number: 'TST2B2' })] }
+  await asAnswered('B2-15', both, () => send(db, 'B2-15'))
+  assert.equal(leg(db, 'NW 71').departure_time, '2026-11-21T05:00:00.000Z'); assert.equal(leg(db, 'NW 1304').departure_time, '2026-11-22T11:00:00.000Z')
+  assert.equal(leg(db, 'NW 1304').arrival_time, '2026-11-22T12:20:00.000Z')
+  const db2 = await afterE2E11a()
+  await asAnswered('B2-15', b215({ ...NW1304_CARRIED, departure_airport: 'LHR', arrival_airport: 'CDG', change_type: 'change' }), () => send(db2, 'B2-15'))
+  assert.equal(leg(db2, 'NW 1304').departure_time, '2026-11-22T10:15:00.000Z')
+  assert.match(leg(db2, 'NW 1304').notes, /Check times: schedule-change email/)
+})
+await t('seat-only change never writes times; a rolled arrival gets a "Check arrival time" note (insert and update)', async () => {
+  const db = await afterE2E11a()
+  const before = leg(db, 'NW 71')
+  const seat = { confirmation_number: 'TST2B2', change_type: 'change', changed: ['seat_number'], seat_number: '12C', departure_time: '2026-11-20T21:30', arrival_time: '2026-11-20T10:00' }
+  await asAnswered('B2-15', { ...booking1(flight('NW 71', 'SEA', 'LHR', '2026-11-20T21:30', '2026-11-20T10:00', seat)), change_type: 'change' }, () => send(db, 'B2-15'))
+  assert.equal(leg(db, 'NW 71').seat_number, '12C')
+  assert.equal(leg(db, 'NW 71').departure_time, before.departure_time); assert.equal(leg(db, 'NW 71').arrival_time, before.arrival_time)
+  const upd = await afterE2E11a()
+  await asAnswered('B2-15', { ...booking1(flight('NW 71', 'SEA', 'LHR', '2026-11-20T20:20', '2026-11-20T14:05', { ...nw71Change })), change_type: 'change' }, () => send(upd, 'B2-15'))
+  assert.match(leg(upd, 'NW 71').notes, /Check arrival time/)
+  const ins = makeDb()
+  await asAnswered('B2-07', booking1(flight('MP 5', 'YVR', 'HND', '2027-04-21T11:45', '2027-04-21T13:55', { confirmation_number: 'TSTB107', destination_city: 'Tokyo' })), () => send(ins, 'B2-07'))
+  assert.match(byRef(ins, 'TSTB107')[0].notes, /Check arrival time/)
+})
+await t('B2-07 (fix): arrival date left out by the AI (YVR 11:45 to HND 13:55 next day) is stored as 22 Apr 04:55Z; the return is untouched', async () => {
+  const db = makeDb()
+  const dropped = booking1(flight('MP 5', 'YVR', 'HND', '2027-04-21T11:45', '2027-04-21T13:55', { confirmation_number: 'TSTB107', arrival_city: 'Tokyo', destination_city: 'Tokyo' }))
+  dropped.bookings.push(flight('MP 6', 'HND', 'YVR', '2027-05-05T17:10', '2027-05-05T10:05', { confirmation_number: 'TSTB107', arrival_city: 'Vancouver', destination_city: 'Vancouver' }))
+  await asAnswered('B2-07', dropped, () => send(db, 'B2-07'))
+  const out = byRef(db, 'TSTB107').find(b => b.flight_number === 'MP 5'), back = byRef(db, 'TSTB107').find(b => b.flight_number === 'MP 6')
+  assert.equal(out.departure_time, '2027-04-21T18:45:00.000Z'); assert.equal(out.arrival_time, '2027-04-22T04:55:00.000Z')
+  // Valid across zones: arrives (17:05Z) 9 hours after it leaves (08:10Z) although the wall clock goes backwards
+  assert.equal(back.departure_time, '2027-05-05T08:10:00.000Z'); assert.equal(back.arrival_time, '2027-05-05T17:05:00.000Z')
+})
+await t('arrival guard on insert: far before departure is dropped (departure kept), and a date-only arrival is left alone', async () => {
+  const db = makeDb()
+  await asAnswered('B2-07', booking1(flight('MP 5', 'YVR', 'HND', '2027-04-21T11:45', '2027-04-17T13:55', { confirmation_number: 'TSTB107', destination_city: 'Tokyo' })), () => send(db, 'B2-07'))
+  const [b] = byRef(db, 'TSTB107')
+  assert.equal(b.departure_time, '2027-04-21T18:45:00.000Z'); assert.equal(b.arrival_time, null)
+})
+await t('arrival guard on update: a rescheduled departure with the arrival date left out rolls the arrival to the next day', async () => {
+  const db = await afterE2E11a()
+  const nw71 = { ...nw71Change, departure_time: '2026-11-20T20:20', arrival_time: '2026-11-20T14:05' }
+  await asAnswered('B2-15', { ...booking1(flight('NW 71', 'SEA', 'LHR', '2026-11-20T20:20', '2026-11-20T14:05', nw71)), change_type: 'change' }, () => send(db, 'B2-15'))
+  assert.equal(leg(db, 'NW 71').departure_time, '2026-11-21T04:20:00.000Z'); assert.equal(leg(db, 'NW 71').arrival_time, '2026-11-21T14:05:00.000Z')
+})
+await t('guardArrival: same day, overnight, date line, zones, and the limits', () => {
+  assert.equal(guardArrival('2027-04-21T18:45:00.000Z', '2027-04-21T04:55:00.000Z'), '2027-04-22T04:55:00.000Z') // B2-07, a day early
+  assert.equal(guardArrival('2027-05-05T08:10:00.000Z', '2027-05-05T17:05:00.000Z'), '2027-05-05T17:05:00.000Z') // HND 17:10 to YVR 10:05 same day: valid
+  assert.equal(guardArrival('2026-11-21T04:20:00.000Z', '2026-11-21T14:05:00.000Z'), '2026-11-21T14:05:00.000Z') // later the same UTC day
+  assert.equal(guardArrival('2026-11-20T23:00:00.000Z', '2026-11-20T01:30:00.000Z'), '2026-11-21T01:30:00.000Z') // overnight, +1
+  assert.equal(guardArrival('2026-11-20T23:00:00.000Z', '2026-11-18T23:30:00.000Z'), '2026-11-20T23:30:00.000Z') // +2 is the limit
+  assert.equal(guardArrival('2026-11-20T23:00:00.000Z', '2026-11-17T23:30:00.000Z'), null) // would need +3: no arrival
+  assert.equal(guardArrival('2026-11-20T10:00:00.000Z', '2026-11-20T10:00:00.000Z'), '2026-11-20T10:00:00.000Z') // equal is not before
+  assert.equal(guardArrival('2026-11-20T10:00:00.000Z', null), null); assert.equal(guardArrival(null, '2026-11-20T10:00:00.000Z'), '2026-11-20T10:00:00.000Z')
+  assert.equal(guardArrival('2026-11-20T10:00:00.000Z', '2026-11-19'), '2026-11-19') // a date only is not an instant
+  assert.equal(guardArrival('2026-11-20T10:00:00.000Z', 'not a date'), 'not a date')
 })
 await t('B2-16 seat change (a): seat updated on both legs, times and fare untouched', () => {
   const legs = byRef(b2, 'TST7G7')
