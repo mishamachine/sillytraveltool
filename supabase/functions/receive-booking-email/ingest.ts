@@ -41,6 +41,8 @@ export function err(msg: string, status = 400) {
 
 // ── Trip matching: dates and distance (shared rule in _shared/tripMatch.js), never the city name alone ──
 const MOVES = new Set(['flight', 'transport'])
+const CHECK_ARRIVAL = 'Check arrival time: the email\'s arrival was before departure and was adjusted'
+const CHECK_TIMES = 'Check times: schedule-change email'
 type Pt = { lat: number, lng: number, city?: string | null, country?: string | null, country_code?: string | null }
 // A flight or train home this many days after a trip's last booking still ends that trip; one email's bookings this
 // far apart are separate trips
@@ -531,10 +533,13 @@ async function fileEmail(supabase: any, profile: { id: string, home_city?: strin
   const tripOf = (id: string) => trips.find((t: any) => t.id === id)
   const results: Record<string, any>[] = []
   const fresh: { parsed: any, slot: number, span?: any, ends?: any }[] = []
+  // Which items list a changed departure or arrival time (read before `changed` is removed from the others)
+  const movers = new Set(items.filter(x => MOVES.has(x.type) && Array.isArray(x.changed) && x.changed.some((k: string) => k === 'departure_time' || k === 'arrival_time')))
+  const peerMoves = (x: any) => [...movers].some(m => m !== x)
   for (const parsed of items) {
     // ── 5b. The same reservation forwarded again, changed or cancelled ──
     const siblings = items.filter(x => x.type === parsed.type).length
-    const same = await sameReservation(supabase, userId, tripIds, parsed, id => tripOf(id)?.destination_tz || null, id => !!tripOf(id)?.shared, siblings)
+    const same = await sameReservation(supabase, userId, tripIds, parsed, id => tripOf(id)?.destination_tz || null, id => !!tripOf(id)?.shared, siblings, peerMoves(parsed))
     if (same) { results.push(same); continue }
     // A cancellation, change or "still confirmed" mention of something never filed: never filed as a new booking
     // (a change email carries only part of the details)
@@ -760,7 +765,11 @@ async function insertBooking(supabase: any, userId: string, trip: any, parsed: a
   }
   await attachZones(supabase, parsed, { fallbackTz: tripTz, city: parsed.destination_city || '' })
   // A journey never arrives before it leaves (the AI may drop the arrival date of an overnight or date-line flight)
-  if (MOVES.has(parsed.type)) parsed.arrival_time = guardArrival(parsed.departure_time, parsed.arrival_time)
+  if (MOVES.has(parsed.type)) {
+    const arrival = guardArrival(parsed.departure_time, parsed.arrival_time)
+    if ((arrival ?? null) !== (parsed.arrival_time ?? null)) parsed.notes = [parsed.notes, CHECK_ARRIVAL].filter(Boolean).join('\n')
+    parsed.arrival_time = arrival
+  }
 
   // ── 7. Sanitize booking fields (only real bookings columns: a field the AI invents must not break the insert) ──
   const sanitized = sanitizeBooking(parsed)
@@ -884,7 +893,7 @@ function sameStay(stored: Record<string, any>, parsed: Record<string, any>): boo
  * not tell a cancelled hotel's type) and notes every item it names. Returns the action taken, or null when it's new.
  * `siblings` = how many bookings of this type the email holds.
  */
-async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null, isShared: (id: string) => boolean = () => false, siblings = 1) {
+async function sameReservation(supabase: any, userId: string, tripIds: string[], parsed: Record<string, any>, tripTzOf: (id: string) => string | null, isShared: (id: string) => boolean = () => false, siblings = 1, peerMoves = false) {
   const ref = normRef(parsed.confirmation_number)
   if (!ref || !tripIds.length) return null
   const cancel = parsed.change_type === 'cancellation'
@@ -926,19 +935,22 @@ async function sameReservation(supabase: any, userId: string, tripIds: string[],
   // When the email says which fields it changes (a seat change), only those change
   const only = Array.isArray(parsed.changed) && parsed.changed.length ? new Set(parsed.changed.filter((k: string) => CHANGE_FIELDS.includes(k))) : null
   delete next.changed
-  // A change email for several legs that does not say which fields changed: it moves no leg's times (one leg's new date
-  // must not be copied onto the others)
-  if (MOVES.has(parsed.type) && siblings > 1 && !only && parsed.change_type === 'change') { delete next.departure_time; delete next.arrival_time }
+  // A leg with no list of changed fields, in an email where another leg lists changed times (the B2-15 pattern): its
+  // times are not moved (one leg's new date must not be copied onto the others); the booking gets a note instead
+  const dropTimes = MOVES.has(parsed.type) && siblings > 1 && !only && parsed.change_type === 'change' && peerMoves && (next.departure_time || next.arrival_time)
+  if (dropTimes) { delete next.departure_time; delete next.arrival_time }
   const span = wallSpan(next) // as printed, before zones
   await attachZones(supabase, next, { fallbackTz: existing.local_tz || existing.departure_tz || tripTzOf(existing.trip_id), city: parsed.destination_city || '' })
   const clean = sanitizeBooking(next)
-  // The arrival is checked against the departure that will be stored (this email's, else the saved one)
-  const dep = clean.departure_time ?? existing.departure_time, arr = clean.arrival_time ?? existing.arrival_time
-  const arrivalFix = MOVES.has(parsed.type) && (clean.departure_time || clean.arrival_time) ? guardArrival(dep, arr) : arr
   // Named fields change even from empty (a first seat); otherwise a detail missing from either side isn't a change
   const changed = only?.size
     ? CHANGE_FIELDS.filter(k => only.has(k) && clean[k] != null && (existing[k] == null || !sameValue(k, existing[k], clean[k])))
     : CHANGE_FIELDS.filter(k => !sameValue(k, existing[k], clean[k]))
+  const addNote = (notes: string | null, line: string) => ((notes || '').includes(line) ? notes : [notes, line].filter(Boolean).join('\n'))
+  if (!changed.length && dropTimes) {
+    await supabase.from('bookings').update({ notes: addNote(existing.notes, CHECK_TIMES) }).eq('id', existing.id)
+    return { success: true, noted: true, booking_id: existing.id, trip_id: existing.trip_id }
+  }
   if (!changed.length) {
     console.log(`↩️ Same reservation again for user ${userId}: booking ${existing.id}`)
     return { success: true, duplicate: true, booking_id: existing.id, trip_id: existing.trip_id }
@@ -947,8 +959,15 @@ async function sameReservation(supabase: any, userId: string, tripIds: string[],
   // Changed: update the booking in place, never a second copy; the trip stretches to fit if needed
   const updates: Record<string, any> = {}
   for (const [k, v] of Object.entries(clean)) if (v != null && k !== 'title' && k !== 'confirmation_number' && (!only?.size || !CHANGE_FIELDS.includes(k) || only.has(k))) updates[k] = v
-  if ((arrivalFix ?? null) !== (arr ?? null)) updates.arrival_time = arrivalFix
-  updates.notes = [existing.notes, `Updated by email on ${new Date().toISOString().slice(0, 10)}: ${changed.join(', ').replace(/_/g, ' ')}`].filter(Boolean).join('\n')
+  // The arrival is checked against what will be stored: the departure and arrival of this update, else the saved ones
+  let notes: string | null = existing.notes
+  if (MOVES.has(parsed.type) && (updates.departure_time || updates.arrival_time)) {
+    const a = updates.arrival_time ?? existing.arrival_time
+    const fixed = guardArrival(updates.departure_time ?? existing.departure_time, a)
+    if ((fixed ?? null) !== (a ?? null)) { updates.arrival_time = fixed; notes = addNote(notes, CHECK_ARRIVAL) }
+  }
+  if (dropTimes) notes = addNote(notes, CHECK_TIMES)
+  updates.notes = [notes, `Updated by email on ${new Date().toISOString().slice(0, 10)}: ${changed.join(', ').replace(/_/g, ' ')}`].filter(Boolean).join('\n')
   const { error } = await supabase.from('bookings').update(updates).eq('id', existing.id)
   if (error) return { error: `Booking update failed: ${error.message}`, status: 500 }
   if (span && existing.trip_id && !isShared(existing.trip_id)) await widenTrip(supabase, existing.trip_id, span.start, span.end)

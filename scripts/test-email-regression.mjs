@@ -390,6 +390,33 @@ await t('B2-15 (fix): a real date change on one leg moves that leg and only that
   assert.equal(leg(db, 'NW 1304').departure_time, '2026-11-23T10:15:00.000Z'); assert.equal(leg(db, 'NW 1304').arrival_time, '2026-11-23T11:35:00.000Z')
   assert.equal(leg(db, 'NW 71').departure_time, '2026-11-21T03:05:00.000Z'); assert.equal(leg(db, 'NW 72').departure_time, '2026-11-27T11:10:00.000Z')
 })
+await t('B2-15 (fix): both legs rescheduled and no `changed` anywhere: both update; the B2-15 pattern notes the leg it did not move', async () => {
+  const db = await afterE2E11a()
+  const both = { email_kind: 'booking', change_type: 'change', loyalty: [], travelers: [], unclear: null, bookings: [
+    flight('NW 71', 'SEA', 'LHR', '2026-11-20T21:00', '2026-11-21T15:00', { confirmation_number: 'TST2B2' }),
+    flight('NW 1304', 'LHR', 'CDG', '2026-11-22T11:00', '2026-11-22T13:20', { confirmation_number: 'TST2B2' })] }
+  await asAnswered('B2-15', both, () => send(db, 'B2-15'))
+  assert.equal(leg(db, 'NW 71').departure_time, '2026-11-21T05:00:00.000Z'); assert.equal(leg(db, 'NW 1304').departure_time, '2026-11-22T11:00:00.000Z')
+  assert.equal(leg(db, 'NW 1304').arrival_time, '2026-11-22T12:20:00.000Z')
+  const db2 = await afterE2E11a()
+  await asAnswered('B2-15', b215({ ...NW1304_CARRIED, departure_airport: 'LHR', arrival_airport: 'CDG', change_type: 'change' }), () => send(db2, 'B2-15'))
+  assert.equal(leg(db2, 'NW 1304').departure_time, '2026-11-22T10:15:00.000Z')
+  assert.match(leg(db2, 'NW 1304').notes, /Check times: schedule-change email/)
+})
+await t('seat-only change never writes times; a rolled arrival gets a "Check arrival time" note (insert and update)', async () => {
+  const db = await afterE2E11a()
+  const before = leg(db, 'NW 71')
+  const seat = { confirmation_number: 'TST2B2', change_type: 'change', changed: ['seat_number'], seat_number: '12C', departure_time: '2026-11-20T21:30', arrival_time: '2026-11-20T10:00' }
+  await asAnswered('B2-15', { ...booking1(flight('NW 71', 'SEA', 'LHR', '2026-11-20T21:30', '2026-11-20T10:00', seat)), change_type: 'change' }, () => send(db, 'B2-15'))
+  assert.equal(leg(db, 'NW 71').seat_number, '12C')
+  assert.equal(leg(db, 'NW 71').departure_time, before.departure_time); assert.equal(leg(db, 'NW 71').arrival_time, before.arrival_time)
+  const upd = await afterE2E11a()
+  await asAnswered('B2-15', { ...booking1(flight('NW 71', 'SEA', 'LHR', '2026-11-20T20:20', '2026-11-20T14:05', { ...nw71Change })), change_type: 'change' }, () => send(upd, 'B2-15'))
+  assert.match(leg(upd, 'NW 71').notes, /Check arrival time/)
+  const ins = makeDb()
+  await asAnswered('B2-07', booking1(flight('MP 5', 'YVR', 'HND', '2027-04-21T11:45', '2027-04-21T13:55', { confirmation_number: 'TSTB107', destination_city: 'Tokyo' })), () => send(ins, 'B2-07'))
+  assert.match(byRef(ins, 'TSTB107')[0].notes, /Check arrival time/)
+})
 await t('B2-07 (fix): arrival date left out by the AI (YVR 11:45 to HND 13:55 next day) is stored as 22 Apr 04:55Z; the return is untouched', async () => {
   const db = makeDb()
   const dropped = booking1(flight('MP 5', 'YVR', 'HND', '2027-04-21T11:45', '2027-04-21T13:55', { confirmation_number: 'TSTB107', arrival_city: 'Tokyo', destination_city: 'Tokyo' }))
