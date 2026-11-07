@@ -285,7 +285,8 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   assert.deepEqual([...flightNumbers('U2 1234')], ['u21234'])
   assert.deepEqual([...flightNumbers('3K 501 / JQ 7')].sort(), ['3k501', 'jq7'])
   assert.deepEqual([...flightNumbers('B6 123')], ['b6123']); assert.deepEqual([...flightNumbers('9014')], [])
-  assert.deepEqual([...flightNumbers('UA 901')], ['ua901']); assert.deepEqual([...flightNumbers(null)], [])
+  assert.deepEqual([...flightNumbers('UA 901 dep 10:05')], ['ua901']); assert.deepEqual([...flightNumbers('Train 2150 Car 7')], [])
+  assert.deepEqual([...flightNumbers('Train No 2150')], []); assert.deepEqual([...flightNumbers('UA 901')], ['ua901']); assert.deepEqual([...flightNumbers(null)], [])
   const seed = async () => {
     const db = makeDb()
     PARSED['cs-seed'] = PARSED['01-flight-united-sfo-lhr']; current = 'cs-seed'
@@ -332,6 +333,14 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
     { id: 'cs-b', trip_id: db.tables.trips[0].id, created_by: 'u1', type: 'flight', title: 'f', confirmation_number: 'TSTB107R', flight_number: 'B6 456', departure_airport: 'BOS', departure_time: '2027-05-05T12:00:00.000Z' })
   out = await send(db, 'cs-4c', { change_type: 'cancellation', flight_number: 'B6 456' })
   assert.equal(out.noted, 1); assert.ok(!leg(db, 'a').cancellation_received_at && leg(db, 'b').cancellation_received_at)
+  // trains: "Train 2150 Car 7" and "Train 2151 Car 7" are different services
+  db = makeDb(); current = '01-flight-united-sfo-lhr'
+  await ingestAsMember(db, { id: 'u1' }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })
+  db.tables.bookings.push({ id: 'cs-t1', trip_id: db.tables.trips[0].id, created_by: 'u1', type: 'transport', transport_mode: 'train', title: 't', confirmation_number: 'TSTB107R', flight_number: 'Train 2150 Car 7', departure_airport: 'A', departure_time: '2027-04-21T12:00:00.000Z' })
+  out = await send(db, 'cs-4d', { type: 'transport', transport_mode: 'train', change_type: 'cancellation', flight_number: 'Train 2151 Car 7' })
+  assert.equal(out.cancellation_unmatched, true, JSON.stringify(out)); assert.ok(!leg(db, 't1').cancellation_received_at)
+  out = await send(db, 'cs-4e', { type: 'transport', transport_mode: 'train', change_type: 'cancellation', flight_number: 'Train 2150 Car 7' })
+  assert.equal(out.cancellation_noted, true, JSON.stringify(out))
   // updates: a schedule change naming the partner number updates that leg in place
   db = await seed()
   out = await send(db, 'cs-5', { change_type: 'change', flight_number: 'SW 17', departure_airport: 'HND', departure_time: '2027-05-05T18:10', arrival_time: '2027-05-05T11:05' })

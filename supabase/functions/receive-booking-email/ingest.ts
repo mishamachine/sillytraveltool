@@ -860,15 +860,24 @@ const sameValue = (k: string, a: unknown, b: unknown) => {
 const normRef = (v: unknown) => String(v ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase()
 
 /**
- * A flight number field as a set of normalised numbers: a codeshare is filed as "MP 5 / SW 18" (or "MP 5, SW 18",
- * "MP 5 operated by SW 18", "MP 5 SW 18"), and an email may name either number.
+ * A flight number field as whole designators: a carrier (two characters with a letter, or 2-3 letters) then 1-4 digits,
+ * counted only at the start of the field, after a separator ("/", ",", ";", "&", "|", "operated by") or straight after
+ * another designator. "MP 5 / SW 18" and "MP 6 (operated by Sakura Wings SW 17)" give two numbers each; "UA 901 dep
+ * 10:05" gives one and `rest` is true (text left over). "B6 123" and "B6 456" are different flights.
  */
-export function flightNumbers(v: unknown): Set<string> {
-  // Whole designators only: a carrier (two characters with a letter, or 2-3 letters) then 1-4 digits. "B6 123" and
-  // "B6 456" are two flights; a bare number has no carrier and is not in the set (sameLeg compares those as text).
-  const text = String(v ?? '').replace(/[()]/g, ' ')
-  return new Set([...text.matchAll(/\b([a-z]\d|\d[a-z]|[a-z]{2,3})\s?(\d{1,4})\b/gi)].map(m => normRef(m[1] + m[2])))
+const DESIGNATOR = '(?:[a-z]\\d|\\d[a-z]|[a-z]{2,3})\\s?\\d{1,4}\\b(?![:.]\\d)'
+export function parseFlightNumbers(v: unknown): { set: Set<string>, rest: boolean } {
+  const text = String(v ?? '').replace(/[()]/g, ' ').replace(new RegExp(`\\boperated\\s+by\\b[^0-9]*?(?=\\b${DESIGNATOR})`, 'gi'), '/')
+  const set = new Set<string>(); let rest = false
+  const lead = new RegExp(`^\\s*(${DESIGNATOR})`, 'i')
+  for (const seg of text.split(/[\/,;&|]|\bby\b/i)) {
+    let t = seg, m
+    while ((m = lead.exec(t))) { set.add(normRef(m[1])); t = t.slice(m[0].length) }
+    if (t.trim()) rest = true
+  }
+  return { set, rest }
 }
+export const flightNumbers = (v: unknown): Set<string> => parseFlightNumbers(v).set
 
 /** The calendar day a stored instant falls on in the place it left from (UTC when no zone was stored). */
 const localDay = (iso: string, tz: string | null) => {
@@ -884,10 +893,15 @@ const localDay = (iso: string, tz: string | null) => {
  * as well, or the return leg would overwrite the outbound one. `parsed` carries the day as printed (local).
  */
 function sameLeg(stored: Record<string, any>, parsed: Record<string, any>): boolean {
-  const a = flightNumbers(stored.flight_number), b = flightNumbers(parsed.flight_number)
-  if (a.size && b.size) return [...b].some(n => a.has(n))
-  const x = normRef(stored.flight_number), y = normRef(parsed.flight_number) // a bare number ("9014", "AVE"): as before
-  if (x && y) return x === y
+  const x = normRef(stored.flight_number), y = normRef(parsed.flight_number)
+  if (x && y) {
+    // Codeshare numbers ("MP 5 / SW 18") are a set, for flights only; anything else is compared as whole text
+    if (stored.type !== 'flight' || parsed.type !== 'flight') return x === y
+    const a = parseFlightNumbers(stored.flight_number), b = parseFlightNumbers(parsed.flight_number)
+    if (!a.set.size || !b.set.size) return x === y
+    if (![...b.set].some(n => a.set.has(n))) return false
+    return a.rest || b.rest ? x === y : true // leftover text on a side: only the same text matches
+  }
   const from = normRef(parsed.departure_airport)
   const day = typeof parsed.departure_time === 'string' ? parsed.departure_time.slice(0, 10) : ''
   return !!from && !!day && normRef(stored.departure_airport) === from && !!stored.departure_time && localDay(stored.departure_time, stored.departure_tz || null) === day
