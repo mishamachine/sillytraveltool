@@ -177,8 +177,22 @@ for attempt in range(4):
 else:
     failures.append(f'{KIND}/03-today is blank')
 
-go('trips=list')
-shot('01-trips-list')
+import hashlib
+
+
+def digest(path):
+    return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+
+
+# The Trips list is a sub-view the app switches to a moment after the deep link; if that raced the screen
+# mount the shot is still Today, so send the link again (slower each time) until it differs from Today.
+today = digest(f'{OUT}/{KIND}/03-today.png')
+for attempt in range(4):
+    go('trips=list', wait=4 + 3 * attempt)
+    path = shot('01-trips-list')
+    if digest(path) != today:
+        break
+    print(f'01-trips-list still looks like Today (attempt {attempt + 1}), retrying', flush=True)
 go('trip=trip-spain', wait=6)  # Plan tab: SEA -> MAD flight with its two time zones
 shot('02-trip-plan')
 go('trip=close&tab=guide', wait=6)
