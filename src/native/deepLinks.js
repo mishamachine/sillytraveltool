@@ -1,6 +1,6 @@
 import { App as CapApp } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
-import { supabase } from '../lib/supabase'
+import { supabase, isDemo } from '../lib/supabase'
 import { isNative, APP_SCHEME } from '../lib/authRedirect'
 import { useAuthStore } from '../store/authStore'
 
@@ -42,7 +42,14 @@ function friendlyAuthError(message = '') {
 }
 
 export async function handleDeepLink(raw) {
-  if (!raw?.startsWith(`${APP_SCHEME}://`) || seen.has(raw)) return
+  if (!raw?.startsWith(`${APP_SCHEME}://`)) return
+  // Demo builds only (store screenshots): com.sillytraveltool.app://demo?tab=guide. Dropped from production bundles.
+  if (isDemo && raw.startsWith(`${APP_SCHEME}://demo`)) {
+    const { demoGo } = await import('../dev/demoNav')
+    demoGo(parseLink(raw).get)
+    return
+  }
+  if (seen.has(raw)) return
   seen.add(raw)
   Browser.close().catch(() => {}) // Google flow opens a Custom Tab; no-op otherwise
 
