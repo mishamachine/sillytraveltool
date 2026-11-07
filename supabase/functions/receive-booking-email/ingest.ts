@@ -7,6 +7,7 @@ import { quotaUnavailable, rememberQuota } from '../_shared/quota.ts'
 import { attachZones, resolveZone } from '../_shared/timezones.ts'
 import { attachPlace, geocode, cached, setGoogleUser } from '../_shared/google.ts'
 import { rankTrips, wallSpan, distanceKm, gapDays, routeKm, NEAR_KM, EDGE_DAYS } from '../_shared/tripMatch.js'
+import { guardArrival } from '../_shared/legTimes.js'
 import { airportCity, cityName, iataOf } from '../_shared/airportCities.js'
 import { bookingEmailPrompt, normalizeEmailParse, travelerSummary, scrubNotes, legTitle } from '../_shared/emailParse.js'
 import { prepareEmailText, looksLikeBooking } from '../_shared/emailText.js'
@@ -758,6 +759,8 @@ async function insertBooking(supabase: any, userId: string, trip: any, parsed: a
     trip.destination_tz = tripTz
   }
   await attachZones(supabase, parsed, { fallbackTz: tripTz, city: parsed.destination_city || '' })
+  // A journey never arrives before it leaves (the AI may drop the arrival date of an overnight or date-line flight)
+  if (MOVES.has(parsed.type)) parsed.arrival_time = guardArrival(parsed.departure_time, parsed.arrival_time)
 
   // ── 7. Sanitize booking fields (only real bookings columns: a field the AI invents must not break the insert) ──
   const sanitized = sanitizeBooking(parsed)
@@ -912,6 +915,8 @@ async function sameReservation(supabase: any, userId: string, tripIds: string[],
   const existing = MOVES.has(parsed.type) ? under.find((b: any) => sameLeg(b, parsed))
     : under.find((b: any) => sameStay(b, parsed)) || (under.length === 1 && siblings <= 1 && parsed.change_type === 'change' ? under[0] : null)
   if (!existing) return null
+  // An item the email only mentions as still confirmed is never rewritten (the AI may add a date it did not print)
+  if (parsed.change_type === 'unchanged') return { success: true, duplicate: true, booking_id: existing.id, trip_id: existing.trip_id }
 
   // Compare in the same terms as the saved row: local times turned into instants in each place's zone. A date with no
   // time (a seat-change email prints only the day) never replaces a stored time: read as midnight UTC it moved a
@@ -921,9 +926,15 @@ async function sameReservation(supabase: any, userId: string, tripIds: string[],
   // When the email says which fields it changes (a seat change), only those change
   const only = Array.isArray(parsed.changed) && parsed.changed.length ? new Set(parsed.changed.filter((k: string) => CHANGE_FIELDS.includes(k))) : null
   delete next.changed
+  // A change email for several legs that does not say which fields changed: it moves no leg's times (one leg's new date
+  // must not be copied onto the others)
+  if (MOVES.has(parsed.type) && siblings > 1 && !only && parsed.change_type === 'change') { delete next.departure_time; delete next.arrival_time }
   const span = wallSpan(next) // as printed, before zones
   await attachZones(supabase, next, { fallbackTz: existing.local_tz || existing.departure_tz || tripTzOf(existing.trip_id), city: parsed.destination_city || '' })
   const clean = sanitizeBooking(next)
+  // The arrival is checked against the departure that will be stored (this email's, else the saved one)
+  const dep = clean.departure_time ?? existing.departure_time, arr = clean.arrival_time ?? existing.arrival_time
+  const arrivalFix = MOVES.has(parsed.type) && (clean.departure_time || clean.arrival_time) ? guardArrival(dep, arr) : arr
   // Named fields change even from empty (a first seat); otherwise a detail missing from either side isn't a change
   const changed = only?.size
     ? CHANGE_FIELDS.filter(k => only.has(k) && clean[k] != null && (existing[k] == null || !sameValue(k, existing[k], clean[k])))
@@ -936,6 +947,7 @@ async function sameReservation(supabase: any, userId: string, tripIds: string[],
   // Changed: update the booking in place, never a second copy; the trip stretches to fit if needed
   const updates: Record<string, any> = {}
   for (const [k, v] of Object.entries(clean)) if (v != null && k !== 'title' && k !== 'confirmation_number' && (!only?.size || !CHANGE_FIELDS.includes(k) || only.has(k))) updates[k] = v
+  if ((arrivalFix ?? null) !== (arr ?? null)) updates.arrival_time = arrivalFix
   updates.notes = [existing.notes, `Updated by email on ${new Date().toISOString().slice(0, 10)}: ${changed.join(', ').replace(/_/g, ' ')}`].filter(Boolean).join('\n')
   const { error } = await supabase.from('bookings').update(updates).eq('id', existing.id)
   if (error) return { error: `Booking update failed: ${error.message}`, status: 500 }

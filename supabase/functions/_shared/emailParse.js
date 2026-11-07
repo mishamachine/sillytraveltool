@@ -90,6 +90,10 @@ Rules:
 - departure_time and arrival_time: the LOCAL time exactly as printed on the confirmation, as YYYY-MM-DDTHH:MM with NO
   time zone or offset, local to the departure / arrival airport or station. Never convert between time zones. Date only
   (YYYY-MM-DD) if no time is printed.
+- arrival_time takes the date printed with the arrival ("Arrive Thu, Apr 22, 1:55 PM" is the 22nd, the day after a
+  departure on the 21st); with no arrival date printed, the departure's date. Never leave out a "+1" or "next day".
+- An item the email only mentions as unchanged and gives no date or time for: departure_time and arrival_time null.
+  Never copy the date of the item that changed onto another item.
 - activity_time: local time exactly as printed, HH:MM 24h.
 - departure_airport / arrival_airport for flights: the 3-letter IATA code when shown (e.g. MAD), otherwise the airport name.
 - departure_city / arrival_city: the common English name of the city the airport or station serves ("Madrid" for MAD,
