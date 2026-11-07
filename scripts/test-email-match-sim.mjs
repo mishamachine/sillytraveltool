@@ -146,7 +146,7 @@ globalThis.fetch = async (url, init = {}) => {
 
 const dir = mkdtempSync(join(tmpdir(), 'stt-sim-'))
 await build({ entryPoints: [`${root}supabase/functions/receive-booking-email/ingest.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/ingest.mjs`, logLevel: 'error' })
-const { ingestEmail, normalizeAddress, INBOX_DAILY_PARSES, MAX_HELD } = await import(`${dir}/ingest.mjs`)
+const { ingestEmail, flightNumbers, normalizeAddress, INBOX_DAILY_PARSES, MAX_HELD } = await import(`${dir}/ingest.mjs`)
 await build({ entryPoints: [`${root}supabase/functions/inbox-release/release.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/release.mjs`, logLevel: 'error' })
 const { releaseHeld, MAX_ATTEMPTS } = await import(`${dir}/release.mjs`)
 // The trip-matching replays below forward from airline addresses: their inbox takes any sender. The sender rules
@@ -274,6 +274,61 @@ await replay(['14-flight-delta-multileg-home', ...ids.slice(0, 13)], 'home fligh
   assert.equal(belcanto.notes.match(/Cancellation email received/g).length, 1)
   assert.equal(db.tables.bookings.length, 14)
   console.log('change emails: hotel check-out and flight time updated in place; cancellation noted, not applied; still 14 bookings')
+}
+// Codeshare legs (filed as "MP 5 / SW 18"): a cancellation or change naming either number matches that leg only
+{
+  assert.deepEqual([...flightNumbers('MP 5 / SW 18')], ['mp5', 'sw18'])
+  assert.deepEqual([...flightNumbers('MP 6 (operated by Sakura Wings SW 17)')].sort(), ['mp6', 'sw17'])
+  assert.deepEqual([...flightNumbers('MP 5, SW 18')], ['mp5', 'sw18'])
+  assert.deepEqual([...flightNumbers('MP 5 operated by SW 18')], ['mp5', 'sw18'])
+  assert.deepEqual([...flightNumbers('MP 5 SW 18')], ['mp5', 'sw18'])
+  assert.deepEqual([...flightNumbers('UA 901')], ['ua901']); assert.deepEqual([...flightNumbers(null)], [])
+  const seed = async () => {
+    const db = makeDb()
+    PARSED['cs-seed'] = PARSED['01-flight-united-sfo-lhr']; current = 'cs-seed'
+    await ingestAsMember(db, { id: 'u1' }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })
+    const trip_id = db.tables.trips[0].id
+    const row = (flight_number, from, to, departure_time) => ({ id: `cs-${flight_number}`, trip_id, created_by: 'u1', type: 'flight', title: 'f', confirmation_number: 'TSTB107R', flight_number, departure_airport: from, arrival_airport: to, departure_time })
+    db.tables.bookings.push(row('MP 5 / SW 18', 'YVR', 'HND', '2027-04-21T18:45:00.000Z'), row('MP 6 / SW 17', 'HND', 'YVR', '2027-05-05T08:10:00.000Z'))
+    return db
+  }
+  const send = async (db, key, extra) => {
+    PARSED[key] = { type: 'flight', title: 'Flight', confirmation_number: 'TSTB107R', ...extra }; current = key
+    return (await ingestAsMember(db, { id: 'u1' }, { subject: 'x', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })).json()
+  }
+  const leg = (db, n) => db.tables.bookings.find(b => b.id === `cs-${n}`)
+
+  let db = await seed()
+  let out = await send(db, 'cs-1', { change_type: 'cancellation', flight_number: 'MP 6', departure_airport: 'HND', departure_time: '2027-05-05T17:10' })
+  assert.equal(out.cancellation_noted, true, JSON.stringify(out)); assert.equal(out.noted, 1)
+  assert.ok(leg(db, 'MP 6 / SW 17').cancellation_received_at); assert.ok(!leg(db, 'MP 5 / SW 18').cancellation_received_at)
+  // the codeshare partner's number names the same leg
+  db = await seed()
+  out = await send(db, 'cs-2', { change_type: 'cancellation', flight_number: 'SW 18' })
+  assert.equal(out.noted, 1); assert.ok(leg(db, 'MP 5 / SW 18').cancellation_received_at); assert.ok(!leg(db, 'MP 6 / SW 17').cancellation_received_at)
+  // a leg that matches none: nothing flagged, a note on the reference's bookings
+  db = await seed()
+  out = await send(db, 'cs-3', { change_type: 'cancellation', flight_number: 'MP 9' })
+  assert.equal(out.cancellation_unmatched, true, JSON.stringify(out))
+  assert.ok(db.tables.bookings.every(b => !b.cancellation_received_at))
+  for (const n of ['MP 5 / SW 18', 'MP 6 / SW 17']) assert.match(leg(db, n).notes, /Check: cancellation email for MP 9 did not match a leg/)
+  await send(db, 'cs-3', { change_type: 'cancellation', flight_number: 'MP 9' })
+  assert.equal(leg(db, 'MP 5 / SW 18').notes.match(/did not match a leg/g).length, 1)
+  // the whole booking cancelled (no leg named): every leg flagged
+  db = await seed()
+  out = await send(db, 'cs-4', { change_type: 'cancellation' })
+  assert.equal(out.noted, 2); assert.ok(leg(db, 'MP 5 / SW 18').cancellation_received_at && leg(db, 'MP 6 / SW 17').cancellation_received_at)
+  // updates: a schedule change naming the partner number updates that leg in place
+  db = await seed()
+  out = await send(db, 'cs-5', { change_type: 'change', flight_number: 'SW 17', departure_airport: 'HND', departure_time: '2027-05-05T18:10', arrival_time: '2027-05-05T11:05' })
+  assert.equal(out.updated, true, JSON.stringify(out)); assert.equal(out.booking_id, 'cs-MP 6 / SW 17')
+  assert.equal(db.tables.bookings.length, 3)
+  // a change for a reference never filed, with a bare date: no stub booking
+  db = makeDb(); current = '01-flight-united-sfo-lhr'
+  await ingestAsMember(db, { id: 'u1' }, { subject: 's', fromAddress: 'f', bodyText: 'b', GEMINI_API_KEY: '' })
+  out = await send(db, 'cs-6', { change_type: 'change', confirmation_number: 'NEVERFILED', flight_number: 'XX 1', departure_time: '2027-06-01' })
+  assert.equal(out.results?.[0]?.ignored ?? out.ignored, true, JSON.stringify(out)); assert.equal(db.tables.bookings.length, 1)
+  console.log('codeshare legs: cancellation and change match either number; unmatched leg flags none; whole-booking flags all; bare-date change makes no stub')
 }
 // An emailed spreadsheet itinerary: every row filed, one trip
 {

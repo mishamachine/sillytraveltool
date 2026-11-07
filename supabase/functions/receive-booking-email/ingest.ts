@@ -543,7 +543,10 @@ async function fileEmail(supabase: any, profile: { id: string, home_city?: strin
     if (same) { results.push(same); continue }
     // A cancellation, change or "still confirmed" mention of something never filed: never filed as a new booking
     // (a change email carries only part of the details)
-    if (parsed.change_type === 'unchanged' || parsed.change_type === 'change' && !parsed.departure_time && !parsed.check_in_date && !parsed.activity_date) { results.push({ success: true, ignored: true, reason: 'not_filed_yet', booking_type: parsed.type }); continue }
+    // (a change needs a departure time with a time of day, a check-in date or an activity date: a bare date is a stub)
+    const stub = parsed.change_type === 'change' && !(typeof parsed.departure_time === 'string' && /\d[T ]\d/.test(parsed.departure_time)) && !parsed.check_in_date && !parsed.activity_date
+    if (stub) console.log(`↩️ Change email for an unfiled ${parsed.type} ignored (no departure time or date to file it by)`)
+    if (parsed.change_type === 'unchanged' || stub) { results.push({ success: true, ignored: true, reason: 'not_filed_yet', booking_type: parsed.type }); continue }
     if (parsed.change_type === 'cancellation') { results.push({ success: true, ignored: true, reason: 'cancellation_unmatched', booking_type: parsed.type }); continue }
     delete parsed.change_type; delete parsed.changed
     const dupe = await alreadySaved(supabase, userId, tripIds, parsed)
@@ -856,6 +859,17 @@ const sameValue = (k: string, a: unknown, b: unknown) => {
 }
 const normRef = (v: unknown) => String(v ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase()
 
+/**
+ * A flight number field as a set of normalised numbers: a codeshare is filed as "MP 5 / SW 18" (or "MP 5, SW 18",
+ * "MP 5 operated by SW 18", "MP 5 SW 18"), and an email may name either number.
+ */
+export function flightNumbers(v: unknown): Set<string> {
+  // "MP 6 (operated by Sakura Wings SW 17)": the operator's name is dropped, its number kept
+  const text = String(v ?? '').replace(/[()]/g, ' ').replace(/\boperated\s+by\b[^0-9]*?(?=\b[a-z0-9]{2}\s?\d)/gi, '/')
+  const parts = text.split(/[\/,;&|]|\b(?:operated|op\.?)\s+by\b|\band\b|(?<=\d)\s+(?=[a-z0-9]{2}\s?\d)/i)
+  return new Set(parts.map(normRef).filter(Boolean))
+}
+
 /** The calendar day a stored instant falls on in the place it left from (UTC when no zone was stored). */
 const localDay = (iso: string, tz: string | null) => {
   const d = new Date(iso)
@@ -870,8 +884,8 @@ const localDay = (iso: string, tz: string | null) => {
  * as well, or the return leg would overwrite the outbound one. `parsed` carries the day as printed (local).
  */
 function sameLeg(stored: Record<string, any>, parsed: Record<string, any>): boolean {
-  const a = normRef(stored.flight_number), b = normRef(parsed.flight_number)
-  if (a && b) return a === b
+  const a = flightNumbers(stored.flight_number), b = flightNumbers(parsed.flight_number)
+  if (a.size && b.size) return [...b].some(n => a.has(n))
   const from = normRef(parsed.departure_airport)
   const day = typeof parsed.departure_time === 'string' ? parsed.departure_time.slice(0, 10) : ''
   return !!from && !!day && normRef(stored.departure_airport) === from && !!stored.departure_time && localDay(stored.departure_time, stored.departure_tz || null) === day
@@ -907,8 +921,17 @@ async function sameReservation(supabase: any, userId: string, tripIds: string[],
   if (cancel) {
     let hit = under.filter((b: any) => b.type === parsed.type)
     if (!hit.length) hit = under
-    const leg = MOVES.has(parsed.type) && parsed.flight_number ? hit.filter((b: any) => sameLeg(b, parsed)) : []
+    // An email that names one flight or route cancels that leg only; when none matches, nothing is flagged
+    const namesLeg = MOVES.has(parsed.type) && (!!parsed.flight_number || (!!parsed.departure_airport && typeof parsed.departure_time === 'string'))
+    const leg = namesLeg ? hit.filter((b: any) => sameLeg(b, parsed)) : []
     const stay = !MOVES.has(parsed.type) && hit.length > 1 ? hit.filter((b: any) => sameStay(b, parsed)) : []
+    if (namesLeg && hit.length && !leg.length) {
+      const named = parsed.flight_number || `${parsed.departure_airport} ${String(parsed.departure_time).slice(0, 10)}`
+      const line = `Check: cancellation email for ${named} did not match a leg`
+      for (const b of hit) await supabase.from('bookings').update({ notes: (b.notes || '').includes(line) ? b.notes : [b.notes, line].filter(Boolean).join('\n') }).eq('id', b.id)
+      console.log(`📮 Cancellation email for ${named} matched no leg under its reference for user ${userId}: nothing flagged`)
+      return { success: true, cancellation_unmatched: true, booking_id: hit[0].id, trip_id: hit[0].trip_id, booking_type: hit[0].type, noted: hit.length }
+    }
     hit = leg.length ? leg : stay.length ? stay : hit
     if (!hit.length) return null
     const now = new Date().toISOString()
