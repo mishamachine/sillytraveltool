@@ -2,7 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { inviteEmail } from '../_shared/betaEmails.js'
 
 // Private beta invites from the owner cockpit (Growth → Beta waitlist). Owner only (admin_guard with the caller's session).
-// Links come from app_settings.beta (ios_url = TestFlight public link, android_url = Play testing opt-in, web_url = sign-up).
+// Links come from app_settings.beta (ios_url = TestFlight public link, android_url = Play testing opt-in, web_url = sign-up;
+// android_group_url = the Google Group for the Android beta, optional, falls back to the built-in group link).
 // POST { action, ... }:
 //   test    { platform? }            → sends the invite for each platform with a link (or just `platform`) to the owner's
 //                                       own address, marked [Test]; nothing on the waitlist changes
@@ -46,11 +47,12 @@ Deno.serve(async (req) => {
 
     const { data: setting } = await admin.from('app_settings').select('value').eq('key', 'beta').maybeSingle()
     const links: Obj = Object.fromEntries(PLATFORMS.map((p) => [p, String(setting?.value?.[LINK_KEY[p]] || '')]).filter(([, v]) => /^https:\/\//.test(v)))
+    const groupLink = /^https:\/\//.test(String(setting?.value?.android_group_url || '')) ? String(setting?.value?.android_group_url) : undefined
     const KEY = Deno.env.get('RESEND_API_KEY')
     if (!KEY) return json({ error: 'Resend key not configured' }, 500)
     const one = (token: string) => `${Deno.env.get('SUPABASE_URL')}/functions/v1/email-unsubscribe?t=${token}`
     const message = (to: string, platform: string, token: string | null, test = false) => {
-      const m = inviteEmail({ platform, link: links[platform], unsubscribeUrl: token ? `${SITE}unsubscribe/?t=${token}` : SITE, test })
+      const m = inviteEmail({ platform, link: links[platform], groupLink, unsubscribeUrl: token ? `${SITE}unsubscribe/?t=${token}` : SITE, test })
       return {
         from: FROM, to: [to], reply_to: REPLY_TO, subject: m.subject, html: m.html, text: m.text,
         headers: token ? { 'List-Unsubscribe': `<${one(token)}>, <mailto:${REPLY_TO}?subject=unsubscribe>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined,

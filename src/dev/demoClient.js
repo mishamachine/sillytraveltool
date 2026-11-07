@@ -166,6 +166,11 @@ export function createDemoClient() {
       if (fn === 'public_settings') {
         return { data: { founders_offer: { active: FOUNDERS }, free_limits: { upcoming_trips: 2, reservations_per_trip: 5, email_imports: 5 } }, error: null }
       }
+      // ?stores=android,ios shows the store links (Android beta steps, App Store) as the owner's settings would
+      if (fn === 'beta_page_config') {
+        const on = (params.get('stores') || '').split(',')
+        return { data: { android_url: on.includes('android') ? 'https://play.google.com/apps/testing/com.sillytraveltool.app' : null, show_ios_store: on.includes('ios') }, error: null }
+      }
       if (fn === 'my_entitlement') {
         const fc = PLAN === 'first_class'
         return { data: { plan: PLAN, until: fc ? new Date(Date.now() + 300 * 864e5).toISOString() : null,

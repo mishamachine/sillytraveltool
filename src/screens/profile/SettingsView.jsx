@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore, useUIStore } from '../../store'
 import { InboxAddress } from '../trips/InboxHint'
-import { analyticsEnabled, setAnalyticsEnabled } from '../../lib/analytics'
+import { analyticsEnabled, setAnalyticsEnabled, track } from '../../lib/analytics'
 import { CONSENT_EVENT, isConsentRegion } from '../../lib/consent'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { useConsentStore } from '../../store/consentStore'
 import { consentCurrent } from '../../lib/aiConsentPolicy'
 import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
+import StoreBadges from '../../components/shared/StoreBadges'
+import { useStoreLinks } from '../../lib/useStoreLinks'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Switch, Text, Stack, Logo, LinkButton, Icon,
@@ -73,6 +75,7 @@ function PlanSection() {
 export default function SettingsView({ onBack, onDelete }) {
   const { profile, user, updateProfile, rotateInboxAddress, signOut } = useAuthStore()
   const { themePref, setThemePref } = useUIStore()
+  const storeLinks = useStoreLinks()
   const [name, setName] = useState(profile?.display_name || '')
   const [currency, setCurrency] = useState(profile?.home_currency || 'USD')
   const [passportCode, setPassportCode] = useState(profile?.passport_country || '')
@@ -217,6 +220,14 @@ export default function SettingsView({ onBack, onDelete }) {
           </Stack>
         </Card>
       </Section>
+
+      {storeLinks && (
+        <Section title="Get the app">
+          <Card variant="group">
+            <StoreBadges links={storeLinks} onOpen={(store) => track('store_link_click', { store, surface: 'settings' })} />
+          </Card>
+        </Section>
+      )}
 
       <Section title="Privacy and about">
         <Card variant="group">

@@ -9,6 +9,9 @@ import { useBackHandler } from '../lib/backStack'
 import {
   Screen, Button, IconButton, Field, Banner, SegmentedControl, Text, Stack, GooseMark, Logo, LinkButton,
 } from '../ui'
+import StoreBadges from '../components/shared/StoreBadges'
+import { useStoreLinks } from '../lib/useStoreLinks'
+import { track } from '../lib/analytics'
 import './auth/auth.css'
 
 function GoogleMark() {
@@ -48,6 +51,7 @@ export default function AuthScreen() {
   useEffect(() => { if (startMode) useAuthStore.getState().setAuthStartMode(null) }, [])
   const [mode, setMode] = useState(startMode || 'login')
   const [apple, setApple] = useState(false)
+  const storeLinks = useStoreLinks()
   useEffect(() => { appleEnabled().then(setApple) }, [])
   const [step, setStep] = useState(startMode ? 'email' : 'welcome') // 'welcome' | 'email'
   const [email, setEmail] = useState('')
@@ -202,6 +206,7 @@ export default function AuthScreen() {
           By continuing you agree to our <LinkButton href="https://sillytraveltool.com/terms/" target="_blank" rel="noreferrer">Terms</LinkButton> and <LinkButton href="https://sillytraveltool.com/privacy/" target="_blank" rel="noreferrer">Privacy Policy</LinkButton>. Goose uses AI to read bookings and write guides.{' '}
           <LinkButton onClick={openConsentBanner}>Cookie and analytics settings</LinkButton>
         </Text>
+        <StoreBadges links={storeLinks} onOpen={(store) => track('store_link_click', { store, surface: 'landing' })} className="auth-stores" />
       </div>
     </Screen>
   )

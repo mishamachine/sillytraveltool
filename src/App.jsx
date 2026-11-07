@@ -13,6 +13,7 @@ import OutsideDatesSheet from './components/shared/OutsideDatesSheet'
 import PaywallSheet from './components/shared/PaywallSheet'
 import AiConsentSheet from './components/shared/AiConsentSheet'
 import InviteConfirmSheet from './components/shared/InviteConfirmSheet'
+import AddToHomePrompt from './components/shared/AddToHomePrompt'
 import { previewInvite } from './lib/invite'
 import { usePlanStore } from './store/planStore'
 import { useConsentStore, hasAiConsent } from './store/consentStore'
@@ -26,7 +27,7 @@ import { initScreenTracking } from './lib/screenTracking'
 import { applyTheme, onSystemThemeChange } from './lib/theme'
 import './styles/global.css'
 import './styles/app.css'
-import { GooseMark, Logo, ProgressBar, Toast, Button, IconButton } from './ui'
+import { GooseMark, Logo, ProgressBar, Toast, Button } from './ui'
 import { ONBOARDED_KEY, markOnboarded } from './screens/auth/onboardingState'
 
 // Lazy-load heavy screens — reduces initial bundle
@@ -71,8 +72,6 @@ export default function App() {
   const { fetchPendingInvites } = useCollabStore()
   useVisibilityRestore()
 
-  const [installPrompt, setInstallPrompt] = useState(null)
-  const [showInstallBanner, setShowInstallBanner] = useState(false)
   const [inviteToast, setInviteToast] = useState(null)
   const [invitePreview, setInvitePreview] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -129,30 +128,6 @@ export default function App() {
     if (force || Date.now() - created < 24 * 60 * 60 * 1000) setShowOnboarding(true)
     else markOnboarded()
   }, [userId, profileReady, profileCreatedAt])
-
-  // PWA install prompt
-  useEffect(() => {
-    const handler = (e) => {
-      e.preventDefault()
-      setInstallPrompt(e)
-      const dismissed = (() => { try { return localStorage.getItem('install_banner_dismissed') } catch { return null } })()
-      if (!dismissed) setTimeout(() => setShowInstallBanner(true), 30000)
-    }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [])
-
-  const handleInstall = async () => {
-    if (!installPrompt) return
-    installPrompt.prompt()
-    const { outcome } = await installPrompt.userChoice
-    if (outcome === 'accepted') { setShowInstallBanner(false); setInstallPrompt(null) }
-  }
-
-  const dismissInstallBanner = () => {
-    setShowInstallBanner(false)
-    try { localStorage.setItem('install_banner_dismissed', '1') } catch {}
-  }
 
   // Theme: explicit choice or the OS setting (src/lib/theme.js)
   useEffect(() => {
@@ -257,14 +232,7 @@ export default function App() {
           ? <Toast position="top" icon="alert-circle" title="Invite not opened">{inviteToast.error}</Toast>
           : <Toast position="top" icon="users" title="You joined the trip">{inviteToast.tripName} is now in your trips</Toast>
       )}
-      {showInstallBanner && installPrompt && (
-        <Toast icon="smartphone" title="Add to home screen" action={(
-          <>
-            <Button variant="primary" size="sm" onClick={handleInstall}>Install</Button>
-            <IconButton icon="close" variant="inverse" label="Dismiss" onClick={dismissInstallBanner} />
-          </>
-        )}>Goose works better as an app</Toast>
-      )}
+      <AddToHomePrompt signedIn={!!user} hold={showOnboarding || tourOpen || !!invitePreview || confirming} />
     </ErrorBoundary>
   )
 }
