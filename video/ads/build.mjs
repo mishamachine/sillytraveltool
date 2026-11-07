@@ -57,8 +57,14 @@ const VARIANTS = {
 // ---------- fictional-traveller voice-over ads ----------
 // 0-2 s persona card, 2-18 s voice-over over footage (one scene per spoken line, captions reinforce the key
 // phrase), 18-20.4 s result line, 20.4-22.9 s end card with disclosure. Voices: macOS `say` (offline, no
-// generated video). Each line is synthesised on its own so scene cuts follow the speech. [x] = terracotta word.
+// generated video). With a voice file (voices/<persona>.<ext>, e.g. a Speechify export) the whole script is one
+// recording: the phone section is as long as the speech, and scene cuts snap to the pauses nearest each line's
+// expected position. Without one, each line is synthesised on its own with `say` into a fixed 16 s phone section.
+// [x] = terracotta word.
 const PHONE = 16, CARD = 2, RESULT = 2.4, END_P = 2.9, LEAD = 0.4, PRE = 0.3, GAP = [0.3, 0.9]
+const TAIL = 0.5, RESULT_V = 1.8 // real-voice ads: result line starts 0.5 s after the last word; ~1.9 s later the end card
+const VOICES = resolve(flag('voices', join(HERE, 'voices')))
+const VOICE_EXT = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'aiff']
 const DISCLOSURE = 'Fictional traveller. Silly Travel Tool is in beta.'
 const PERSONAS = {
   ana: { name: 'Ana', who: 'Family organiser, five travellers', voice: 'Samantha', rate: 170,
@@ -300,19 +306,66 @@ function voiceTrack(ff, work, wavs, starts, total) {
   return out
 }
 
+
+// Voice file -> trimmed 44.1 kHz mono wav (leading/trailing silence removed); returns its duration and the pauses in it.
+function prepVoiceFile(ff, file, wav) {
+  run(ff, ['-y', '-v', 'error', '-i', file, '-ar', 44100, '-ac', 1,
+    '-af', 'silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse', wav])
+  const raw = wav.replace(/\.wav$/, '.raw')
+  run(ff, ['-y', '-v', 'error', '-i', wav, '-f', 's16le', raw])
+  const dur = readFileSync(raw).length / 2 / 44100
+  const sd = run(ff, ['-hide_banner', '-i', wav, '-af', 'silencedetect=n=-38dB:d=0.15', '-f', 'null', '-'])
+  const starts = [...sd.stderr.matchAll(/silence_start: ([\d.]+)/g)].map((m) => +m[1])
+  const ends = [...sd.stderr.matchAll(/silence_end: ([\d.]+)/g)].map((m) => +m[1])
+  const pauses = starts.map((a, i) => ({ a, b: ends[i] ?? dur })).filter((q) => q.a > 0.3 && q.b < dur - 0.1)
+  return { dur, pauses }
+}
+
+// One recording, n lines: line i is expected where its share of the words says; snap to the closest pause (<= 1.3 s away).
+function splitByPauses(p, dur, pauses) {
+  const w = p.lines.map((l) => l.say.split(/\s+/).length), tot = w.reduce((a, b) => a + b, 0)
+  const bounds = []; let cum = 0
+  for (let i = 0; i < w.length - 1; i++) {
+    cum += w[i]
+    const want = (dur * cum) / tot
+    const cand = pauses.filter((q) => !bounds.includes(q)).sort((x, y) => Math.abs((x.a + x.b) / 2 - want) - Math.abs((y.a + y.b) / 2 - want))[0]
+    if (cand && Math.abs((cand.a + cand.b) / 2 - want) <= 1.3) bounds.push(cand)
+    else { console.warn(`warn ${p.name}: no pause near line ${i + 1}/${i + 2} boundary (${want.toFixed(1)} s); cut placed by word count`); bounds.push({ a: want, b: want }) }
+  }
+  bounds.sort((x, y) => x.a - y.a)
+  return p.lines.map((_, i) => ({ s: i === 0 ? 0 : bounds[i - 1].b, e: i === w.length - 1 ? dur : bounds[i].a }))
+}
+
 async function buildPersona(key) {
   const p = PERSONAS[key]
   if (!p) throw new Error(`unknown persona "${key}" (${Object.keys(PERSONAS).join(', ')})`)
   const ff = await ffmpegPath()
   const work = mkdtempSync(join(tmpdir(), `stt-ad-${key}-`))
-  const wavs = p.lines.map((l, i) => join(work, `line${i}.wav`))
-  const durs = p.lines.map((l, i) => synth(ff, p.voice, p.rate, l.say, wavs[i]))
   const words = p.lines.reduce((a, l) => a + l.say.split(/\s+/).length, 0)
   if (words >= 60) throw new Error(`${p.name}: ${words} spoken words (limit 59)`)
-  const { sp, dur, end } = schedule(p, durs)
+  const vf = p.voiceFile ? resolve(VOICES, p.voiceFile) : VOICE_EXT.map((e) => join(VOICES, `${key}.${e}`)).find(existsSync)
+  let wavs, sp, dur, phone, voiceName = p.voice
+  if (vf && existsSync(vf)) {
+    const wav = join(work, 'voicefile.wav')
+    const { dur: vd, pauses } = prepVoiceFile(ff, vf, wav)
+    const seg = splitByPauses(p, vd, pauses)
+    wavs = [wav]
+    sp = seg.map((x) => LEAD + x.s)
+    phone = LEAD + vd + TAIL
+    dur = sp.map((x, i) => (i < sp.length - 1 ? sp[i + 1] - PRE : phone) - (i === 0 ? 0 : x - PRE))
+    voiceName = `${p.speechify || 'voice file'} (${vf.split('/').pop()}, ${(vd).toFixed(1)} s, ${(words / vd * 60).toFixed(0)} wpm)`
+    console.log(`${p.name}: line starts ${sp.map((x) => x.toFixed(2)).join(', ')} s, last word ends ${(LEAD + vd).toFixed(2)} s`)
+  } else {
+    wavs = p.lines.map((l, i) => join(work, `line${i}.wav`))
+    const durs = p.lines.map((l, i) => synth(ff, p.voice, p.rate, l.say, wavs[i]))
+    const sch = schedule(p, durs)
+    sp = sch.sp; dur = sch.dur; phone = PHONE
+    console.log(`${p.name} (${p.voice}): speech ${durs.map((d) => d.toFixed(1)).join(' + ')} s`)
+  }
   dur.forEach((d, i) => { if (d < 2.5) console.warn(`warn ${p.name}: scene ${i} only ${d.toFixed(2)} s on screen`) })
   const scenes = p.lines.map((l, i) => ({ ...l, dur: dur[i] }))
-  console.log(`${p.name} (${p.voice}): ${words} words, speech ${durs.map((d) => d.toFixed(1)).join(' + ')} s, ends ${(CARD + end).toFixed(1)} s`)
+  const RES = vf ? RESULT_V : RESULT
+  console.log(`${p.name} [${voiceName}]: ${words} words, phone section ${phone.toFixed(1)} s`)
 
   await renderAssets(work, { scenes }, async (shot, fd, svg) => {
     await shot(pagePersona(fd, p), 'card')
@@ -320,17 +373,17 @@ async function buildPersona(key) {
     await shot(pageEnd(fd, svg, DISCLOSURE), 'end')
   })
 
-  const g = screenGraph(work, scenes, PHONE + XF, XF)
+  const g = screenGraph(work, scenes, phone + XF, XF)
   const iCard = g.next, iRes = g.next + 1, iEnd = g.next + 2
-  g.inputs.push(...loop(CARD + XF, join(work, 'card.png')), ...loop(RESULT, join(work, 'result.png')), ...loop(END_P, join(work, 'end.png')))
+  g.inputs.push(...loop(CARD + XF, join(work, 'card.png')), ...loop(RES, join(work, 'result.png')), ...loop(END_P, join(work, 'end.png')))
   const norm = (a, b) => `[${a}]fps=${FPS},format=yuv420p,settb=AVTB[${b}]`
   g.fc.push(norm(g.label, 'P'), norm(iCard, 'K'), norm(iRes, 'R'), norm(iEnd, 'E'))
   g.fc.push(`[K][P]xfade=transition=fade:duration=${XF}:offset=${CARD}[X1]`)
-  g.fc.push(`[X1][R]xfade=transition=fade:duration=${XF}:offset=${CARD + PHONE}[X2]`)
-  g.fc.push(`[X2][E]xfade=transition=fade:duration=${XF}:offset=${CARD + PHONE + RESULT - XF}[out]`)
-  const len = CARD + PHONE + RESULT - XF + END_P
+  g.fc.push(`[X1][R]xfade=transition=fade:duration=${XF}:offset=${(CARD + phone).toFixed(3)}[X2]`)
+  g.fc.push(`[X2][E]xfade=transition=fade:duration=${XF}:offset=${(CARD + phone + RES - XF).toFixed(3)}[out]`)
+  const len = CARD + phone + RES - XF + END_P
 
-  const voice = voiceTrack(ff, work, wavs, sp.map((t) => CARD + t), len)
+  const voice = voiceTrack(ff, work, wavs, vf ? [CARD + LEAD] : sp.map((t) => CARD + t), len)
   mkdirSync(OUT, { recursive: true })
   const outFile = join(OUT, `stt-ad-persona-${p.file}.mp4`)
   encode(ff, g.inputs, g.fc, 'out', { inputs: ['-i', voice], map: iEnd + 1, bitrate: '128k' }, len, outFile)
