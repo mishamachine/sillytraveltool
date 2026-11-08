@@ -196,7 +196,7 @@ today = digest(f'{OUT}/{KIND}/03-today.png')
 for attempt in range(4):
     go('trips=list', wait=4 + 3 * attempt)
     path = shot('01-trips-list')
-    if digest(path) != today:
+    if abs(os.path.getsize(path) - os.path.getsize(f'{OUT}/{KIND}/03-today.png')) > 0.03 * os.path.getsize(path):
         break
     print(f'01-trips-list still looks like Today (attempt {attempt + 1}), retrying', flush=True)
 go('trip=trip-spain', wait=6)  # Plan tab: SEA -> MAD flight with its two time zones

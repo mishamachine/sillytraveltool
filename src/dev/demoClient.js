@@ -174,7 +174,7 @@ export function createDemoClient() {
   PLAN = params.get('plan') === 'first_class' ? 'first_class' : 'free'
   LIMITS = params.has('limits')
   FOUNDERS = params.get('founders') !== 'off'
-  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship'), askAi: params.has('askai'), pastOnly: params.has('pastonly'), held: Number(params.get('held')) || 0 })
+  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship'), askAi: params.has('askai'), pastOnly: params.has('pastonly'), held: Number(params.get('held')) || 0, alhambraAt: params.get('now') ? '22:30' : null })
   session = params.has('signedout') ? null : {
     access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
   }
