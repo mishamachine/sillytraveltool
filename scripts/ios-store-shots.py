@@ -178,17 +178,20 @@ for attempt in range(4):
     time.sleep(14 + 6 * attempt)
     if KIND == 'iphone':  # wait for the weather tile to show a temperature, never capture "Checking the sky"
         end = time.time() + 60
-        while time.time() < end and not any('\u00b0' in l for l, _ in elements()):
+        def has_temp():
+            return any('\u00b0' in l or 'degrees' in l for l, _ in elements())
+        while time.time() < end and not has_temp():
             time.sleep(3)
-        if not any('\u00b0' in l for l, _ in elements()):
-            print(f'no temperature on Today (attempt {attempt + 1})', flush=True)
+        if not has_temp():
+            labels = [l for l, _ in elements()]
+            print(f'no temperature on Today (attempt {attempt + 1}); {len(labels)} labels: {labels[:40]}', flush=True)
             continue
     path = shot('03-today')
     if not is_blank(path):
         break
     print(f'03-today looks blank (attempt {attempt + 1}), relaunching', flush=True)
 else:
-    failures.append(f'{KIND}/03-today is blank or the weather never loaded')
+    sys.exit(f'!! {KIND}/03-today is blank or the weather never loaded')
 
 import hashlib
 
