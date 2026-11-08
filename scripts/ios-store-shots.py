@@ -136,6 +136,12 @@ def flatten_rgb(path, bg=(0xF5, 0xEF, 0xE6)):
             out += b'\x00' + rgb
         else:
             out += b'\x00' + row
+    if KIND == 'ipad':  # paint out the iPadOS window-resize handle (bottom-right arc) with the side-bar colour beside it
+        m, ref = 90, 100
+        for y in range(h - m, h):
+            o = y * (1 + w * 3) + 1
+            col = bytes(out[o + (w - ref) * 3:o + (w - ref) * 3 + 3])
+            out[o + (w - m) * 3:o + w * 3] = col * m
     def chunk(t, b):
         return struct.pack('>I', len(b)) + t + b + struct.pack('>I', zlib.crc32(t + b) & 0xffffffff)
     open(path, 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
@@ -170,12 +176,19 @@ for attempt in range(4):
     run('xcrun', 'simctl', 'terminate', UDID, BUNDLE, check=False)
     run('xcrun', 'simctl', 'launch', UDID, BUNDLE)
     time.sleep(14 + 6 * attempt)
+    if KIND == 'iphone':  # wait for the weather tile to show a temperature, never capture "Checking the sky"
+        end = time.time() + 60
+        while time.time() < end and not any('\u00b0' in l for l, _ in elements()):
+            time.sleep(3)
+        if not any('\u00b0' in l for l, _ in elements()):
+            print(f'no temperature on Today (attempt {attempt + 1})', flush=True)
+            continue
     path = shot('03-today')
     if not is_blank(path):
         break
     print(f'03-today looks blank (attempt {attempt + 1}), relaunching', flush=True)
 else:
-    failures.append(f'{KIND}/03-today is blank')
+    failures.append(f'{KIND}/03-today is blank or the weather never loaded')
 
 import hashlib
 
