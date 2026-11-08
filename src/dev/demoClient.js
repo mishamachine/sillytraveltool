@@ -13,6 +13,7 @@
 //   ?demo&founders=off    the founders (lifetime) offer has ended
 //   ?demo&consent=reject  usage-stats banner already answered (store screenshots)
 //   ?demo&geo=granada     device location fixed to Granada, so the webview never shows its own location prompt (store screenshots)
+//   ?demo&weather=fixed   fixed 16 degree forecast instead of Open-Meteo (store screenshots)
 //   ?demo&paywall=settings  opens the First Class paywall at launch (cloud device screenshots)
 // App builds have no address bar: VITE_DEMO_PARAMS="limits=1&paywall=settings" sets the same options at build time.
 import { buildFixtures, DEMO_USER } from './fixtures'

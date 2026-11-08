@@ -176,16 +176,6 @@ for attempt in range(4):
     run('xcrun', 'simctl', 'terminate', UDID, BUNDLE, check=False)
     run('xcrun', 'simctl', 'launch', UDID, BUNDLE)
     time.sleep(14 + 6 * attempt)
-    if KIND == 'iphone':  # wait for the weather tile to show a temperature, never capture "Checking the sky"
-        end = time.time() + 60
-        def has_temp():
-            return any('\u00b0' in l or 'degrees' in l for l, _ in elements())
-        while time.time() < end and not has_temp():
-            time.sleep(3)
-        if not has_temp():
-            labels = [l for l, _ in elements()]
-            print(f'no temperature on Today (attempt {attempt + 1}); {len(labels)} labels: {labels[:40]}', flush=True)
-            continue
     path = shot('03-today')
     if not is_blank(path):
         break

@@ -1,6 +1,10 @@
 // Open-Meteo helpers shared by the Today view and the trip Weather tab.
 import { fetchWithTimeout } from './http'
 import { geocode } from './places'
+import { demoParams } from '../dev/demoClient'
+
+// weather=fixed (demo builds only, store screenshots): a fixed forecast so the Today tile never shows "Checking the sky"
+const FIXED = import.meta.env.VITE_DEMO && demoParams().get('weather') === 'fixed'
 
 // WMO weather code → icon name (src/ui/icons) + label
 export function weatherInfo(code) {
@@ -19,6 +23,7 @@ export function weatherInfo(code) {
 
 /** Trip coordinates: stored lat/lng, else Google geocode of the city (Photon as a fallback). */
 export async function tripCoords(trip) {
+  if (FIXED) return { lat: 37.1773, lon: -3.5986 }
   if (trip?.destination_lat && trip?.destination_lng) return { lat: Number(trip.destination_lat), lon: Number(trip.destination_lng) }
   if (!trip?.destination_city) return null
   const g = await geocode([trip.destination_city, trip.destination_country].filter(Boolean).join(', '))
@@ -33,6 +38,7 @@ export async function tripCoords(trip) {
 
 /** Today + tomorrow: { now: {temp, code}, today: {hi, lo, code, rain}, tomorrow: {...} } or null. */
 export async function fetchTodayWeather(lat, lon, unit = 'celsius') {
+  if (FIXED) return { now: { temp: 16, code: 3 }, today: { hi: 24, lo: 14, code: 3, rain: 10 }, tomorrow: { hi: 26, lo: 15, code: 0, rain: 5 } }
   try {
     const res = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=${unit}&timezone=auto&forecast_days=2`)
     if (!res.ok) return null

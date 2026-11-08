@@ -32,7 +32,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_DEMO: '1'
-          VITE_DEMO_PARAMS: consent=reject&geo=granada
+          VITE_DEMO_PARAMS: consent=reject&geo=granada&weather=fixed
         run: npx vite build --mode native && npx cap sync ios
 
       - name: Build for the Simulator
