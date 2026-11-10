@@ -248,7 +248,7 @@ export const HELP_FAQ = [
   },
 ]
 
-export const HELP_CONTACT = 'hello@sillytraveltool.com'
+export const HELP_CONTACT = 'machinemisha@gmail.com'
 
 /** Topics whose text contains every word of the query (case-insensitive). */
 export function searchHelp(query) {

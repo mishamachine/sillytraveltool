@@ -55,7 +55,7 @@ async function getJson(url: string, ms = 6000): Promise<any> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), ms)
   try {
-    const res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'SillyTravelTool/1.0 (hello@sillytraveltool.com)' } })
+    const res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'SillyTravelTool/1.0 (machinemisha@gmail.com)' } })
     return res.ok ? await res.json() : null
   } catch { return null } finally { clearTimeout(timer) }
 }

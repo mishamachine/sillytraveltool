@@ -244,7 +244,7 @@ export default function SettingsView({ onBack, onDelete }) {
       <Stack gap={2} align="center" className="profile-about">
         <Logo size="sm" />
         <Text variant="micro" tone="muted">Silly Travel Tool · v{import.meta.env.VITE_APP_VERSION || '0.19.0'}</Text>
-        <LinkButton href="mailto:hello@sillytraveltool.com">hello@sillytraveltool.com</LinkButton>
+        <LinkButton href="mailto:machinemisha@gmail.com">machinemisha@gmail.com</LinkButton>
         <LinkButton icon="alert-circle" href={reportIssueHref('settings')} onClick={() => trackReport('settings')}>Report an issue</LinkButton>
       </Stack>
     </Screen>

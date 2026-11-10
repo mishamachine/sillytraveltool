@@ -20,7 +20,7 @@ const PHRASE_CATEGORIES = [
   { id: 'goose_specials', label: 'Goose specials', icon: 'sparkles' },
 ]
 
-const REPORT_URL = 'mailto:hello@sillytraveltool.com?subject=' + encodeURIComponent('Report an AI phrase')
+const REPORT_URL = 'mailto:machinemisha@gmail.com?subject=' + encodeURIComponent('Report an AI phrase')
 
 const COUNTRY_TO_LANGUAGE = {
   JP: { code: 'ja', name: 'Japanese' }, CN: { code: 'zh', name: 'Mandarin Chinese' },

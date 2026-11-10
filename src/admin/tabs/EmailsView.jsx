@@ -11,7 +11,7 @@ export default function EmailsView({ role, go }) {
   const d = log.data
   return (
     <>
-      <Card title="Emails" icon="mail" className="a-span-12" subtitle="sent through Resend from goose@bookings.sillytraveltool.com, replies to hello@">
+      <Card title="Emails" icon="mail" className="a-span-12" subtitle="sent through Resend from goose@bookings.sillytraveltool.com, replies to machinemisha@gmail.com">
         <ErrorNote error={log.error} onRetry={log.reload} />
         {!d ? <Loading /> : (
           <div className="a-stats">

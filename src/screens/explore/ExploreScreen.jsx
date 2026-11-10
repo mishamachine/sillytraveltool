@@ -44,7 +44,7 @@ function quickFacts(stats) {
   ].filter(([, v]) => v)
 }
 
-const reportGuide = (city) => { window.location.href = `mailto:hello@sillytraveltool.com?subject=${encodeURIComponent(`Guide error - ${city}`)}` }
+const reportGuide = (city) => { window.location.href = `mailto:machinemisha@gmail.com?subject=${encodeURIComponent(`Guide error - ${city}`)}` }
 
 const SECTION_VIEW = { know: KnowSection, eat: EatSection, see: SeeSection, move: MoveSection, events: EventsSection }
 

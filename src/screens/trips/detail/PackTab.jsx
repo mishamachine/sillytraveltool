@@ -35,7 +35,7 @@ const DEFAULTS = {
   ],
 }
 
-const AI_REPORT = 'mailto:hello@sillytraveltool.com?subject=AI%20report%3A%20packing%20list'
+const AI_REPORT = 'mailto:machinemisha@gmail.com?subject=AI%20report%3A%20packing%20list'
 const newId = () => Math.random().toString(36).slice(2)
 // Saved lists from before the rebuild may have emoji in section titles
 const cleanTitle = t => String(t || '').replace(/^[^\p{L}\p{N}]+/u, '').trim() || 'Other'

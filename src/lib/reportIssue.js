@@ -3,7 +3,7 @@ import { track } from './analytics'
 
 // "Report an issue": a pre-filled email to the team. The footer carries only the version, platform and
 // screen, never the member's email, trips or bookings.
-export const REPORT_EMAIL = 'hello@sillytraveltool.com'
+export const REPORT_EMAIL = 'machinemisha@gmail.com'
 
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.20.2'
 

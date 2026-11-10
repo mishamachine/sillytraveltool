@@ -87,7 +87,7 @@ function Upgrade() {
             <p className="a-gate__text">Signed in as {session.user.email}.</p>
             <button className="a-link" onClick={() => supabase.auth.signOut({ scope: 'local' })}>Not you? Use another account</button>
             {waiting && !firstClass && <div className="a-callout" role="status">Payment received. Goose is unlocking First Class…</div>}
-            {paid && !waiting && !firstClass && <div className="a-callout a-callout--warn" role="status">Your payment went through, but First Class isn’t showing yet. Refresh in a minute; if it still isn’t there, email hello@sillytraveltool.com.</div>}
+            {paid && !waiting && !firstClass && <div className="a-callout a-callout--warn" role="status">Your payment went through, but First Class isn’t showing yet. Refresh in a minute; if it still isn’t there, email machinemisha@gmail.com.</div>}
             {firstClass ? (
               <>
                 <div className="a-callout a-callout--ok" role="status">
