@@ -22,7 +22,9 @@ function walk(dir, out = []) {
 
 // 1. The old address is gone from everything that ships.
 const shipped = ['public', 'src', 'supabase/functions'].flatMap(d => walk(d))
-const stale = shipped.filter(f => read(f).includes(OLD))
+// The one allowed mention: the Privacy page says hello@ is forwarded by Forward Email.
+const FORWARD_LINE = "Forward Email (forwardemail.net), which forwards messages sent to hello@sillytraveltool.com to our inbox. Forward Email says it doesn't store message content; if a message can't be delivered, it keeps the error and email headers for up to 7 days."
+const stale = shipped.filter(f => read(f).split(FORWARD_LINE).join('').includes(OLD))
 assert.deepEqual(stale, [], `old contact address still in: ${stale.join(', ')}`)
 
 // 2. Each place that shows the contact carries the new one.
@@ -36,6 +38,11 @@ const mustHave = [
 for (const f of mustHave) assert.ok(read(f).includes(CONTACT), `${f} should carry ${CONTACT}`)
 assert.ok(read('src/lib/helpContent.js').includes(`HELP_CONTACT = '${CONTACT}'`))
 assert.ok(read('src/lib/reportIssue.js').includes(`REPORT_EMAIL = '${CONTACT}'`))
+
+// Privacy page carries the Forward Email line (in the processors table) and the new date.
+const privacy = read('public/privacy/index.html')
+assert.ok(privacy.includes(`<td>${FORWARD_LINE}</td>`), 'privacy: Forward Email line')
+assert.ok(privacy.includes('Last updated 10 November 2026'), 'privacy: last updated date')
 
 // 3. Reply-to fallback moved, From did not.
 for (const fn of ['admin-email', 'beta-invite', 'beta-signup']) {
