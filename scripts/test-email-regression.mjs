@@ -498,6 +498,10 @@ await t('a co-traveller\'s birth date, passport, frequent-flyer number and conta
   assert.deepEqual(cleanTravelers([{ name: 'Ana Ruiz', type: 'child', dob: 'x', passport: 'y', email: 'z@example.test' }]), [{ name: 'Ana Ruiz', type: 'child' }])
   assert.equal(cleanTravelers(['ana@example.test', 'X1234567']).length, 0)
 })
+await t('analytics props: numbers are rounded, residue becomes 0, out-of-range numbers are dropped (matches json_ok)', () => {
+  assert.deepEqual(cleanProps({ a: 1e-9, b: -1e-9, c: 0.1 + 0.2 - 0.3, d: 1e15, e: 1e300, f: 1799999999999, g: 2.345 }), { a: 0, b: 0, c: 0, f: 1799999999999, g: 2.35 })
+  assert.ok(Object.values(cleanProps({ a: -1e-9, c: 0.1 + 0.2 - 0.3 })).every(v => !Object.is(v, -0)))
+})
 await t('travellers never reach analytics props (track → analytics_events and GA4)', () => {
   const props = cleanProps({ travelers: [{ name: 'Zoë' }], traveller: 'Zoë', passenger_name: 'Zoë', passengers: 'Zoë', guests: 'Zoë', child_name: 'Zoë', infant: 'Léa', party_size: 5, booking_type: 'flight' })
   assert.deepEqual(props, { party_size: 5, booking_type: 'flight' })
