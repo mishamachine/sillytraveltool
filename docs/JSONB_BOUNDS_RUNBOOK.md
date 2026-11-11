@@ -1,8 +1,6 @@
-# jsonb bounds and email-volume gauge: apply, validate, roll back
+# jsonb bounds: apply, validate, roll back
 
-Two migrations, applied in order:
-1. `supabase/migrations/20261110100000_jsonb_bounds.sql` (rollback `supabase/rollbacks/20261110100000_jsonb_bounds_down.sql`)
-2. `supabase/migrations/20261110100100_stt_email_usage_counts.sql` (rollback `supabase/rollbacks/20261110100100_stt_email_usage_counts_down.sql`)
+Migration: `supabase/migrations/20261110100000_jsonb_bounds.sql`. Rollback: `supabase/rollbacks/20261110100000_jsonb_bounds_down.sql`.
 
 ## Why
 Postgres stores `1e131071` in a few bytes but prints it in full (about 131 KB). An array of them in a client-writable
@@ -28,9 +26,5 @@ alter table public.wallet_documents validate constraint wallet_parsed_ok;
 ```
 Validation scans the table and takes a lighter lock (SHARE UPDATE EXCLUSIVE). If a count is above 0, delete or null those rows first (owner decision).
 
-## Email-volume gauge (second migration)
-`public.stt_email_usage_counts()` returns one row of ten integers: auth emails today (confirmation, recovery, email change, invite), app email and trip-invite sends today, beta emails today, and month-to-date totals. Never rows, ids or emails. It is SECURITY DEFINER and only the service role can call it (execute is revoked from public, anon and authenticated). The nightly health task calls ONLY this function for email volume. Notes: auth.users keeps only the latest send time per kind, so repeat sends to one user on one day count once; beta emails are not logged in email_sends, so nothing is double counted.
-Check after applying: `select * from public.stt_email_usage_counts();` as the service role returns one row; as a signed-in test user it returns "permission denied".
-
 ## Roll back
-Run `supabase/rollbacks/20261110100100_stt_email_usage_counts_down.sql` and `supabase/rollbacks/20261110100000_jsonb_bounds_down.sql`. Together they drop both constraints and both functions.
+Run `supabase/rollbacks/20261110100000_jsonb_bounds_down.sql`. It drops both constraints and the function.
