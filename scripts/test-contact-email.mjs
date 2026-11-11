@@ -42,7 +42,10 @@ assert.ok(read('src/lib/reportIssue.js').includes(`REPORT_EMAIL = '${CONTACT}'`)
 // Privacy page carries the Forward Email line (in the processors table) and the new date.
 const privacy = read('public/privacy/index.html')
 assert.ok(privacy.includes(`<td>${FORWARD_LINE}</td>`), 'privacy: Forward Email line')
-assert.ok(privacy.includes('Last updated 10 November 2026'), 'privacy: last updated date')
+const GMAIL_LINE = 'Google (Gmail), which hosts the inbox where messages to our contact addresses arrive.'
+const GMAIL_DATA = 'Your email address and the messages you send to our contact addresses'
+assert.ok(privacy.includes(`<td>Google (Gmail)</td><td>${GMAIL_LINE}</td><td>${GMAIL_DATA}</td>`), 'privacy: Gmail row')
+assert.ok(privacy.includes('Last updated 11 November 2026'), 'privacy: last updated date')
 
 // 3. Reply-to fallback moved, From did not.
 for (const fn of ['admin-email', 'beta-invite', 'beta-signup']) {
