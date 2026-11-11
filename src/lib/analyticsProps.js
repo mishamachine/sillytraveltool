@@ -6,7 +6,9 @@ const BLOCKED_KEY = /mail|name|title|note|text|query|phone|address|coord|confirm
 
 function cleanValue(v) {
   if (typeof v === 'boolean') return v
-  if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v * 100) / 100 : undefined
+  // Rounded to 2 decimals (no tiny float residue: 1e-9 becomes 0), and anything beyond +-1e15 is dropped, because the
+  // analytics_events.props CHECK (json_ok) rejects numbers outside that range and would lose the whole event.
+  if (typeof v === 'number') return Number.isFinite(v) && Math.abs(v) < 1e15 ? Math.round(v * 100) / 100 + 0 : undefined
   if (typeof v !== 'string') return undefined
   // Short codes only: 'flight', 'email_import', 'GB', 'ja'. Long strings, '@' and long digit runs are dropped.
   if (v.length > 40 || v.includes('@') || /\d{5,}/.test(v)) return undefined

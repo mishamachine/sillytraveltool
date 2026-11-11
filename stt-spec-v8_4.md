@@ -59,7 +59,7 @@ Work through these in order. Present a go/no-go checkbox before touching any cod
 
 #### P0-B: Inbound Email Pipeline — ✅ CONFIRMED WORKING
 **Status as of v8.4:**
-- ✅ Resend Pro plan active
+- ✅ Resend Free (100/day, 3,000/month, overage off), verified Nov 2026
 - ✅ `bookings.sillytraveltool.com` MX record propagated and verified
 - ✅ Resend webhook firing on `email.received`
 - ✅ `receive-booking-email` Edge Function receiving webhook payload
