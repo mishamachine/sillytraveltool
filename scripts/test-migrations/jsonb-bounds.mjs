@@ -53,7 +53,7 @@ ok('fixing the old bad row works', await accepts(`update public.wallet_documents
 // --- as a signed-in client ---
 await db.exec(`set role authenticated`)
 const bad = [
-  `[1e131071]`, `{"a": {"b": [1, 2, 1e131071]}}`, `[1e15000]`, `[1000000000000001]`, `[1e16]`, `[-1e16]`, `{"k": 1e-13}`, `[-1e-13]`, `[[[[[1e999]]]]]`,
+  `[1e131071]`, `{"a": {"b": [1, 2, 1e131071]}}`, `[1e15000]`, `[1000000000000001]`, `[1e16]`, `[-1e16]`, `{"k": 1e-13}`, `[-1e-13]`, `[[[[[1e999]]]]]`, `0e-16383`, `[-0e-16383]`, `{"a": [{"b": 0e-30}]}`, `[0e-21]`,
 ]
 for (const j of bad) {
   ok(`analytics rejects ${j}`, await rejects(`insert into public.analytics_events (event, props) values ('t', '${j}')`))
@@ -71,8 +71,10 @@ const pages = Array.from({ length: 40 }, (_, i) => ({ page: i + 1, text_len: 180
   { kind: 'flight', pnr: 'ABC123', amount: 1234.56, currency: 'GBP', depart: '2026-12-01T09:45:00+00:00', from: { iata: 'SFO', lat: 37.6213, lng: -122.379 }, to: { iata: 'LHR', lat: 51.47, lng: -0.4543 }, seat: '23A', epoch_ms: 1796118300000, ids: [10000000001, 20000000002] },
   { kind: 'hotel', nights: 3, rate: 189.0, tax: 0.0, total: 567, geo: { lat: 51.5246, lng: -0.0799 }, ref: 48211734 }] }))
 ok('wallet accepts a 40-page parsed document', await accepts(`insert into public.wallet_documents (user_id, type, title, parsed_data) values ('${U}', 'other', 'multi', '${JSON.stringify({ pages, confidence: 0.93 })}')`))
-const big = JSON.stringify({ pages: Array.from({ length: 400 }, () => ({ text: 'x'.repeat(2000) })) })
-ok(`wallet has NO size cap (${Math.round(big.length / 1024)} KB accepted; deliberate, only the bomb is bounded)`, await accepts(`insert into public.wallet_documents (user_id, type, title, parsed_data) values ('${U}', 'other', 'huge text', '${big}')`))
+const big = JSON.stringify({ pages: Array.from({ length: 100 }, () => ({ text: 'x'.repeat(2000) })) })
+ok(`wallet accepts a large parsed document (${Math.round(big.length / 1024)} KB)`, await accepts(`insert into public.wallet_documents (user_id, type, title, parsed_data) values ('${U}', 'other', 'huge text', '${big}')`))
+ok('wallet rejects parsed_data of 256 KB or more', await rejects(`insert into public.wallet_documents (user_id, type, title, parsed_data) values ('${U}', 'other', 't', '{"s": "${'x'.repeat(262200)}"}')`))
+ok('zero with up to 20 decimals is fine', await accepts(`insert into public.analytics_events (event, props) values ('t', '{"z": 0.00000000000000000000}')`))
 ok('props of 16 KB or more are rejected', await rejects(`insert into public.analytics_events (event, props) values ('t', '{"s": "${'x'.repeat(16400)}"}')`))
 ok('props just under the existing 4 KB cap still pass', await accepts(`insert into public.analytics_events (event, props) values ('t', '{"s": "${'x'.repeat(3000)}"}')`))
 ok('json_ok(null) is true', (await q(`select public.json_ok(null) v`))[0].v === true)

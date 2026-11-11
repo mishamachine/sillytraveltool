@@ -3,10 +3,7 @@
 Migration: `supabase/migrations/20261110100000_jsonb_bounds.sql`. Rollback: `supabase/rollbacks/20261110100000_jsonb_bounds_down.sql`.
 
 ## Why
-Postgres stores `1e131071` in a few bytes but prints it in full (about 131 KB). An array of them in a client-writable
-jsonb column makes one row's read use huge memory. `public.json_ok(jsonb)` rejects any number above 1e15 in magnitude, and any
-non-zero number smaller than 1e-12 in magnitude, anywhere in the document. Two CHECK constraints use it:
-`analytics_events.props` (also under 16 KB) and `wallet_documents.parsed_data`.
+Bounds numeric values in client-writable JSON. `public.json_ok(jsonb)` is used by CHECK constraints on `analytics_events.props` (also under 16 KB) and `wallet_documents.parsed_data` (also under 256 KB).
 
 ## Apply
 1. Apply the migration the normal way (`supabase db push`, or paste the file in the SQL editor). It takes a brief lock only; both constraints are NOT VALID, so no table scan.
