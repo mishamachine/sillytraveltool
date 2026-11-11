@@ -1,4 +1,4 @@
--- Rollback for 20261110110000_usage_reader.sql (run by hand). First, if the schedule was added:
+-- Rollback for 20261111070000_usage_reader.sql (run by hand). First, if the schedule was added:
 --   select cron.unschedule('stt-usage-check');
 drop function if exists public.stt_usage_check();
 drop function if exists public.usage_alert_recipients();

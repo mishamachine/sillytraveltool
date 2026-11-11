@@ -1,4 +1,4 @@
-// SQL-level test for 20261110110000_usage_reader.sql on PGlite (Postgres 16 in WASM) plus the alert email text.
+// SQL-level test for 20261111070000_usage_reader.sql on PGlite (Postgres 16 in WASM) plus the alert email text.
 // Table shapes copy the real definitions (auth.users timestamps, email_sends, invite_sends, beta_waitlist).
 //   node scripts/test-migrations/usage-reader.mjs
 import { PGlite } from '@electric-sql/pglite'
@@ -31,7 +31,7 @@ create schema vault; create table vault.secrets_t (name text, decrypted_secret t
 insert into vault.secrets_t values ('cost_alert_token', 'x'), ('other', 'y');
 grant usage on schema public to anon, authenticated, service_role; grant usage on schema net to service_role; grant select on net.calls to service_role;
 `)
-await db.exec(readFileSync(W + '20261110110000_usage_reader.sql', 'utf8'))
+await db.exec(readFileSync(W + '20261111070000_usage_reader.sql', 'utf8'))
 
 // --- the role ---
 const role = (await q(`select rolcanlogin, rolsuper, rolbypassrls, rolcreaterole, rolpassword from pg_authid where rolname = 'usage_reader'`))[0]

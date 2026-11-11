@@ -13,7 +13,7 @@ create schema net; create table net.calls (body jsonb, headers jsonb);
 create function net.http_post(url text, headers jsonb, body jsonb, timeout_milliseconds int default 5000) returns bigint language sql as $$ insert into net.calls values (body, headers); select 1::bigint $$;
 select vault.create_secret('x', 'cost_alert_token', 'test') is not null as vault_secret;
 select 'current_user=' || current_user || ' superuser=' || (select rolsuper from pg_roles where rolname = current_user) as who;
-\i supabase/migrations/20261110110000_usage_reader.sql
+\i supabase/migrations/20261111070000_usage_reader.sql
 do $$ begin
   assert (select not rolcanlogin and not rolsuper and not rolbypassrls and rolpassword is null from pg_authid where rolname = 'usage_reader'), 'role flags';
   assert (select proowner::regrole::text from pg_proc where proname = 'stt_email_usage_counts') = 'usage_reader', 'owner';
@@ -59,6 +59,6 @@ do $$ begin
   assert (select count(*) from net.calls where body ->> 'scope' = 'day') = 1, 'day alert exactly once';
   assert not exists (select 1 from net.calls where body::text ~ '@|hashvalue|[0-9a-f]{8}-[0-9a-f]{4}-'), 'no PII in body';
 end $$;
-\i supabase/rollbacks/20261110110000_usage_reader_down.sql
+\i supabase/rollbacks/20261111070000_usage_reader_down.sql
 do $$ begin assert not exists (select 1 from pg_roles where rolname = 'usage_reader') and not exists (select 1 from pg_proc where proname like 'stt_%usage%'), 'rollback'; end $$;
 select 'ALL PASSED' as result;
