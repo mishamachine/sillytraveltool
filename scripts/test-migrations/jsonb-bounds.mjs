@@ -1,4 +1,4 @@
-// SQL-level test for 20261110100000_jsonb_bounds.sql, run on PGlite (real Postgres 16 compiled to WASM), like the
+// SQL-level test for 20261111053648_jsonb_bounds.sql, run on PGlite (real Postgres 16 compiled to WASM), like the
 // other migration tests. Table shapes copy the real definitions (analytics_events from 20261021180100, wallet_documents
 // from supabase-migration.sql).  node scripts/test-migrations/jsonb-bounds.mjs
 import { PGlite } from '@electric-sql/pglite'
@@ -38,7 +38,7 @@ insert into public.analytics_events (event, props) values ('old_ok', '{"n": 1}')
 insert into public.wallet_documents (user_id, type, title, parsed_data) values ('${U}', 'other', 'old bomb', '[1e131071]'), ('${U}', 'other', 'old ok', '{"a": 1}');
 `)
 
-await db.exec(readFileSync(W + '20261110100000_jsonb_bounds.sql', 'utf8'))
+await db.exec(readFileSync(W + '20261111053648_jsonb_bounds.sql', 'utf8'))
 
 // --- NOT VALID leaves existing rows alone ---
 ok('existing rows untouched (4 rows, none scanned or blocked)', (await q(`select (select count(*) from public.analytics_events) a, (select count(*) from public.wallet_documents) w`))[0].a == 2
@@ -83,7 +83,7 @@ ok('anon cannot call json_ok', await (async () => { try { await db.exec(`select 
 await db.exec(`reset role`)
 
 // --- rollback ---
-await db.exec(readFileSync(R + '20261110100000_jsonb_bounds_down.sql', 'utf8'))
+await db.exec(readFileSync(R + '20261111053648_jsonb_bounds_down.sql', 'utf8'))
 ok('rollback removes both constraints and the function', (await q(`select (select count(*) from pg_constraint where conname in ('analytics_props_ok','wallet_parsed_ok')) c, (select count(*) from pg_proc where proname='json_ok') f`))[0].c == 0
   && (await q(`select count(*) f from pg_proc where proname='json_ok'`))[0].f == 0)
 console.log(fails ? `\n${fails} FAILED` : '\nall passed')

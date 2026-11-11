@@ -13,7 +13,7 @@ create table public.wallet_documents (id uuid primary key default gen_random_uui
 grant all on public.analytics_events, public.wallet_documents to authenticated, service_role;
 insert into public.analytics_events (user_id, event, props) values (gen_random_uuid(), 'old_bomb', '[1e131071]');
 insert into public.wallet_documents (user_id, type, title, parsed_data) values (gen_random_uuid(), 'other', 'old bomb', '[1e131071]');
-\i supabase/migrations/20261110100000_jsonb_bounds.sql
+\i supabase/migrations/20261111053648_jsonb_bounds.sql
 select 'current_user=' || current_user || ' superuser=' || (select rolsuper from pg_roles where rolname = current_user) as who;
 do $$ begin
   assert (select count(*) from public.analytics_events) = 1 and (select count(*) from public.wallet_documents) = 1, 'old rows kept';
@@ -45,6 +45,6 @@ do $$ begin begin perform public.json_ok('{}'); raise exception 'anon could call
 reset role;
 -- VALIDATE fails while a bad row exists; old rows are untouched
 do $$ begin begin alter table public.analytics_events validate constraint analytics_props_ok; raise exception 'validate passed'; exception when check_violation then null; end; end $$;
-\i supabase/rollbacks/20261110100000_jsonb_bounds_down.sql
+\i supabase/rollbacks/20261111053648_jsonb_bounds_down.sql
 do $$ begin assert (select count(*) from pg_proc where proname = 'json_ok') = 0 and (select count(*) from pg_constraint where conname in ('analytics_props_ok','wallet_parsed_ok')) = 0, 'rollback'; end $$;
 select 'ALL PASSED' as result;

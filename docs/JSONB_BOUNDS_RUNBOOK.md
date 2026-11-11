@@ -1,6 +1,6 @@
 # jsonb bounds: apply, validate, roll back
 
-Migration: `supabase/migrations/20261110100000_jsonb_bounds.sql`. Rollback: `supabase/rollbacks/20261110100000_jsonb_bounds_down.sql`.
+Migration: `supabase/migrations/20261111053648_jsonb_bounds.sql`. Rollback: `supabase/rollbacks/20261111053648_jsonb_bounds_down.sql`.
 
 ## Why
 Bounds numeric values in client-writable JSON. `public.json_ok(jsonb)` is used by CHECK constraints on `analytics_events.props` (also under 16 KB) and `wallet_documents.parsed_data` (also under 256 KB).
@@ -24,4 +24,4 @@ alter table public.wallet_documents validate constraint wallet_parsed_ok;
 Validation scans the table and takes a lighter lock (SHARE UPDATE EXCLUSIVE). If a count is above 0, delete or null those rows first (owner decision).
 
 ## Roll back
-Run `supabase/rollbacks/20261110100000_jsonb_bounds_down.sql`. It drops both constraints and the function.
+Run `supabase/rollbacks/20261111053648_jsonb_bounds_down.sql`. It drops both constraints and the function.
