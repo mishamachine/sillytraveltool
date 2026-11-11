@@ -20,6 +20,7 @@ alter table auth.users enable row level security;
 create table public.email_sends (id bigint generated always as identity primary key, email text not null, kind text not null, status text not null, created_at timestamptz not null default now());
 create table public.invite_sends (id bigint generated always as identity primary key, sender uuid not null, recipient_hash text not null, trip_id uuid not null, created_at timestamptz not null default now());
 create table public.beta_waitlist (id bigint generated always as identity primary key, email text not null, confirmation_sent_at timestamptz, invited_at timestamptz);
+create table public.admins (user_id uuid, role text);
 create table public.trips (id uuid primary key default gen_random_uuid(), title text);
 alter table public.email_sends enable row level security; alter table public.invite_sends enable row level security; alter table public.beta_waitlist enable row level security;
 revoke all on public.email_sends, public.invite_sends, public.beta_waitlist from public, anon, authenticated;
@@ -59,6 +60,9 @@ for (const r of ['anon', 'authenticated']) {
   ok(`${r} cannot read the view or usage_alerts`, await denies(r, 'select * from usage_private.auth_email_stamps') && await denies(r, 'select * from public.usage_alerts'))
 }
 
+await db.exec(`insert into auth.users (id, email) values ('11111111-1111-1111-1111-111111111111','owner@example.test'), ('22222222-2222-2222-2222-222222222222','analyst@example.test'); insert into public.admins values ('11111111-1111-1111-1111-111111111111','owner'), ('22222222-2222-2222-2222-222222222222','analyst')`)
+ok('usage_alert_recipients returns only owner addresses, service role only', (await q(`select public.usage_alert_recipients() r`))[0].r.join() === 'owner@example.test' && await denies('authenticated', 'select public.usage_alert_recipients()') && await denies('anon', 'select public.usage_alert_recipients()'))
+await db.exec(`delete from auth.users; delete from public.admins`)
 // --- counts on fixtures: one row of integers ---
 await db.exec(`delete from public.email_sends; delete from public.invite_sends; delete from public.beta_waitlist; delete from auth.users;`)
 const D = `date_trunc('day', now() at time zone 'utc') at time zone 'utc'`, Y = `(${D}) - interval '1 second'`

@@ -17,7 +17,7 @@ do $$ begin
     create role usage_reader nologin;
   end if;
 end $$;
-alter role usage_reader nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
+alter role usage_reader nologin noinherit;
 
 create schema if not exists usage_private;
 revoke all on schema usage_private from public, anon, authenticated;
@@ -74,6 +74,8 @@ $$;
 revoke all on function public.stt_email_usage_counts() from public, anon, authenticated;
 -- Hand the function to usage_reader so it runs with only the rights above. The new owner needs CREATE on the schema
 -- for the moment of the change only.
+-- postgres must be able to SET ROLE to the new owner for the owner change (PG16+ grants the creator this by default; made explicit).
+grant usage_reader to postgres with inherit true, set true;
 grant create on schema public to usage_reader;
 alter function public.stt_email_usage_counts() owner to usage_reader;
 revoke create on schema public from usage_reader;
@@ -136,3 +138,13 @@ end;
 $$;
 revoke all on function public.stt_usage_check() from public, anon, authenticated;
 grant execute on function public.stt_usage_check() to service_role;
+
+-- Owner address(es) for the alert email, so the Edge Function does not have to call cost_alert_run. Service role only.
+create or replace function public.usage_alert_recipients()
+returns text[] language sql stable security definer set search_path = ''
+as $$
+  select coalesce(array_agg(u.email) filter (where u.email is not null), '{}')
+  from public.admins a join auth.users u on u.id = a.user_id where a.role = 'owner'
+$$;
+revoke all on function public.usage_alert_recipients() from public, anon, authenticated;
+grant execute on function public.usage_alert_recipients() to service_role;

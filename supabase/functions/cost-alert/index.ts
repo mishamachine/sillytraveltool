@@ -61,8 +61,8 @@ Deno.serve(async (req) => {
     if (token && b.kind === 'usage') {
       const mail = usageEmail(b)
       if (!mail) return json({ error: 'Bad usage alert' }, 400)
-      const { data: who } = await admin.rpc('cost_alert_run', { p_test: false })
-      const rcpt: string[] = who?.to || []
+      const { data: who } = await admin.rpc('usage_alert_recipients')
+      const rcpt: string[] = Array.isArray(who) ? who : []
       const RKEY = Deno.env.get('RESEND_API_KEY')
       if (!rcpt.length || !RKEY) return json({ error: !rcpt.length ? 'No owner email' : 'RESEND_API_KEY missing' }, 500)
       const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#2b2420">${mail.lines.map((l: string) => `<p style="margin:0 0 8px">${esc(l)}</p>`).join('')}</div>`
