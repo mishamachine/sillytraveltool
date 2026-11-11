@@ -19,7 +19,7 @@
     "check:clay": "node scripts/check-clay.mjs",
     "postbuild": "node scripts/check-dist.mjs && node scripts/check-url-paths.mjs",
     "build:ios": "vite build --mode native --outDir dist-native && npx cap sync ios",
-    "test:migrations": "node scripts/test-migrations/invite-privacy-cleanup.mjs && node scripts/test-migrations/jsonb-bounds.mjs"
+    "test:migrations": "for f in scripts/test-migrations/*.mjs; do node \"$f\" || exit 1; done"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
