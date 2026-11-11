@@ -1,8 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { usageEmail } from "../_shared/usageAlert.js"
 
 // Cost alert email to the owner (docs/PAYWALL_PLAN.md section 10). Two callers:
 //   pg_cron, hourly: header x-cron-token = the Vault secret cost_alert_token → emails only when today's estimated
 //     AI + Google spend passed cost_alert.daily_usd (once a day) or a member crossed an abuse level (once per member/day/kind)
+//   pg_cron daily check (stt_usage_check): same header, body { kind: 'usage', scope, total, limit, counts } → one email about
+//     outbound email volume against the Resend limits (counts only; dedupe is done in SQL)
 //   the owner, from the cockpit: { test: true } with their session → always sends, marked as a test
 // Each run also saves DeepSeek's account balance (provider_balances), so the statement can show real DeepSeek spend.
 const CORS = {
@@ -53,6 +56,21 @@ Deno.serve(async (req) => {
       if (error || !role) return json({ error: error?.message || 'not_admin' }, 403)
       test = b.test === true
       if (!test) return json({ error: 'Only test sends from the cockpit' }, 400)
+    }
+
+    if (token && b.kind === 'usage') {
+      const mail = usageEmail(b)
+      if (!mail) return json({ error: 'Bad usage alert' }, 400)
+      const { data: who } = await admin.rpc('cost_alert_run', { p_test: false })
+      const rcpt: string[] = who?.to || []
+      const RKEY = Deno.env.get('RESEND_API_KEY')
+      if (!rcpt.length || !RKEY) return json({ error: !rcpt.length ? 'No owner email' : 'RESEND_API_KEY missing' }, 500)
+      const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#2b2420">${mail.lines.map((l: string) => `<p style="margin:0 0 8px">${esc(l)}</p>`).join('')}</div>`
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST', headers: { Authorization: `Bearer ${RKEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: FROM, to: rcpt, subject: mail.subject, text: mail.lines.join('\n'), html }),
+      })
+      return r.ok ? json({ sent: true, kind: 'usage' }) : json({ error: `Resend ${r.status}` }, 502)
     }
 
     const balances = await saveDeepseekBalance(admin)
