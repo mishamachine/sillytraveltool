@@ -9,7 +9,7 @@ import { confirmEmail } from '../_shared/betaEmails.js'
 // New sign-ups get one "You're on the list" email; repeats get none.
 const ORIGINS = ['https://sillytraveltool.com', 'https://www.sillytraveltool.com', 'http://localhost:5173', 'http://localhost:4173']
 const FROM = Deno.env.get('MEMBER_EMAIL_FROM') || 'Silly Travel Tool <goose@bookings.sillytraveltool.com>'
-const REPLY_TO = Deno.env.get('MEMBER_EMAIL_REPLY_TO') || 'hello@sillytraveltool.com'
+const REPLY_TO = Deno.env.get('MEMBER_EMAIL_REPLY_TO') || 'machinemisha@gmail.com'
 const URL_ = Deno.env.get('SUPABASE_URL')!
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i

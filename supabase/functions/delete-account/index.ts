@@ -49,6 +49,6 @@ Deno.serve(async (req) => {
     return json({ deleted: true })
   } catch (e) {
     console.error('delete-account', e)
-    return json({ error: 'Something went wrong. Nothing was deleted; try again or email hello@sillytraveltool.com.' }, 500)
+    return json({ error: 'Something went wrong. Nothing was deleted; try again or email machinemisha@gmail.com.' }, 500)
   }
 })

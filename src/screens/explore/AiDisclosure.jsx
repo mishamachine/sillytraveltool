@@ -6,7 +6,7 @@ export default function AiDisclosure({ city, what = 'guide' }) {
   return (
     <p className="t-micro tone-muted explore-ai">
       Suggested by Goose (AI). Check details before you go.{' '}
-      <LinkButton href={`mailto:hello@sillytraveltool.com?subject=${subject}`}>Report</LinkButton>
+      <LinkButton href={`mailto:machinemisha@gmail.com?subject=${subject}`}>Report</LinkButton>
     </p>
   )
 }

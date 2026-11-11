@@ -18,7 +18,7 @@ const CORS = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
 const FROM = Deno.env.get('MEMBER_EMAIL_FROM') || 'Silly Travel Tool <goose@bookings.sillytraveltool.com>'
-const REPLY_TO = Deno.env.get('MEMBER_EMAIL_REPLY_TO') || 'hello@sillytraveltool.com'
+const REPLY_TO = Deno.env.get('MEMBER_EMAIL_REPLY_TO') || 'machinemisha@gmail.com'
 const SITE = 'https://sillytraveltool.com/'
 const PLATFORMS = ['ios', 'android', 'web'] as const
 const LINK_KEY = { ios: 'ios_url', android: 'android_url', web: 'web_url' } as const
