@@ -14,8 +14,8 @@ Why: Resend Free allows 100 emails a day and 3,000 a month, with overage off (ma
 - usage_reader has no password and no stored secret.
 
 ## Owner apply steps (in this order)
-1. Apply `supabase/migrations/20261111070000_usage_reader.sql`.
-   Afterwards, check the version that `supabase_migrations.schema_migrations` recorded. If it isn't 20261111070000, rename the file (and its rollback) to the recorded version in a follow-up commit, so a later `db push` doesn't run it again. Needs Postgres 16 or later for `grant ... with inherit`; live STT is 17.6 (checked 11 Nov).
+1. Apply `supabase/migrations/20261111183241_usage_reader.sql`.
+   APPLIED to live STT on 11 Nov 2026 (recorded as version 20261111183241, with `set local lock_timeout = '3s'` added in front); this file carries that version. For any future apply, check the recorded version and rename the file to match, so a later `db push` doesn't run it again. Needs Postgres 16 or later for `grant ... with inherit`; live STT is 17.6 (checked 11 Nov).
 2. Deploy the `cost-alert` Edge Function (before any schedule, so the first alert has somewhere to go).
 3. pg_cron: already enabled on the live project (the hourly cost-alert job runs on it). On another project, enable it first (Database > Extensions). Then run `supabase/optional-steps/20261110110100_usage_check_schedule.sql` by hand: hourly at minute 5, one alert per day and per month at most. It is not under `migrations/`, so `db push` never runs it.
 4. Check: as the service role, `select * from public.stt_email_usage_counts();` returns one row; as a signed-in test user it returns "permission denied".
@@ -29,4 +29,4 @@ Edit `v_day_limit` and `v_month_limit` (for example 60 and 2,000) and re-run the
 - Alerts are fire-and-forget through pg_net: a failed delivery is not retried that period.
 
 ## Roll back
-`select cron.unschedule('stt-usage-check');` then run `supabase/rollbacks/20261111070000_usage_reader_down.sql`. The cost-alert branch is inert without the check.
+`select cron.unschedule('stt-usage-check');` then run `supabase/rollbacks/20261111183241_usage_reader_down.sql`. The cost-alert branch is inert without the check.
