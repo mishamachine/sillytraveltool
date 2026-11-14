@@ -174,13 +174,15 @@ async function uploadScreenshot(setId, file) {
     must(res.ok, `upload part of ${fileName} failed: ${res.status}`)
   }
   await api('PATCH', `/v1/appScreenshots/${id}`, { data: { type: 'appScreenshots', id, attributes: { uploaded: true, sourceFileChecksum: crypto.createHash('md5').update(bytes).digest('hex') } } })
-  for (let i = 0; i < 60; i++) {
+  // Apple sometimes takes a long time to process one image; wait up to 15 minutes, then leave it processing and go on.
+  for (let i = 0; i < 180; i++) {
     const s = (await api('GET', `/v1/appScreenshots/${id}`)).data.attributes.assetDeliveryState
-    if (s?.state === 'COMPLETE') { console.log('screenshot', id, fileName, 'COMPLETE'); return }
+    if (s?.state === 'COMPLETE') { console.log('screenshot', id, fileName, 'COMPLETE'); return true }
     must(s?.state !== 'FAILED', `screenshot ${fileName} failed: ${JSON.stringify(s?.errors || [])}`)
     await sleep(5000)
   }
-  must(false, `screenshot ${fileName} not COMPLETE after 5 minutes`)
+  console.log('screenshot', id, fileName, 'still processing at Apple after 15 minutes; check with action=listing')
+  return false
 }
 
 async function screenshots() {
@@ -190,16 +192,28 @@ async function screenshots() {
   must(root === process.cwd() || root.startsWith(process.cwd() + path.sep), 'folder must be inside the repo')
   const v = await editableVersion()
   const loc = await enUS(v.id)
+  const used = new Set()
+  const pending = []
   for (const kind of ['iphone', 'ipad']) {
     const dir = path.join(root, kind)
     const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(n => n.toLowerCase().endsWith('.png')).sort() : []
     must(files.length, `no PNGs in ${path.relative(process.cwd(), dir)}`)
     const set = await screenshotSet(loc.id, kind)
+    used.add(set.id)
     console.log(kind, 'set', set.id, set.attributes.screenshotDisplayType)
     const old = await api('GET', `/v1/appScreenshotSets/${set.id}/appScreenshots?limit=50`)
     for (const o of old.data) { await api('DELETE', `/v1/appScreenshots/${o.id}`); console.log('deleted', o.id) }
-    for (const f of files) await uploadScreenshot(set.id, path.join(dir, f))
+    for (const f of files) if (!(await uploadScreenshot(set.id, path.join(dir, f)))) pending.push(`${kind}/${f}`)
   }
+  // Older sets for other iPhone/iPad sizes would keep showing outdated images on those devices; empty them so Apple scales ours down.
+  const sets = (await api('GET', `/v1/appStoreVersionLocalizations/${loc.id}/appScreenshotSets?limit=50`)).data
+  for (const s of sets) {
+    const t = s.attributes.screenshotDisplayType
+    if (used.has(s.id) || !/^APP_(IPHONE|IPAD)_/.test(t)) continue
+    const shots = await api('GET', `/v1/appScreenshotSets/${s.id}/appScreenshots?limit=50`)
+    for (const o of shots.data) { await api('DELETE', `/v1/appScreenshots/${o.id}`); console.log('deleted old', t, o.id) }
+  }
+  if (pending.length) console.log('still processing at Apple:', pending.join(', '))
 }
 
 async function submit() {
