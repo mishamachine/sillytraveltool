@@ -33,7 +33,8 @@ await build({
 globalThis.__events = []
 // A fake bookings table: `answer` is what the next update returns
 let answer
-globalThis.__db = { from: () => ({ update: () => ({ in: () => ({ select: async () => answer }) }) }) }
+const calls = []
+globalThis.__db = { from: table => { calls.push(['from', table]); return { update: v => { calls.push(['update', v]); return { in: (col, ids) => { calls.push(['in', col, ids]); return { select: async cols => { calls.push(['select', cols]); return answer } } } } } } } }
 const { useTripsStore } = await import(`${dir}/store.mjs`)
 
 const B = n => ({ id: `b${n}`, trip_id: 't1', title: `Booking ${n}`, type: 'hotel' })
@@ -42,13 +43,14 @@ const reset = (list, extra = {}) => {
   useTripsStore.setState({ bookings: list, datePrompt: null, refreshStops: () => {}, fillDatesIfUndated: async () => {}, ...extra })
 }
 const rejects = async (fn) => { try { await fn() } catch (e) { return e } assert.fail('should have thrown') }
-const move = list => useTripsStore.getState().moveBookings(list, 't2')
+const move = list => { calls.length = 0; return useTripsStore.getState().moveBookings(list, 't2') }
 const left = () => useTripsStore.getState().bookings.map(b => b.id)
 
 // Success: every row comes back, they leave the old trip, no message
 reset([B(1), B(2), B(3)]); answer = { data: [{ id: 'b1' }, { id: 'b2' }], error: null }
 await move([B(1), B(2)])
 assert.deepEqual(left(), ['b3'], 'saved bookings leave the old trip')
+assert.deepEqual(calls, [['from', 'bookings'], ['update', { trip_id: 't2' }], ['in', 'id', ['b1', 'b2']], ['select', 'id']], 'updates the target trip for exactly these ids and asks for the saved ids back')
 assert.deepEqual(globalThis.__events, [['booking_moved', { count: 2 }]])
 
 // RLS denied: no error, zero rows. The booking stays and the message is plain
@@ -85,5 +87,11 @@ assert.deepEqual(globalThis.__events, [['booking_moved', { count: 1 }]])
 reset([B(1), B(2)]); answer = { data: [{ id: 'b1' }], error: null }
 e = await rejects(() => move([B(1), B(2)]))
 assert.equal(e.message, "Moved 1 of 2 bookings. 1 booking couldn't be moved into that trip and stays where it was.")
+
+// A throw in the follow-ups (stops, dates) cannot skip the local state or the message
+reset([B(1), B(2)], { datePrompt: { tripId: 't1', bookings: [B(1), B(2)] }, fillDatesIfUndated: async () => { throw new Error('dates failed') } }); answer = { data: [{ id: 'b1' }], error: null }
+e = await rejects(() => move([B(1), B(2)]))
+assert.match(e.message, /^Moved 1 of 2 bookings/); assert.deepEqual(left(), ['b2'])
+assert.deepEqual(useTripsStore.getState().datePrompt.bookings.map(b => b.id), ['b2'])
 
 console.log('move bookings: ok')

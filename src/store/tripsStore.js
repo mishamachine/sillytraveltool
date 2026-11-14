@@ -272,19 +272,21 @@ export const useTripsStore = create((set, get) => ({
     if (error) throw upgradeError(error) // the free-plan reservation limit opens the paywall with its own message
     const { moved, refused } = splitMoved(bookings, data)
     const movedIds = moved.map(b => b.id)
-    if (movedIds.length) {
-      set(state => ({ bookings: state.bookings.filter(b => !movedIds.includes(b.id)) }))
-      track('booking_moved', { count: movedIds.length })
-      const fromTrip = moved[0].trip_id
-      if (fromTrip) get().refreshStops(fromTrip)
-      get().refreshStops(toTripId)
-      await get().fillDatesIfUndated(toTripId, moved.map(b => ({ ...b, trip_id: toTripId })))
-    }
     const message = moveMessage(moved.length, refused.length)
-    if (message) {
-      // a retry from the sheet should only offer the ones still in place
-      if (moved.length) set(state => state.datePrompt ? { datePrompt: { ...state.datePrompt, bookings: refused } } : {})
-      throw new Error(message)
+    // Settle the local state and the message first, so a throw in the follow-ups below cannot skip them
+    if (movedIds.length) set(state => ({ bookings: state.bookings.filter(b => !movedIds.includes(b.id)) }))
+    // a retry from the sheet should only offer the ones still in place
+    if (message && movedIds.length) set(state => state.datePrompt ? { datePrompt: { ...state.datePrompt, bookings: refused } } : {})
+    try {
+      if (movedIds.length) {
+        track('booking_moved', { count: movedIds.length })
+        const fromTrip = moved[0].trip_id
+        if (fromTrip) get().refreshStops(fromTrip)
+        get().refreshStops(toTripId)
+        await get().fillDatesIfUndated(toTripId, moved.map(b => ({ ...b, trip_id: toTripId })))
+      }
+    } finally {
+      if (message) throw new Error(message) // eslint-disable-line no-unsafe-finally
     }
   },
 
