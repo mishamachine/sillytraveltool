@@ -94,4 +94,24 @@ e = await rejects(() => move([B(1), B(2)]))
 assert.match(e.message, /^Moved 1 of 2 bookings/); assert.deepEqual(left(), ['b2'])
 assert.deepEqual(useTripsStore.getState().datePrompt.bookings.map(b => b.id), ['b2'])
 
+// The picker only offers trips the server will take a booking into: no view-only, cancelled or finished trips
+// (bookings RLS: the target must be owned, or shared with an accepted non-viewer role)
+await build({
+  entryPoints: [`${root}src/lib/tripPick.js`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/pick.mjs`, logLevel: 'error',
+  plugins: [{ name: 'places', setup(b) {
+    b.onResolve({ filter: /places$/ }, () => ({ path: 'places', namespace: 'stub' }))
+    b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export const geocode = async () => null', loader: 'js' }))
+  } }],
+})
+const { editableTrips } = await import(`${dir}/pick.mjs`)
+const future = { start_date: '2099-01-01', end_date: '2099-01-10' }
+const offered = editableTrips([
+  { id: 'own', status: 'planning', ...future },
+  { id: 'editor', status: 'planning', _myRole: 'editor', _isShared: true, ...future },
+  { id: 'viewer', status: 'planning', _myRole: 'viewer', _isShared: true, ...future },
+  { id: 'cancelled', status: 'cancelled', ...future },
+  { id: 'over', status: 'completed', start_date: '2020-01-01', end_date: '2020-01-05' },
+]).map(t => t.id)
+assert.deepEqual(offered, ['own', 'editor'], 'view-only, cancelled and finished trips are not offered as a move target')
+
 console.log('move bookings: ok')
