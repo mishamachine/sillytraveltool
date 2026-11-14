@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '../../store'
+import { isDemo } from '../../lib/supabase'
 import { useWalletTable } from './useWallet'
 import ProfileHome from './ProfileHome'
 import DocumentsView from './DocumentsView'
@@ -20,6 +21,14 @@ export default function ProfileScreen() {
 
   // Refresh on mount so score is always current
   useEffect(() => { if (user) fetchStats() }, [user?.id])
+
+  // Demo store screenshots only (src/dev/demoNav.js)
+  useEffect(() => {
+    if (!isDemo) return
+    const on = (e) => { const v = e.detail?.profile; if (v) setView(v) }
+    window.addEventListener('stt-demo-view', on)
+    return () => window.removeEventListener('stt-demo-view', on)
+  }, [])
 
   const back = () => setView('home')
   useBackHandler(view !== 'home', back)

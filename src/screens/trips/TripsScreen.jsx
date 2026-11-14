@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTripsStore } from '../../store'
+import { isDemo } from '../../lib/supabase'
 import { tripPhase } from '../../lib/trips'
 import TripList from './TripList'
 import TodayView from './TodayView'
@@ -16,6 +17,13 @@ export default function TripsScreen() {
 
 
   useEffect(() => { fetchTrips() }, [])
+  // Demo store screenshots only (src/dev/demoNav.js)
+  useEffect(() => {
+    if (!isDemo) return
+    const on = (e) => { const v = e.detail?.trips; if (v) setView(v === 'list' ? 'list' : null) }
+    window.addEventListener('stt-demo-view', on)
+    return () => window.removeEventListener('stt-demo-view', on)
+  }, [])
 
   // Open straight onto Today only when exactly one trip is in progress; with several, the list lets you pick
   const inProgress = trips.filter(t => tripPhase(t) === 'active')

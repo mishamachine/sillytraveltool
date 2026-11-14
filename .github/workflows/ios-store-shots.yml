@@ -5,10 +5,6 @@ name: iOS store screenshots
 
 on:
   workflow_dispatch:
-    inputs:
-      trip:
-        description: Text on the trip card to open for the Plan screenshot
-        default: Spain
 
 permissions:
   contents: read
@@ -36,7 +32,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_DEMO: '1'
-          VITE_DEMO_PARAMS: flagship=10
+          VITE_DEMO_PARAMS: consent=reject&geo=granada&weather=fixed&now=2026-11-07T18:30:00Z
         run: npx vite build --mode native && npx cap sync ios
 
       - name: Build for the Simulator
@@ -61,8 +57,6 @@ jobs:
           print("devices:", phone[-1]["name"], "/", pad[-1]["name"], file=sys.stderr)' >> "$GITHUB_ENV"
 
       - name: Screenshots (iPhone 6.9" then iPad 13")
-        env:
-          TRIP: ${{ inputs.trip }}
         run: |
           for KIND in iphone ipad; do
             if [ "$KIND" = iphone ]; then U="$PHONE_UDID"; else U="$PAD_UDID"; fi
