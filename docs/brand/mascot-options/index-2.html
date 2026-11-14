@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Goose round two</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--page:#F4EEE6;--card:#FFFDF9;--ink:#2A2520;--ink2:#5A5247;--muted:#6B6355;--accent:#B24A17;--dpage:#1C1814}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 "DM Sans",system-ui,sans-serif}
+main{max-width:1640px;margin:0 auto;padding:48px 40px 64px}
+h1,h2,h3{font-family:"Space Grotesk",system-ui,sans-serif;letter-spacing:-.02em;margin:0}
+h1{font-size:44px;line-height:1;letter-spacing:-.03em}h2{font-size:26px;line-height:1.15}h3{font-size:15px;margin:18px 0 8px;color:var(--muted)}
+.section{font-size:30px;margin:40px 0 6px}
+.over{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin:0 0 6px}
+.lede{font-size:17px;color:var(--ink2);max-width:960px;margin:14px 0 0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:18px}
+.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.card{background:var(--card);border-radius:28px;padding:26px;box-shadow:0 10px 30px rgba(120,80,50,.12),inset 0 -4px 0 rgba(120,80,50,.05)}
+.concept{color:var(--ink2);margin:8px 0 18px;min-height:44px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.three .panels{grid-template-columns:1fr}
+.panel{border-radius:22px;padding:14px;display:flex;gap:14px;align-items:center;justify-content:center}
+.panel.light{background:var(--page)}.panel.dark{background:var(--dpage)}
+.panel .big{border-radius:16px;width:256px;height:auto}
+.px{image-rendering:pixelated;image-rendering:crisp-edges}
+.sizes{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:64px}
+.sizes span{font-size:12px;font-weight:500;color:var(--muted);margin-bottom:10px}.dark .sizes span{color:#B3A796}
+.frames{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+figure{margin:0;background:var(--page);border-radius:18px;padding:12px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px}
+figure.scales{flex-direction:row;align-items:flex-end;flex-wrap:wrap;justify-content:center}
+figure.scales figcaption{width:100%}
+figure .appicon{border-radius:36px}
+figcaption{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.anim{position:relative;display:inline-block;line-height:0}
+.anim .b{position:absolute;left:0;top:0;opacity:0}
+.walk .b{animation:flip .5s steps(1) infinite}
+.blink .b{animation:blink 3s steps(1) infinite}
+@keyframes flip{50%{opacity:1}}
+@keyframes blink{90%{opacity:1}96%{opacity:0}}
+.kit{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+@media (max-width:1100px){.grid,.grid.three{grid-template-columns:1fr}}
+</style></head><body><main>
+<p class="over">Silly Travel Tool · mascot exploration, round two · not in the app</p>
+<h1>Goose, round two</h1>
+<p class="lede">Two directions, pushed further, each with variants. <b>Arcade</b> is a real 32 x 32 sprite with true PNGs at whole-number scales, a two-frame walk, an idle blink and a honk. <b>Waddle</b> is the silly-but-cute Goose, still with an ink outline and cream fill so it sits in the Clay system.</p>
+<h2 class="section">A · Arcade</h2>
+<div class="grid">
+    <article class="card">
+      <header><p class="over">Arcade · NES</p><h2>NES, five colours</h2>
+      <p class="concept">Ink, cream, shadow, beak yellow and terracotta. A big head, a stubby body and a chunky beak, with a one-pixel glint in the eye.</p></header>
+      <div class="panels">
+        <div class="panel light"><img class="px big" src="png/arcade/nes-idle@1x.png" width="256" alt=""><div class="sizes"><img class="px " src="png/arcade/nes-idle@1x.png" width="64" alt=""><span>64 (2x)</span><img class="px " src="png/arcade/nes-icon@1x.png" width="24" alt=""><span>24</span></div></div>
+        <div class="panel dark"><img class="px big" src="png/arcade/nes-idle@1x.png" width="256" alt=""><div class="sizes"><img class="px " src="png/arcade/nes-idle@1x.png" width="64" alt=""><span>64 (2x)</span><img class="px " src="png/arcade/nes-icon@1x.png" width="24" alt=""><span>24</span></div></div>
+      </div>
+      <h3>Frames at 4x</h3>
+      <div class="frames">
+        <figure><img class="px " src="png/arcade/nes-idle@1x.png" width="128" alt=""><figcaption>Idle</figcaption></figure>
+        <figure><img class="px " src="png/arcade/nes-blink@1x.png" width="128" alt=""><figcaption>Blink</figcaption></figure>
+        <figure><img class="px " src="png/arcade/nes-walkA@1x.png" width="128" alt=""><figcaption>Walk 1</figcaption></figure>
+        <figure><img class="px " src="png/arcade/nes-walkB@1x.png" width="128" alt=""><figcaption>Walk 2</figcaption></figure>
+        <figure class="wide"><img class="px " src="png/arcade/nes-honk@1x.png" width="192" alt=""><figcaption>Honk</figcaption></figure>
+      </div>
+      <div class="frames">
+        <figure><span class="anim blink"><img class="px " src="png/arcade/nes-idle@1x.png" width="128" alt=""><img class="px b" src="png/arcade/nes-blink@1x.png" width="128" alt=""></span><figcaption>Idle + blink (live)</figcaption></figure>
+        <figure><span class="anim walk"><img class="px " src="png/arcade/nes-walkA@1x.png" width="128" alt=""><img class="px b" src="png/arcade/nes-walkB@1x.png" width="128" alt=""></span><figcaption>Walk cycle (live)</figcaption></figure>
+        <figure class="scales"><img class="px " src="png/arcade/nes-idle@1x.png" width="32" alt=""><img class="px " src="png/arcade/nes-idle@1x.png" width="128" alt=""><img class="px " src="png/arcade/nes-idle@1x.png" width="256" alt=""><figcaption>1x · 4x · 8x</figcaption></figure>
+      </div>
+      <div class="frames">
+        <figure><img class="px " src="png/arcade/nes-title@1x.png" width="160" alt=""><figcaption>Title screen tag (4x)</figcaption></figure>
+        <figure><img class="appicon" src="svg/9-arcade/nes-app-icon.svg" width="160" height="160" alt=""><figcaption>App icon</figcaption></figure>
+        <figure><img class="px " src="png/arcade/nes-title@1x.png" width="40" alt=""> <img class="px " src="png/arcade/nes-title@1x.png" width="80" alt=""><figcaption>Tag at 1x and 2x</figcaption></figure>
+      </div>
+    </article>
+    <article class="card">
+      <header><p class="over">Arcade · Game Boy</p><h2>Game Boy, four greens</h2>
+      <p class="concept">Four shades from the success tokens (ink, green, mint, mist), like a 1989 handheld screen.</p></header>
+      <div class="panels">
+        <div class="panel light"><img class="px big" src="png/arcade/gb-idle@1x.png" width="256" alt=""><div class="sizes"><img class="px " src="png/arcade/gb-idle@1x.png" width="64" alt=""><span>64 (2x)</span><img class="px " src="png/arcade/gb-icon@1x.png" width="24" alt=""><span>24</span></div></div>
+        <div class="panel dark"><img class="px big" src="png/arcade/gb-idle@1x.png" width="256" alt=""><div class="sizes"><img class="px " src="png/arcade/gb-idle@1x.png" width="64" alt=""><span>64 (2x)</span><img class="px " src="png/arcade/gb-icon@1x.png" width="24" alt=""><span>24</span></div></div>
+      </div>
+      <h3>Frames at 4x</h3>
+      <div class="frames">
+        <figure><img class="px " src="png/arcade/gb-idle@1x.png" width="128" alt=""><figcaption>Idle</figcaption></figure>
+        <figure><img class="px " src="png/arcade/gb-blink@1x.png" width="128" alt=""><figcaption>Blink</figcaption></figure>
+        <figure><img class="px " src="png/arcade/gb-walkA@1x.png" width="128" alt=""><figcaption>Walk 1</figcaption></figure>
+        <figure><img class="px " src="png/arcade/gb-walkB@1x.png" width="128" alt=""><figcaption>Walk 2</figcaption></figure>
+        <figure class="wide"><img class="px " src="png/arcade/gb-honk@1x.png" width="192" alt=""><figcaption>Honk</figcaption></figure>
+      </div>
+      <div class="frames">
+        <figure><span class="anim blink"><img class="px " src="png/arcade/gb-idle@1x.png" width="128" alt=""><img class="px b" src="png/arcade/gb-blink@1x.png" width="128" alt=""></span><figcaption>Idle + blink (live)</figcaption></figure>
+        <figure><span class="anim walk"><img class="px " src="png/arcade/gb-walkA@1x.png" width="128" alt=""><img class="px b" src="png/arcade/gb-walkB@1x.png" width="128" alt=""></span><figcaption>Walk cycle (live)</figcaption></figure>
+        <figure class="scales"><img class="px " src="png/arcade/gb-idle@1x.png" width="32" alt=""><img class="px " src="png/arcade/gb-idle@1x.png" width="128" alt=""><img class="px " src="png/arcade/gb-idle@1x.png" width="256" alt=""><figcaption>1x · 4x · 8x</figcaption></figure>
+      </div>
+      <div class="frames">
+        <figure><img class="px " src="png/arcade/gb-title@1x.png" width="160" alt=""><figcaption>Title screen tag (4x)</figcaption></figure>
+        <figure><img class="appicon" src="svg/9-arcade/gb-app-icon.svg" width="160" height="160" alt=""><figcaption>App icon</figcaption></figure>
+        <figure><img class="px " src="png/arcade/gb-title@1x.png" width="40" alt=""> <img class="px " src="png/arcade/gb-title@1x.png" width="80" alt=""><figcaption>Tag at 1x and 2x</figcaption></figure>
+      </div>
+    </article></div>
+<h2 class="section">B · Waddle</h2>
+<div class="grid three">
+    <article class="card">
+      <header><p class="over">Waddle · Proud</p><h2>Proud</h2><p class="concept">Chest out, wings on hips, one eye lazily half-shut and a grin that is up to something.</p></header>
+      <div class="panels">
+        <div class="panel light"><img class="big" src="svg/10-waddle/proud.svg" width="256" height="256" alt=""><div class="sizes"><img src="svg/10-waddle/proud.svg" width="64" height="64" alt=""><span>64</span><img class="ic" src="svg/10-waddle/icon-24.svg" width="24" height="24" alt=""><span>24</span></div></div>
+        <div class="panel dark"><img class="big" src="svg/10-waddle/proud-dark.svg" width="256" height="256" alt=""><div class="sizes"><img src="svg/10-waddle/proud-dark.svg" width="64" height="64" alt=""><span>64</span><img class="ic" src="svg/10-waddle/icon-24-dark.svg" width="24" height="24" alt=""><span>24</span></div></div>
+      </div>
+    </article>
+    <article class="card">
+      <header><p class="over">Waddle · Mid-waddle</p><h2>Mid-waddle</h2><p class="concept">Leaning into the step, one big foot up, wings out for balance, scarf streaming.</p></header>
+      <div class="panels">
+        <div class="panel light"><img class="big" src="svg/10-waddle/waddle.svg" width="256" height="256" alt=""><div class="sizes"><img src="svg/10-waddle/waddle.svg" width="64" height="64" alt=""><span>64</span><img class="ic" src="svg/10-waddle/icon-24.svg" width="24" height="24" alt=""><span>24</span></div></div>
+        <div class="panel dark"><img class="big" src="svg/10-waddle/waddle-dark.svg" width="256" height="256" alt=""><div class="sizes"><img src="svg/10-waddle/waddle-dark.svg" width="64" height="64" alt=""><span>64</span><img class="ic" src="svg/10-waddle/icon-24-dark.svg" width="24" height="24" alt=""><span>24</span></div></div>
+      </div>
+    </article>
+    <article class="card">
+      <header><p class="over">Waddle · Lost the plot</p><h2>Lost the plot</h2><p class="concept">Spiral eyes, beak agape, the map held upside down, a question mark and orbiting stars.</p></header>
+      <div class="panels">
+        <div class="panel light"><img class="big" src="svg/10-waddle/lost.svg" width="256" height="256" alt=""><div class="sizes"><img src="svg/10-waddle/lost.svg" width="64" height="64" alt=""><span>64</span><img class="ic" src="svg/10-waddle/icon-24.svg" width="24" height="24" alt=""><span>24</span></div></div>
+        <div class="panel dark"><img class="big" src="svg/10-waddle/lost-dark.svg" width="256" height="256" alt=""><div class="sizes"><img src="svg/10-waddle/lost-dark.svg" width="64" height="64" alt=""><span>64</span><img class="ic" src="svg/10-waddle/icon-24-dark.svg" width="24" height="24" alt=""><span>24</span></div></div>
+      </div>
+    </article></div>
+<div class="card" style="margin-top:24px"><h2>Waddle kit</h2>
+  <div class="kit">
+    <figure><img src="svg/10-waddle/proud-mono.svg" width="140" height="140" alt=""><figcaption>One colour</figcaption></figure>
+    <figure><img src="svg/10-waddle/waddle-mono.svg" width="140" height="140" alt=""><figcaption>One colour, waddle</figcaption></figure>
+    <figure><img src="svg/10-waddle/tag.svg" width="140" height="140" alt=""><figcaption>In the tag</figcaption></figure>
+    <figure><img class="appicon" src="svg/10-waddle/app-icon.svg" width="140" height="140" alt="" style="border-radius:32px"><figcaption>App icon</figcaption></figure>
+    <figure><span><img src="svg/10-waddle/icon-24.svg" width="24" height="24" alt=""> <img src="svg/10-waddle/icon-24.svg" width="16" height="16" alt=""> <img src="svg/10-waddle/icon-24.svg" width="72" height="72" alt=""></span><figcaption>24 · 16 · 72 px icon</figcaption></figure>
+  </div>
+</div>
+</main></body></html>
