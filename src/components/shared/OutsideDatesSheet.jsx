@@ -51,7 +51,7 @@ export default function OutsideDatesSheet() {
     const ranked = rankTrips(others, { start: prompt.span.start, end: prompt.span.end, points: place ? [place] : [] })
     setPicking({ ranked, place }); setBusy(false)
   }
-  const moveTo = async (to) => { await moveBookings(prompt.bookings, to.id); fetchTrips() }
+  const moveTo = async (to) => { try { await moveBookings(prompt.bookings, to.id) } finally { fetchTrips() } }
   const startTrip = async (title) => {
     const p = picking.place
     const destination_city = p?.city || trip.destination_city

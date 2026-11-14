@@ -8,6 +8,7 @@ import { daysBetween, findCurrentOrNextTrip } from '../lib/dates'
 import { pgQuote } from '../lib/postgrest'
 import { track } from '../lib/analytics'
 import { upgradeError } from './planStore'
+import { splitMoved, moveMessage } from '../lib/moveBookings'
 
 const stopRuns = new Map() // tripId → { timer, chain }: see refreshStops
 
@@ -266,14 +267,27 @@ export const useTripsStore = create((set, get) => ({
   /** Move bookings to another trip (the outside-dates prompt), then fit that trip's dates to them. */
   moveBookings: async (bookings, toTripId) => {
     const ids = bookings.map(b => b.id)
-    const { error } = await supabase.from('bookings').update({ trip_id: toTripId }).in('id', ids)
-    if (error) throw upgradeError(error)
-    const fromTrip = bookings[0]?.trip_id
-    set(state => ({ bookings: state.bookings.filter(b => !ids.includes(b.id)) }))
-    track('booking_moved', { count: ids.length })
-    if (fromTrip) get().refreshStops(fromTrip)
-    get().refreshStops(toTripId)
-    await get().fillDatesIfUndated(toTripId, bookings.map(b => ({ ...b, trip_id: toTripId })))
+    // select('id'): an RLS-denied update returns no error and no rows, so only the returned rows count as moved
+    const { data, error } = await supabase.from('bookings').update({ trip_id: toTripId }).in('id', ids).select('id')
+    if (error) throw upgradeError(error) // the free-plan reservation limit opens the paywall with its own message
+    const { moved, refused } = splitMoved(bookings, data)
+    const movedIds = moved.map(b => b.id)
+    const message = moveMessage(moved.length, refused.length)
+    // Settle the local state and the message first, so a throw in the follow-ups below cannot skip them
+    if (movedIds.length) set(state => ({ bookings: state.bookings.filter(b => !movedIds.includes(b.id)) }))
+    // a retry from the sheet should only offer the ones still in place
+    if (message && movedIds.length) set(state => state.datePrompt ? { datePrompt: { ...state.datePrompt, bookings: refused } } : {})
+    try {
+      if (movedIds.length) {
+        track('booking_moved', { count: movedIds.length })
+        const fromTrip = moved[0].trip_id
+        if (fromTrip) get().refreshStops(fromTrip)
+        get().refreshStops(toTripId)
+        await get().fillDatesIfUndated(toTripId, moved.map(b => ({ ...b, trip_id: toTripId })))
+      }
+    } finally {
+      if (message) throw new Error(message) // eslint-disable-line no-unsafe-finally
+    }
   },
 
   // via: 'manual' | 'paste_import' | 'idea', kept in bookings.added_via for the cockpit; email-inbox bookings say so in bookingData.source
