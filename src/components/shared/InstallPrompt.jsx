@@ -7,7 +7,7 @@ import { Capacitor } from '@capacitor/core'
 import { track } from '../../lib/analytics'
 import { Sheet, Button, Stack, Text, Icon } from '../../ui'
 import {
-  INSTALL_COPY as C, EVENTS, readEnv, surfaceAvailable, installMethod, stepsText, readState, markShown, markDismissed, markDone,
+  INSTALL_COPY as C, EVENTS, readEnv, surfaceAvailable, installMethod, stepsText, iosStepsParts, countsAsDismissal, readState, markShown, markDismissed, markDone,
   evaluate, getDeferred, clearDeferred, subscribe, captureInstallEvents,
 } from '../../lib/installPrompt'
 
@@ -61,7 +61,7 @@ export function InstallBody({ view, method, titleId, titleTag = 'h1', hideTitle 
         ? (
           <Text variant="body-lg" as="p" className="install-steps">
             {method === 'ios-safari'
-              ? <>Tap Share <Icon name="share" size={18} className="install-steps__icon" label="Share" />, then Add to Home Screen.</>
+              ? <>{iosStepsParts().before} <Icon name="share" size={18} className="install-steps__icon" label="Share" />{iosStepsParts().after}</>
               : stepsText(method)}
           </Text>
         )
@@ -74,7 +74,7 @@ export function InstallBody({ view, method, titleId, titleTag = 'h1', hideTitle 
 export function InstallSheet({ onClose, popup = false }) {
   const { method, view, add } = useInstallFlow()
   const dismiss = () => {
-    if (popup) { const s = store(); if (s) markDismissed(s); track(EVENTS.dismissed) }
+    if (countsAsDismissal({ popup, view })) { const s = store(); if (s) markDismissed(s); track(EVENTS.dismissed) }
     onClose()
   }
   const footer = view === 'steps'

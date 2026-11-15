@@ -54,6 +54,15 @@ export function stepsText(method) {
   return method === 'ios-safari' ? INSTALL_COPY.iosSteps : method === 'ios-other' ? INSTALL_COPY.iosOtherBrowser : INSTALL_COPY.menuHint
 }
 
+/** The iOS Safari sentence split around the word "Share", so the UI can put the Share icon inline. */
+export function iosStepsParts() {
+  const [before, after] = INSTALL_COPY.iosSteps.split('Share')
+  return { before: `${before}Share`, after }
+}
+
+/** Closing the pop-up counts as a dismissal only from the offer; after "Add" (the steps view) it does not. */
+export const countsAsDismissal = ({ popup, view }) => popup === true && view !== 'steps'
+
 // ---- counters (localStorage, wrapped so a private window simply never shows the pop-up) ----
 export function readState(storage) {
   try {

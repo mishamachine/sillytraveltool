@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   INSTALL_COPY, EVENTS, MIN_GAP_MS, MAX_DISMISSALS, STORAGE_KEY, LEGACY_DISMISSED_KEY,
-  readEnv, surfaceAvailable, installMethod, stepsText, readState, markShown, markDismissed, markDone, markOnboardingShown, evaluate,
+  readEnv, iosStepsParts, countsAsDismissal, surfaceAvailable, installMethod, stepsText, readState, markShown, markDismissed, markDone, markOnboardingShown, evaluate,
 } from '../src/lib/installPrompt.js'
 
 let n = 0
@@ -144,6 +144,24 @@ t('iOS branch: Safari gets the Share steps, other iOS browsers are sent to Safar
   assert.equal(installMethod(chrome, false), 'ios-other')
   assert.equal(stepsText('ios-safari'), 'Tap Share, then Add to Home Screen.')
   assert.equal(stepsText('ios-other'), 'Open this page in Safari, then tap Share, then Add to Home Screen.')
+})
+
+t('iOS steps sentence is built from the one string, split around Share for the icon', () => {
+  const { before, after } = iosStepsParts()
+  assert.equal(`${before} ${after}`.replace(/\s+/g, ' ').replace(' ,', ','), 'Tap Share, then Add to Home Screen.')
+  assert.equal(before, 'Tap Share')
+  assert.equal(after, ', then Add to Home Screen.')
+  const ui = readFileSync(new URL('../src/components/shared/InstallPrompt.jsx', import.meta.url), 'utf8')
+  assert.ok(!ui.includes('then Add to Home Screen'), 'the sentence must not be duplicated in JSX')
+})
+
+t('pop-up closed after Add (steps view) is not a dismissal; from the offer it is; other surfaces never', () => {
+  assert.equal(countsAsDismissal({ popup: true, view: 'ask' }), true)
+  assert.equal(countsAsDismissal({ popup: true, view: 'steps' }), false)
+  assert.equal(countsAsDismissal({ popup: false, view: 'ask' }), false)
+  assert.equal(countsAsDismissal({ popup: false, view: 'steps' }), false)
+  const ui = readFileSync(new URL('../src/components/shared/InstallPrompt.jsx', import.meta.url), 'utf8')
+  assert.match(ui, /if \(countsAsDismissal\(\{ popup, view \}\)\)/, 'dismiss() must gate on countsAsDismissal')
 })
 
 t('iPadOS that reports as a Mac is still iOS', () => {
