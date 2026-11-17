@@ -41,8 +41,7 @@ sets one.
 ## Owner clicks, in order
 1. **Set the demo password.** On sillytraveltool.com → Continue with email → Forgot password? → `machinemisha@gmail.com`
    → open the reset link in that inbox → set a password. Sign out, then sign in with email + password to confirm it works.
-2. **Open the demo inbox to any sender.** Still as machinemisha: Profile → Settings → Goose inbox → **Accept from any
-   sender** on. (The review notes now promise this.)
+2. **Open the demo inbox to any sender.** Any sender is accepted; no setting needed. (The review notes promise this.)
 3. **Decide on build 6** (recommended): merge this PR (and PR #42 after its deploys), then run
    `.github/workflows/ios-release.yml` (Actions → iOS release → Run workflow). When build 6 finishes processing, select
    it on the 0.20.0 version page instead of build 5.

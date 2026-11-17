@@ -13,6 +13,10 @@ assert.ok(privacy.includes('Goose accepts forwarded mail from any sender, so any
 // Nothing public or in the app may promise a sender check while it is off
 for (const f of ['public/privacy/index.html', 'public/terms/index.html', 'src/lib/helpContent.js', 'src/screens/auth/Onboarding.jsx', 'src/lib/sectionTours.js', 'src/lib/sectionTourScenes.js']) assert.ok(!/only if they come from|from your account email|Accept from any sender|only reads mail|only mail from/i.test(read(f)), `${f} promises a sender check`)
 assert.ok(privacy.includes('for emails you forward and for text and files you import, we ask first'))
+assert.ok(privacy.includes('you\'ll see "Let Goose read your bookings with AI?" (in older app versions, "Let Goose use AI on your bookings?") in the tour'))
+assert.equal((privacy.match(/<em>Settings → AI reading<\/em> \(in older app versions, <em>AI reading of imports and translations<\/em>\)/g) || []).length, 2, 'both Settings references name the new and the older label')
+assert.ok(read('docs/APP_REVIEW_CHECKLIST.md').includes('Any sender is accepted; no setting needed.') && !/Accept from any sender\*\* on|Accept from any\s+sender\*\* on/.test(read('docs/APP_REVIEW_CHECKLIST.md')))
+assert.ok(read('docs/STORE_PRIVACY_FORMS.md').includes('Settings → AI reading; in older app versions, AI reading of imports and translations)'))
 assert.ok(privacy.includes('Forwarded emails then wait unread until you turn it back on.'))
 for (const old of ['read when they arrive', 'until our next update', 'Until our next update', 'are still read when they arrive', "don't forward it"]) assert.ok(!privacy.includes(old), `stale privacy text: ${old}`)
 assert.ok(privacy.includes('Last updated 16 November 2026'))
