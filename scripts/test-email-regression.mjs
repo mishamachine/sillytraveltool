@@ -72,6 +72,7 @@ function makeDb({ switches = { sender_check: false, consent_hold: false } } = {}
       neq(k, v) { filters.push(r => String(r[k]) !== String(v)); return api },
       in(k, vs) { filters.push(r => vs.includes(r[k])); return api },
       is(k, v) { filters.push(r => (r[k] ?? null) === v); return api },
+      gte(k, v) { filters.push(r => String(r[k]) >= String(v)); return api },
       limit(x) { lim = x; return api },
       single() { single = true; return api }, maybeSingle() { single = true; return api },
       insert(p) { op = 'insert'; payload = p; return api },
@@ -591,6 +592,26 @@ await t('dropped sender: at most one notice per sender domain per member per day
   await dropFrom(db2, 'a@hotel-example.test', { profile: { id: 'u2', account_email: 'other@example.test' } }); assert.equal(sentMail.length, 3, 'another member gets their own')
   db.tables.email_sends.forEach(r => { r.created_at = new Date(Date.now() - 25 * 3600 * 1000).toISOString() })
   await dropFrom(db, 'a@hotel-example.test'); assert.equal(sentMail.length, 4, 'a day later it may send again')
+})
+await t('dropped sender: a member gets at most 3 notices a day across 5 spoofed domains', async () => {
+  const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0
+  for (const d of ['a', 'b', 'c', 'd', 'e']) await dropFrom(db, `x@${d}-spoof.test`)
+  assert.equal(sentMail.length, 3); assert.equal(db.tables.email_sends.length, 3)
+  db.tables.email_sends.forEach(r => { r.created_at = new Date(Date.now() - 25 * 3600 * 1000).toISOString() })
+  await dropFrom(db, 'x@f-spoof.test'); assert.equal(sentMail.length, 4, 'the cap is per 24 hours')
+})
+await t('dropped sender: sent to the raw account address (+tag and dots kept), logged the same', async () => {
+  const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0
+  await dropFrom(db, 'x@tag-example.test', { profile: { account_email: '  Ann.Lee+stt@fastmail.com ' } })
+  assert.deepEqual(sentMail[0].to, ['Ann.Lee+stt@fastmail.com'])
+  assert.ok(sentMail[0].text.includes('forward from Ann.Lee+stt@fastmail.com,') && sentMail[0].text.includes('again from Ann.Lee+stt@fastmail.com.'))
+  assert.equal(db.tables.email_sends[0].email, 'Ann.Lee+stt@fastmail.com')
+  await dropFrom(db, 'x@evil-example.test', { profile: { account_email: 'bad address@x.com' } }); assert.equal(sentMail.length, 1, 'an unusable address sends nothing')
+})
+await t('dropped sender: our own domain and subdomains are skipped, a look-alike is not', async () => {
+  const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0
+  await dropFrom(db, 'x@sillytraveltool.com'); await dropFrom(db, 'x@bookings.sillytraveltool.com'); assert.equal(sentMail.length, 0)
+  await dropFrom(db, 'x@notsillytraveltool.com'); assert.equal(sentMail.length, 1)
 })
 await t('dropped sender: no notice when the email is allowed, nor without an account address, nor for our own mail; a Resend failure never changes the answer', async () => {
   const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0

@@ -265,30 +265,39 @@ export async function senderAllowed(supabase: any, profile: InboxProfile, fromAd
   return normalizeAddress(await accountEmailOf(supabase, profile)) === from
 }
 
+/** Most dropped-sender notices one member gets in 24 hours, across all sender domains */
+export const DROPPED_MAX_PER_DAY = 3
 const DROPPED_FROM = () => Deno.env.get('MEMBER_EMAIL_FROM') || 'Silly Travel Tool <goose@bookings.sillytraveltool.com>'
 const DROPPED_REPLY_TO = () => Deno.env.get('MEMBER_EMAIL_REPLY_TO') || 'machinemisha@gmail.com'
 
 /**
  * The sender check dropped an email: tell the MEMBER (their account address only, never the sender) with a short
- * service email. At most one per sender domain per member per 24 hours; only the domain and the date are named,
+ * service email. At most one per sender domain and 3 in all per member per 24 hours (a failed send counts); only the domain and the date are named,
  * nothing from the message. Sent with Resend and logged in email_sends like the other member emails. Best-effort:
  * any failure is logged and never changes the answer to the webhook.
  */
 export async function notifyDroppedSender(supabase: any, profile: InboxProfile, fromAddress: string): Promise<void> {
   try {
     const domain = safeDomain(normalizeAddress(fromAddress)?.split('@')[1])
-    const to = normalizeAddress(await accountEmailOf(supabase, profile))
+    // The RAW account address (trimmed), as the member typed it: a +tag or Gmail dots matter for delivery.
+    // normalizeAddress is only a validity check here.
+    const raw = String((await accountEmailOf(supabase, profile)) || '').trim()
+    const to = normalizeAddress(raw) && /^[^\s@<>",;]+@[^\s@<>",;]+$/.test(raw) ? raw : null
     const key = Deno.env.get('RESEND_API_KEY')
     if (!domain || !to || !key) return
     // Never answer our own mail (a loop). The notice goes to the account address only, never to the sender
-    if (domain.endsWith('sillytraveltool.com')) return
+    if (domain === 'sillytraveltool.com' || domain.endsWith('.sillytraveltool.com')) return
     const campaign = `inbox_drop:${domain}`
-    const { data: prior } = await supabase.from('email_sends').select('created_at').eq('user_id', profile.id).eq('template_key', DROPPED_TEMPLATE_KEY).eq('campaign', campaign)
-    const since = Date.now() - 24 * 60 * 60 * 1000
-    if ((prior || []).some((r: any) => new Date(r.created_at).getTime() >= since)) return
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    // A failed send counts too (it blocks a retry for 24 hours). Cap per member across all domains, so spoofed
+    // domains can't turn this into a mail cannon; then one per domain.
+    const { data: recent } = await supabase.from('email_sends').select('created_at, campaign').eq('user_id', profile.id).eq('template_key', DROPPED_TEMPLATE_KEY).gte('created_at', since)
+    if ((recent || []).length >= DROPPED_MAX_PER_DAY) return
+    const { data: prior } = await supabase.from('email_sends').select('created_at').eq('user_id', profile.id).eq('template_key', DROPPED_TEMPLATE_KEY).eq('campaign', campaign).gte('created_at', since)
+    if ((prior || []).length) return
     const { subject, html, text } = droppedSenderEmail({ domain, date: longDate(), accountEmail: to })
     const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
+      method: 'POST', signal: AbortSignal.timeout(8000),
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: DROPPED_FROM(), reply_to: DROPPED_REPLY_TO(), to: [to], subject, html, text }),
     })
