@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
 import { useTripsStore } from '../../store'
-import { parseLocalDate, todayLocalISO } from '../../lib/dates'
-import { bestTrip } from '../../../supabase/functions/_shared/tripMatch.js'
-import { editableTrips, withCoords } from '../../lib/tripPick'
+import { parseLocalDate } from '../../lib/dates'
+import { matchTrip, matchOnFreshTrips } from '../../lib/importMatch'
 import { parseBookingEmail, parseBookingFile } from '../../lib/gemini'
 import { hasFirstClass } from '../../lib/firstClass'
 import { usePlanStore } from '../../store/planStore'
@@ -12,29 +11,9 @@ import { geocode } from '../../lib/places'
 import { warmGuide } from '../../store/guideStore'
 import CityAutocomplete from '../../components/shared/CityAutocomplete'
 import { track, errorReason } from '../../lib/analytics'
-import { bookingKind, bookingMeta, tripDates, suggestTripName, bookingDates } from '../../lib/trips'
+import { bookingKind, bookingMeta, tripDates, suggestTripName } from '../../lib/trips'
 import { dateTimeIn, zoneName, isValidZone } from '../../lib/localTime'
 import { Sheet, Field, Button, Banner, Card, ListRow, Text, Stack, Loading, EmptyState, Chip, category } from '../../ui'
-
-// ── Client-side trip matcher ──────────────────────────────
-// Same rule as email import (supabase/functions/_shared/tripMatch.js): the trip whose dates the itinerary overlaps
-// (nearest first), or one within 3 days on its route, or an undated trip nearby. Never the city name alone.
-// No match → null (→ "Create new trip").
-async function matchTrip(trips, ultimateDestination, bookings) {
-  const candidates = await withCoords(editableTrips(trips))
-  if (!candidates.length) return null
-  const dates = bookings.flatMap(bookingDates).sort()
-  const points = []
-  const add = g => { if (g?.lat != null) points.push({ lat: Number(g.lat), lng: Number(g.lng) }) }
-  for (const b of bookings.slice(0, 8)) {
-    if (b.place_lat != null && b.place_lng != null) add({ lat: b.place_lat, lng: b.place_lng })
-    else if (b.arrival_airport) add(await geocode(`${b.arrival_airport}${b.type === 'flight' ? ' airport' : ''}`).catch(() => null))
-  }
-  if (ultimateDestination?.city) add(await geocode(ultimateDestination.city).catch(() => null))
-  const withStops = candidates.map(t => ({ ...t, points: (t.trip_stops || []).map(s => ({ lat: s.lat, lng: s.lng })) }))
-  const top = bestTrip(withStops, { start: dates[0] || null, end: dates[dates.length - 1] || null, points }, { today: todayLocalISO() })
-  return top ? candidates.find(t => t.id === top.trip.id) : null
-}
 
 // "Wed, Apr 1 · 13:05 · Pacific Time": as printed on the confirmation, in the place's own zone
 function previewWhen(b) {
@@ -75,7 +54,13 @@ const sanitizeBooking = (raw) => {
  * `trip` given (from a trip's add sheet): saves straight into that trip.
  */
 export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = null, onBookingCreated }) {
-  const { createBooking, createTrip } = useTripsStore()
+  const { createBooking, createTrip, fetchTrips } = useTripsStore()
+  // Trips offered after a fresh refetch (see handleCreateTrip): each is offered once
+  const offeredRef = useRef(new Set())
+  const [freshNote, setFreshNote] = useState(false)
+
+  // The email importer may have made a trip since the list on screen loaded: refetch when the sheet opens
+  useEffect(() => { if (!fixedTrip) fetchTrips() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [step, setStep] = useState('paste') // paste | preview | pick | create | success
   const [text, setText] = useState('')
@@ -121,7 +106,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
   }
 
   const read = async (fetchResult) => {
-    setLoading(true); setError(null); setReadText(null); setLocked(null)
+    setLoading(true); setError(null); setReadText(null); setLocked(null); setFreshNote(false)
     try {
       const result = await fetchResult()
       // result shape: { bookings: [...], ultimate_destination: { city, airport_code }, read_text? }
@@ -131,7 +116,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
       setParsedBookings(bookings)
       setUltimateDest(dest)
       setNewCity(null); setNewPlace(null)
-      const match = fixedTrip || await matchTrip(trips, dest, bookings)
+      const match = fixedTrip || await matchTrip(useTripsStore.getState().trips, dest, bookings)
       setMatched(match)
       setSelectedTripId(match?.id || null)
       setStep('preview')
@@ -172,6 +157,16 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
     if (!parsedBookings.length) return
     setCreatingTrip(true); setError(null)
     try {
+      // Just before inserting: refetch and match again. A trip the email importer created meanwhile is offered
+      // instead of making a duplicate.
+      const fresh = await matchOnFreshTrips({
+        refresh: fetchTrips, getTrips: () => useTripsStore.getState().trips,
+        ultimateDestination: ultimateDest, bookings: parsedBookings, offered: offeredRef.current,
+      })
+      if (fresh) {
+        setMatched(fresh); setSelectedTripId(fresh.id); setFreshNote(true); setStep('preview')
+        return
+      }
       const typed = newCity?.trim()
       const city = newPlace?.city || typed || fallbackCity || parsedBookings[0]?.hotel_name || 'Unknown'
       const sameAsGoose = city === ultimateDest?.city
@@ -267,6 +262,11 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
             </Text>
           )}
 
+          {matched && freshNote && (
+            <Banner tone="info" icon="trips" role="status" title="This looks like a trip you already have">
+              You already have a trip that fits these dates and places, so Goose matched it instead of making a new one.
+            </Banner>
+          )}
           {matched ? (
             <Card variant="raised">
               <Stack gap={1}>
