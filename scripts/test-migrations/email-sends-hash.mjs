@@ -175,5 +175,6 @@ const LINE = "A record of the service emails we sent you (the type and date), wi
 const keep = page.slice(page.indexOf('What we keep'), page.indexOf('<h2>Subscriptions'))
 ok('/delete-account lists the email record under "What we keep", word for word', keep.includes(`<li>${LINE}</li>`) && !page.slice(0, page.indexOf('What we keep')).includes('service emails we sent you'))
 const priv = readFileSync(new URL('../../public/privacy/index.html', import.meta.url), 'utf8').replace(/\s+/g, ' ')
+ok('/delete-account payment-records bullet is the exact approved line', page.includes('<li>Payment records (amount, date, refunds, and the name, email address and country given at payment), no longer linked to your account, kept as tax law requires (up to 7 years)</li>') && !page.includes('without your account, as tax law'))
 ok('privacy page: erase-everything sentence carries the coded 3-year email record exception, linked to /delete-account/', priv.includes('we erase everything else within 30 days, including backups. The one exception is a coded record of the service emails we sent you, which we keep (see <a href="/delete-account/">what is erased and what we keep</a>).'))
 console.log(fails ? `\n${fails} FAILED` : '\nall passed'); process.exit(fails ? 1 : 0)
