@@ -1,17 +1,31 @@
 -- Keep the record of service emails, without the address. delete_account used to leave email_sends rows with
 -- user_id cleared but the plain email address still in them. Now the address is replaced by a keyed hash:
---   'h1:' || hex(HMAC-SHA256(key, lower(trim(address))))
--- The key is a Supabase Vault secret named email_hash_key (created by the owner in the dashboard; it is never in
--- this repo). A plain, unkeyed hash is not used: an address can be guessed and hashed. Same address + same key
+--   'h1:' || hex(HMAC-SHA256(key, lower(btrim(address, E' \t\r\n'))))
+-- The key is a Supabase Vault secret named email_hash_key. This migration creates it inside the database if it is
+-- missing (32 random bytes as a 64-character hex string; nobody sees it and it is never in this repo). The HMAC key
+-- bytes are the ASCII of that 64-character hex string (convert_to(text, 'UTF8')), not the 32 decoded bytes; anything
+-- that recomputes a hash outside the database must do the same. A plain, unkeyed hash is not used: an address can be guessed and hashed. Same address + same key
 -- always gives the same code, so a code can be compared with one made from an address later. (No email-keyed
 -- unsubscribe list exists today: unsubscribes are per-token flags on user_profiles, former_members and beta_waitlist,
 -- and email_sends is a log that no send reads. Nothing here changes how an unsubscribe is honoured.)
 -- Cleared on hashed rows: subject (the rendered subject can carry a first name or city), reason (a provider error can
 -- quote the address) and resend_id (a lookup key into the email provider, which holds the plain address; keeping it
 -- would let the record be turned back into an address). Kept: template_key, kind, status, campaign, created_at.
--- Rows for former members that still point at a former_members row are left alone (the address is held there).
--- Needs the Vault secret to exist BEFORE this runs if any row needs hashing, and before any account is deleted.
+-- Backfill leaves rows that still point at a live former_members row alone (the address is held there); when a
+-- member is deleted, their former-member rows and any row with their address are hashed too.
+-- If the secret is changed or lost, old hashes stop matching new ones: keep it.
+-- Retention: the log is kept 3 years from the send date, then the row is deleted by a daily pg_cron job
+-- (same pattern as purge-old-costs).
 -- Idempotent. NOT applied automatically: the owner applies it.
+
+create extension if not exists pgcrypto with schema extensions;
+
+do $$
+begin
+  if not exists (select 1 from vault.secrets where name = 'email_hash_key') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'email_hash_key', 'HMAC key for email_sends hashes');
+  end if;
+end $$;
 
 create or replace function public.email_hash(p_email text)
 returns text language plpgsql stable security definer set search_path = '' as $$
@@ -21,9 +35,9 @@ begin
   if p_email like 'h1:%' then return p_email; end if;
   select decrypted_secret into v_key from vault.decrypted_secrets where name = 'email_hash_key';
   if v_key is null or length(v_key) < 32 then
-    raise exception 'Vault secret "email_hash_key" is missing or shorter than 32 characters: create it before deleting accounts or hashing email_sends.';
+    raise exception 'Vault secret "email_hash_key" is missing or shorter than 32 characters: it is created by migration 20261117100000; check Vault.';
   end if;
-  return 'h1:' || encode(extensions.hmac(convert_to(lower(trim(p_email)), 'UTF8'), convert_to(v_key, 'UTF8'), 'sha256'), 'hex');
+  return 'h1:' || encode(extensions.hmac(convert_to(lower(btrim(p_email, E' \t\r\n')), 'UTF8'), convert_to(v_key, 'UTF8'), 'sha256'), 'hex');
 end;
 $$;
 revoke all on function public.email_hash(text) from public, anon, authenticated;
@@ -82,18 +96,26 @@ begin
   update public.ai_calls set user_id = null where user_id = p_user;
   delete from public.function_errors where user_id = p_user;
   delete from public.ingest_locks where user_id = p_user;
-  delete from public.former_members where user_id = p_user;
+  -- The service-email log stays, without the address: email_sends keeps type, kind, date and status, but the address
+  -- becomes a keyed hash (so the log can still show what was sent), and the free text that can hold personal data
+  -- (rendered subject, provider error text, provider message id) is cleared. Rows are found by user_id, by their
+  -- former_members row (deleted just below, which would drop the link) and by the account's address.
+  update public.email_sends
+    set email = public.email_hash(email), subject = null, reason = null, resend_id = null
+    where email not like 'h1:%'
+      and (user_id = p_user
+        or former_member_id in (select f.id from public.former_members f where f.user_id = p_user
+             or lower(btrim(f.email, E' \t\r\n')) = (select lower(btrim(u.email, E' \t\r\n')) from auth.users u where u.id = p_user))
+        or lower(btrim(email, E' \t\r\n')) = (select lower(btrim(u.email, E' \t\r\n')) from auth.users u where u.id = p_user));
+
+  -- Their former-member record goes too: the one tied to the account and any one holding the same address (normalised)
+  delete from public.former_members
+    where user_id = p_user
+       or lower(btrim(email, E' \t\r\n')) = (select lower(btrim(u.email, E' \t\r\n')) from auth.users u where u.id = p_user);
 
   -- Stats and badges go before auth.users, explicitly, so no stats trigger has anything left to recompute
   delete from public.user_badges where user_id = p_user;
   delete from public.user_stats where user_id = p_user;
-
-  -- The service-email log stays, without the address: email_sends keeps type, kind, date and status, but the address
-  -- becomes a keyed hash (so the log can still show what was sent), and the free text
-  -- that can hold personal data (rendered subject, provider error text, provider message id) is cleared.
-  update public.email_sends
-    set email = public.email_hash(email), subject = null, reason = null, resend_id = null
-    where user_id = p_user and email not like 'h1:%';
 
   -- Everything else (profile, inbox token, documents, loyalty cards, badges, stats, usage events, entitlements,
   -- store purchases, experiments, notes) cascades from auth.users
@@ -114,3 +136,19 @@ begin
       where user_id is null and former_member_id is null and email not like 'h1:%';
   end if;
 end $$;
+
+-- Retention: delete log rows 3 years after the send date. Daily, replaced by jobname so re-running is safe.
+create or replace function public.purge_old_email_sends()
+returns integer language plpgsql security definer set search_path = '' as $$
+declare n integer;
+begin
+  delete from public.email_sends where created_at < now() - interval '3 years';
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+revoke all on function public.purge_old_email_sends() from public, anon, authenticated;
+grant execute on function public.purge_old_email_sends() to service_role;
+
+select cron.unschedule('purge-old-email-sends') where exists (select 1 from cron.job where jobname = 'purge-old-email-sends');
+select cron.schedule('purge-old-email-sends', '37 3 * * *', 'select public.purge_old_email_sends()');

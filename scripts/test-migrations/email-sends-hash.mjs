@@ -6,13 +6,15 @@ const W = fileURLToPath(new URL('../../supabase/migrations/', import.meta.url))
 const read = f => readFileSync(W + f, 'utf8')
 const slice = (txt, from, to) => { const a = txt.indexOf(from); const b = txt.indexOf(to, a); if (a < 0 || b < 0) throw new Error('migration text moved: ' + from); return txt.slice(a, b) }
 const STATS = read('20261116100000_delete_account_stats_fix.sql')
-const MIG = read('20261117100000_email_sends_hash.sql')
+// pgcrypto cannot be installed in PGlite (the test defines extensions.hmac and gen_random_bytes itself), so that one line is dropped
+const MIG = read('20261117100000_email_sends_hash.sql').replace('create extension if not exists pgcrypto with schema extensions;', '')
+if (MIG.includes('create extension')) throw new Error('migration text moved: pgcrypto line')
 const KEY = 'test-key-not-a-real-secret-0123456789abcdef', KEY2 = 'another-test-key-0123456789abcdef-xyz'
 const U = '11111111-1111-1111-1111-111111111111', V = '22222222-2222-2222-2222-222222222222'
 const ADDR = 'Alice.Traveller@Example.com'
 let fails = 0
 const ok = (name, cond, extra = '') => { if (!cond) fails++; console.log(`${cond ? 'ok  ' : 'FAIL'} ${name} ${cond ? '' : extra}`) }
-const expected = (addr, key = KEY) => 'h1:' + createHmac('sha256', key).update(addr.trim().toLowerCase()).digest('hex')
+const expected = (addr, key = KEY) => 'h1:' + createHmac('sha256', key).update(addr.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '').toLowerCase()).digest('hex')
 
 async function build() {
   const db = new PGlite()
@@ -34,6 +36,14 @@ async function build() {
     for i in 0..63 loop ip := set_byte(ip, i, get_byte(kk, i) # 54); op := set_byte(op, i, get_byte(kk, i) # 92); end loop;
     return sha256(op || sha256(ip || d));
   end $f$;
+  create function vault.create_secret(s text, n text, d text default '') returns uuid language sql as $f$
+    insert into vault.secrets values (n, s) returning gen_random_uuid() $f$;
+  create function extensions.gen_random_bytes(n int) returns bytea language plpgsql volatile as $f$
+  declare b bytea := ''::bytea; i int; begin for i in 1..n loop b := b || decode(lpad(to_hex(floor(random()*256)::int), 2, '0'), 'hex'); end loop; return b; end $f$;
+  -- pg_cron stand-in: just the job table and the two calls the migrations use
+  create schema cron; create table cron.job (jobname text primary key, schedule text, command text);
+  create function cron.schedule(n text, sch text, c text) returns int language sql as $f$ insert into cron.job values (n, sch, c) returning 1 $f$;
+  create function cron.unschedule(n text) returns boolean language sql as $f$ delete from cron.job where jobname = n returning true $f$;
   create type public.badge_tier as enum ('easy','medium','hard','legendary');
   create type public.booking_type as enum ('flight','hotel','restaurant');
   create table public.admins (user_id uuid, role text);
@@ -84,13 +94,23 @@ await send(db, null, 'old.member@example.com', { rid: 're_old', subject: 'Welcom
 await send(db, null, 'former@example.com', { fm: 7 })                                                            // former member, address still held in former_members
 await send(db, null, expected('done@example.com'), {})                                                           // already hashed
 
-// 1. No key yet: a clear error, and nothing changes
-let r = await db.exec(MIG).then(() => ({ ok: true }), e => ({ ok: false, e: e.message }))
-ok('migration with rows to backfill and no Vault secret fails clearly', !r.ok && /email_hash_key/.test(r.e), r.e)
-ok('...and left the rows alone (rolled back by the failed statement)', (await q(db, `select count(*)::int n from public.email_sends where email like 'h1:%'`))[0].n === 1)
+// 1. Key handling
 await setKey(db, 'short')
-r = await db.exec(MIG).then(() => ({ ok: true }), e => ({ ok: false, e: e.message }))
-ok('a key under 32 characters is refused', !r.ok && /shorter than 32|missing/.test(r.e), r.e)
+let r = await db.exec(MIG).then(() => ({ ok: true }), e => ({ ok: false, e: e.message }))
+ok('a key under 32 characters is refused (rows to backfill, so the hash is needed)', !r.ok && /shorter than 32/.test(r.e), r.e)
+ok('...and the failed migration left the rows alone', (await q(db, `select count(*)::int n from public.email_sends where email like 'h1:%'`))[0].n === 1)
+{ // a migrated database with NO orphan rows and no secret yet: the migration creates the key and deletion works
+  const d2 = await build()
+  await d2.exec(`insert into auth.users values ('${U}','${ADDR}')`); await send(d2, U, ADDR)
+  await d2.exec(MIG)
+  const k = (await q(d2, `select secret from vault.secrets where name='email_hash_key'`))[0]?.secret
+  ok('migration creates the Vault key itself when it is missing (64 hex characters)', /^[0-9a-f]{64}$/.test(k || ''))
+  await d2.exec(MIG)
+  ok('running it again keeps the same key', (await q(d2, `select secret from vault.secrets where name='email_hash_key'`))[0].secret === k)
+  const rd = await del(d2, U)
+  ok('a freshly migrated database with no orphan rows can delete an account', rd.ok, rd.e)
+  ok('...and the log row carries the hash made with that key', (await q(d2, `select email from public.email_sends`))[0].email === expected(ADDR, k))
+}
 await setKey(db, KEY)
 
 // 2. Hash function: deterministic, keyed, equals HMAC-SHA256 of lower(trim(address))
@@ -102,6 +122,7 @@ ok('the hash is prefixed h1: and is 64 hex characters', /^h1:[0-9a-f]{64}$/.test
 ok('a different key gives a different hash', await h(ADDR, KEY2) !== expected(ADDR) && await h(ADDR) === expected(ADDR, KEY2))
 ok('it is not a plain sha256', await h(ADDR) !== 'h1:' + createHash('sha256').update(ADDR.toLowerCase()).digest('hex'))
 await setKey(db, KEY)
+ok('tabs and newlines around the address are ignored too', await h('\t' + ADDR + '\r\n') === expected(ADDR))
 ok('hashing an already-hashed value returns it unchanged', await h(expected('x@y.z')) === expected('x@y.z'))
 ok('email_hash is not callable by anon or authenticated', (await q(db, `select has_function_privilege('anon','public.email_hash(text)','execute') a, has_function_privilege('authenticated','public.email_hash(text)','execute') b, has_function_privilege('service_role','public.email_hash(text)','execute') c`)).every(x => x.a === false && x.b === false && x.c === true))
 
@@ -117,6 +138,11 @@ await db.exec(MIG); await db.exec(MIG)
 ok('backfill is idempotent: running the migration again changes nothing', JSON.stringify(await q(db, `select user_id, former_member_id, email, subject, reason, resend_id, template_key, kind, status, campaign, created_at from public.email_sends order by id`)) === snap)
 
 // 4. Deleting a member
+await db.exec(`insert into public.former_members (id, user_id, email) overriding system value values (8, '${U}', 'alice.old@example.com')`)
+await send(db, null, 'alice.old@example.com', { fm: 8, tpl: 'relaunch', kind: 'marketing' })   // sent to the member's former-member record
+await db.exec(`insert into public.former_members (id, user_id, email) overriding system value values (9, null, '  ${ADDR.toUpperCase()} ')`)   // same address, no user_id link
+await send(db, null, ADDR.toUpperCase(), { fm: 9, tpl: 'win_back', kind: 'marketing' })
+await send(db, null, ADDR.toLowerCase(), { subject: 'Hi Alice' })                              // plain row with the account's address, no links
 const res = await del(db, U)
 ok('delete_account still works for a member with a Goose score and badges', res.ok, res.e)
 ok('auth user, stats and badges are gone', (await q(db, `select (select count(*) from auth.users where id='${U}')::int a, (select count(*) from public.user_stats where user_id='${U}')::int b, (select count(*) from public.user_badges where user_id='${U}')::int c`)).every(x => x.a + x.b + x.c === 0))
@@ -128,19 +154,39 @@ ok('type, kind, status and date kept; subject, reason, resend_id cleared', left.
 const bob = (await q(db, `select * from public.email_sends where user_id='${V}'`))[0]
 ok('another member\'s log row is untouched', bob.email === 'bob@example.com' && bob.subject === 'Where to next, Alice?' && bob.resend_id === 're_bob')
 
+const fmByAddr = (await q(db, `select * from public.email_sends where template_key='win_back'`))[0]
+ok('a row linked to a former-member record with the same address (no user_id) is hashed too', fmByAddr.email === expected(ADDR) && fmByAddr.former_member_id === null)
+ok('both former-member records for the member are deleted (by user_id and by normalised address); id 7 stays', JSON.stringify((await q(db, `select id from public.former_members order by id`)).map(x => Number(x.id))) === '[7]')
+const fmRow = (await q(db, `select * from public.email_sends where template_key='relaunch'`))[0]
+ok('a row linked to the member\'s former-member record is hashed too (and its subject cleared)', fmRow.email === expected('alice.old@example.com') && fmRow.subject === null && fmRow.former_member_id === null)
+const byAddr = (await q(db, `select * from public.email_sends where subject is null and email = '${expected(ADDR)}' and user_id is null and template_key='welcome' and id > 6`))
+ok('an unlinked row carrying the account address is hashed too', byAddr.length >= 1 && (await q(db, `select count(*)::int n from public.email_sends where lower(email) = '${ADDR.toLowerCase()}'`))[0].n === 0)
+ok('the unrelated former member (id 7) is untouched', (await q(db, `select email from public.email_sends where former_member_id = 7`))[0].email === 'former@example.com')
+
+// 4b. Retention purge: 3 years from the send date
+ok('migration schedules the purge once, by jobname, even after 3 runs', (await q(db, `select count(*)::int n from cron.job where jobname='purge-old-email-sends'`))[0].n === 1)
+await send(db, V, 'bob@example.com'); await db.exec(`update public.email_sends set created_at = now() - interval '3 years 1 day' where id = (select max(id) from public.email_sends);
+  insert into public.email_sends (email, kind, status, created_at) values ('h1:old', 'service', 'sent', now() - interval '1096 days'), ('h1:recent', 'service', 'sent', now() - interval '2 years 11 months')`)
+const purged = (await q(db, `select public.purge_old_email_sends() n`))[0].n
+ok('purge deletes rows older than 3 years and returns the count', purged === 2 && (await q(db, `select count(*)::int n from public.email_sends where email in ('h1:old')`))[0].n === 0, String(purged))
+ok('purge keeps newer rows (2 years 11 months old, and today\'s)', (await q(db, `select count(*)::int n from public.email_sends where email = 'h1:recent'`))[0].n === 1 && (await q(db, `select count(*)::int n from public.email_sends where user_id='${V}'`))[0].n >= 1)
+ok('purge is not callable by anon or authenticated', (await q(db, `select has_function_privilege('anon','public.purge_old_email_sends()','execute') a, has_function_privilege('authenticated','public.purge_old_email_sends()','execute') b`)).every(x => !x.a && !x.b))
+
 // 5. Deleting without the key fails safely (the plain address must not survive by accident)
 await db.exec(`insert into auth.users values ('33333333-3333-3333-3333-333333333333','c@example.com')`)
 await send(db, '33333333-3333-3333-3333-333333333333', 'c@example.com')
 await setKey(db, null)
 const noKey = await del(db, '33333333-3333-3333-3333-333333333333')
 ok('no Vault secret: deletion fails with a clear error', !noKey.ok && /email_hash_key/.test(noKey.e), noKey.e)
-ok('...and nothing was deleted or changed', (await q(db, `select (select count(*) from auth.users where id='33333333-3333-3333-3333-333333333333')::int u, (select email from public.email_sends where user_id='33333333-3333-3333-3333-333333333333') e`))[0].u === 1)
+ok('...and nothing was deleted or changed', (await q(db, `select (select count(*) from auth.users where id='33333333-3333-3333-3333-333333333333')::int u, (select email from public.email_sends where user_id='33333333-3333-3333-3333-333333333333') e`)).every(x => x.u === 1 && x.e === 'c@example.com'))
 await setKey(db, KEY)
 ok('with the secret restored, the same deletion succeeds', (await del(db, '33333333-3333-3333-3333-333333333333')).ok)
 
 // 6. The page text
 const page = readFileSync(new URL('../../public/delete-account/index.html', import.meta.url), 'utf8')
-const LINE = "A record of the service emails we sent you (the type and date), with your email address replaced by a code we can't turn back into an address. We keep it so we can show what we sent."
+const LINE = "A record of the service emails we sent you (the type and date) for 3 years, with your email address replaced by a code. We can't turn the code back into your address, but if you write to us from that address we can check whether we emailed it."
 const keep = page.slice(page.indexOf('What we keep'), page.indexOf('<h2>Subscriptions'))
 ok('/delete-account lists the email record under "What we keep", word for word', keep.includes(`<li>${LINE}</li>`) && !page.slice(0, page.indexOf('What we keep')).includes('service emails we sent you'))
+const priv = readFileSync(new URL('../../public/privacy/index.html', import.meta.url), 'utf8').replace(/\s+/g, ' ')
+ok('privacy page: erase-everything sentence carries the coded 3-year email record exception, linked to /delete-account/', priv.includes('we erase everything else within 30 days, including backups, except a coded record of the service emails we sent you, which we keep for 3 years (see <a href="/delete-account/">what is erased and what we keep</a>).'))
 console.log(fails ? `\n${fails} FAILED` : '\nall passed'); process.exit(fails ? 1 : 0)
