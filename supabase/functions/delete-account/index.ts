@@ -16,7 +16,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const KEY = (Deno.env.get('STRIPE_SECRET_KEY') || '').trim()
 const stripe = makeStripe(KEY)
 
-const FRIENDLY = 'Something went wrong. Nothing was deleted; try again or email machinemisha@gmail.com.'
+const FRIENDLY = 'Couldn\'t delete your account. Try again, or email machinemisha@gmail.com.'
 const SAFE_MESSAGES = ['No such account.', 'Owner accounts can\'t be deleted from the app.']
 
 Deno.serve(async (req) => {
@@ -49,15 +49,14 @@ Deno.serve(async (req) => {
 
     const { error } = await admin.rpc('delete_account', { p_user: user.id })
     if (error) {
-      // Only the two messages delete_account raises on purpose reach the member; anything else (a constraint or SQL
-      // error) is logged for us and shown as a plain sentence. The delete runs in one transaction, so nothing was deleted.
+      // Any failure of the delete shows the same plain sentence; the real message is only logged.
+      // The delete runs in one transaction, so nothing was deleted.
       console.error('delete-account rpc', error.message)
-      const deliberate = SAFE_MESSAGES.includes(error.message)
-      return json({ error: deliberate ? error.message : FRIENDLY }, deliberate ? 400 : 500)
+      return json({ error: FRIENDLY }, SAFE_MESSAGES.includes(error.message) ? 400 : 500)
     }
     return json({ deleted: true })
   } catch (e) {
     console.error('delete-account', e)
-    return json({ error: 'Something went wrong. Nothing was deleted; try again or email machinemisha@gmail.com.' }, 500)
+    return json({ error: FRIENDLY }, 500)
   }
 })
