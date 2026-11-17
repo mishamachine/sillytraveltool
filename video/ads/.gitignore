@@ -2,3 +2,4 @@ node_modules/
 fonts/
 out/
 package-lock.json
+*.mp4

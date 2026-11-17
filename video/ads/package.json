@@ -1,5 +1,5 @@
 {
-  "name": "stt-ads",
+  "name": "silly-travel-tool-ads",
   "private": true,
   "type": "module",
   "scripts": { "build": "node build.mjs all" },
