@@ -140,7 +140,7 @@ ok('with the secret restored, the same deletion succeeds', (await del(db, '33333
 
 // 6. The page text
 const page = readFileSync(new URL('../../public/delete-account/index.html', import.meta.url), 'utf8')
-const LINE = "A record of the service emails we sent you (the type and date), with your email address replaced by a code we can't turn back into an address. We keep it so we can show what we sent and keep honouring any unsubscribe."
+const LINE = "A record of the service emails we sent you (the type and date), with your email address replaced by a code we can't turn back into an address. We keep it so we can show what we sent."
 const keep = page.slice(page.indexOf('What we keep'), page.indexOf('<h2>Subscriptions'))
 ok('/delete-account lists the email record under "What we keep", word for word', keep.includes(`<li>${LINE}</li>`) && !page.slice(0, page.indexOf('What we keep')).includes('service emails we sent you'))
 console.log(fails ? `\n${fails} FAILED` : '\nall passed'); process.exit(fails ? 1 : 0)
