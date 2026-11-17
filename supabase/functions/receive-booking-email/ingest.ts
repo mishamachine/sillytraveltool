@@ -13,6 +13,7 @@ import { bookingEmailPrompt, normalizeEmailParse, travelerSummary, scrubNotes, l
 import { prepareEmailText, looksLikeBooking } from '../_shared/emailText.js'
 import { readItinerary, VISION_TYPES } from '../_shared/itinerary.ts'
 import { sheetToText } from '../_shared/sheet.js'
+import { droppedSenderEmail, safeDomain, longDate, DROPPED_TEMPLATE_KEY } from '../_shared/droppedSenderEmail.js'
 
 const toBase64 = (bytes: Uint8Array) => {
   let bin = ''
@@ -264,6 +265,58 @@ export async function senderAllowed(supabase: any, profile: InboxProfile, fromAd
   return normalizeAddress(await accountEmailOf(supabase, profile)) === from
 }
 
+/** Most dropped-sender notices one member gets in 24 hours, across all sender domains */
+export const DROPPED_MAX_PER_DAY = 3
+const DROPPED_FROM = () => Deno.env.get('MEMBER_EMAIL_FROM') || 'Silly Travel Tool <goose@bookings.sillytraveltool.com>'
+const DROPPED_REPLY_TO = () => Deno.env.get('MEMBER_EMAIL_REPLY_TO') || 'machinemisha@gmail.com'
+
+/**
+ * The sender check dropped an email: tell the MEMBER (their account address only, never the sender) with a short
+ * service email. At most one per sender domain and 3 in all per member per 24 hours (a failed send counts); only the domain and the date are named,
+ * nothing from the message. Sent with Resend and logged in email_sends like the other member emails. Best-effort:
+ * any failure is logged and never changes the answer to the webhook.
+ */
+export async function notifyDroppedSender(supabase: any, profile: InboxProfile, fromAddress: string): Promise<void> {
+  try {
+    const domain = safeDomain(normalizeAddress(fromAddress)?.split('@')[1])
+    // The RAW account address (trimmed), as the member typed it: a +tag or Gmail dots matter for delivery.
+    // normalizeAddress is only a validity check here.
+    const raw = String((await accountEmailOf(supabase, profile)) || '').trim()
+    const to = normalizeAddress(raw) && /^[^\s@<>",;]+@[^\s@<>",;]+$/.test(raw) ? raw : null
+    const key = Deno.env.get('RESEND_API_KEY')
+    if (!domain || !to || !key) return
+    // Never answer our own mail (a loop). The notice goes to the account address only, never to the sender
+    if (domain === 'sillytraveltool.com' || domain.endsWith('.sillytraveltool.com')) return
+    const campaign = `inbox_drop:${domain}`
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    // A failed send counts too (it blocks a retry for 24 hours). Cap per member across all domains, so spoofed
+    // domains can't turn this into a mail cannon; then one per domain.
+    const { data: recent } = await supabase.from('email_sends').select('created_at, campaign').eq('user_id', profile.id).eq('template_key', DROPPED_TEMPLATE_KEY).gte('created_at', since)
+    if ((recent || []).length >= DROPPED_MAX_PER_DAY) return
+    const { data: prior } = await supabase.from('email_sends').select('created_at').eq('user_id', profile.id).eq('template_key', DROPPED_TEMPLATE_KEY).eq('campaign', campaign).gte('created_at', since)
+    if ((prior || []).length) return
+    const { subject, html, text } = droppedSenderEmail({ domain, date: longDate(), accountEmail: to })
+    const log = (status: string, reason: string | null, resendId: string | null = null) => supabase.from('email_sends').insert({
+      user_id: profile.id, email: to, template_key: DROPPED_TEMPLATE_KEY, kind: 'service', subject,
+      status, reason, resend_id: resendId, campaign, created_at: new Date().toISOString(),
+    })
+    let res: Response
+    try {
+      res = await fetch('https://api.resend.com/emails', {
+        method: 'POST', signal: AbortSignal.timeout(8000),
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: DROPPED_FROM(), reply_to: DROPPED_REPLY_TO(), to: [to], subject, html, text }),
+      })
+    } catch (e) {
+      // A timeout or network error is logged as failed too, so it counts toward both limits
+      await log('failed', (e as Error)?.name === 'TimeoutError' || (e as Error)?.name === 'AbortError' ? 'timeout' : 'network')
+      return
+    }
+    const out = await res.json().catch(() => ({}))
+    await log(res.ok ? 'sent' : 'failed', res.ok ? null : `resend ${res.status}`, out?.id ?? null)
+  } catch (e) { console.warn('dropped-sender notice failed', (e as Error)?.message) }
+}
+
 // Emails one inbox may have read a day: its own budget, not the member's in-app AI quota. One email is one unit,
 // however many AI reads it needs (the body plus up to MAX_READS - 1 attachments)
 export const INBOX_DAILY_PARSES = 30
@@ -295,20 +348,25 @@ async function inboxBudget(supabase: any, userId: string): Promise<boolean> {
 }
 
 /**
- * Server-side switches (app_settings key 'inbox', value { sender_check, consent_hold }), both OFF when the row or a key
- * is absent, which is how the inbox has always worked live: any sender, read on arrival. consent_hold ON holds emails
- * until the member allows AI reading (needs app builds that can ask); sender_check ON drops mail from anyone but the
- * member and their allowed senders. Read once per email; a read error keeps the last value read (OFF on a cold start).
+ * Server-side switches (app_settings key 'inbox', value { sender_check, consent_hold }).
+ * - consent_hold fails CLOSED: ON unless the row says `false` for it. A missing row, a missing key, a non-object value,
+ *   any non-`false` value and any read error all mean ON. ON holds forwarded emails until the member allows AI reading
+ *   (needs app builds that can ask).
+ * - sender_check is OFF unless the row says `true` for it (any sender is read, as the inbox has always worked). ON drops
+ *   mail from anyone but the member and their allowed senders, before anything is read or kept, and sends the member a
+ *   short notice (notifyDroppedSender). A read error keeps it off, so an outage never starts dropping mail.
+ * Read once per email; nothing is remembered between emails.
  */
-let lastSwitches = { sender_check: false, consent_hold: false } // a read error keeps the last value read (OFF on a cold start)
 export async function inboxSwitches(supabase: any): Promise<{ sender_check: boolean, consent_hold: boolean }> {
   try {
     const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'inbox').maybeSingle()
     if (error) throw error
-    const v = data?.value || {}
-    lastSwitches = { sender_check: v.sender_check === true, consent_hold: v.consent_hold === true }
-  } catch (e) { console.warn('inbox switches unreadable, keeping the last value', (e as Error)?.message) }
-  return { ...lastSwitches }
+    const v = data?.value && typeof data.value === 'object' ? data.value : {}
+    return { sender_check: v.sender_check === true, consent_hold: v.consent_hold !== false }
+  } catch (e) {
+    console.warn('inbox switches unreadable: consent hold ON, sender check off', (e as Error)?.message)
+    return { sender_check: false, consent_hold: true }
+  }
 }
 
 export async function ingestEmail(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
@@ -320,6 +378,7 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     try {
       await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_rejected_sender', status: 403, user_id: profile.id, message: `sender domain ${domain}`.slice(0, 120) })
     } catch { /* logging is best-effort */ }
+    await notifyDroppedSender(supabase, profile, input.fromAddress)
     return ok({ success: true, ignored: true, reason: 'sender' })
   }
   // No yes to AI reading yet (Apple 5.1.2(i)): keep only the Resend id, sender domain and subject; inbox-release
