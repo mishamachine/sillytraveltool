@@ -9,6 +9,8 @@ import { consentCurrent } from '../../lib/aiConsentPolicy'
 import { SENDER_CHECK_LIVE } from '../../lib/inboxPolicy'
 import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
+import { InstallSheet, useInstallAvailable } from '../../components/shared/InstallPrompt'
+import { INSTALL_COPY } from '../../lib/installPrompt'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import {
   Screen, ScreenHeader, Section, Card, ListRow, Button, Field, Banner, SegmentedControl, Switch, Text, Stack, Logo, LinkButton, Icon,
@@ -86,6 +88,8 @@ export default function SettingsView({ onBack, onDelete }) {
   const [confirmRotate, setConfirmRotate] = useState(false)
   const [inboxError, setInboxError] = useState(null)
   const [shareStats, setShareStats] = useState(analyticsEnabled)
+  const canInstall = useInstallAvailable()
+  const [installOpen, setInstallOpen] = useState(false)
   useEffect(() => { // the consent banner can change it while Settings is open
     const sync = () => setShareStats(analyticsEnabled())
     window.addEventListener(CONSENT_EVENT, sync)
@@ -223,6 +227,7 @@ export default function SettingsView({ onBack, onDelete }) {
 
       <Section title="Privacy and about">
         <Card variant="group">
+          {canInstall && <ListRow icon="smartphone" title={INSTALL_COPY.settingsRow} meta={INSTALL_COPY.helpRowMeta} chevron onClick={() => setInstallOpen(true)} />}
           <Switch label="Share usage stats" description={`Which features you use and your device type help us improve the app. No names, emails or trip details.${isConsentRegion() ? ' Off until you allow it.' : ''}`}
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
           <Switch label="AI reading" description="AI partners read what you forward, import or translate. Off: forwarded emails wait for your OK."
@@ -241,6 +246,8 @@ export default function SettingsView({ onBack, onDelete }) {
           <ListRow title="Delete account" meta="Erase your trips, documents and score" danger chevron onClick={onDelete} />
         </Card>
       </Section>
+
+      {installOpen && <InstallSheet onClose={() => setInstallOpen(false)} />}
 
       <Button variant="secondary" size="lg" block icon="sign-out" onClick={signOut}>Sign out</Button>
 

@@ -10,6 +10,8 @@ import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { useCopyInbox } from '../trips/InboxHint'
 import { useConsentStore, hasAiConsent } from '../../store/consentStore'
 import { AiConsentDetails, AI_CONSENT_TITLE } from '../../components/shared/AiConsentSheet'
+import { InstallBody, useInstallFlow, useInstallAvailable } from '../../components/shared/InstallPrompt'
+import { INSTALL_COPY, markOnboardingShown } from '../../lib/installPrompt'
 import { Screen, Button, IconButton, Card, IconTile, Text, Stack, Icon, Overline, LinkButton, Chip } from '../../ui'
 import { markOnboarded } from './onboardingState'
 import { WelcomeArt, TripsArt, TodayArt, WeatherPackArt, InboxArt, InviteArt, TogetherArt, GuideArt, GuideMoreArt, HonkArt, ToolsArt, YouArt, LocationArt, ArtStage } from './TourArt'
@@ -79,6 +81,7 @@ const STEPS = [
   },
   { id: 'location', Art: LocationArt, firstRunOnly: true },
   { id: 'ai', firstRunOnly: true }, // Apple 5.1.2(i): ask before Goose's AI reads what you send it
+  { id: 'install', firstRunOnly: true }, // web only: add to home screen (hidden in the store apps and when installed)
   { id: 'plans' },
 ]
 
@@ -185,7 +188,10 @@ function PlansCard() {
 export default function Onboarding({ onDone, replay = false }) {
   // The AI step only while there's no answer on the account (a second device doesn't ask again)
   const [aiAnswered] = useState(hasAiConsent)
-  const steps = STEPS.filter(s => !(replay && s.firstRunOnly) && !(s.id === 'ai' && aiAnswered))
+  const canInstall = useInstallAvailable()
+  const [installOffered] = useState(canInstall)
+  const steps = STEPS.filter(s => !(replay && s.firstRunOnly) && !(s.id === 'ai' && aiAnswered) && !(s.id === 'install' && !installOffered))
+  const install = useInstallFlow()
   const [index, setIndex] = useState(0)
   const [back, setBack] = useState(false)
   const [asking, setAsking] = useState(false)
@@ -196,6 +202,11 @@ export default function Onboarding({ onDone, replay = false }) {
   const last = index === steps.length - 1
 
   useEffect(() => { track('onboarding_step', { step: step.id, replay }) }, [step.id])
+  // The install step starts the 14-day gap before the pop-up may show; it is not a pop-up dismissal
+  useEffect(() => {
+    if (step.id !== 'install') return
+    try { markOnboardingShown(window.localStorage, Date.now()) } catch { /* private window: no pop-up either */ }
+  }, [step.id])
   useEffect(() => { document.querySelector('main.onb')?.scrollTo?.(0, 0) }, [index])
 
   const finish = (firstClass = false) => {
@@ -237,7 +248,7 @@ export default function Onboarding({ onDone, replay = false }) {
     if (touch.current == null) return
     const dx = e.changedTouches[0].clientX - touch.current
     touch.current = null
-    if (Math.abs(dx) < 60 || step.id === 'location' || step.id === 'ai') return
+    if (Math.abs(dx) < 60 || step.id === 'location' || step.id === 'ai' || step.id === 'install') return
     if (dx < 0 && !last) go(index + 1)
     if (dx > 0) go(index - 1)
   }
@@ -245,7 +256,7 @@ export default function Onboarding({ onDone, replay = false }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.closest?.('input, textarea')) return
-      if (e.key === 'ArrowRight' && !last && step.id !== 'location' && step.id !== 'ai') go(index + 1)
+      if (e.key === 'ArrowRight' && !last && step.id !== 'location' && step.id !== 'ai' && step.id !== 'install') go(index + 1)
       if (e.key === 'ArrowLeft') go(index - 1)
     }
     window.addEventListener('keydown', onKey)
@@ -296,6 +307,10 @@ export default function Onboarding({ onDone, replay = false }) {
             </div>
             <AiConsentDetails />
           </>
+        ) : step.id === 'install' ? (
+          <div className="tour-copy">
+            <InstallBody view={install.view} method={install.method} titleId="onb-title" />
+          </div>
         ) : step.id === 'plans' ? (
           <>
             <div className="tour-copy">
@@ -346,6 +361,13 @@ export default function Onboarding({ onDone, replay = false }) {
             <Button variant="outline" size="lg" block loading={asking} onClick={allowAi}>Allow</Button>
             <Button variant="outline" size="lg" block onClick={() => { track('ai_consent_answer', { reason: 'tour', choice: 'not_now' }); useConsentStore.getState().recordDeclined('tour'); go(index + 1) }}>Not now</Button>
           </>
+        ) : step.id === 'install' ? (
+          install.view === 'steps'
+            ? <Button variant="outline" size="lg" block onClick={() => go(index + 1)}>{INSTALL_COPY.gotIt}</Button>
+            : <>
+              <Button variant="outline" size="lg" block onClick={async () => { if (await install.add()) go(index + 1) }}>{INSTALL_COPY.add}</Button>
+              <Button variant="outline" size="lg" block onClick={() => go(index + 1)}>{INSTALL_COPY.notNow}</Button>
+            </>
         ) : step.id === 'plans' ? (
           paid
             ? <Button variant="dark" size="lg" block onClick={() => finish()}>Done</Button>

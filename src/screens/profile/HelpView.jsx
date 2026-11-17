@@ -3,6 +3,8 @@ import { HELP_GROUPS, HELP_TOPICS, HELP_FAQ, HELP_CONTACT, searchHelp } from '..
 import { track } from '../../lib/analytics'
 import { useBackHandler } from '../../lib/backStack'
 import { useUIStore } from '../../store'
+import { InstallSheet, useInstallAvailable } from '../../components/shared/InstallPrompt'
+import { INSTALL_COPY } from '../../lib/installPrompt'
 import FeedbackCard from '../../components/shared/FeedbackCard'
 import { Screen, ScreenHeader, Section, Card, ListRow, Field, Banner, EmptyState, Text, Stack, Icon, LinkButton } from '../../ui'
 
@@ -49,6 +51,8 @@ export default function HelpView({ onBack }) {
   const [topicId, setTopicId] = useState(null)
   const topic = HELP_TOPICS.find(t => t.id === topicId)
   const openTour = useUIStore(s => s.openTour)
+  const canInstall = useInstallAvailable()
+  const [installOpen, setInstallOpen] = useState(false)
   useBackHandler(!!topic, () => setTopicId(null))
 
   const open = (t) => { setTopicId(t.id); track('help_opened', { topic: t.id }); window.scrollTo?.(0, 0) }
@@ -72,7 +76,9 @@ export default function HelpView({ onBack }) {
         <>
           <Card variant="group">
             <ListRow icon="compass" tone="accent" title="Take the tour" meta="A two-minute look at everything STT does" chevron onClick={openTour} />
+            {canInstall && <ListRow icon="smartphone" tone="accent" title={INSTALL_COPY.helpRow} meta={INSTALL_COPY.helpRowMeta} chevron onClick={() => setInstallOpen(true)} />}
           </Card>
+          {installOpen && <InstallSheet onClose={() => setInstallOpen(false)} />}
           {HELP_GROUPS.map(g => (
             <Section key={g.id} title={g.title}>
               <Card variant="group">{HELP_TOPICS.filter(t => t.group === g.id).map(row)}</Card>
