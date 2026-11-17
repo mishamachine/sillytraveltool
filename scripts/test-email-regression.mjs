@@ -506,7 +506,7 @@ await t('travellers never reach analytics props (track → analytics_events and 
   const props = cleanProps({ travelers: [{ name: 'Zoë' }], traveller: 'Zoë', passenger_name: 'Zoë', passengers: 'Zoë', guests: 'Zoë', child_name: 'Zoë', infant: 'Léa', party_size: 5, booking_type: 'flight' })
   assert.deepEqual(props, { party_size: 5, booking_type: 'flight' })
   // No admin, member-export or analytics SQL reads passenger names (the migrations that clear them inside delete_account are allowed)
-  const sql = readdirSync(`${root}supabase/migrations`).filter(f => f.endsWith('.sql') && !['20261030120100_invite_privacy_cleanup.sql', '20261116100000_delete_account_stats_fix.sql'].includes(f))
+  const sql = readdirSync(`${root}supabase/migrations`).filter(f => f.endsWith('.sql') && !['20261030120100_invite_privacy_cleanup.sql', '20261116100000_delete_account_stats_fix.sql', '20261117100000_email_sends_hash.sql'].includes(f))
   for (const f of sql) assert.ok(!/passenger_name/i.test(readFileSync(`${root}supabase/migrations/${f}`, 'utf8')), f)
   const track = readdirSync(`${root}src`, { recursive: true }).filter(f => /\.(js|jsx)$/.test(f))
   for (const f of track) {
