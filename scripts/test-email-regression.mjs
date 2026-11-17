@@ -60,7 +60,7 @@ const nearestZone = (lat, lng) => {
 // `switches` is the app_settings 'inbox' value: by default both explicitly false (the old open behaviour, which most tests
 // below rely on); pass null for NO row at all. Missing row, missing key and read error all mean ON (see inboxSwitches).
 function makeDb({ switches = { sender_check: false, consent_hold: false } } = {}) {
-  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [], held_inbox_emails: [],
+  const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [], held_inbox_emails: [], email_sends: [],
     app_settings: switches ? [{ key: 'inbox', value: switches }] : [] }
   let seq = 0
   function q(table) {
@@ -113,9 +113,15 @@ let current = null
 let aiCalls = 0
 let lastPrompt = ''
 let deepseekHangs = false
-globalThis.Deno = { env: { get: k => ({ GOOGLE_MAPS_SERVER_KEY: 'fake', DEEPSEEK_API_KEY: 'fake', SUPABASE_URL: 'http://db' })[k] } }
+const sentMail = [] // what the fake Resend accepted
+let resendDown = false
+globalThis.Deno = { env: { get: k => ({ GOOGLE_MAPS_SERVER_KEY: 'fake', DEEPSEEK_API_KEY: 'fake', SUPABASE_URL: 'http://db', RESEND_API_KEY: 're_fake' })[k] } }
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), json = b => new Response(JSON.stringify(b), { status: 200 })
+  if (u.includes('api.resend.com')) {
+    if (resendDown) return new Response('{}', { status: 500 })
+    const b = JSON.parse(init.body); sentMail.push(b); return json({ id: `re_${sentMail.length}` })
+  }
   if (u.includes('consume_ai_quota') || u.includes('consume_api_call')) return json(true)
   if (u.includes('deepseek') && deepseekHangs) {
     // Never answers: only the caller's timeout (abort) ends it
@@ -551,6 +557,51 @@ await t('row present but keys missing or not an object: ON', async () => {
 await t('one key false, the other missing: only the false one is off', async () => {
   assert.deepEqual(await inboxSwitches(makeDb({ switches: { sender_check: false } })), { sender_check: false, consent_hold: true })
   assert.deepEqual(await inboxSwitches(makeDb({ switches: { consent_hold: false } })), { sender_check: true, consent_hold: false })
+})
+
+// ── 5b. Dropped-sender notice: a short service email to the MEMBER's account address, once a day per sender domain ──
+const dropFrom = async (db, from, { profile = {}, subject = 'Your booking', body = 'SECRET-BODY-TEXT confirmation TST999' } = {}) => {
+  current = 'E13a'
+  const res = await quiet(() => ingestEmail(db, { id: 'u1', account_email: 'traveller@example.test', ai_consent_at: '2026-10-29T10:00:00Z', ai_consent_version: 'v4-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini', ...profile }, { subject, fromAddress: from, bodyText: body, GEMINI_API_KEY: 'fake', emailId: 'em-x', receivedAt: RECEIVED }))
+  return res.json()
+}
+await t('dropped sender: the notice goes to the account address only, with the approved subject and text, and nothing from the message', async () => {
+  const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0
+  const r = await dropFrom(db, 'Airline Desk <noreply@mail.airline-example.test>', { subject: 'SECRET-SUBJECT-LINE' })
+  assert.equal(r.reason, 'sender'); assert.equal(db.tables.bookings.length, 0)
+  assert.equal(sentMail.length, 1)
+  const m = sentMail[0]
+  assert.deepEqual(m.to, ['traveller@example.test'], 'only the member, never the sender')
+  assert.equal(m.subject, "We didn't add an email sent to your Goose inbox")
+  assert.match(m.text, /^An email from mail\.airline-example\.test reached your Goose inbox on \d{1,2} \w+ 2026\. Goose only reads mail you forward from traveller@example\.test, so it didn't add anything to your trips or send the email to AI\./)
+  assert.match(m.text, /If it was a booking you meant to send, forward it again from traveller@example\.test\. If your airline or hotel sends to your Goose inbox directly, turn on Accept from any sender in Settings\. Anyone who learns your address can then add bookings\./)
+  assert.match(m.text, /Don't recognise it\? You don't need to do anything\. You can get a new inbox address in Settings\.$/)
+  for (const bad of ['SECRET-BODY-TEXT', 'SECRET-SUBJECT-LINE', 'TST999', 'noreply@', 'Airline Desk']) assert.ok(!m.text.includes(bad) && !m.html.includes(bad) && !m.subject.includes(bad), `${bad} must not appear`)
+  assert.ok(!/unsubscribe|offer|% off|First Class/i.test(m.text + m.html), 'no marketing block')
+  assert.ok(!JSON.stringify(m).includes('airline-example.test') || m.text.includes('mail.airline-example.test'), 'the sender appears only as a domain')
+  const log = db.tables.email_sends
+  assert.equal(log.length, 1); assert.equal(log[0].email, 'traveller@example.test'); assert.equal(log[0].kind, 'service'); assert.equal(log[0].status, 'sent'); assert.equal(log[0].user_id, 'u1')
+})
+await t('dropped sender: at most one notice per sender domain per member per day', async () => {
+  const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0
+  await dropFrom(db, 'a@hotel-example.test'); await dropFrom(db, 'b@hotel-example.test'); await dropFrom(db, 'a@hotel-example.test')
+  assert.equal(sentMail.length, 1, 'same domain, three emails: one notice')
+  await dropFrom(db, 'a@other-example.test'); assert.equal(sentMail.length, 2, 'another domain gets its own')
+  const db2 = makeDb({ switches: { sender_check: true, consent_hold: true } })
+  await dropFrom(db2, 'a@hotel-example.test', { profile: { id: 'u2', account_email: 'other@example.test' } }); assert.equal(sentMail.length, 3, 'another member gets their own')
+  db.tables.email_sends.forEach(r => { r.created_at = new Date(Date.now() - 25 * 3600 * 1000).toISOString() })
+  await dropFrom(db, 'a@hotel-example.test'); assert.equal(sentMail.length, 4, 'a day later it may send again')
+})
+await t('dropped sender: no notice when the email is allowed, nor without an account address, nor for our own mail; a Resend failure never changes the answer', async () => {
+  const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0
+  await dropFrom(db, 'traveller@example.test'); assert.equal(sentMail.length, 0, 'the member themselves is read, not dropped')
+  await dropFrom(db, 'x@bookings.sillytraveltool.com'); assert.equal(sentMail.length, 0, 'our own domain')
+  await dropFrom(db, 'x@nowhere-example.test', { profile: { account_email: null } }); assert.equal(sentMail.length, 0, 'no account address')
+  await dropFrom(db, 'not an address'); assert.equal(sentMail.length, 0, 'unreadable sender has no domain to name')
+  resendDown = true
+  try { const r = await dropFrom(db, 'x@down-example.test'); assert.equal(r.reason, 'sender'); assert.equal(db.tables.email_sends.at(-1).status, 'failed') } finally { resendDown = false }
+  const open = makeDb({ switches: { sender_check: false, consent_hold: false } }); sentMail.length = 0
+  await dropFrom(open, 'x@stranger-example.test'); assert.equal(sentMail.length, 0, 'sender check off: nothing is dropped, nothing is sent')
 })
 
 // ── 6. The prompt and schema contract ──

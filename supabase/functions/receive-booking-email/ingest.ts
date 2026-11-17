@@ -13,6 +13,7 @@ import { bookingEmailPrompt, normalizeEmailParse, travelerSummary, scrubNotes, l
 import { prepareEmailText, looksLikeBooking } from '../_shared/emailText.js'
 import { readItinerary, VISION_TYPES } from '../_shared/itinerary.ts'
 import { sheetToText } from '../_shared/sheet.js'
+import { droppedSenderEmail, safeDomain, longDate, DROPPED_TEMPLATE_KEY } from '../_shared/droppedSenderEmail.js'
 
 const toBase64 = (bytes: Uint8Array) => {
   let bin = ''
@@ -264,6 +265,42 @@ export async function senderAllowed(supabase: any, profile: InboxProfile, fromAd
   return normalizeAddress(await accountEmailOf(supabase, profile)) === from
 }
 
+const DROPPED_FROM = () => Deno.env.get('MEMBER_EMAIL_FROM') || 'Silly Travel Tool <goose@bookings.sillytraveltool.com>'
+const DROPPED_REPLY_TO = () => Deno.env.get('MEMBER_EMAIL_REPLY_TO') || 'machinemisha@gmail.com'
+
+/**
+ * The sender check dropped an email: tell the MEMBER (their account address only, never the sender) with a short
+ * service email. At most one per sender domain per member per 24 hours; only the domain and the date are named,
+ * nothing from the message. Sent with Resend and logged in email_sends like the other member emails. Best-effort:
+ * any failure is logged and never changes the answer to the webhook.
+ */
+export async function notifyDroppedSender(supabase: any, profile: InboxProfile, fromAddress: string): Promise<void> {
+  try {
+    const domain = safeDomain(normalizeAddress(fromAddress)?.split('@')[1])
+    const to = normalizeAddress(await accountEmailOf(supabase, profile))
+    const key = Deno.env.get('RESEND_API_KEY')
+    if (!domain || !to || !key) return
+    // Never answer our own mail (a loop). The notice goes to the account address only, never to the sender
+    if (domain.endsWith('sillytraveltool.com')) return
+    const campaign = `inbox_drop:${domain}`
+    const { data: prior } = await supabase.from('email_sends').select('created_at').eq('user_id', profile.id).eq('template_key', DROPPED_TEMPLATE_KEY).eq('campaign', campaign)
+    const since = Date.now() - 24 * 60 * 60 * 1000
+    if ((prior || []).some((r: any) => new Date(r.created_at).getTime() >= since)) return
+    const { subject, html, text } = droppedSenderEmail({ domain, date: longDate(), accountEmail: to })
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: DROPPED_FROM(), reply_to: DROPPED_REPLY_TO(), to: [to], subject, html, text }),
+    })
+    const out = await res.json().catch(() => ({}))
+    await supabase.from('email_sends').insert({
+      user_id: profile.id, email: to, template_key: DROPPED_TEMPLATE_KEY, kind: 'service', subject,
+      status: res.ok ? 'sent' : 'failed', reason: res.ok ? null : `resend ${res.status}`, resend_id: out?.id ?? null, campaign,
+      created_at: new Date().toISOString(),
+    })
+  } catch (e) { console.warn('dropped-sender notice failed', (e as Error)?.message) }
+}
+
 // Emails one inbox may have read a day: its own budget, not the member's in-app AI quota. One email is one unit,
 // however many AI reads it needs (the body plus up to MAX_READS - 1 attachments)
 export const INBOX_DAILY_PARSES = 30
@@ -323,6 +360,7 @@ export async function ingestEmail(supabase: any, profile: InboxProfile, input: P
     try {
       await supabase.from('function_errors').insert({ fn: 'receive-booking-email', kind: 'inbox_rejected_sender', status: 403, user_id: profile.id, message: `sender domain ${domain}`.slice(0, 120) })
     } catch { /* logging is best-effort */ }
+    await notifyDroppedSender(supabase, profile, input.fromAddress)
     return ok({ success: true, ignored: true, reason: 'sender' })
   }
   // No yes to AI reading yet (Apple 5.1.2(i)): keep only the Resend id, sender domain and subject; inbox-release
