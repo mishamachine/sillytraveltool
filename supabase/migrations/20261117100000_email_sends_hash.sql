@@ -14,8 +14,7 @@
 -- Backfill leaves rows that still point at a live former_members row alone (the address is held there); when a
 -- member is deleted, their former-member rows and any row with their address are hashed too.
 -- If the secret is changed or lost, old hashes stop matching new ones: keep it.
--- Retention: the log is kept 3 years from the send date, then the row is deleted by a daily pg_cron job
--- (same pattern as purge-old-costs).
+-- Coded rows are kept (no purge).
 -- Idempotent. NOT applied automatically: the owner applies it.
 
 create extension if not exists pgcrypto with schema extensions;
@@ -136,19 +135,3 @@ begin
       where user_id is null and former_member_id is null and email not like 'h1:%';
   end if;
 end $$;
-
--- Retention: delete log rows 3 years after the send date. Daily, replaced by jobname so re-running is safe.
-create or replace function public.purge_old_email_sends()
-returns integer language plpgsql security definer set search_path = '' as $$
-declare n integer;
-begin
-  delete from public.email_sends where created_at < now() - interval '3 years';
-  get diagnostics n = row_count;
-  return n;
-end;
-$$;
-revoke all on function public.purge_old_email_sends() from public, anon, authenticated;
-grant execute on function public.purge_old_email_sends() to service_role;
-
-select cron.unschedule('purge-old-email-sends') where exists (select 1 from cron.job where jobname = 'purge-old-email-sends');
-select cron.schedule('purge-old-email-sends', '37 3 * * *', 'select public.purge_old_email_sends()');

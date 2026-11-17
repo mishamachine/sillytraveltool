@@ -69,9 +69,7 @@ $$;
 revoke all on function public.delete_account(uuid) from public, anon, authenticated;
 grant execute on function public.delete_account(uuid) to service_role;
 
--- 2. Then stop the purge and drop the helpers:
-select cron.unschedule('purge-old-email-sends') where exists (select 1 from cron.job where jobname = 'purge-old-email-sends');
-drop function if exists public.purge_old_email_sends();
+-- 2. Then drop the helper:
 drop function if exists public.email_hash(text);
 -- Rows already hashed stay hashed: a hash cannot be turned back into an address. That is intended.
 -- The Vault secret email_hash_key and the pgcrypto extension are kept (delete the secret in the dashboard only if

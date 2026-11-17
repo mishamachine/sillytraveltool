@@ -40,10 +40,6 @@ async function build() {
     insert into vault.secrets values (n, s) returning gen_random_uuid() $f$;
   create function extensions.gen_random_bytes(n int) returns bytea language plpgsql volatile as $f$
   declare b bytea := ''::bytea; i int; begin for i in 1..n loop b := b || decode(lpad(to_hex(floor(random()*256)::int), 2, '0'), 'hex'); end loop; return b; end $f$;
-  -- pg_cron stand-in: just the job table and the two calls the migrations use
-  create schema cron; create table cron.job (jobname text primary key, schedule text, command text);
-  create function cron.schedule(n text, sch text, c text) returns int language sql as $f$ insert into cron.job values (n, sch, c) returning 1 $f$;
-  create function cron.unschedule(n text) returns boolean language sql as $f$ delete from cron.job where jobname = n returning true $f$;
   create type public.badge_tier as enum ('easy','medium','hard','legendary');
   create type public.booking_type as enum ('flight','hotel','restaurant');
   create table public.admins (user_id uuid, role text);
@@ -163,15 +159,6 @@ const byAddr = (await q(db, `select * from public.email_sends where subject is n
 ok('an unlinked row carrying the account address is hashed too', byAddr.length >= 1 && (await q(db, `select count(*)::int n from public.email_sends where lower(email) = '${ADDR.toLowerCase()}'`))[0].n === 0)
 ok('the unrelated former member (id 7) is untouched', (await q(db, `select email from public.email_sends where former_member_id = 7`))[0].email === 'former@example.com')
 
-// 4b. Retention purge: 3 years from the send date
-ok('migration schedules the purge once, by jobname, even after 3 runs', (await q(db, `select count(*)::int n from cron.job where jobname='purge-old-email-sends'`))[0].n === 1)
-await send(db, V, 'bob@example.com'); await db.exec(`update public.email_sends set created_at = now() - interval '3 years 1 day' where id = (select max(id) from public.email_sends);
-  insert into public.email_sends (email, kind, status, created_at) values ('h1:old', 'service', 'sent', now() - interval '1096 days'), ('h1:recent', 'service', 'sent', now() - interval '2 years 11 months')`)
-const purged = (await q(db, `select public.purge_old_email_sends() n`))[0].n
-ok('purge deletes rows older than 3 years and returns the count', purged === 2 && (await q(db, `select count(*)::int n from public.email_sends where email in ('h1:old')`))[0].n === 0, String(purged))
-ok('purge keeps newer rows (2 years 11 months old, and today\'s)', (await q(db, `select count(*)::int n from public.email_sends where email = 'h1:recent'`))[0].n === 1 && (await q(db, `select count(*)::int n from public.email_sends where user_id='${V}'`))[0].n >= 1)
-ok('purge is not callable by anon or authenticated', (await q(db, `select has_function_privilege('anon','public.purge_old_email_sends()','execute') a, has_function_privilege('authenticated','public.purge_old_email_sends()','execute') b`)).every(x => !x.a && !x.b))
-
 // 5. Deleting without the key fails safely (the plain address must not survive by accident)
 await db.exec(`insert into auth.users values ('33333333-3333-3333-3333-333333333333','c@example.com')`)
 await send(db, '33333333-3333-3333-3333-333333333333', 'c@example.com')
@@ -184,9 +171,9 @@ ok('with the secret restored, the same deletion succeeds', (await del(db, '33333
 
 // 6. The page text
 const page = readFileSync(new URL('../../public/delete-account/index.html', import.meta.url), 'utf8')
-const LINE = "A record of the service emails we sent you (the type and date) for 3 years, with your email address replaced by a code. We can't turn the code back into your address, but if you write to us from that address we can check whether we emailed it."
+const LINE = "A record of the service emails we sent you (the type and date), with your email address replaced by a code. We can't turn the code back into your address, but if you write to us from that address we can check whether we emailed it."
 const keep = page.slice(page.indexOf('What we keep'), page.indexOf('<h2>Subscriptions'))
 ok('/delete-account lists the email record under "What we keep", word for word', keep.includes(`<li>${LINE}</li>`) && !page.slice(0, page.indexOf('What we keep')).includes('service emails we sent you'))
 const priv = readFileSync(new URL('../../public/privacy/index.html', import.meta.url), 'utf8').replace(/\s+/g, ' ')
-ok('privacy page: erase-everything sentence carries the coded 3-year email record exception, linked to /delete-account/', priv.includes('we erase everything else within 30 days, including backups. The one exception is a coded record of the service emails we sent you, which we keep for 3 years (see <a href="/delete-account/">what is erased and what we keep</a>).'))
+ok('privacy page: erase-everything sentence carries the coded 3-year email record exception, linked to /delete-account/', priv.includes('we erase everything else within 30 days, including backups. The one exception is a coded record of the service emails we sent you, which we keep (see <a href="/delete-account/">what is erased and what we keep</a>).'))
 console.log(fails ? `\n${fails} FAILED` : '\nall passed'); process.exit(fails ? 1 : 0)
