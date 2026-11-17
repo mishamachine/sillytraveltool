@@ -58,7 +58,7 @@ const nearestZone = (lat, lng) => {
 
 // ── Minimal in-memory Supabase (as in test-email-match-sim.mjs) ──
 // `switches` is the app_settings 'inbox' value: by default both explicitly false (the old open behaviour, which most tests
-// below rely on); pass null for NO row at all. Missing row, missing key and read error all mean ON (see inboxSwitches).
+// below rely on); pass null for NO row at all. Missing row/key/read error: consent hold ON, sender check off (see inboxSwitches).
 function makeDb({ switches = { sender_check: false, consent_hold: false } } = {}) {
   const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [], held_inbox_emails: [], email_sends: [],
     app_settings: switches ? [{ key: 'inbox', value: switches }] : [] }
@@ -526,7 +526,7 @@ await t('travellers never reach analytics props (track → analytics_events and 
   }
 })
 
-// ── 5. Server switches: ON unless the row says false for that key (a missing row, key or read fails closed) ──
+// ── 5. Server switches: consent_hold fails CLOSED (ON unless false); sender_check is OFF unless true ──
 await t('switches explicitly false in the row: a stranger\'s email and a member without AI consent are filed', async () => {
   const db = makeDb({ switches: { sender_check: false, consent_hold: false } })
   const a = await send(db, 'E13a', { profile: { ai_consent_at: null } })
@@ -542,24 +542,29 @@ await t('switches on: the stranger is dropped before the AI, and without consent
   const b = await send(db, 'E13b', { profile: { ai_consent_at: null, account_email: 'traveller@example.test' } })
   assert.equal(b.held, true); assert.equal(aiCalls, before); assert.equal(db.tables.bookings.length, 0)
 })
-const bothOn = async (db, label) => {
+// Hold ON, sender check OFF: any sender is read, but only with a current AI yes; without it the email waits
+const holdOnly = async (db, label) => {
   const before = aiCalls
-  assert.deepEqual(await inboxSwitches(db), { sender_check: true, consent_hold: true }, label)
-  const a = await send(db, 'E13a', { profile: { ai_consent_at: '2026-10-29T10:00:00Z' } })
-  assert.equal(a.reason, 'sender', label); assert.equal(aiCalls, before, label)
+  assert.deepEqual(await inboxSwitches(db), { sender_check: false, consent_hold: true }, label)
+  const ok1 = await send(db, 'E13a', { profile: { ai_consent_at: '2026-10-29T10:00:00Z', ai_consent_version: 'v4-2026-10-29', ai_consent_routing: 'deepseek-first+gemini-fallback; pdf/image gemini' } })
+  assert.ok(ok1.booking_id, `${label}: a stranger with a current yes is read ${JSON.stringify(ok1)}`)
   const b = await send(db, 'E13b', { profile: { ai_consent_at: null, account_email: 'traveller@example.test' } })
-  assert.equal(b.held, true, label); assert.equal(aiCalls, before, label); assert.equal(db.tables.bookings.length, 0, label)
+  assert.equal(b.held, true, label); assert.equal(db.tables.bookings.length, 1, label)
+  const old = await send(db, 'E13b', { profile: { ai_consent_at: '2026-10-01T00:00:00Z', ai_consent_version: 'v1', ai_consent_routing: 'old' } })
+  assert.equal(old.held, true, `${label}: an old yes counts as no`)
+  assert.ok(aiCalls - before === 1, `${label}: only the allowed email reached the AI`)
 }
-await t('no app_settings row (the live state on 16 Nov 2026): sender check and consent hold are ON', async () => bothOn(makeDb({ switches: null }), 'no row'))
-await t('row present but keys missing or not an object: ON', async () => {
-  await bothOn(makeDb({ switches: {} }), 'empty object')
-  await bothOn(makeDb({ switches: { other: 1 } }), 'unrelated keys')
-  await bothOn(makeDb({ switches: 'off' }), 'string value')
-  await bothOn(makeDb({ switches: { sender_check: 'false', consent_hold: 0 } }), 'non-boolean values are not an explicit false')
+await t('no app_settings row (the live state on 16 Nov 2026): consent hold ON, sender check off', async () => holdOnly(makeDb({ switches: null }), 'no row'))
+await t('row present but keys missing, not an object, or odd values: hold ON, sender check off', async () => {
+  await holdOnly(makeDb({ switches: {} }), 'empty object')
+  await holdOnly(makeDb({ switches: { other: 1 } }), 'unrelated keys')
+  await holdOnly(makeDb({ switches: 'off' }), 'string value')
+  await holdOnly(makeDb({ switches: { sender_check: 'true', consent_hold: 0 } }), 'non-boolean values: neither an explicit true nor false')
 })
-await t('one key false, the other missing: only the false one is off', async () => {
+await t('one key set, the other missing', async () => {
   assert.deepEqual(await inboxSwitches(makeDb({ switches: { sender_check: false } })), { sender_check: false, consent_hold: true })
-  assert.deepEqual(await inboxSwitches(makeDb({ switches: { consent_hold: false } })), { sender_check: true, consent_hold: false })
+  assert.deepEqual(await inboxSwitches(makeDb({ switches: { consent_hold: false } })), { sender_check: false, consent_hold: false })
+  assert.deepEqual(await inboxSwitches(makeDb({ switches: { sender_check: true } })), { sender_check: true, consent_hold: true })
 })
 
 // ── 5b. Dropped-sender notice: a short service email to the MEMBER's account address, once a day per sender domain ──
@@ -623,6 +628,17 @@ await t('dropped sender: a Resend timeout or network error is logged as failed a
     await dropFrom(db, 'x@third-example.test'); assert.equal(sentMail.length, 1, 'third notice still allowed')
     await dropFrom(db, 'x@fourth-example.test'); assert.equal(sentMail.length, 1, 'failed sends counted toward the cap of 3')
   } finally { resendThrows = null }
+})
+await t('dropped sender: dormant while sender_check is off (no row, empty row, false, unreadable): nothing is dropped and no notice is ever sent', async () => {
+  sentMail.length = 0
+  for (const sw of [null, {}, { sender_check: false, consent_hold: true }, { sender_check: 'true' }]) {
+    const db = makeDb({ switches: sw })
+    const r = await dropFrom(db, 'x@dormant-example.test')
+    assert.notEqual(r.reason, 'sender'); assert.equal(db.tables.email_sends.length, 0)
+  }
+  const down = makeDb(); down.from = t => t === 'app_settings' ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'down' } }) }) }) } : makeDb().from(t)
+  await dropFrom(down, 'x@dormant-example.test')
+  assert.equal(sentMail.length, 0, 'no notice without the switch')
 })
 await t('dropped sender: our own domain and subdomains are skipped, a look-alike is not', async () => {
   const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0
@@ -809,15 +825,19 @@ await t('the AI call falls back from DeepSeek to Gemini on a timeout', async () 
     assert.ok(res.ok); assert.equal(aiCalls - before, 1, 'Gemini answered')
   } finally { deepseekHangs = false }
 })
-await t('switches: a read error fails closed (both ON), even right after a read that said off, and on a cold start', async () => {
+await t('switches: a read error holds (consent ON) and never starts dropping mail (sender check off), with no memory of earlier reads', async () => {
   const brokenFrom = t => { if (t !== 'app_settings') return makeDb().from(t); return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'down' } }) }) }) } }
   const open = makeDb({ switches: { sender_check: false, consent_hold: false } })
-  assert.deepEqual(await inboxSwitches(open), { sender_check: false, consent_hold: false }, 'a good read says off')
+  assert.deepEqual(await inboxSwitches(open), { sender_check: false, consent_hold: false }, 'a good read says hold off')
   const broken = makeDb(); broken.from = brokenFrom
-  assert.deepEqual(await inboxSwitches(broken), { sender_check: true, consent_hold: true }, 'the next read fails: ON, the last value is not kept')
-  assert.equal((await send(broken, 'E13a')).reason, 'sender', 'a stranger is dropped while the settings are unreadable')
+  assert.deepEqual(await inboxSwitches(broken), { sender_check: false, consent_hold: true }, 'the next read fails: hold ON')
+  const strict = makeDb({ switches: { sender_check: true, consent_hold: true } })
+  assert.deepEqual(await inboxSwitches(strict), { sender_check: true, consent_hold: true })
+  assert.deepEqual(await inboxSwitches(broken), { sender_check: false, consent_hold: true }, 'after a read that said sender check on, an error does not keep it')
+  const b = await send(broken, 'E13b', { profile: { ai_consent_at: null, account_email: 'traveller@example.test' } })
+  assert.equal(b.held, true, 'a member without consent waits while the settings are unreadable')
   const thrown = makeDb(); thrown.from = t => { if (t === 'app_settings') throw new Error('network'); return makeDb().from(t) }
-  assert.deepEqual(await inboxSwitches(thrown), { sender_check: true, consent_hold: true }, 'a thrown error is the same')
+  assert.deepEqual(await inboxSwitches(thrown), { sender_check: false, consent_hold: true }, 'a thrown error is the same')
   assert.deepEqual(await inboxSwitches(open), { sender_check: false, consent_hold: false }, 'a later good read is believed again')
 })
 

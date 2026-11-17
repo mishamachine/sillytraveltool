@@ -6,6 +6,7 @@ import { CONSENT_EVENT, isConsentRegion } from '../../lib/consent'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { useConsentStore } from '../../store/consentStore'
 import { consentCurrent } from '../../lib/aiConsentPolicy'
+import { SENDER_CHECK_LIVE } from '../../lib/inboxPolicy'
 import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
@@ -173,12 +174,14 @@ export default function SettingsView({ onBack, onDelete }) {
           ) : (
             <Text variant="caption" tone="muted">Setting up your address</Text>
           )}
-          <Text variant="micro" tone="muted">Goose reads mail you forward from {user?.email || 'your account email'}. Keep the address private.</Text>
+          <Text variant="micro" tone="muted">Forward booking emails from any address. Goose reads them once you've allowed AI reading. Keep this address private.</Text>
           {inboxError && <Banner tone="danger" icon="alert-circle" role="alert">{inboxError}</Banner>}
         </Card>
         <Card variant="group">
-          <Switch label="Accept from any sender" description="For automatic forwarding rules that keep the airline or hotel as the sender. Anyone who learns your address can then add bookings."
-            checked={!!profile?.inbox_accept_any} onChange={on => updateProfile({ inbox_accept_any: on }).catch(e => setInboxError(e?.message || 'Could not save. Try again.'))} />
+          {SENDER_CHECK_LIVE && (
+            <Switch label="Accept from any sender" description="For automatic forwarding rules that keep the airline or hotel as the sender. Anyone who learns your address can then add bookings."
+              checked={!!profile?.inbox_accept_any} onChange={on => updateProfile({ inbox_accept_any: on }).catch(e => setInboxError(e?.message || 'Could not save. Try again.'))} />
+          )}
           <ListRow title="New address" meta="The old address stops working at once" chevron onClick={() => setConfirmRotate(true)} />
         </Card>
       </Section>
