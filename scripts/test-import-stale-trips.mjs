@@ -61,4 +61,10 @@ await t('view-only and finished trips are still never offered', async () => {
   const viewer = trip('shared', { _myRole: 'viewer' }); const past = trip('old', { start_date: '2020-03-10', end_date: '2020-03-17' })
   assert.equal(await matchOnFreshTrips({ refresh: async () => {}, getTrips: () => [home, viewer, past], ultimateDestination: dest, bookings }), null)
 })
+await t('the "already have a trip" banner says only what is true', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../src/screens/trips/ImportSheet.jsx', import.meta.url), 'utf8')
+  assert.ok(src.includes('You already have a trip that fits these dates and places, so Goose matched it instead of making a new one.'))
+  assert.ok(!/added a moment ago/.test(src))
+})
 console.log(`\n${n} import freshness checks passed`)

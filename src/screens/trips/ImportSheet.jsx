@@ -264,7 +264,7 @@ export default function ImportSheet({ onClose, trips = [], trip: fixedTrip = nul
 
           {matched && freshNote && (
             <Banner tone="info" icon="trips" role="status" title="This looks like a trip you already have">
-              A trip that fits these dates and places was added a moment ago, so Goose matched it instead of making a new one.
+              You already have a trip that fits these dates and places, so Goose matched it instead of making a new one.
             </Banner>
           )}
           {matched ? (
