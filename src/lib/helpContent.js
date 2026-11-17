@@ -228,7 +228,7 @@ export const HELP_FAQ = [
   },
   {
     q: 'I forwarded an email but nothing showed up.',
-    a: 'Give it a minute, then close and reopen the app. Check you sent it to your own Goose inbox address (Profile → Settings). Still nothing? Open the trip, tap + and paste the confirmation text instead.',
+    a: 'Give it a minute, then close and reopen the app. Check you sent it to your own Goose inbox address (Profile → Settings). If you haven\'t allowed AI reading yet, Goose holds the email until you do. Still nothing? Open the trip, tap + and paste the confirmation text instead.',
   },
   {
     q: 'The times look wrong.',

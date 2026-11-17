@@ -60,7 +60,7 @@ const lookup = q => { const s = q.toLowerCase(); const g = GEO.find(([k]) => s.i
 
 // ── Minimal in-memory Supabase ──
 function makeDb() {
-  // Sender check and consent hold switched on here (the inbox gate below tests them); off by default live (app_settings)
+  // Sender check and consent hold switched on here (the inbox gate below tests them). With no app_settings row only the consent hold is ON
   const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [], held_inbox_emails: [],
     app_settings: [{ key: 'inbox', value: { sender_check: true, consent_hold: true } }] }
   const inbox = { parses: 0 } // consume_inbox_quota's counter for today

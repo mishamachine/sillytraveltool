@@ -6,6 +6,7 @@ import { CONSENT_EVENT, isConsentRegion } from '../../lib/consent'
 import { usePlanStore, isFirstClass } from '../../store/planStore'
 import { useConsentStore } from '../../store/consentStore'
 import { consentCurrent } from '../../lib/aiConsentPolicy'
+import { SENDER_CHECK_LIVE } from '../../lib/inboxPolicy'
 import { canBuy, manageTarget, openManage } from '../../lib/purchases'
 import { reportIssueHref, trackReport } from '../../lib/reportIssue'
 import { InstallSheet, useInstallAvailable } from '../../components/shared/InstallPrompt'
@@ -177,12 +178,14 @@ export default function SettingsView({ onBack, onDelete }) {
           ) : (
             <Text variant="caption" tone="muted">Setting up your address</Text>
           )}
-          <Text variant="micro" tone="muted">Goose reads mail you forward from {user?.email || 'your account email'}. Keep the address private.</Text>
+          <Text variant="micro" tone="muted">Forward booking emails from any address. Goose reads them once you've allowed AI reading. Keep this address private.</Text>
           {inboxError && <Banner tone="danger" icon="alert-circle" role="alert">{inboxError}</Banner>}
         </Card>
         <Card variant="group">
-          <Switch label="Accept from any sender" description="For automatic forwarding rules that keep the airline or hotel as the sender. Anyone who learns your address can then add bookings."
-            checked={!!profile?.inbox_accept_any} onChange={on => updateProfile({ inbox_accept_any: on }).catch(e => setInboxError(e?.message || 'Could not save. Try again.'))} />
+          {SENDER_CHECK_LIVE && (
+            <Switch label="Accept from any sender" description="For automatic forwarding rules that keep the airline or hotel as the sender. Anyone who learns your address can then add bookings."
+              checked={!!profile?.inbox_accept_any} onChange={on => updateProfile({ inbox_accept_any: on }).catch(e => setInboxError(e?.message || 'Could not save. Try again.'))} />
+          )}
           <ListRow title="New address" meta="The old address stops working at once" chevron onClick={() => setConfirmRotate(true)} />
         </Card>
       </Section>
@@ -227,7 +230,7 @@ export default function SettingsView({ onBack, onDelete }) {
           {canInstall && <ListRow icon="smartphone" title={INSTALL_COPY.settingsRow} meta={INSTALL_COPY.helpRowMeta} chevron onClick={() => setInstallOpen(true)} />}
           <Switch label="Share usage stats" description={`Which features you use and your device type help us improve the app. No names, emails or trip details.${isConsentRegion() ? ' Off until you allow it.' : ''}`}
             checked={shareStats} onChange={on => { setAnalyticsEnabled(on); setShareStats(on) }} />
-          <Switch label="AI reading of imports and translations" description="Goose’s AI (DeepSeek, with Google Gemini for photos and PDFs) reads the emails you forward, what you import and the sentences you type to translate. Off: forwarded emails wait for your OK."
+          <Switch label="AI reading" description="AI partners read what you forward, import or translate. Off: forwarded emails wait for your OK."
             checked={consentCurrent(profile)} onChange={on => {
               setAiError(null)
               // The switch follows the saved profile, so a failed save leaves it where it was; say so
