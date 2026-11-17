@@ -19,7 +19,7 @@ assert.ok(read('docs/APP_REVIEW_CHECKLIST.md').includes('Any sender is accepted;
 assert.ok(read('docs/STORE_PRIVACY_FORMS.md').includes('Settings → AI reading; in older app versions, AI reading of imports and translations)'))
 assert.ok(privacy.includes('Forwarded emails then wait unread until you turn it back on.'))
 for (const old of ['read when they arrive', 'until our next update', 'Until our next update', 'are still read when they arrive', "don't forward it"]) assert.ok(!privacy.includes(old), `stale privacy text: ${old}`)
-assert.ok(privacy.includes('Last updated 16 November 2026'))
+assert.ok(privacy.includes('Last updated 17 November 2026'))
 
 // The code behind it: a withdrawn or missing yes holds the email; the switches fail closed; the member's switch is the same record
 assert.ok(/switches\.consent_hold && profile\.ai_consent_at !== undefined && !consentCurrent\(profile\) && !input\.released/.test(ingest), 'hold on a missing or old yes')
