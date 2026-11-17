@@ -44,6 +44,8 @@ node build.mjs --variant persona:all          # or persona:ana | persona:marcus 
 
 Outputs `out/stt-ad-persona-<name>.mp4`. Edit scripts, voices, rates, clips and captions in the `PERSONAS` table at the top of `build.mjs` (`say` is the spoken text, `[word]` is the terracotta word).
 
+**Voice files (hook ready, voices pending).** If `video/ads/voices/<persona>.<mp3|wav|m4a|aac|flac|ogg|aiff>` exists (or `voiceFile` is set on the persona, resolved against `--voices DIR`), the whole script is read from that one recording instead of `say`: leading/trailing silence is trimmed, it is two-pass `loudnorm`ed, scene cuts snap to the pause nearest each line's expected position (word-count share), the phone section is as long as the speech, the result line starts 0.5 s after the last word and the end card follows (about 1.9 s later). The recording should read the four lines in order with a short pause between lines. Voice files are gitignored. No voice files exist yet: natural voices are pending a paid TTS, so the ads still use the `say` voices below.
+
 Voices are macOS `say` (offline; the Mac had no Premium/Enhanced voices installed, so these are the best standard ones). Each line is synthesised separately, trimmed, mixed on a timeline and loudness-normalised with two-pass `loudnorm` (-16 LUFS, true peak -1.5 dB); no room tone. Needs macOS and `say`; a different Mac with other voices installed will sound different, so keep the rendered MP4s. If a script runs long the build stops and tells you to shorten it or raise `rate`.
 
 ## Inputs and sources
