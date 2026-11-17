@@ -16,7 +16,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const KEY = (Deno.env.get('STRIPE_SECRET_KEY') || '').trim()
 const stripe = makeStripe(KEY)
 
-const FRIENDLY = 'Couldn\'t delete your account. Try again, or email machinemisha@gmail.com and we\'ll delete it for you.'
+const FRIENDLY = 'Couldn’t delete your account. Try again, or email machinemisha@gmail.com and we’ll delete it for you.'
 const SAFE_MESSAGES = ['No such account.', 'Owner accounts can\'t be deleted from the app.']
 
 Deno.serve(async (req) => {

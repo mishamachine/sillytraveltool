@@ -115,7 +115,7 @@ begin
   delete from public.ingest_locks where user_id = p_user;
   delete from public.former_members where user_id = p_user;
 
-  -- Stats and badges go first, explicitly, so no stats trigger has anything left to recompute
+  -- Stats and badges go before auth.users, explicitly, so no stats trigger has anything left to recompute
   delete from public.user_badges where user_id = p_user;
   delete from public.user_stats where user_id = p_user;
 
