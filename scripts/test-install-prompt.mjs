@@ -43,7 +43,7 @@ t('wording: final strings, no question mark, no offline claim', () => {
 })
 
 t('events: three short names, no props anywhere in the UI code', () => {
-  assert.deepEqual(EVENTS, { shown: 'install_prompt_shown', dismissed: 'install_prompt_dismissed', accepted: 'install_prompt_accepted' })
+  assert.deepEqual(EVENTS, { shown: 'install_prompt_shown', dismissed: 'install_prompt_dismissed', accepted: 'install_accepted' })
   const ui = readFileSync(new URL('../src/components/shared/InstallPrompt.jsx', import.meta.url), 'utf8')
   const calls = [...ui.matchAll(/track\(([^)]*)\)/g)].map(m => m[1])
   assert.ok(calls.length >= 4)

@@ -25,7 +25,7 @@ export const MIN_GAP_MS = 14 * 24 * 60 * 60 * 1000
 export const MAX_DISMISSALS = 2
 
 // Events through track(), short codes, no props
-export const EVENTS = { shown: 'install_prompt_shown', dismissed: 'install_prompt_dismissed', accepted: 'install_prompt_accepted' }
+export const EVENTS = { shown: 'install_prompt_shown', dismissed: 'install_prompt_dismissed', accepted: 'install_accepted' }
 
 /** Device facts: { native, standalone, ios, iosSafari }. Pass fakes in tests. */
 export function readEnv({ capacitor, win = typeof window !== 'undefined' ? window : undefined } = {}) {
