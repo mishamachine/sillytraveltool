@@ -7,3 +7,6 @@
 .app-splash__bar { width: 160px; }
 .app-fallback { flex: 1; display: flex; align-items: center; justify-content: center; background: var(--surface-page); }
 .app-crash { flex: 1; display: flex; align-items: center; padding: var(--space-6) var(--space-5); background: var(--surface-page); }
+
+/* Add to home screen: the Share icon sits inline in the iOS steps */
+.install-steps__icon { display: inline-block; vertical-align: -3px; }
