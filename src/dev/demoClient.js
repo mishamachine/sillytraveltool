@@ -11,6 +11,10 @@
 //   ?demo&plan=first_class  signed in with First Class (default: free)
 //   ?demo&limits=1        new trips and reservations hit the free-plan limit (paywall)
 //   ?demo&founders=off    the founders (lifetime) offer has ended
+//   ?demo&consent=reject  usage-stats banner already answered (store screenshots)
+//   ?demo&geo=granada     device location fixed to Granada, so the webview never shows its own location prompt (store screenshots)
+//   ?demo&weather=fixed   fixed 16 degree forecast instead of Open-Meteo (store screenshots)
+//   ?demo&now=2026-11-07T18:30:00Z  (19:30 in Madrid; use Z, a + in a URL turns into a space) demo clock starts at that instant and keeps ticking (store screenshots)
 //   ?demo&paywall=settings  opens the First Class paywall at launch (cloud device screenshots)
 // App builds have no address bar: VITE_DEMO_PARAMS="limits=1&paywall=settings" sets the same options at build time.
 import { buildFixtures, DEMO_USER } from './fixtures'
@@ -141,12 +145,36 @@ export function demoParams() {
 
 export function createDemoClient() {
   const params = demoParams()
+  // consent=reject: pre-answer the usage-stats banner (the simulator has no region, so it would show). Demo builds only.
+  try { if (params.get('consent') === 'reject') localStorage.setItem('stt_analytics', 'off') } catch { /* no storage */ }
+  // now=<ISO instant>: shift the page clock so the demo trip story (dates are relative to today) reads the same whenever it runs. Demo builds only.
+  const nowParam = params.get('now')
+  if (nowParam && Number.isFinite(Date.parse(nowParam)) && !globalThis.__demoClock) {
+    const RealDate = Date
+    const offset = RealDate.parse(nowParam) - RealDate.now()
+    globalThis.__demoClock = true
+    globalThis.Date = class extends RealDate {
+      constructor(...a) { if (a.length === 0) super(RealDate.now() + offset); else super(...a) }
+      static now() { return RealDate.now() + offset }
+    }
+  }
+  // geo=granada: answer navigator.geolocation with the demo trip's city so no location prompt covers a screenshot. Demo builds only.
+  if (params.get('geo') === 'granada' && typeof navigator !== 'undefined') {
+    const pos = { coords: { latitude: 37.1773, longitude: -3.5986, accuracy: 20 }, timestamp: Date.now() }
+    try {
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: {
+        getCurrentPosition: (ok) => setTimeout(() => ok(pos), 50),
+        watchPosition: (ok) => { setTimeout(() => ok(pos), 50); return 1 },
+        clearWatch: () => {},
+      } })
+    } catch { /* keep the real one */ }
+  }
   FAIL = new Set((params.get('fail') || '').split(',').filter(Boolean))
   SLOW = params.has('slow')
   PLAN = params.get('plan') === 'first_class' ? 'first_class' : 'free'
   LIMITS = params.has('limits')
   FOUNDERS = params.get('founders') !== 'off'
-  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship'), askAi: params.has('askai'), pastOnly: params.has('pastonly'), held: Number(params.get('held')) || 0 })
+  db = buildFixtures({ empty: params.has('empty'), flagship: params.get('flagship'), askAi: params.has('askai'), pastOnly: params.has('pastonly'), held: Number(params.get('held')) || 0, alhambraAt: params.get('now') ? '22:30' : null })
   session = params.has('signedout') ? null : {
     access_token: 'demo-token', refresh_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 3600, user: DEMO_USER,
   }

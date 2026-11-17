@@ -5,17 +5,15 @@ Drives one booted simulator through the demo screens and saves PNGs at native re
 order the store listing should show them (01-trips-list, 02-trip-plan, 03-today, 04-guide, 05-honk,
 06-tools, 07-documents). Then checks every PNG against Apple's accepted sizes, resizing and padding if needed.
 
-env: UDID, OUT (dir), KIND (iphone|ipad), TRIP (text on the trip card, default "Spain")
-The demo build is made with VITE_DEMO=1 VITE_DEMO_PARAMS=flagship=10, so the app opens on Today.
-WKWebView content is not reliably in the accessibility tree, so each tap tries a label first and then a
-position worked out from the screen size (the tab bar is five equal columns along the bottom).
+env: UDID, OUT (dir), KIND (iphone|ipad), 
+The demo build is made with VITE_DEMO=1 VITE_DEMO_PARAMS=consent=reject, so the app opens on Today with the usage-stats
+banner already answered. Taps do not reach the WKWebView, so each screen is opened through the demo deep link.
 """
-import json, os, re, struct, subprocess, sys, time
+import json, os, re, struct, subprocess, sys, time, zlib
 
 UDID = os.environ['UDID']
 OUT = os.environ.get('OUT', 'shots')
 KIND = os.environ.get('KIND', 'iphone')
-TRIP = os.environ.get('TRIP', 'Spain')
 BUNDLE = 'com.sillytraveltool.app'
 # Accepted App Store sizes (width, height), portrait
 ACCEPTED = {'iphone': [(1320, 2868), (1290, 2796)], 'ipad': [(2064, 2752), (2048, 2732)]}[KIND]
@@ -62,31 +60,18 @@ W, H = screen_size()
 print(f'screen {W}x{H} pt', flush=True)
 
 
-def tap_xy(x, y):
-    run('axe', 'tap', '-x', str(round(x)), '-y', str(round(y)), '--udid', UDID, check=False)
-
-
-def tap(text, fallback, exact=False, wait=3):
-    """Tap the smallest element whose label matches text; else tap the fallback point (x, y in points)."""
-    hits = [(l, f) for l, f in elements() if (l.strip() == text if exact else text.lower() in l.lower())]
-    if hits:
-        label, f = min(hits, key=lambda h: h[1]['width'] * h[1]['height'])
-        print(f'tap "{label}"', flush=True)
-        tap_xy(f['x'] + f['width'] / 2, f['y'] + f['height'] / 2)
-    else:
-        print(f'no element "{text}"; tap fallback {fallback[0]:.0f},{fallback[1]:.0f}', flush=True)
-        tap_xy(*fallback)
+def go(query, wait=4):
+    """Drive the demo app through its deep link (src/dev/demoNav.js); taps don't reach the WKWebView."""
+    run('xcrun', 'simctl', 'openurl', UDID, f'{BUNDLE}://demo?{query}', check=False)
+    end = time.time() + 6
+    while time.time() < end:  # iOS asks "Open in Silly Travel Tool?" for custom-scheme links
+        hits = [f for l, f in elements() if l.strip() == 'Open']
+        if hits:
+            f = min(hits, key=lambda f: f['width'] * f['height'])
+            run('axe', 'tap', '-x', str(round(f['x'] + f['width'] / 2)), '-y', str(round(f['y'] + f['height'] / 2)), '--udid', UDID, check=False)
+            break
+        time.sleep(1)
     time.sleep(wait)
-
-
-def tab(index, name):
-    tap(name, (W * (index + 0.5) / 5, H - 48), exact=True)
-
-
-def swipe_up(amount=0.35):
-    run('axe', 'swipe', '--start-x', str(round(W / 2)), '--start-y', str(round(H * 0.7)),
-        '--end-x', str(round(W / 2)), '--end-y', str(round(H * (0.7 - amount))), '--udid', UDID, check=False)
-    time.sleep(1.5)
 
 
 def png_size(path):
@@ -108,40 +93,137 @@ def fit(path):
     print(f'{os.path.basename(path)} {size[0]}x{size[1]} -> {png_size(path)}', flush=True)
 
 
+def flatten_rgb(path, bg=(0xF5, 0xEF, 0xE6)):
+    """Rewrite the PNG as 8-bit RGB with no alpha channel (App Store Connect rejects/flags transparency)."""
+    data = open(path, 'rb').read()
+    pos, idat, ihdr = 8, b'', None
+    while pos < len(data):
+        n, typ = struct.unpack('>I4s', data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + n]
+        if typ == b'IHDR':
+            ihdr = struct.unpack('>IIBBBBB', body)
+        elif typ == b'IDAT':
+            idat += body
+        pos += 12 + n
+    w, h, depth, ctype, _, _, interlace = ihdr
+    if depth != 8 or interlace or ctype not in (2, 6):
+        raise SystemExit(f'cannot flatten {path}: unsupported PNG {ihdr}')
+    bpp = 4 if ctype == 6 else 3
+    raw = zlib.decompress(idat)
+    stride = w * bpp
+    prev = bytearray(stride)
+    out = bytearray()
+    i = 0
+    for _ in range(h):
+        f = raw[i]; row = bytearray(raw[i + 1:i + 1 + stride]); i += 1 + stride
+        for x in range(stride):
+            a = row[x - bpp] if x >= bpp else 0
+            b = prev[x]
+            c = prev[x - bpp] if x >= bpp else 0
+            if f == 1: row[x] = (row[x] + a) & 255
+            elif f == 2: row[x] = (row[x] + b) & 255
+            elif f == 3: row[x] = (row[x] + ((a + b) >> 1)) & 255
+            elif f == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                row[x] = (row[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        prev = row
+        if bpp == 4:
+            rgb = bytearray(w * 3)
+            for x in range(w):
+                al = row[x * 4 + 3]
+                for k in range(3):
+                    rgb[x * 3 + k] = (row[x * 4 + k] * al + bg[k] * (255 - al)) // 255
+            out += b'\x00' + rgb
+        else:
+            out += b'\x00' + row
+    if KIND == 'ipad':  # paint out the iPadOS window-resize handle (bottom-right arc) with the side-bar colour beside it
+        m, ref = 90, 100
+        for y in range(h - m, h):
+            o = y * (1 + w * 3) + 1
+            col = bytes(out[o + (w - ref) * 3:o + (w - ref) * 3 + 3])
+            out[o + (w - m) * 3:o + w * 3] = col * m
+    def chunk(t, b):
+        return struct.pack('>I', len(b)) + t + b + struct.pack('>I', zlib.crc32(t + b) & 0xffffffff)
+    open(path, 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+                           + chunk(b'IDAT', zlib.compress(bytes(out), 6)) + chunk(b'IEND', b''))
+
+
 def shot(name):
     path = f'{OUT}/{KIND}/{name}.png'
     os.makedirs(os.path.dirname(path), exist_ok=True)
     run('xcrun', 'simctl', 'io', UDID, 'screenshot', path)
     fit(path)
+    flatten_rgb(path)
     if png_size(path) not in ACCEPTED:
         failures.append(f'{KIND}/{name} is {png_size(path)}')
     return path
 
 
-# Launch on Today (the demo trip is in progress)
-run('xcrun', 'simctl', 'terminate', UDID, BUNDLE, check=False)
-run('xcrun', 'simctl', 'launch', UDID, BUNDLE)
-time.sleep(14)
-shot('03-today')
+# Permissions are granted up front so no iOS prompt (location) lands on a screenshot; the demo trip is in Granada
+for svc in ('location', 'location-always', 'photos', 'camera', 'notifications'):
+    run('xcrun', 'simctl', 'privacy', UDID, 'grant', svc, BUNDLE, check=False)
+run('xcrun', 'simctl', 'location', UDID, 'set', '37.1773,-3.5986', check=False)
 
-tap('All trips', (W * 0.14, H * 0.07))
-time.sleep(2)
-shot('01-trips-list')
 
-tap(TRIP, (W * 0.5, H * 0.3), wait=4)
-swipe_up(0.3)  # down to the BCN -> BER flight and its two time zones
+def is_blank(path):
+    """A flat screen compresses to a tiny PNG; real app screens are far bigger."""
+    return os.path.getsize(path) < 150_000
+
+
+# Launch on Today (the demo trip is in progress). The first cold start can show only the splash colour,
+# so retry with a relaunch until the screen has content.
+for attempt in range(4):
+    run('xcrun', 'simctl', 'terminate', UDID, BUNDLE, check=False)
+    run('xcrun', 'simctl', 'launch', UDID, BUNDLE)
+    time.sleep(14 + 6 * attempt)
+    path = shot('03-today')
+    if not is_blank(path):
+        break
+    print(f'03-today looks blank (attempt {attempt + 1}), relaunching', flush=True)
+else:
+    sys.exit(f'!! {KIND}/03-today is blank or the weather never loaded')
+
+import hashlib
+
+
+def digest(path):
+    return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+
+
+# The Trips list is a sub-view the app switches to a moment after the deep link; if that raced the screen
+# mount the shot is still Today, so send the link again (slower each time) until it differs from Today.
+today = digest(f'{OUT}/{KIND}/03-today.png')
+for attempt in range(4):
+    go('trips=list', wait=4 + 3 * attempt)
+    path = shot('01-trips-list')
+    if abs(os.path.getsize(path) - os.path.getsize(f'{OUT}/{KIND}/03-today.png')) > 0.03 * os.path.getsize(path):
+        break
+    print(f'01-trips-list still looks like Today (attempt {attempt + 1}), retrying', flush=True)
+go('trip=trip-spain', wait=6)  # Plan tab: SEA -> MAD flight with its two time zones
 shot('02-trip-plan')
-
-tab(0, 'Trips')  # closes the trip
-tab(1, 'Guide'); time.sleep(3); shot('04-guide')
-tab(2, 'HONK'); time.sleep(2); shot('05-honk')
-tab(3, 'Tools'); time.sleep(2); shot('06-tools')
-tab(4, 'Profile'); time.sleep(2)
-tap('Travel documents', (W * 0.5, H * 0.72), wait=3)
+go('trip=close&tab=guide', wait=6)
+shot('04-guide')
+go('tab=honk')
+shot('05-honk')
+go('tab=tools')
+shot('06-tools')
+go('tab=profile&profile=docs')
 shot('07-documents')
 
-count = len([n for n in os.listdir(f'{OUT}/{KIND}') if n.endswith('.png')])
+# No two screenshots may be the same picture (the previous run produced seven copies of Today)
+import hashlib
+files = sorted(n for n in os.listdir(f'{OUT}/{KIND}') if n.endswith('.png'))
+digests = {}
+for n in files:
+    digests.setdefault(hashlib.sha256(open(f'{OUT}/{KIND}/{n}', 'rb').read()).hexdigest(), []).append(n)
+for names in digests.values():
+    if len(names) > 1:
+        failures.append('identical: ' + ', '.join(names))
+for n in files:
+    if is_blank(f'{OUT}/{KIND}/{n}'):
+        failures.append('blank: ' + n)
+count = len(files)
 print(f'{count} screenshots in {OUT}/{KIND}', flush=True)
 if failures:
-    print('!! wrong size:', '; '.join(failures), flush=True)
-sys.exit(1 if failures or count < 5 else 0)
+    print('!! ', '; '.join(failures), flush=True)
+sys.exit(1 if failures or count < 7 else 0)

@@ -27,7 +27,7 @@ function at(offset, hh, mm = 0, tz = MAD) {
 }
 
 // askAi: no AI-reading answer yet (the Allow sheet shows); held: that many forwarded emails waiting for it
-export function buildFixtures({ empty = false, flagship = null, askAi = false, held = 0, pastOnly = false } = {}) {
+export function buildFixtures({ empty = false, flagship = null, askAi = false, held = 0, pastOnly = false, alhambraAt = null } = {}) {
   const U = DEMO_USER.id
   const next = partsIn(Date.now() + 80 * 60000, MAD) // Alhambra entry, 1h 20m from now in Granada
 
@@ -46,7 +46,7 @@ export function buildFixtures({ empty = false, flagship = null, askAi = false, h
     b({ id: 'b2', trip_id: 'trip-spain', type: 'hotel', title: 'Hotel check-in · Madrid', hotel_name: 'Hotel Urban Letras', hotel_address: 'Calle del Prado 15, Madrid', check_in_date: day(-3), check_out_date: day(0), confirmation_number: '58213377', price: 642, source: 'email_import' }),
     b({ id: 'b3', trip_id: 'trip-spain', type: 'activity', title: 'Museo del Prado', venue_name: 'Museo del Prado', venue_address: 'Calle de Ruiz de Alarcón 23, Madrid', activity_date: day(-2), activity_time: '17:00:00', ticket_quantity: 2, confirmation_number: 'PRD-2231' }),
     b({ id: 'b4', trip_id: 'trip-spain', type: 'transport', transport_mode: 'train', title: 'Madrid → Granada', provider: 'Renfe AVE', departure_airport: 'Madrid Atocha', arrival_airport: 'Granada', departure_time: at(0, 7, 5), arrival_time: at(0, 10, 25), departure_tz: MAD, arrival_tz: MAD, seat_number: 'Coach 4 · 12C', confirmation_number: 'RNF8812' }),
-    b({ id: 'b5', trip_id: 'trip-spain', type: 'activity', title: 'Alhambra · Nasrid Palaces', venue_name: 'Alhambra', venue_address: 'Calle Real de la Alhambra, Granada', activity_date: day(0), activity_time: `${next.time}:00`, ticket_quantity: 2, confirmation_number: 'ALH-90412' }),
+    b({ id: 'b5', trip_id: 'trip-spain', type: 'activity', title: 'Alhambra · Nasrid Palaces', venue_name: 'Alhambra', venue_address: 'Calle Real de la Alhambra, Granada', activity_date: day(0), activity_time: alhambraAt ? `${alhambraAt}:00` : `${next.time}:00`, ticket_quantity: 2, confirmation_number: 'ALH-90412' }),
     b({ id: 'b6', trip_id: 'trip-spain', type: 'restaurant', title: 'Dinner · Carmen de San Miguel', venue_name: 'Carmen de San Miguel', venue_address: 'Plaza de Torres Bermejas 3, Granada', activity_date: day(0), activity_time: '20:30:00', party_size: 2, confirmation_number: 'OT-55120', notes: 'Terrace table requested' }),
     b({ id: 'b7', trip_id: 'trip-spain', type: 'hotel', title: 'Hotel check-in · Granada', hotel_name: 'Casa Morisca', hotel_address: 'Cuesta de la Victoria 9, Granada', check_in_date: day(0), check_out_date: day(1), confirmation_number: 'CM-3310' }),
     b({ id: 'b8', trip_id: 'trip-spain', type: 'transport', transport_mode: 'train', title: 'Granada → Sevilla', provider: 'Renfe', departure_airport: 'Granada', arrival_airport: 'Sevilla Santa Justa', departure_time: at(1, 9, 12), arrival_time: at(1, 11, 41), departure_tz: MAD, arrival_tz: MAD, seat_number: 'Coach 2 · 7A', confirmation_number: 'RNF9920' }),
