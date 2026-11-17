@@ -116,10 +116,12 @@ let lastPrompt = ''
 let deepseekHangs = false
 const sentMail = [] // what the fake Resend accepted
 let resendDown = false
+let resendThrows = null // an error to throw from the fake Resend
 globalThis.Deno = { env: { get: k => ({ GOOGLE_MAPS_SERVER_KEY: 'fake', DEEPSEEK_API_KEY: 'fake', SUPABASE_URL: 'http://db', RESEND_API_KEY: 're_fake' })[k] } }
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), json = b => new Response(JSON.stringify(b), { status: 200 })
   if (u.includes('api.resend.com')) {
+    if (resendThrows) throw resendThrows
     if (resendDown) return new Response('{}', { status: 500 })
     const b = JSON.parse(init.body); sentMail.push(b); return json({ id: `re_${sentMail.length}` })
   }
@@ -607,6 +609,20 @@ await t('dropped sender: sent to the raw account address (+tag and dots kept), l
   assert.ok(sentMail[0].text.includes('forward from Ann.Lee+stt@fastmail.com,') && sentMail[0].text.includes('again from Ann.Lee+stt@fastmail.com.'))
   assert.equal(db.tables.email_sends[0].email, 'Ann.Lee+stt@fastmail.com')
   await dropFrom(db, 'x@evil-example.test', { profile: { account_email: 'bad address@x.com' } }); assert.equal(sentMail.length, 1, 'an unusable address sends nothing')
+})
+await t('dropped sender: a Resend timeout or network error is logged as failed and counts toward both limits', async () => {
+  const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0
+  try {
+    resendThrows = Object.assign(new Error('timed out'), { name: 'TimeoutError' })
+    const r = await dropFrom(db, 'x@slow-example.test'); assert.equal(r.reason, 'sender', 'the webhook answer is unchanged')
+    resendThrows = new TypeError('fetch failed')
+    await dropFrom(db, 'x@net-example.test')
+    assert.deepEqual(db.tables.email_sends.map(r => [r.status, r.reason, r.campaign]), [['failed', 'timeout', 'inbox_drop:slow-example.test'], ['failed', 'network', 'inbox_drop:net-example.test']])
+    resendThrows = null
+    await dropFrom(db, 'x@slow-example.test'); assert.equal(sentMail.length, 0, 'same domain: no retry for 24 hours')
+    await dropFrom(db, 'x@third-example.test'); assert.equal(sentMail.length, 1, 'third notice still allowed')
+    await dropFrom(db, 'x@fourth-example.test'); assert.equal(sentMail.length, 1, 'failed sends counted toward the cap of 3')
+  } finally { resendThrows = null }
 })
 await t('dropped sender: our own domain and subdomains are skipped, a look-alike is not', async () => {
   const db = makeDb({ switches: { sender_check: true, consent_hold: true } }); sentMail.length = 0

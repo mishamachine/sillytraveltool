@@ -296,17 +296,24 @@ export async function notifyDroppedSender(supabase: any, profile: InboxProfile, 
     const { data: prior } = await supabase.from('email_sends').select('created_at').eq('user_id', profile.id).eq('template_key', DROPPED_TEMPLATE_KEY).eq('campaign', campaign).gte('created_at', since)
     if ((prior || []).length) return
     const { subject, html, text } = droppedSenderEmail({ domain, date: longDate(), accountEmail: to })
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST', signal: AbortSignal.timeout(8000),
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: DROPPED_FROM(), reply_to: DROPPED_REPLY_TO(), to: [to], subject, html, text }),
-    })
-    const out = await res.json().catch(() => ({}))
-    await supabase.from('email_sends').insert({
+    const log = (status: string, reason: string | null, resendId: string | null = null) => supabase.from('email_sends').insert({
       user_id: profile.id, email: to, template_key: DROPPED_TEMPLATE_KEY, kind: 'service', subject,
-      status: res.ok ? 'sent' : 'failed', reason: res.ok ? null : `resend ${res.status}`, resend_id: out?.id ?? null, campaign,
-      created_at: new Date().toISOString(),
+      status, reason, resend_id: resendId, campaign, created_at: new Date().toISOString(),
     })
+    let res: Response
+    try {
+      res = await fetch('https://api.resend.com/emails', {
+        method: 'POST', signal: AbortSignal.timeout(8000),
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: DROPPED_FROM(), reply_to: DROPPED_REPLY_TO(), to: [to], subject, html, text }),
+      })
+    } catch (e) {
+      // A timeout or network error is logged as failed too, so it counts toward both limits
+      await log('failed', (e as Error)?.name === 'TimeoutError' || (e as Error)?.name === 'AbortError' ? 'timeout' : 'network')
+      return
+    }
+    const out = await res.json().catch(() => ({}))
+    await log(res.ok ? 'sent' : 'failed', res.ok ? null : `resend ${res.status}`, out?.id ?? null)
   } catch (e) { console.warn('dropped-sender notice failed', (e as Error)?.message) }
 }
 
