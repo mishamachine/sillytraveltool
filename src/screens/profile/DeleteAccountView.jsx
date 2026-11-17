@@ -3,6 +3,7 @@ import { useAuthStore, useTripsStore } from '../../store'
 import { usePlanStore } from '../../store/planStore'
 import { supabase } from '../../lib/supabase'
 import { track } from '../../lib/analytics'
+import { friendlyDeleteError } from '../../lib/deleteAccountError'
 import { Screen, ScreenHeader, Card, Button, Field, Dialog, Text, Stack, Icon, GooseMark } from '../../ui'
 
 // Account deletion (Apple 5.1.1(v), Google Play): the delete-account Edge Function cancels a website subscription,
@@ -34,7 +35,7 @@ export default function DeleteAccountView({ docCount, cardCount, onBack }) {
     if (err || !data?.deleted) {
       let msg = data?.error
       try { msg = msg || (await err?.context?.json())?.error } catch { /* not JSON */ }
-      setError(msg || 'Couldn’t delete your account. Nothing was deleted; try again.')
+      setError(friendlyDeleteError(msg))
       setBusy(false)
       return
     }
