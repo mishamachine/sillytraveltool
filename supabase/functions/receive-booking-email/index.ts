@@ -10,8 +10,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 //
 // Inbound address scheme:
 //   {12-hex token}@bookings.sillytraveltool.com (server-made; older 8-hex tokens work until rotated)
-// Any sender is read unless the server switch app_settings.inbox.sender_check is on; then only the member's account
-// email, their allowed senders, or anyone if they opted in (ingest.ts inboxSwitches, senderAllowed).
+// Only the member's account email, their allowed senders, or anyone if they opted in are read: the sender check is ON
+// unless app_settings.inbox.sender_check is explicitly false (a missing row or a read error also means ON; see
+// ingest.ts inboxSwitches, senderAllowed). Mail from anyone else is dropped before anything is read or kept.
 // ============================================================
 
 import { CORS, ok, err, ingestEmail } from './ingest.ts'

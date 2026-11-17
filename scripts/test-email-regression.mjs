@@ -57,7 +57,9 @@ const nearestZone = (lat, lng) => {
 }
 
 // ── Minimal in-memory Supabase (as in test-email-match-sim.mjs) ──
-function makeDb({ switches = null } = {}) {
+// `switches` is the app_settings 'inbox' value: by default both explicitly false (the old open behaviour, which most tests
+// below rely on); pass null for NO row at all. Missing row, missing key and read error all mean ON (see inboxSwitches).
+function makeDb({ switches = { sender_check: false, consent_hold: false } } = {}) {
   const tables = { loyalty_cards: [], trips: [], bookings: [], trip_activities: [], trip_collaborators: [], google_cache: [], timezone_cache: [], function_errors: [], held_inbox_emails: [],
     app_settings: switches ? [{ key: 'inbox', value: switches }] : [] }
   let seq = 0
@@ -144,7 +146,7 @@ globalThis.fetch = async (url, init = {}) => {
 
 const dir = mkdtempSync(join(tmpdir(), 'stt-regress-'))
 await build({ entryPoints: [`${root}supabase/functions/receive-booking-email/ingest.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/ingest.mjs`, logLevel: 'error' })
-const { ingestEmail, MAX_READS } = await import(`${dir}/ingest.mjs`)
+const { ingestEmail, inboxSwitches, MAX_READS } = await import(`${dir}/ingest.mjs`)
 await build({ entryPoints: [`${root}supabase/functions/_shared/gemini.ts`], bundle: true, format: 'esm', platform: 'node', outfile: `${dir}/gemini.mjs`, logLevel: 'error' })
 const { geminiFetch } = await import(`${dir}/gemini.mjs`)
 const quiet = async fn => { const log = console.log, warn = console.warn; console.log = console.warn = () => {}; try { return await fn() } finally { console.log = log; console.warn = warn } }
@@ -515,9 +517,9 @@ await t('travellers never reach analytics props (track → analytics_events and 
   }
 })
 
-// ── 5. Server switches: off (absent) = any sender, read on arrival; on = sender check and consent hold ──
-await t('switches off (no app_settings row): a stranger\'s email and a member without AI consent are filed', async () => {
-  const db = makeDb()
+// ── 5. Server switches: ON unless the row says false for that key (a missing row, key or read fails closed) ──
+await t('switches explicitly false in the row: a stranger\'s email and a member without AI consent are filed', async () => {
+  const db = makeDb({ switches: { sender_check: false, consent_hold: false } })
   const a = await send(db, 'E13a', { profile: { ai_consent_at: null } })
   assert.ok(a.booking_id, JSON.stringify(a))
   const b = await send(db, 'E13b', { profile: { ai_consent_at: null } })
@@ -530,6 +532,25 @@ await t('switches on: the stranger is dropped before the AI, and without consent
   assert.equal(a.reason, 'sender'); assert.equal(aiCalls, before)
   const b = await send(db, 'E13b', { profile: { ai_consent_at: null, account_email: 'traveller@example.test' } })
   assert.equal(b.held, true); assert.equal(aiCalls, before); assert.equal(db.tables.bookings.length, 0)
+})
+const bothOn = async (db, label) => {
+  const before = aiCalls
+  assert.deepEqual(await inboxSwitches(db), { sender_check: true, consent_hold: true }, label)
+  const a = await send(db, 'E13a', { profile: { ai_consent_at: '2026-10-29T10:00:00Z' } })
+  assert.equal(a.reason, 'sender', label); assert.equal(aiCalls, before, label)
+  const b = await send(db, 'E13b', { profile: { ai_consent_at: null, account_email: 'traveller@example.test' } })
+  assert.equal(b.held, true, label); assert.equal(aiCalls, before, label); assert.equal(db.tables.bookings.length, 0, label)
+}
+await t('no app_settings row (the live state on 16 Nov 2026): sender check and consent hold are ON', async () => bothOn(makeDb({ switches: null }), 'no row'))
+await t('row present but keys missing or not an object: ON', async () => {
+  await bothOn(makeDb({ switches: {} }), 'empty object')
+  await bothOn(makeDb({ switches: { other: 1 } }), 'unrelated keys')
+  await bothOn(makeDb({ switches: 'off' }), 'string value')
+  await bothOn(makeDb({ switches: { sender_check: 'false', consent_hold: 0 } }), 'non-boolean values are not an explicit false')
+})
+await t('one key false, the other missing: only the false one is off', async () => {
+  assert.deepEqual(await inboxSwitches(makeDb({ switches: { sender_check: false } })), { sender_check: false, consent_hold: true })
+  assert.deepEqual(await inboxSwitches(makeDb({ switches: { consent_hold: false } })), { sender_check: true, consent_hold: false })
 })
 
 // ── 6. The prompt and schema contract ──
@@ -700,13 +721,16 @@ await t('the AI call falls back from DeepSeek to Gemini on a timeout', async () 
     assert.ok(res.ok); assert.equal(aiCalls - before, 1, 'Gemini answered')
   } finally { deepseekHangs = false }
 })
-await t('switches: a read error keeps the last value read', async () => {
-  const db = makeDb({ switches: { sender_check: true, consent_hold: true } })
-  assert.equal((await send(db, 'E13a')).reason, 'sender')
-  const broken = makeDb()
-  broken.from = t => { if (t !== 'app_settings') return makeDb().from(t); return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'down' } }) }) }) } }
-  assert.equal((await send(broken, 'E13a')).reason, 'sender', 'still on after the error')
-  await send(makeDb(), 'E1') // a good read (no row: off) resets it
+await t('switches: a read error fails closed (both ON), even right after a read that said off, and on a cold start', async () => {
+  const brokenFrom = t => { if (t !== 'app_settings') return makeDb().from(t); return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'down' } }) }) }) } }
+  const open = makeDb({ switches: { sender_check: false, consent_hold: false } })
+  assert.deepEqual(await inboxSwitches(open), { sender_check: false, consent_hold: false }, 'a good read says off')
+  const broken = makeDb(); broken.from = brokenFrom
+  assert.deepEqual(await inboxSwitches(broken), { sender_check: true, consent_hold: true }, 'the next read fails: ON, the last value is not kept')
+  assert.equal((await send(broken, 'E13a')).reason, 'sender', 'a stranger is dropped while the settings are unreadable')
+  const thrown = makeDb(); thrown.from = t => { if (t === 'app_settings') throw new Error('network'); return makeDb().from(t) }
+  assert.deepEqual(await inboxSwitches(thrown), { sender_check: true, consent_hold: true }, 'a thrown error is the same')
+  assert.deepEqual(await inboxSwitches(open), { sender_check: false, consent_hold: false }, 'a later good read is believed again')
 })
 
 // ── 9. Round trips with no hotel between the legs (4-14 day gaps), each leg its own email, either order ──

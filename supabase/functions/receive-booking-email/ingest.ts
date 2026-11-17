@@ -295,20 +295,23 @@ async function inboxBudget(supabase: any, userId: string): Promise<boolean> {
 }
 
 /**
- * Server-side switches (app_settings key 'inbox', value { sender_check, consent_hold }), both OFF when the row or a key
- * is absent, which is how the inbox has always worked live: any sender, read on arrival. consent_hold ON holds emails
- * until the member allows AI reading (needs app builds that can ask); sender_check ON drops mail from anyone but the
- * member and their allowed senders. Read once per email; a read error keeps the last value read (OFF on a cold start).
+ * Server-side switches (app_settings key 'inbox', value { sender_check, consent_hold }). Both are ON unless the row
+ * says `false` for that key: a missing row, a missing key, an unreadable row or a read error all mean ON (fail closed).
+ * consent_hold ON holds emails until the member allows AI reading (needs app builds that can ask); sender_check ON
+ * drops mail from anyone but the member and their allowed senders, before anything is read or kept.
+ * To turn one off on purpose, set it to false in the row, e.g. {"sender_check": false, "consent_hold": false}.
+ * Read once per email; nothing is remembered between emails, so a read error never leaves a switch off.
  */
-let lastSwitches = { sender_check: false, consent_hold: false } // a read error keeps the last value read (OFF on a cold start)
 export async function inboxSwitches(supabase: any): Promise<{ sender_check: boolean, consent_hold: boolean }> {
   try {
     const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'inbox').maybeSingle()
     if (error) throw error
-    const v = data?.value || {}
-    lastSwitches = { sender_check: v.sender_check === true, consent_hold: v.consent_hold === true }
-  } catch (e) { console.warn('inbox switches unreadable, keeping the last value', (e as Error)?.message) }
-  return { ...lastSwitches }
+    const v = data?.value && typeof data.value === 'object' ? data.value : {}
+    return { sender_check: v.sender_check !== false, consent_hold: v.consent_hold !== false }
+  } catch (e) {
+    console.warn('inbox switches unreadable, failing closed (sender check and consent hold ON)', (e as Error)?.message)
+    return { sender_check: true, consent_hold: true }
+  }
 }
 
 export async function ingestEmail(supabase: any, profile: InboxProfile, input: Parameters<typeof ingestOne>[2]): Promise<Response> {
