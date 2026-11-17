@@ -9,18 +9,17 @@ export const AI_CONSENT_TITLE = AI_CONSENT.title
 // appear as a tour step (Onboarding.jsx) and as this sheet, opened by useConsentStore().ensure(reason) at the first
 // import or typed translation when the tour step was skipped.
 /** The body wording, shared by the tour step and the sheet. */
-export function AiConsentDetails() {
+export function AiConsentDetails({ showNotNow = true }) {
   const c = AI_CONSENT
+  // The intro ends with the Privacy Policy, shown as a tappable link to the privacy page's AI section
+  const [before, after = ''] = c.intro.split(AI_CONSENT_POLICY_LABEL)
   return (
     <Stack gap={3}>
-      <Text variant="body" tone="secondary" as="p">{c.intro}</Text>
-      <ul className="ai-consent__bullets">
-        {c.bullets.map(b => <li key={b}><Text variant="body" tone="secondary">{b}</Text></li>)}
-      </ul>
       <Text variant="body" tone="secondary" as="p">
-        {c.outro} See our <a href={AI_CONSENT_POLICY_URL} target="_blank" rel="noreferrer">{AI_CONSENT_POLICY_LABEL}</a>. {c.afterPolicy}
+        {before}<a href={AI_CONSENT_POLICY_URL} target="_blank" rel="noreferrer">{AI_CONSENT_POLICY_LABEL}</a>{after}
       </Text>
-      <Text variant="caption" tone="muted" as="p" className="ai-consent__note">{c.notNow}</Text>
+      {c.afterPolicy && <Text variant="body" tone="secondary" as="p">{c.afterPolicy}</Text>}
+      {showNotNow && <Text variant="caption" tone="muted" as="p" className="ai-consent__note">{c.notNow}</Text>}
     </Stack>
   )
 }
@@ -33,12 +32,13 @@ export default function AiConsentSheet() {
       {saveError && <Banner tone="danger" icon="alert-circle" role="alert">{saveError}</Banner>}
       <Button variant="outline" size="lg" block loading={saving} onClick={() => answer(true)}>Allow</Button>
       <Button variant="outline" size="lg" block disabled={saving} onClick={() => answer(false)}>Not now</Button>
+      <Text variant="caption" tone="muted" as="p" align="center" className="ai-consent__note">{AI_CONSENT.notNow}</Text>
     </Stack>
   )
   return (
     <Sheet title={AI_CONSENT_TITLE} onClose={() => !saving && answer(false)} footer={footer} className="ai-consent">
       <Stack gap={4}>
-        <AiConsentDetails />
+        <AiConsentDetails showNotNow={false} />
       </Stack>
     </Sheet>
   )
