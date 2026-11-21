@@ -222,7 +222,7 @@ function NumberGroup({ title, k, value = {}, fields, hint, isOwner, onSave, bare
 const RATE_FIELDS = [['ai_call', 'AI call, flat ($)'], ['guide_section', 'Guide section, flat ($)'], ['supabase_monthly', 'Supabase a month ($)'], ['hosting_monthly', 'Hosting a month ($)']]
 const PRICE_FIELDS = [['input', 'in'], ['cached_input', 'cached in'], ['output', 'out']]
 // Models DeepSeek or Gemini have answered with; a model without its own price is charged at its provider's default
-const SEEN_MODELS = ['deepseek-flash']
+const SEEN_MODELS = ['deepseek-flash', 'gemini-3.5-flash-lite']
 
 function RatesGroup({ rates = {}, isOwner, onSave, updated }) {
   const g = rates.google || {}
