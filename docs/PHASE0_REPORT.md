@@ -20,7 +20,7 @@ Migration `phase0_security_and_stats` applied; Edge Functions deployed:
 | gemini-proxy | v9 | 410 tombstone (C1) — delete when convenient: `supabase functions delete gemini-proxy` |
 | receive-booking-email | v27 | Svix signature required, From: fallback removed (C2) |
 | check-badges | v13 | JWT user only, `unlocked_at`, checked inserts, real Ocean Crosser (C4) |
-| generate-guide / -checklist / -phrases, goosey-discover, parse-booking-email | v19 / v11 / v11 / v11 / v18 | Shared Gemini helper (gemini-2.5-flash, fallback gemini-flash-latest), 25s timeout, input caps |
+| generate-guide / -checklist / -phrases, goosey-discover, parse-booking-email | v19 / v11 / v11 / v11 / v18 | Shared Gemini helper (gemini-3.5-flash-lite since 21 Nov 2026, was gemini-2.5-flash; fallback gemini-flash-latest), 25s timeout, input caps |
 | send-invite | v12 | HTML escaping, stored trip name, viewer/collaborator only, email check, 20/hour |
 | accept-invite | v4 | Bound to the invited email |
 
@@ -48,7 +48,7 @@ Rollback material: `supabase/backups/2026-10-21-pre-phase0.md`.
 - **C2** `receive-booking-email` → verifies the Resend/Svix signature (HMAC-SHA256, 5-minute replay window); only the recipient token maps to a user.
 - **C3** `trip_collaborators` → owner-only select/insert/update/delete via an RLS-safe `is_trip_owner()` helper (no trips↔collaborators recursion); role `owner` can't be inserted; invitees can read and leave, not edit. Broken `collabs_select` dropped.
 - **C4** `increment_user_stat` → caller's own row only, only `honks_used` / `currency_lookups` / `packing_completed`; `get_user_id_by_email` server-only; trigger functions not API-callable; `check-badges` uses the JWT user only.
-- **AI** → `_shared/gemini.ts`: model from `GEMINI_MODEL` (default `gemini-2.5-flash`) with 404 fallback to `gemini-flash-latest`, 25s timeout, key in header, JSON mode, thinking off for 2.5.
+- **AI** → `_shared/gemini.ts`: model from `GEMINI_MODEL` (default `gemini-3.5-flash-lite`; was `gemini-2.5-flash` until its 1 Dec 2026 shutdown) with 404 fallback to `gemini-flash-latest`, 25s timeout, key in header, JSON mode, thinking off for 2.5.
 - **Stats/badges** → one `recompute_user_stats()` derives everything from trips/bookings/activities/badges, fired by triggers; one goose_score formula (badge points included); a trip counts as completed once `end_date < today` unless cancelled.
 
 ## Android

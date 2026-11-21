@@ -1,5 +1,6 @@
 // Shared AI caller for all AI Edge Functions (DeepSeek first, Gemini fallback; see geminiFetch).
-// - Model comes from the GEMINI_MODEL secret (default gemini-2.5-flash); on a 404
+// - Model comes from the GEMINI_MODEL secret (default gemini-3.5-flash-lite, Google's named
+//   replacement for gemini-2.5-flash, which shuts down 1 Dec 2026); on a 404
 //   (model retired) it retries once on the gemini-flash-latest alias so the app
 //   doesn't go dark again the way it did when gemini-2.0-flash was shut down.
 // - Hard timeout so the client never hangs; a timeout returns a 504 Response.
@@ -9,7 +10,7 @@
 import { logAiCall, setRequestUser } from './usage.ts'
 import { quotaUnavailable, rememberQuota } from './quota.ts'
 
-const PRIMARY_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash'
+const PRIMARY_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash-lite'
 const FALLBACK_MODEL = 'gemini-flash-latest'
 const DEEPSEEK_MODEL = Deno.env.get('DEEPSEEK_MODEL') || 'deepseek-chat'
 
